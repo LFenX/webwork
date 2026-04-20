@@ -71,14 +71,14 @@ export function JobsClient() {
     const params = new URLSearchParams()
     if (search) params.set("q", search)
     if (filterStatus !== "全部") params.set("status", filterStatus)
-    const res = await fetch(`/api/jobs?${params}`)
+    const res = await fetch(`/api/jobs?${params}`, { cache: "no-store" })
     const data = await res.json()
     setJobs(data)
     setLoading(false)
   }, [search, filterStatus])
 
   const fetchStats = useCallback(async () => {
-    const res = await fetch("/api/jobs/stats")
+    const res = await fetch("/api/jobs/stats", { cache: "no-store" })
     const data = await res.json()
     setStats(data)
   }, [])
