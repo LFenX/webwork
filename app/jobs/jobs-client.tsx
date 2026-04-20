@@ -1,0 +1,401 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { toast } from "sonner"
+import { Plus, Trash2, Search, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { StatusBadge } from "@/components/status-badge"
+import { StatsCard } from "@/components/stats-card"
+import { EmptyState } from "@/components/empty-state"
+import { SimpleBarChart } from "@/components/charts/bar-chart"
+import { SimpleLineChart } from "@/components/charts/line-chart"
+import { JOB_STATUS, JOB_CHANNELS } from "@/lib/enums"
+
+interface Job {
+  id: string
+  company: string
+  position: string
+  channel: string
+  appliedAt: string
+  status: string
+  notes?: string | null
+  _count?: { interviews: number }
+}
+
+interface Stats {
+  total: number
+  replyRate: number
+  interviewRate: number
+  offerRate: number
+  statusDist: { name: string; value: number }[]
+  monthlyTrend: { name: string; value: number }[]
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  "已投递": "#9A9A9A",
+  "已回复": "#B8902D",
+  "进入面试": "#0969DA",
+  "已拒绝": "#A8463A",
+  "已Offer": "#3A7D5C",
+  "已接受": "#3A7D5C",
+  "已放弃": "#D4D1C7",
+}
+
+const defaultForm = {
+  company: "",
+  position: "",
+  channel: "Boss直聘",
+  appliedAt: new Date().toISOString().slice(0, 10),
+  status: "已投递",
+  notes: "",
+}
+
+export function JobsClient() {
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
+  const [filterStatus, setFilterStatus] = useState("全部")
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingJob, setEditingJob] = useState<Job | null>(null)
+  const [form, setForm] = useState(defaultForm)
+  const [saving, setSaving] = useState(false)
+
+  const fetchJobs = useCallback(async () => {
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (search) params.set("q", search)
+    if (filterStatus !== "全部") params.set("status", filterStatus)
+    const res = await fetch(`/api/jobs?${params}`)
+    const data = await res.json()
+    setJobs(data)
+    setLoading(false)
+  }, [search, filterStatus])
+
+  const fetchStats = useCallback(async () => {
+    const res = await fetch("/api/jobs/stats")
+    const data = await res.json()
+    setStats(data)
+  }, [])
+
+  useEffect(() => {
+    fetchJobs()
+    fetchStats()
+  }, [fetchJobs, fetchStats])
+
+  function openCreate() {
+    setEditingJob(null)
+    setForm(defaultForm)
+    setDialogOpen(true)
+  }
+
+  function openEdit(job: Job) {
+    setEditingJob(job)
+    setForm({
+      company: job.company,
+      position: job.position,
+      channel: job.channel,
+      appliedAt: new Date(job.appliedAt).toISOString().slice(0, 10),
+      status: job.status,
+      notes: job.notes ?? "",
+    })
+    setDialogOpen(true)
+  }
+
+  async function handleSave() {
+    if (!form.company || !form.position) {
+      toast.error("公司名称和职位不能为空")
+      return
+    }
+    setSaving(true)
+    try {
+      const body = { ...form, appliedAt: new Date(form.appliedAt).toISOString() }
+      if (editingJob) {
+        await fetch(`/api/jobs/${editingJob.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+        toast.success("已更新")
+      } else {
+        await fetch("/api/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+        toast.success("已添加")
+      }
+      setDialogOpen(false)
+      fetchJobs()
+      fetchStats()
+    } catch {
+      toast.error("操作失败，请重试")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("确认删除这条记录？")) return
+    await fetch(`/api/jobs/${id}`, { method: "DELETE" })
+    toast.success("已删除")
+    fetchJobs()
+    fetchStats()
+  }
+
+  async function handleStatusChange(id: string, status: string) {
+    await fetch(`/api/jobs/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    })
+    fetchJobs()
+    fetchStats()
+  }
+
+  const statusDist = stats?.statusDist.map((d) => ({
+    ...d,
+    color: STATUS_COLORS[d.name] ?? "#9A9A9A",
+  })) ?? []
+
+  return (
+    <div className="max-w-[1200px] mx-auto px-6 py-10">
+      <div className="mb-8">
+        <h1 className="text-xl font-semibold mb-1">求职追踪</h1>
+        <p className="text-sm text-[--color-text-muted]">记录每一次投递，追踪求职进度</p>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <section className="mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <StatsCard title="累计投递" value={stats.total} sub="家公司" />
+            <StatsCard
+              title="回复率"
+              value={`${stats.replyRate}%`}
+              sub={stats.replyRate > 50 ? "↑ 还不错" : "继续加油"}
+              trend={stats.replyRate > 50 ? "up" : "neutral"}
+            />
+            <StatsCard title="面试转化率" value={`${stats.interviewRate}%`} sub="进入面试" />
+            <StatsCard
+              title="Offer 率"
+              value={`${stats.offerRate}%`}
+              trend={stats.offerRate > 0 ? "up" : "neutral"}
+            />
+          </div>
+
+          {stats.total > 0 && (
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
+                <p className="text-xs text-[--color-text-muted] mb-3">按状态分布</p>
+                <SimpleBarChart data={statusDist} height={Math.max(120, statusDist.length * 32)} />
+              </div>
+              {stats.monthlyTrend.length > 1 && (
+                <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
+                  <p className="text-xs text-[--color-text-muted] mb-3">按月投递趋势</p>
+                  <SimpleLineChart data={stats.monthlyTrend} height={180} />
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[--color-text-muted]" />
+          <Input
+            placeholder="搜索公司或职位..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 h-8 text-sm border-[--color-border]"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[--color-text-muted] hover:text-[--color-text-primary]">
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="h-8 w-32 text-sm border-[--color-border]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="全部">全部状态</SelectItem>
+            {JOB_STATUS.map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button size="sm" onClick={openCreate} className="h-8 gap-1.5">
+          <Plus size={14} /> 新建记录
+        </Button>
+      </div>
+
+      {/* Table */}
+      <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] overflow-hidden">
+        {loading ? (
+          <div className="py-16 text-center text-sm text-[--color-text-muted]">加载中...</div>
+        ) : jobs.length === 0 ? (
+          <EmptyState
+            title="暂无投递记录"
+            description="点击右上角「新建记录」开始追踪你的求职进度"
+            action={{ label: "新建记录", onClick: openCreate }}
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-[--color-border-strong] bg-[--color-bg-hover]">
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[120px]">公司</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted]">职位</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[80px]">渠道</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[90px] font-mono">投递日期</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[110px]">状态</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[50px] font-mono">面试</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted]">备注</th>
+                  <th className="px-4 py-2.5 w-[60px]"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((job) => (
+                  <tr
+                    key={job.id}
+                    className="border-b border-[--color-border] hover:bg-[--color-bg-hover] transition-colors cursor-pointer group"
+                    onClick={() => openEdit(job)}
+                  >
+                    <td className="px-4 py-3 font-medium">{job.company}</td>
+                    <td className="px-4 py-3 text-[--color-text-secondary]">{job.position}</td>
+                    <td className="px-4 py-3 text-xs text-[--color-text-muted] font-mono">{job.channel}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-[--color-text-muted]">
+                      {new Date(job.appliedAt).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })}
+                    </td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <Select value={job.status} onValueChange={(v) => handleStatusChange(job.id, v)}>
+                        <SelectTrigger className="h-6 border-0 bg-transparent p-0 w-auto gap-1 focus:ring-0 shadow-none">
+                          <StatusBadge status={job.status} type="job" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {JOB_STATUS.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-center text-[--color-text-muted]">
+                      {job._count?.interviews ?? 0}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[--color-text-muted] max-w-[160px] truncate">
+                      {job.notes}
+                    </td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleDelete(job.id)}
+                        className="opacity-0 group-hover:opacity-100 text-[--color-text-muted] hover:text-[--color-danger] transition-all p-1"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Total */}
+      {jobs.length > 0 && (
+        <p className="text-xs text-[--color-text-muted] mt-2 font-mono">{jobs.length} 条记录</p>
+      )}
+
+      {/* Create/Edit dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingJob ? "编辑投递记录" : "新建投递记录"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">公司 *</Label>
+                <Input
+                  value={form.company}
+                  onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
+                  placeholder="公司名称"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">职位 *</Label>
+                <Input
+                  value={form.position}
+                  onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))}
+                  placeholder="职位名称"
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">渠道</Label>
+                <Select value={form.channel} onValueChange={(v) => setForm((f) => ({ ...f, channel: v }))}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {JOB_CHANNELS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">投递日期</Label>
+                <Input
+                  type="date"
+                  value={form.appliedAt}
+                  onChange={(e) => setForm((f) => ({ ...f, appliedAt: e.target.value }))}
+                  className="h-8 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">状态</Label>
+                <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">备注</Label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                placeholder="内推人、岗位来源、注意事项..."
+                className="text-sm resize-none"
+                rows={2}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>取消</Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? "保存中..." : "保存"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

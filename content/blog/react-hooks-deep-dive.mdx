@@ -1,0 +1,47 @@
+---
+title: React Hooks 原理深入
+date: 2026-04-15
+tags: [React, 前端, 原理]
+summary: 从源码角度理解 useState、useEffect 的工作机制。
+---
+
+## useState 的本质
+
+`useState` 在 React 内部维护了一个链表结构，每次渲染时按顺序取出对应的 state。这就是为什么 Hooks 不能在条件语句中使用——顺序必须保持一致。
+
+```js
+// 伪代码
+let currentHook = null
+
+function useState(initialValue) {
+  const hook = currentHook ?? { state: initialValue, queue: [] }
+  currentHook = hook.next
+  return [hook.state, dispatch.bind(null, hook)]
+}
+```
+
+## useEffect 的执行时机
+
+- **layout effect（useLayoutEffect）**：DOM 更新后、浏览器绘制前同步执行
+- **passive effect（useEffect）**：浏览器绘制后异步执行
+
+大多数场景用 `useEffect` 就够了，只有需要同步读取 DOM 布局信息时才用 `useLayoutEffect`。
+
+## 依赖数组的陷阱
+
+```js
+// 错误：每次渲染都是新对象，导致无限循环
+useEffect(() => {
+  fetch(url, options)
+}, [options])  // options 是对象引用
+
+// 正确：拆分或 useMemo
+const stableOptions = useMemo(() => ({ method: "GET" }), [])
+useEffect(() => {
+  fetch(url, stableOptions)
+}, [url, stableOptions])
+```
+
+## 总结
+
+Hooks 的设计哲学是把副作用与渲染逻辑显式地分离，但需要开发者理解其内部机制才能用好。

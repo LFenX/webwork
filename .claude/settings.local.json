@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --app --eslint --no-src-dir --import-alias \"@/*\" --yes)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --app --eslint --no-src-dir --import-alias \"@/*\" --yes --force)",
+      "Bash(npm install *)",
+      "Bash(npx shadcn@latest init --yes --base-color neutral)",
+      "Bash(node --loader ts-node/esm prisma/seed.ts)",
+      "Bash(npx ts-node *)",
+      "Bash(npx tsx *)",
+      "Bash(npx prisma *)",
+      "Bash(node *)",
+      "Bash(node -e \"const s = require\\('better-sqlite3'\\); const db = s\\('./dev.db'\\); console.log\\(db.prepare\\(\\\\\"SELECT name FROM sqlite_master WHERE type='table'\\\\\"\\).all\\(\\)\\)\")",
+      "Bash(sqlite3 D:/appmy/webappwork/dev.db \".tables\")",
+      "Bash(sqlite3 D:/appmy/webappwork/prisma/dev.db \".tables\")",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000/blog)",
+      "Bash(curl -s http://localhost:3000/jobs)",
+      "Bash(curl -s http://localhost:3000/interviews)",
+      "Bash(curl -s http://localhost:3000/api/jobs)",
+      "Bash(python -m json.tool)",
+      "Bash(git remote *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
