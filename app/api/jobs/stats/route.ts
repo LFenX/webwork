@@ -2,9 +2,6 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { format } from "date-fns"
 
-export const dynamic = "force-dynamic"
-export const revalidate = 0
-
 export async function GET() {
   const jobs = await prisma.jobApplication.findMany({
     orderBy: { appliedAt: "asc" },
@@ -42,20 +39,15 @@ export async function GET() {
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([name, value]) => ({ name: name.slice(5), value }))
 
-  return NextResponse.json(
-    {
-      total,
-      replied,
-      replyRate,
-      hasInterview,
-      interviewRate,
-      offers,
-      offerRate,
-      statusDist,
-      monthlyTrend,
-    },
-    {
-      headers: { "Cache-Control": "no-store, max-age=0" },
-    }
-  )
+  return NextResponse.json({
+    total,
+    replied,
+    replyRate,
+    hasInterview,
+    interviewRate,
+    offers,
+    offerRate,
+    statusDist,
+    monthlyTrend,
+  })
 }
