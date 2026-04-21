@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { updateInterviewSchema } from "@/lib/validators"
 
+export const dynamic = "force-dynamic"
+const NO_STORE = { "Cache-Control": "no-store" }
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,7 +20,7 @@ export async function PATCH(
   if (scheduledAt) data.scheduledAt = new Date(scheduledAt)
 
   const record = await prisma.interviewRecord.update({ where: { id }, data })
-  return NextResponse.json(record)
+  return NextResponse.json(record, { headers: NO_STORE })
 }
 
 export async function DELETE(
@@ -26,5 +29,5 @@ export async function DELETE(
 ) {
   const { id } = await params
   await prisma.interviewRecord.delete({ where: { id } })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true }, { headers: NO_STORE })
 }

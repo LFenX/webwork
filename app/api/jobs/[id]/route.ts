@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { updateJobSchema } from "@/lib/validators"
 
+export const dynamic = "force-dynamic"
+
+const NO_STORE = { "Cache-Control": "no-store" }
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const job = await prisma.jobApplication.findUnique({
+    where: { id },
+    include: { _count: { select: { interviews: true } } },
+  })
+  if (!job) return NextResponse.json({ error: "未找到" }, { status: 404 })
+  return NextResponse.json(job, { headers: NO_STORE })
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,7 +34,7 @@ export async function PATCH(
   if (appliedAt) data.appliedAt = new Date(appliedAt)
 
   const job = await prisma.jobApplication.update({ where: { id }, data })
-  return NextResponse.json(job)
+  return NextResponse.json(job, { headers: NO_STORE })
 }
 
 export async function DELETE(
@@ -26,5 +43,5 @@ export async function DELETE(
 ) {
   const { id } = await params
   await prisma.jobApplication.delete({ where: { id } })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true }, { headers: NO_STORE })
 }

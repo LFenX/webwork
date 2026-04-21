@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 
+export const dynamic = "force-dynamic"
+const NO_STORE = { "Cache-Control": "no-store" }
+
 export async function GET() {
   const interviews = await prisma.interviewRecord.findMany({
     orderBy: { scheduledAt: "asc" },
@@ -45,5 +48,5 @@ export async function GET() {
     roundDist,
     formatDist,
     companyDist,
-  })
+  }, { headers: NO_STORE })
 }

@@ -2,6 +2,10 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { format } from "date-fns"
 
+export const dynamic = "force-dynamic"
+
+const NO_STORE = { "Cache-Control": "no-store" }
+
 export async function GET() {
   const jobs = await prisma.jobApplication.findMany({
     orderBy: { appliedAt: "asc" },
@@ -49,5 +53,5 @@ export async function GET() {
     offerRate,
     statusDist,
     monthlyTrend,
-  })
+  }, { headers: NO_STORE })
 }

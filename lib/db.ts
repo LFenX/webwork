@@ -1,7 +1,13 @@
 import { PrismaLibSql } from "@prisma/adapter-libsql"
 import { PrismaClient } from "@/app/generated/prisma/client"
 
-const globalForPrisma = globalThis as unknown as { prisma: InstanceType<typeof PrismaClient> }
+// Version key — bump this whenever schema changes to invalidate the HMR-cached instance
+const SCHEMA_VERSION = "v2-post-resume-settings"
+
+const g = globalThis as unknown as {
+  prisma?: InstanceType<typeof PrismaClient>
+  prismaSchemaVersion?: string
+}
 
 function createPrisma() {
   const adapter = new PrismaLibSql({ url: "file:./dev.db" })
@@ -9,6 +15,9 @@ function createPrisma() {
   return new PrismaClient({ adapter } as any)
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrisma()
+if (g.prismaSchemaVersion !== SCHEMA_VERSION) {
+  g.prisma = createPrisma()
+  g.prismaSchemaVersion = SCHEMA_VERSION
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
+export const prisma = g.prisma!

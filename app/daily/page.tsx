@@ -1,10 +1,11 @@
 import Link from "next/link"
 import { getPosts } from "@/lib/mdx"
+import { Plus } from "lucide-react"
 
 export const metadata = { title: "日常 — My Space" }
 
-export default function DailyPage() {
-  const posts = getPosts("daily")
+export default async function DailyPage() {
+  const posts = await getPosts("daily")
 
   const grouped = posts.reduce<Record<string, typeof posts>>((acc, post) => {
     const ym = post.date?.slice(0, 7) ?? "未知"
@@ -16,15 +17,21 @@ export default function DailyPage() {
 
   return (
     <div className="max-w-[800px] mx-auto px-6 py-10">
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold mb-1">日常</h1>
-        <p className="text-sm text-[--color-text-muted]">{posts.length} 篇记录</p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold mb-1">日常</h1>
+          <p className="text-sm text-[--color-text-muted]">{posts.length} 篇记录</p>
+        </div>
+        <Link
+          href="/daily/new"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[--color-text-primary] text-white rounded-[--radius-sm] hover:no-underline hover:opacity-90 transition-opacity"
+        >
+          <Plus size={13} /> 新建
+        </Link>
       </div>
 
       {months.length === 0 ? (
-        <p className="text-sm text-[--color-text-muted]">
-          在 <code className="text-xs bg-[--color-bg-hover] px-1 py-0.5 rounded">content/daily/</code> 中添加 .mdx 文件。
-        </p>
+        <p className="text-sm text-[--color-text-muted]">还没有日常记录，点击右上角新建。</p>
       ) : (
         <div className="space-y-8">
           {months.map((ym) => (

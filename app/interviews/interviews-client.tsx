@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { Plus, Trash2, Star, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/empty-state"
 import { SimplePieChart } from "@/components/charts/pie-chart"
 import { SimpleBarChart } from "@/components/charts/bar-chart"
 import { INTERVIEW_ROUNDS, INTERVIEW_FORMATS, INTERVIEW_RESULTS } from "@/lib/enums"
+import { apiFetch, apiPost, apiPatch, apiDelete } from "@/lib/api-client"
 
 interface Interview {
   id: string
@@ -84,19 +85,30 @@ export function InterviewsClient() {
   const [detailItem, setDetailItem] = useState<Interview | null>(null)
   const [form, setForm] = useState(defaultForm)
   const [saving, setSaving] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    const [iRes, sRes] = await Promise.all([
-      fetch("/api/interviews"),
-      fetch("/api/interviews/stats"),
-    ])
-    setInterviews(await iRes.json())
-    setStats(await sRes.json())
-    setLoading(false)
-  }, [])
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      try {
+        const [iData, sData] = await Promise.all([
+          apiFetch<Interview[]>(`/api/interviews?_t=${Date.now()}`),
+          apiFetch<Stats>(`/api/interviews/stats?_t=${Date.now()}`),
+        ])
+        if (!cancelled) {
+          setInterviews(iData)
+          setStats(sData)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [refreshKey])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  function triggerRefresh() { setRefreshKey(k => k + 1) }
 
   function openCreate() {
     setEditingInterview(null)
@@ -141,22 +153,13 @@ export function InterviewsClient() {
         jobId: form.jobId || null,
       }
       if (editingInterview) {
-        await fetch(`/api/interviews/${editingInterview.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        })
-        toast.success("已更新")
+        await apiPatch(`/api/interviews/${editingInterview.id}`, body)
       } else {
-        await fetch("/api/interviews", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        })
-        toast.success("已添加")
+        await apiPost("/api/interviews", body)
       }
       setDialogOpen(false)
-      fetchData()
+      toast.success(editingInterview ? "已更新" : "已添加")
+      triggerRefresh()
     } catch {
       toast.error("操作失败")
     } finally {
@@ -166,9 +169,9 @@ export function InterviewsClient() {
 
   async function handleDelete(id: string) {
     if (!confirm("确认删除这条面试记录？")) return
-    await fetch(`/api/interviews/${id}`, { method: "DELETE" })
+    await apiDelete(`/api/interviews/${id}`)
     toast.success("已删除")
-    fetchData()
+    triggerRefresh()
   }
 
   return (

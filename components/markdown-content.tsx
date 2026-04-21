@@ -1,4 +1,8 @@
-import { MDXRemote } from "next-mdx-remote/rsc"
+"use client"
+
+import dynamic from "next/dynamic"
+
+const MDPreview = dynamic(() => import("@uiw/react-markdown-preview"), { ssr: false })
 
 interface MarkdownContentProps {
   source: string
@@ -6,8 +10,8 @@ interface MarkdownContentProps {
 
 export function MarkdownContent({ source }: MarkdownContentProps) {
   return (
-    <div className="prose">
-      <MDXRemote source={source} />
+    <div data-color-mode="light">
+      <MDPreview source={source} wrapperElement={{ "data-color-mode": "light" }} />
     </div>
   )
 }

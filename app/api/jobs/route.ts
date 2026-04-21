@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { createJobSchema } from "@/lib/validators"
 
+export const dynamic = "force-dynamic"
+
+const NO_STORE = { "Cache-Control": "no-store" }
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const status = searchParams.get("status")
@@ -28,7 +32,7 @@ export async function GET(req: NextRequest) {
     orderBy: { appliedAt: "desc" },
     include: { _count: { select: { interviews: true } } },
   })
-  return NextResponse.json(jobs)
+  return NextResponse.json(jobs, { headers: NO_STORE })
 }
 
 export async function POST(req: NextRequest) {
@@ -41,5 +45,5 @@ export async function POST(req: NextRequest) {
   const job = await prisma.jobApplication.create({
     data: { ...rest, appliedAt: new Date(appliedAt) },
   })
-  return NextResponse.json(job, { status: 201 })
+  return NextResponse.json(job, { status: 201, headers: NO_STORE })
 }

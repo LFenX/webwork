@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { createInterviewSchema } from "@/lib/validators"
 
+export const dynamic = "force-dynamic"
+const NO_STORE = { "Cache-Control": "no-store" }
+
 export async function GET() {
   const interviews = await prisma.interviewRecord.findMany({
     orderBy: { scheduledAt: "desc" },
     include: { job: { select: { company: true, position: true } } },
   })
-  return NextResponse.json(interviews)
+  return NextResponse.json(interviews, { headers: NO_STORE })
 }
 
 export async function POST(req: NextRequest) {
@@ -20,5 +23,5 @@ export async function POST(req: NextRequest) {
   const record = await prisma.interviewRecord.create({
     data: { ...rest, scheduledAt: new Date(scheduledAt) },
   })
-  return NextResponse.json(record, { status: 201 })
+  return NextResponse.json(record, { status: 201, headers: NO_STORE })
 }

@@ -52,3 +52,13 @@ export const INTERVIEW_RESULT_COLORS: Record<string, string> = {
   通过: "bg-[--color-success-bg] text-[--color-success]",
   未通过: "bg-[--color-danger-bg] text-[--color-danger]",
 }
+
+export const POST_TYPES = ["blog", "daily", "reflections", "notes"] as const
+export type PostType = (typeof POST_TYPES)[number]
+
+export const POST_TYPE_LABELS: Record<string, string> = {
+  blog: "博客",
+  daily: "日常",
+  reflections: "心得",
+  notes: "笔记",
+}

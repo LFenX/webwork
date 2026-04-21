@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { SettingsDialog } from "@/components/settings-dialog"
 
 const NAV_ITEMS = [
   { href: "/", label: "首页" },
@@ -10,11 +11,17 @@ const NAV_ITEMS = [
   { href: "/blog", label: "博客" },
   { href: "/daily", label: "日常" },
   { href: "/reflections", label: "心得" },
+  { href: "/notes", label: "笔记" },
   { href: "/jobs", label: "求职" },
   { href: "/interviews", label: "面试" },
 ]
 
-export function SiteHeader() {
+interface SiteHeaderProps {
+  ownerName?: string
+  heroTagline?: string
+}
+
+export function SiteHeader({ ownerName = "LFen", heroTagline = "" }: SiteHeaderProps) {
   const pathname = usePathname()
 
   return (
@@ -24,9 +31,9 @@ export function SiteHeader() {
           href="/"
           className="font-semibold text-[--color-text-primary] text-sm tracking-tight hover:no-underline shrink-0"
         >
-          My Space
+          {ownerName}
         </Link>
-        <nav className="flex items-center gap-1 overflow-x-auto">
+        <nav className="flex items-center gap-1 overflow-x-auto flex-1">
           {NAV_ITEMS.map((item) => {
             const isActive =
               item.href === "/"
@@ -48,6 +55,7 @@ export function SiteHeader() {
             )
           })}
         </nav>
+        <SettingsDialog ownerName={ownerName} heroTagline={heroTagline} />
       </div>
     </header>
   )

@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import { Plus, Trash2, Search, X } from "lucide-react"
+import { Plus, Trash2, Search, X, ExternalLink, Eye, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
@@ -15,6 +16,7 @@ import { EmptyState } from "@/components/empty-state"
 import { SimpleBarChart } from "@/components/charts/bar-chart"
 import { SimpleLineChart } from "@/components/charts/line-chart"
 import { JOB_STATUS, JOB_CHANNELS } from "@/lib/enums"
+import { apiFetch, apiPost, apiPatch, apiDelete } from "@/lib/api-client"
 
 interface Job {
   id: string
@@ -24,6 +26,9 @@ interface Job {
   appliedAt: string
   status: string
   notes?: string | null
+  baseLocation?: string | null
+  hrContact?: string | null
+  link?: string | null
   _count?: { interviews: number }
 }
 
@@ -53,6 +58,9 @@ const defaultForm = {
   appliedAt: new Date().toISOString().slice(0, 10),
   status: "已投递",
   notes: "",
+  baseLocation: "",
+  hrContact: "",
+  link: "",
 }
 
 export function JobsClient() {
@@ -62,31 +70,38 @@ export function JobsClient() {
   const [search, setSearch] = useState("")
   const [filterStatus, setFilterStatus] = useState("全部")
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
   const [editingJob, setEditingJob] = useState<Job | null>(null)
+  const [detailJob, setDetailJob] = useState<Job | null>(null)
   const [form, setForm] = useState(defaultForm)
   const [saving, setSaving] = useState(false)
-
-  const fetchJobs = useCallback(async () => {
-    setLoading(true)
-    const params = new URLSearchParams()
-    if (search) params.set("q", search)
-    if (filterStatus !== "全部") params.set("status", filterStatus)
-    const res = await fetch(`/api/jobs?${params}`)
-    const data = await res.json()
-    setJobs(data)
-    setLoading(false)
-  }, [search, filterStatus])
-
-  const fetchStats = useCallback(async () => {
-    const res = await fetch("/api/jobs/stats")
-    const data = await res.json()
-    setStats(data)
-  }, [])
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
-    fetchJobs()
-    fetchStats()
-  }, [fetchJobs, fetchStats])
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      try {
+        const params = new URLSearchParams()
+        if (search) params.set("q", search)
+        if (filterStatus !== "全部") params.set("status", filterStatus)
+        const [jobsData, statsData] = await Promise.all([
+          apiFetch<Job[]>(`/api/jobs?${params.toString()}&_t=${Date.now()}`),
+          apiFetch<Stats>(`/api/jobs/stats?_t=${Date.now()}`),
+        ])
+        if (!cancelled) {
+          setJobs(jobsData)
+          setStats(statsData)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [search, filterStatus, refreshKey])
+
+  function triggerRefresh() { setRefreshKey(k => k + 1) }
 
   function openCreate() {
     setEditingJob(null)
@@ -94,7 +109,13 @@ export function JobsClient() {
     setDialogOpen(true)
   }
 
+  function openDetail(job: Job) {
+    setDetailJob(job)
+    setDetailOpen(true)
+  }
+
   function openEdit(job: Job) {
+    setDetailOpen(false)
     setEditingJob(job)
     setForm({
       company: job.company,
@@ -103,6 +124,9 @@ export function JobsClient() {
       appliedAt: new Date(job.appliedAt).toISOString().slice(0, 10),
       status: job.status,
       notes: job.notes ?? "",
+      baseLocation: job.baseLocation ?? "",
+      hrContact: job.hrContact ?? "",
+      link: job.link ?? "",
     })
     setDialogOpen(true)
   }
@@ -114,25 +138,21 @@ export function JobsClient() {
     }
     setSaving(true)
     try {
-      const body = { ...form, appliedAt: new Date(form.appliedAt).toISOString() }
+      const body = {
+        ...form,
+        appliedAt: new Date(form.appliedAt).toISOString(),
+        baseLocation: form.baseLocation || null,
+        hrContact: form.hrContact || null,
+        link: form.link || null,
+      }
       if (editingJob) {
-        await fetch(`/api/jobs/${editingJob.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        })
-        toast.success("已更新")
+        await apiPatch(`/api/jobs/${editingJob.id}`, body)
       } else {
-        await fetch("/api/jobs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        })
-        toast.success("已添加")
+        await apiPost("/api/jobs", body)
       }
       setDialogOpen(false)
-      fetchJobs()
-      fetchStats()
+      toast.success(editingJob ? "已更新" : "已添加")
+      triggerRefresh()
     } catch {
       toast.error("操作失败，请重试")
     } finally {
@@ -140,22 +160,17 @@ export function JobsClient() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: string, closeSheet = false) {
     if (!confirm("确认删除这条记录？")) return
-    await fetch(`/api/jobs/${id}`, { method: "DELETE" })
+    await apiDelete(`/api/jobs/${id}`)
+    if (closeSheet) setDetailOpen(false)
     toast.success("已删除")
-    fetchJobs()
-    fetchStats()
+    triggerRefresh()
   }
 
   async function handleStatusChange(id: string, status: string) {
-    await fetch(`/api/jobs/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    })
-    fetchJobs()
-    fetchStats()
+    await apiPatch(`/api/jobs/${id}`, { status })
+    triggerRefresh()
   }
 
   const statusDist = stats?.statusDist.map((d) => ({
@@ -260,9 +275,11 @@ export function JobsClient() {
                   <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[80px]">渠道</th>
                   <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[90px] font-mono">投递日期</th>
                   <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[110px]">状态</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[50px] font-mono">面试</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[70px]">BASE</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[70px] font-mono">面试</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[60px]">链接</th>
                   <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted]">备注</th>
-                  <th className="px-4 py-2.5 w-[60px]"></th>
+                  <th className="px-4 py-2.5 w-[70px]"></th>
                 </tr>
               </thead>
               <tbody>
@@ -270,7 +287,7 @@ export function JobsClient() {
                   <tr
                     key={job.id}
                     className="border-b border-[--color-border] hover:bg-[--color-bg-hover] transition-colors cursor-pointer group"
-                    onClick={() => openEdit(job)}
+                    onClick={() => openDetail(job)}
                   >
                     <td className="px-4 py-3 font-medium">{job.company}</td>
                     <td className="px-4 py-3 text-[--color-text-secondary]">{job.position}</td>
@@ -290,19 +307,51 @@ export function JobsClient() {
                         </SelectContent>
                       </Select>
                     </td>
+                    <td className="px-4 py-3 text-xs text-[--color-text-muted]">{job.baseLocation || "—"}</td>
                     <td className="px-4 py-3 font-mono text-xs text-center text-[--color-text-muted]">
                       {job._count?.interviews ?? 0}
                     </td>
-                    <td className="px-4 py-3 text-xs text-[--color-text-muted] max-w-[160px] truncate">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      {job.link ? (
+                        <a
+                          href={job.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-[--color-link] hover:underline flex items-center gap-0.5"
+                        >
+                          投递页 <ExternalLink size={10} />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-[--color-text-muted]">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[--color-text-muted] max-w-[140px] truncate">
                       {job.notes}
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => handleDelete(job.id)}
-                        className="opacity-0 group-hover:opacity-100 text-[--color-text-muted] hover:text-[--color-danger] transition-all p-1"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => openDetail(job)}
+                          className="p-1 text-[--color-text-muted] hover:text-[--color-link]"
+                          title="查看"
+                        >
+                          <Eye size={13} />
+                        </button>
+                        <button
+                          onClick={() => openEdit(job)}
+                          className="p-1 text-[--color-text-muted] hover:text-[--color-text-primary]"
+                          title="编辑"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(job.id)}
+                          className="p-1 text-[--color-text-muted] hover:text-[--color-danger]"
+                          title="删除"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -312,10 +361,75 @@ export function JobsClient() {
         )}
       </div>
 
-      {/* Total */}
       {jobs.length > 0 && (
         <p className="text-xs text-[--color-text-muted] mt-2 font-mono">{jobs.length} 条记录</p>
       )}
+
+      {/* Detail sheet */}
+      <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          {detailJob && (
+            <>
+              <SheetHeader className="mb-4">
+                <SheetTitle>{detailJob.company}</SheetTitle>
+                <p className="text-sm text-[--color-text-secondary]">{detailJob.position}</p>
+              </SheetHeader>
+              <div className="space-y-4 text-sm">
+                <StatusBadge status={detailJob.status} type="job" />
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+                  <div>
+                    <span className="text-[--color-text-muted] block mb-0.5">渠道</span>
+                    <span>{detailJob.channel}</span>
+                  </div>
+                  <div>
+                    <span className="text-[--color-text-muted] block mb-0.5">投递日期</span>
+                    <span className="font-mono">{new Date(detailJob.appliedAt).toLocaleDateString("zh-CN")}</span>
+                  </div>
+                  <div>
+                    <span className="text-[--color-text-muted] block mb-0.5">BASE 地</span>
+                    <span>{detailJob.baseLocation || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[--color-text-muted] block mb-0.5">HR 联系</span>
+                    <span>{detailJob.hrContact || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[--color-text-muted] block mb-0.5">关联面试</span>
+                    <span className="font-mono">{detailJob._count?.interviews ?? 0} 轮</span>
+                  </div>
+                  {detailJob.link && (
+                    <div>
+                      <span className="text-[--color-text-muted] block mb-0.5">投递链接</span>
+                      <a
+                        href={detailJob.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[--color-link] hover:underline flex items-center gap-0.5"
+                      >
+                        打开投递页 <ExternalLink size={10} />
+                      </a>
+                    </div>
+                  )}
+                </div>
+                {detailJob.notes && (
+                  <div>
+                    <span className="text-[--color-text-muted] text-xs block mb-1">备注</span>
+                    <p className="text-sm bg-[--color-bg-hover] rounded p-2 border border-[--color-border]">{detailJob.notes}</p>
+                  </div>
+                )}
+                <div className="flex gap-2 pt-2">
+                  <Button size="sm" variant="outline" onClick={() => openEdit(detailJob)} className="gap-1.5">
+                    <Pencil size={13} /> 编辑
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleDelete(detailJob.id, true)} className="gap-1.5 text-[--color-danger] hover:text-[--color-danger]">
+                    <Trash2 size={13} /> 删除
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Create/Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -348,9 +462,7 @@ export function JobsClient() {
               <div>
                 <Label className="text-xs mb-1 block">渠道</Label>
                 <Select value={form.channel} onValueChange={(v) => setForm((f) => ({ ...f, channel: v }))}>
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {JOB_CHANNELS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
@@ -368,14 +480,41 @@ export function JobsClient() {
               <div>
                 <Label className="text-xs mb-1 block">状态</Label>
                 <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">BASE 地</Label>
+                <Input
+                  value={form.baseLocation}
+                  onChange={(e) => setForm((f) => ({ ...f, baseLocation: e.target.value }))}
+                  placeholder="如：北京、上海、远程"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">HR 联系</Label>
+                <Input
+                  value={form.hrContact}
+                  onChange={(e) => setForm((f) => ({ ...f, hrContact: e.target.value }))}
+                  placeholder="姓名 / 微信 / 电话"
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">投递链接</Label>
+              <Input
+                value={form.link}
+                onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
+                placeholder="https://..."
+                className="h-8 text-sm font-mono"
+              />
             </div>
             <div>
               <Label className="text-xs mb-1 block">备注</Label>
