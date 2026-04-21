@@ -1,10 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { SettingsDialog } from "@/components/settings-dialog"
-import type { SessionPayload } from "@/lib/session"
 import { Users, LogOut, LogIn } from "lucide-react"
 
 const NAV_ITEMS = [
@@ -26,12 +25,10 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ ownerName = "LFen", heroTagline = "", session }: SiteHeaderProps) {
   const pathname = usePathname()
-  const router = useRouter()
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" })
-    router.push("/login")
-    router.refresh()
+    window.location.assign("/login")
   }
 
   return (

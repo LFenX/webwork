@@ -22,7 +22,8 @@ export async function PATCH(
     return NextResponse.json({ error: "无效请求" }, { status: 404, headers: NO_STORE })
   }
 
-  const { action } = await req.json()
+  const body = await req.json().catch(() => null)
+  const action = body?.action
   if (action !== "accept" && action !== "reject") {
     return NextResponse.json({ error: "action 必须是 accept 或 reject" }, { status: 400, headers: NO_STORE })
   }
@@ -72,6 +73,9 @@ export async function DELETE(
   if (request) {
     if (request.fromUserId !== session.userId) {
       return NextResponse.json({ error: "无权操作" }, { status: 403, headers: NO_STORE })
+    }
+    if (request.status !== "pending") {
+      return NextResponse.json({ error: "只能取消待处理的好友请求" }, { status: 409, headers: NO_STORE })
     }
     await prisma.friendRequest.update({ where: { id }, data: { status: "canceled" } })
     return NextResponse.json({ ok: true }, { headers: NO_STORE })

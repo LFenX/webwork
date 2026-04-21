@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation"
-import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { getPost } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"

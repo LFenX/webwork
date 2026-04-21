@@ -4,8 +4,7 @@ import { requireAuth } from "@/lib/auth"
 import { MarkdownContent } from "@/components/markdown-content"
 import { ArticleLayout } from "@/components/article-layout"
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params
+export async function generateMetadata() {
   return { title: `笔记 — My Space` }
 }
 

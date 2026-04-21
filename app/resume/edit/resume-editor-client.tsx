@@ -36,7 +36,6 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
       if (!res.ok) throw new Error()
       toast.success("简历已保存")
       router.push("/resume")
-      router.refresh()
     } catch {
       toast.error("保存失败")
     } finally {
@@ -55,7 +54,6 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
       setPdfPath(data.pdfPath)
       setMode("pdf")
       toast.success("PDF 已上传")
-      router.refresh()
     } catch {
       toast.error("上传失败")
     } finally {
@@ -75,7 +73,6 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
       if (!res.ok) throw new Error()
       toast.success("已切换至 PDF 展示模式")
       router.push("/resume")
-      router.refresh()
     } catch {
       toast.error("保存失败")
     } finally {

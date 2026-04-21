@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useTransition } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { UserPlus, UserMinus, Check, X, Clock, Users } from "lucide-react"
@@ -21,6 +21,24 @@ interface FriendRequest {
   createdAt: string
 }
 
+async function fetchFriendData() {
+  const responses = await Promise.all([
+    fetch("/api/friends", { cache: "no-store" }),
+    fetch("/api/friend-requests?direction=received", { cache: "no-store" }),
+    fetch("/api/friend-requests?direction=sent", { cache: "no-store" }),
+  ])
+  if (responses.some((res) => !res.ok)) {
+    throw new Error("Failed to load friends")
+  }
+
+  const [friends, received, sent] = await Promise.all(responses.map((res) => res.json()))
+  return {
+    friends: Array.isArray(friends) ? friends : [],
+    received: Array.isArray(received) ? received : [],
+    sent: Array.isArray(sent) ? sent : [],
+  }
+}
+
 export function FriendsClient() {
   const [friends, setFriends] = useState<Friend[]>([])
   const [received, setReceived] = useState<FriendRequest[]>([])
@@ -28,26 +46,47 @@ export function FriendsClient() {
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [, startTransition] = useTransition()
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [fr, recv, snt] = await Promise.all([
-        fetch("/api/friends", { cache: "no-store" }).then((r) => r.json()),
-        fetch("/api/friend-requests?direction=received", { cache: "no-store" }).then((r) => r.json()),
-        fetch("/api/friend-requests?direction=sent", { cache: "no-store" }).then((r) => r.json()),
-      ])
-      setFriends(Array.isArray(fr) ? fr : [])
-      setReceived(Array.isArray(recv) ? recv : [])
-      setSent(Array.isArray(snt) ? snt : [])
+      const data = await fetchFriendData()
+      startTransition(() => {
+        setFriends(data.friends)
+        setReceived(data.received)
+        setSent(data.sent)
+      })
     } catch {
-      toast.error("加载失败")
+      toast.error("加载好友数据失败")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [startTransition])
 
-  useEffect(() => { loadAll() }, [loadAll])
+  useEffect(() => {
+    let active = true
+
+    fetchFriendData()
+      .then((data) => {
+        if (!active) return
+        startTransition(() => {
+          setFriends(data.friends)
+          setReceived(data.received)
+          setSent(data.sent)
+        })
+      })
+      .catch(() => {
+        if (active) toast.error("加载好友数据失败")
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [startTransition])
 
   async function handleSendRequest() {
     if (!email.trim()) return
@@ -56,7 +95,7 @@ export function FriendsClient() {
       const res = await fetch("/api/friend-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       })
       const data = await res.json()
       if (!res.ok) {

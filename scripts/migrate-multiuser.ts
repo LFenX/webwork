@@ -284,11 +284,11 @@ async function main() {
 
   // ── 10. Write admin ID to .env ───────────────────────────────────────────────
   const fs = await import("fs")
-  const envPath = "./. env"
+  const envPath = "./.env"
   let envContent = ""
-  try { envContent = fs.readFileSync("./.env", "utf8") } catch { /* new file */ }
+  try { envContent = fs.readFileSync(envPath, "utf8") } catch { /* new file */ }
   if (!envContent.includes("ADMIN_USER_ID")) {
-    fs.appendFileSync("./.env", `\nADMIN_USER_ID="${adminId}"\n`)
+    fs.appendFileSync(envPath, `\nADMIN_USER_ID="${adminId}"\n`)
     console.log(`✓  ADMIN_USER_ID=${adminId} written to .env`)
   }
 

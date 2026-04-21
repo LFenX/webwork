@@ -1,13 +1,13 @@
 import { z } from "zod"
 
 export const registerSchema = z.object({
-  email: z.string().email("请输入有效的邮箱地址"),
+  email: z.string().trim().toLowerCase().email("请输入有效的邮箱地址"),
   password: z.string().min(8, "密码至少 8 位"),
-  displayName: z.string().min(1, "昵称不能为空").max(50),
+  displayName: z.string().trim().min(1, "昵称不能为空").max(50),
 })
 
 export const loginSchema = z.object({
-  email: z.string().email("请输入有效的邮箱地址"),
+  email: z.string().trim().toLowerCase().email("请输入有效的邮箱地址"),
   password: z.string().min(1, "请输入密码"),
 })
 

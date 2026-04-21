@@ -39,10 +39,11 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "未登录" }, { status: 401, headers: NO_STORE })
 
-  const { email } = await req.json()
+  const body = await req.json().catch(() => null)
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
   if (!email) return NextResponse.json({ error: "请输入邮箱" }, { status: 400, headers: NO_STORE })
 
-  if (email === session.email) {
+  if (email === session.email.toLowerCase()) {
     return NextResponse.json({ error: "不能向自己发送好友请求" }, { status: 400, headers: NO_STORE })
   }
 
@@ -77,14 +78,18 @@ export async function POST(req: NextRequest) {
         where: { id: reverseReq.id },
         data: { status: "accepted", respondedAt: now },
       }),
-      prisma.friendship.create({ data: { userAId: a, userBId: b } }),
+      prisma.friendship.upsert({
+        where: { userAId_userBId: { userAId: a, userBId: b } },
+        update: {},
+        create: { userAId: a, userBId: b },
+      }),
     ])
     return NextResponse.json({ message: "对方已向你发出请求，已自动成为好友" }, { headers: NO_STORE })
   }
 
   const request = await prisma.friendRequest.upsert({
     where: { fromUserId_toUserId: { fromUserId: session.userId, toUserId: target.id } },
-    update: { status: "pending" },
+    update: { status: "pending", respondedAt: null, createdAt: new Date() },
     create: { fromUserId: session.userId, toUserId: target.id },
   })
 
