@@ -1,9 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { SettingsDialog } from "@/components/settings-dialog"
+import type { SessionPayload } from "@/lib/session"
+import { Users, LogOut, LogIn } from "lucide-react"
 
 const NAV_ITEMS = [
   { href: "/", label: "首页" },
@@ -19,10 +21,18 @@ const NAV_ITEMS = [
 interface SiteHeaderProps {
   ownerName?: string
   heroTagline?: string
+  session?: { userId: string; email: string } | null
 }
 
-export function SiteHeader({ ownerName = "LFen", heroTagline = "" }: SiteHeaderProps) {
+export function SiteHeader({ ownerName = "LFen", heroTagline = "", session }: SiteHeaderProps) {
   const pathname = usePathname()
+  const router = useRouter()
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" })
+    router.push("/login")
+    router.refresh()
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-[--color-border] bg-[--color-bg-primary]/95 backdrop-blur-sm">
@@ -33,29 +43,64 @@ export function SiteHeader({ ownerName = "LFen", heroTagline = "" }: SiteHeaderP
         >
           {ownerName}
         </Link>
-        <nav className="flex items-center gap-1 overflow-x-auto flex-1">
-          {NAV_ITEMS.map((item) => {
-            const isActive =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href)
-            return (
+
+        {session ? (
+          <>
+            <nav className="flex items-center gap-1 overflow-x-auto flex-1">
+              {NAV_ITEMS.map((item) => {
+                const isActive =
+                  item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "px-3 py-1 rounded-[--radius-sm] text-sm transition-colors duration-150 hover:no-underline whitespace-nowrap",
+                      isActive
+                        ? "bg-[--color-text-primary] text-[--color-bg-surface]"
+                        : "text-[--color-text-secondary] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </nav>
+
+            <div className="flex items-center gap-2 shrink-0">
               <Link
-                key={item.href}
-                href={item.href}
+                href="/friends"
                 className={cn(
-                  "px-3 py-1 rounded-[--radius-sm] text-sm transition-colors duration-150 hover:no-underline whitespace-nowrap",
-                  isActive
+                  "inline-flex items-center gap-1 px-2 py-1 rounded-[--radius-sm] text-sm transition-colors hover:no-underline",
+                  pathname === "/friends"
                     ? "bg-[--color-text-primary] text-[--color-bg-surface]"
-                    : "text-[--color-text-secondary] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+                    : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"
                 )}
+                title="好友"
               >
-                {item.label}
+                <Users size={13} />
               </Link>
-            )
-          })}
-        </nav>
-        <SettingsDialog ownerName={ownerName} heroTagline={heroTagline} />
+              <SettingsDialog ownerName={ownerName} heroTagline={heroTagline} />
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-[--radius-sm] text-sm text-[--color-text-muted] hover:text-[--color-text-primary] hover:bg-[--color-bg-hover] transition-colors"
+                title="退出登录"
+              >
+                <LogOut size={13} />
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex-1" />
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-sm text-[--color-text-secondary] hover:text-[--color-text-primary] hover:no-underline"
+            >
+              <LogIn size={13} /> 登录
+            </Link>
+          </>
+        )}
       </div>
     </header>
   )

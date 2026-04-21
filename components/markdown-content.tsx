@@ -1,8 +1,6 @@
-"use client"
-
-import dynamic from "next/dynamic"
-
-const MDPreview = dynamic(() => import("@uiw/react-markdown-preview"), { ssr: false })
+import Markdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+import rehypeRaw from "rehype-raw"
 
 interface MarkdownContentProps {
   source: string
@@ -10,8 +8,10 @@ interface MarkdownContentProps {
 
 export function MarkdownContent({ source }: MarkdownContentProps) {
   return (
-    <div data-color-mode="light">
-      <MDPreview source={source} wrapperElement={{ "data-color-mode": "light" }} />
+    <div className="prose">
+      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+        {source}
+      </Markdown>
     </div>
   )
 }

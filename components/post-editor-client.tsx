@@ -72,7 +72,7 @@ export function PostEditorClient({ mode, type, typeLabel, initialData }: PostEdi
         if (!res.ok) throw new Error()
         const post = await res.json()
         toast.success("已创建")
-        router.push(`${base}/${post.slug}`)
+        router.push(`${base}/${encodeURIComponent(post.slug)}`)
       } else if (initialData) {
         const res = await fetch(`/api/posts/${initialData.id}`, {
           method: "PATCH",
@@ -82,8 +82,7 @@ export function PostEditorClient({ mode, type, typeLabel, initialData }: PostEdi
         })
         if (!res.ok) throw new Error()
         toast.success("已保存")
-        router.refresh()
-        router.push(`${base}/${initialData.slug}`)
+        router.push(`${base}/${encodeURIComponent(initialData.slug)}`)
       }
     } catch {
       toast.error("保存失败，请重试")
@@ -100,7 +99,6 @@ export function PostEditorClient({ mode, type, typeLabel, initialData }: PostEdi
       await fetch(`/api/posts/${initialData.id}`, { method: "DELETE", cache: "no-store" })
       toast.success("已删除")
       router.push(base)
-      router.refresh()
     } catch {
       toast.error("删除失败")
     } finally {

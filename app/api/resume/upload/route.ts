@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { getSession } from "@/lib/session"
 import path from "path"
 import fs from "fs"
 
@@ -8,6 +9,9 @@ export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
 
 export async function POST(req: NextRequest) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401, headers: NO_STORE })
+
   const formData = await req.formData()
   const file = formData.get("file") as File | null
   if (!file || file.type !== "application/pdf") {
@@ -23,9 +27,9 @@ export async function POST(req: NextRequest) {
 
   const pdfPath = "/uploads/resume.pdf"
   await prisma.resume.upsert({
-    where: { id: "singleton" },
+    where: { userId: session.userId },
     update: { mode: "pdf", pdfPath },
-    create: { id: "singleton", mode: "pdf", pdfPath },
+    create: { userId: session.userId, mode: "pdf", pdfPath },
   })
   revalidatePath("/resume")
   return NextResponse.json({ ok: true, pdfPath }, { headers: NO_STORE })

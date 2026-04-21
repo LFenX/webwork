@@ -6,11 +6,20 @@ const adapter = new PrismaLibSql({ url: "file:./dev.db" })
 const prisma = new PrismaClient({ adapter } as any)
 
 async function main() {
-  await prisma.interviewRecord.deleteMany()
-  await prisma.jobApplication.deleteMany()
+  // Seed requires an existing user — find the first user or skip
+  const user = await prisma.user.findFirst()
+  if (!user) {
+    console.log("No users found. Run migrate-multiuser script first.")
+    return
+  }
+  const userId = user.id
+
+  await prisma.interviewRecord.deleteMany({ where: { userId } })
+  await prisma.jobApplication.deleteMany({ where: { userId } })
 
   const job1 = await prisma.jobApplication.create({
     data: {
+      userId,
       company: "字节跳动",
       position: "前端工程师",
       channel: "Boss直聘",
@@ -22,6 +31,7 @@ async function main() {
 
   const job2 = await prisma.jobApplication.create({
     data: {
+      userId,
       company: "阿里巴巴",
       position: "React 开发工程师",
       channel: "官网",
@@ -33,6 +43,7 @@ async function main() {
 
   await prisma.jobApplication.create({
     data: {
+      userId,
       company: "腾讯",
       position: "高级前端工程师",
       channel: "内推",
@@ -44,6 +55,7 @@ async function main() {
 
   await prisma.jobApplication.create({
     data: {
+      userId,
       company: "美团",
       position: "全栈工程师",
       channel: "拉勾",
@@ -54,6 +66,7 @@ async function main() {
 
   await prisma.jobApplication.create({
     data: {
+      userId,
       company: "网易",
       position: "前端开发",
       channel: "Boss直聘",
@@ -64,6 +77,7 @@ async function main() {
 
   await prisma.interviewRecord.create({
     data: {
+      userId,
       jobId: job1.id,
       company: "字节跳动",
       position: "前端工程师",
@@ -80,6 +94,7 @@ async function main() {
 
   await prisma.interviewRecord.create({
     data: {
+      userId,
       jobId: job1.id,
       company: "字节跳动",
       position: "前端工程师",
@@ -95,6 +110,7 @@ async function main() {
 
   await prisma.interviewRecord.create({
     data: {
+      userId,
       jobId: job2.id,
       company: "阿里巴巴",
       position: "React 开发工程师",

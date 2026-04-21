@@ -1,12 +1,11 @@
-export const dynamic = "force-dynamic"
-
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { Toaster } from "@/components/ui/sonner"
-import { prisma } from "@/lib/db"
+import { getOptionalSession } from "@/lib/auth"
+import { getSiteSettings } from "@/lib/mdx"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,22 +17,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 })
 
-const DEFAULT_SETTINGS = { ownerName: "LFen", heroTagline: "这里是我的个人空间，记录博客、日常、心得，以及正在进行中的求职旅程。" }
-
-async function getSettings() {
-  try {
-    return await prisma.siteSettings.upsert({
-      where: { id: "singleton" },
-      update: {},
-      create: { id: "singleton" },
-    })
-  } catch {
-    return DEFAULT_SETTINGS
-  }
-}
+const DEFAULT_SETTINGS = { ownerName: "My Space", heroTagline: "" }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const settings = await getSettings()
+  const session = await getOptionalSession()
+  const settings = session ? await getSiteSettings(session.userId) : DEFAULT_SETTINGS
   return {
     title: `${settings.ownerName} 的空间`,
     description: settings.heroTagline,
@@ -45,7 +33,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const settings = await getSettings()
+  const session = await getOptionalSession()
+  const settings = session ? await getSiteSettings(session.userId) : DEFAULT_SETTINGS
 
   return (
     <html
@@ -53,7 +42,11 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
     >
       <body className="min-h-full flex flex-col antialiased">
-        <SiteHeader ownerName={settings.ownerName} heroTagline={settings.heroTagline} />
+        <SiteHeader
+          ownerName={settings.ownerName}
+          heroTagline={settings.heroTagline}
+          session={session}
+        />
         <main className="flex-1">{children}</main>
         <SiteFooter />
         <Toaster position="bottom-right" />

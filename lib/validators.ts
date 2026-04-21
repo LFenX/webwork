@@ -1,5 +1,19 @@
 import { z } from "zod"
 
+export const registerSchema = z.object({
+  email: z.string().email("请输入有效的邮箱地址"),
+  password: z.string().min(8, "密码至少 8 位"),
+  displayName: z.string().min(1, "昵称不能为空").max(50),
+})
+
+export const loginSchema = z.object({
+  email: z.string().email("请输入有效的邮箱地址"),
+  password: z.string().min(1, "请输入密码"),
+})
+
+export type RegisterInput = z.infer<typeof registerSchema>
+export type LoginInput = z.infer<typeof loginSchema>
+
 export const createJobSchema = z.object({
   company: z.string().min(1, "公司名称不能为空"),
   position: z.string().min(1, "职位不能为空"),
@@ -38,6 +52,7 @@ export const createPostSchema = z.object({
   tags: z.array(z.string()).optional().default([]),
   content: z.string().default(""),
   date: z.string().datetime().or(z.string().date()).optional(),
+  visibility: z.enum(["private", "friends", "public"]).optional().default("private"),
 })
 
 export const updatePostSchema = createPostSchema.omit({ type: true, slug: true }).partial()

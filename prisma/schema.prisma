@@ -7,8 +7,60 @@ datasource db {
   provider = "sqlite"
 }
 
+// ─── Users & Auth ────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String   @default("")
+  bio          String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  posts        Post[]
+  jobs         JobApplication[]
+  interviews   InterviewRecord[]
+  resume       Resume?
+  settings     SiteSettings?
+
+  sentRequests     FriendRequest[] @relation("sent")
+  receivedRequests FriendRequest[] @relation("received")
+  friendshipsA     Friendship[]    @relation("a")
+  friendshipsB     Friendship[]    @relation("b")
+}
+
+model FriendRequest {
+  id          String    @id @default(cuid())
+  fromUserId  String
+  toUserId    String
+  from        User      @relation("sent",     fields: [fromUserId], references: [id], onDelete: Cascade)
+  to          User      @relation("received", fields: [toUserId],   references: [id], onDelete: Cascade)
+  status      String    @default("pending")
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId, status])
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  userA     User     @relation("a", fields: [userAId], references: [id], onDelete: Cascade)
+  userB     User     @relation("b", fields: [userBId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userAId, userBId])
+}
+
+// ─── Content ─────────────────────────────────────────────────────────────────
+
 model JobApplication {
   id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   company      String
   position     String
   channel      String    @default("其他")
@@ -22,10 +74,14 @@ model JobApplication {
   interviews   InterviewRecord[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
 }
 
 model InterviewRecord {
   id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobId        String?
   job          JobApplication? @relation(fields: [jobId], references: [id], onDelete: SetNull)
   company      String
@@ -40,26 +96,32 @@ model InterviewRecord {
   feedback     String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+
+  @@index([userId])
 }
 
 model Post {
-  id        String   @id @default(cuid())
-  type      String
-  slug      String
-  title     String
-  summary   String   @default("")
-  tags      String   @default("[]")
-  content   String   @default("")
-  date      DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String
+  slug       String
+  title      String
+  summary    String   @default("")
+  tags       String   @default("[]")
+  content    String   @default("")
+  visibility String   @default("private")
+  date       DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  @@unique([type, slug])
-  @@index([type, date])
+  @@unique([userId, type, slug])
+  @@index([userId, type, date])
 }
 
 model Resume {
-  id        String   @id @default("singleton")
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   mode      String   @default("markdown")
   content   String   @default("")
   pdfPath   String?
@@ -67,7 +129,8 @@ model Resume {
 }
 
 model SiteSettings {
-  id          String   @id @default("singleton")
+  userId      String   @id
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   ownerName   String   @default("LFen")
   heroTagline String   @default("这里是我的个人空间，记录博客、日常、心得，以及正在进行中的求职旅程。")
   updatedAt   DateTime @updatedAt

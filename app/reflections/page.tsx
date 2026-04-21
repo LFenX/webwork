@@ -1,11 +1,13 @@
 import Link from "next/link"
 import { getPosts } from "@/lib/mdx"
+import { requireAuth } from "@/lib/auth"
 import { Plus } from "lucide-react"
 
 export const metadata = { title: "心得 — My Space" }
 
 export default async function ReflectionsPage() {
-  const posts = await getPosts("reflections")
+  const { userId } = await requireAuth()
+  const posts = await getPosts("reflections", userId)
   const allTags = Array.from(new Set(posts.flatMap((p) => p.tags ?? [])))
 
   return (
@@ -43,7 +45,7 @@ export default async function ReflectionsPage() {
           {posts.map((post) => (
             <Link
               key={post.slug}
-              href={`/reflections/${post.slug}`}
+              href={`/reflections/${encodeURIComponent(post.slug)}`}
               className="block group hover:no-underline"
             >
               <div className="flex items-start gap-4 py-4 border-b border-[--color-border]">

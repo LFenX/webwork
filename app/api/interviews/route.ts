@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { createInterviewSchema } from "@/lib/validators"
+import { getSession } from "@/lib/session"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
 
 export async function GET() {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401, headers: NO_STORE })
+
   const interviews = await prisma.interviewRecord.findMany({
+    where: { userId: session.userId },
     orderBy: { scheduledAt: "desc" },
     include: { job: { select: { company: true, position: true } } },
   })
@@ -14,6 +19,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401, headers: NO_STORE })
+
   const body = await req.json()
   const parsed = createInterviewSchema.safeParse(body)
   if (!parsed.success) {
@@ -21,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
   const { scheduledAt, ...rest } = parsed.data
   const record = await prisma.interviewRecord.create({
-    data: { ...rest, scheduledAt: new Date(scheduledAt) },
+    data: { ...rest, userId: session.userId, scheduledAt: new Date(scheduledAt) },
   })
   return NextResponse.json(record, { status: 201, headers: NO_STORE })
 }

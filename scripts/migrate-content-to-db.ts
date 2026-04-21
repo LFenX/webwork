@@ -1,6 +1,7 @@
 /**
  * One-time script: reads MDX files from content/ and inserts them into the DB.
  * Run: npx tsx scripts/migrate-content-to-db.ts
+ * Requires at least one user to exist (created by migrate-multiuser.ts).
  */
 import fs from "fs"
 import path from "path"
@@ -14,7 +15,7 @@ const prisma = new PrismaClient({ adapter } as any)
 
 const contentRoot = path.join(process.cwd(), "content")
 
-async function migrateType(type: "blog" | "daily" | "reflections") {
+async function migrateType(type: "blog" | "daily" | "reflections", userId: string) {
   const dir = path.join(contentRoot, type)
   if (!fs.existsSync(dir)) return
 
@@ -29,15 +30,15 @@ async function migrateType(type: "blog" | "daily" | "reflections") {
     const date = data.date ? new Date(String(data.date)) : new Date()
 
     await prisma.post.upsert({
-      where: { type_slug: { type, slug } },
+      where: { userId_type_slug: { userId, type, slug } },
       update: { title, summary, tags, content, date },
-      create: { type, slug, title, summary, tags, content, date },
+      create: { userId, type, slug, title, summary, tags, content, date },
     })
     console.log(`✓ ${type}/${slug}`)
   }
 }
 
-async function migrateResume() {
+async function migrateResume(userId: string) {
   const mdxPath = path.join(contentRoot, "resume.mdx")
   const mdPath = path.join(contentRoot, "resume.md")
   const p = fs.existsSync(mdxPath) ? mdxPath : fs.existsSync(mdPath) ? mdPath : null
@@ -47,28 +48,36 @@ async function migrateResume() {
   const { content } = matter(raw)
 
   await prisma.resume.upsert({
-    where: { id: "singleton" },
+    where: { userId },
     update: { content, mode: "markdown" },
-    create: { id: "singleton", content, mode: "markdown" },
+    create: { userId, content, mode: "markdown" },
   })
   console.log("✓ resume")
 }
 
-async function initSettings() {
+async function initSettings(userId: string) {
   await prisma.siteSettings.upsert({
-    where: { id: "singleton" },
+    where: { userId },
     update: {},
-    create: { id: "singleton" },
+    create: { userId },
   })
   console.log("✓ site settings initialized")
 }
 
 async function main() {
-  await migrateType("blog")
-  await migrateType("daily")
-  await migrateType("reflections")
-  await migrateResume()
-  await initSettings()
+  const user = await prisma.user.findFirst()
+  if (!user) {
+    console.error("No users found. Run migrate-multiuser.ts first.")
+    process.exit(1)
+  }
+  const userId = user.id
+  console.log(`Migrating content for user: ${user.email} (${userId})`)
+
+  await migrateType("blog", userId)
+  await migrateType("daily", userId)
+  await migrateType("reflections", userId)
+  await migrateResume(userId)
+  await initSettings(userId)
   console.log("\n✅ Migration complete")
 }
 

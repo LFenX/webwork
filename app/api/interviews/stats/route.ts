@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { getSession } from "@/lib/session"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
 
 export async function GET() {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401, headers: NO_STORE })
+
   const interviews = await prisma.interviewRecord.findMany({
+    where: { userId: session.userId },
     orderBy: { scheduledAt: "asc" },
   })
 
@@ -15,38 +20,23 @@ export async function GET() {
   const pending = interviews.filter((i) => i.result === "待定").length
   const passRate = total > 0 ? Math.round((passed / total) * 100) : 0
 
-  // By round
   const roundCount: Record<string, number> = {}
-  interviews.forEach((i) => {
-    roundCount[i.round] = (roundCount[i.round] ?? 0) + 1
-  })
+  interviews.forEach((i) => { roundCount[i.round] = (roundCount[i.round] ?? 0) + 1 })
   const roundDist = Object.entries(roundCount).map(([name, value]) => ({ name, value }))
 
-  // By format
   const formatCount: Record<string, number> = {}
-  interviews.forEach((i) => {
-    formatCount[i.format] = (formatCount[i.format] ?? 0) + 1
-  })
+  interviews.forEach((i) => { formatCount[i.format] = (formatCount[i.format] ?? 0) + 1 })
   const formatDist = Object.entries(formatCount).map(([name, value]) => ({ name, value }))
 
-  // By company
   const companyCount: Record<string, number> = {}
-  interviews.forEach((i) => {
-    companyCount[i.company] = (companyCount[i.company] ?? 0) + 1
-  })
+  interviews.forEach((i) => { companyCount[i.company] = (companyCount[i.company] ?? 0) + 1 })
   const companyDist = Object.entries(companyCount)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 8)
     .map(([name, value]) => ({ name, value }))
 
-  return NextResponse.json({
-    total,
-    passed,
-    failed,
-    pending,
-    passRate,
-    roundDist,
-    formatDist,
-    companyDist,
-  }, { headers: NO_STORE })
+  return NextResponse.json(
+    { total, passed, failed, pending, passRate, roundDist, formatDist, companyDist },
+    { headers: NO_STORE }
+  )
 }

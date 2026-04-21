@@ -1,11 +1,13 @@
 import Link from "next/link"
 import { getPosts } from "@/lib/mdx"
+import { requireAuth } from "@/lib/auth"
 import { Plus } from "lucide-react"
 
 export const metadata = { title: "日常 — My Space" }
 
 export default async function DailyPage() {
-  const posts = await getPosts("daily")
+  const { userId } = await requireAuth()
+  const posts = await getPosts("daily", userId)
 
   const grouped = posts.reduce<Record<string, typeof posts>>((acc, post) => {
     const ym = post.date?.slice(0, 7) ?? "未知"
@@ -41,7 +43,7 @@ export default async function DailyPage() {
                 {grouped[ym].map((post) => (
                   <Link
                     key={post.slug}
-                    href={`/daily/${post.slug}`}
+                    href={`/daily/${encodeURIComponent(post.slug)}`}
                     className="block group hover:no-underline"
                   >
                     <div className="flex items-start gap-4 py-3 border-b border-[--color-border]">

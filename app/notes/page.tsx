@@ -1,11 +1,13 @@
 import Link from "next/link"
 import { getPosts } from "@/lib/mdx"
+import { requireAuth } from "@/lib/auth"
 import { Plus } from "lucide-react"
 
 export const metadata = { title: "笔记 — My Space" }
 
 export default async function NotesPage() {
-  const posts = await getPosts("notes")
+  const { userId } = await requireAuth()
+  const posts = await getPosts("notes", userId)
   const allTags = Array.from(new Set(posts.flatMap((p) => p.tags ?? [])))
 
   return (
@@ -38,7 +40,7 @@ export default async function NotesPage() {
       ) : (
         <div className="space-y-0">
           {posts.map((post) => (
-            <Link key={post.slug} href={`/notes/${post.slug}`} className="block group hover:no-underline">
+            <Link key={post.slug} href={`/notes/${encodeURIComponent(post.slug)}`} className="block group hover:no-underline">
               <div className="flex items-start gap-4 py-4 border-b border-[--color-border]">
                 <span className="font-mono text-xs text-[--color-text-muted] mt-0.5 shrink-0 w-[6rem] pt-0.5">
                   {post.date?.slice(0, 10)}
