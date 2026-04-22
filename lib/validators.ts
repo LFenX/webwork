@@ -71,6 +71,9 @@ export const articleFolderSchema = z.object({
   name: z.string().trim().min(1, "文件夹名称不能为空").max(60),
   description: z.string().trim().max(200).optional().default(""),
   coverImageUrl: z.string().trim().max(500).optional().default(""),
+  coverPositionX: z.number().int().min(0).max(100).optional().default(50),
+  coverPositionY: z.number().int().min(0).max(100).optional().default(50),
+  coverOpacity: z.number().int().min(0).max(100).optional().default(100),
 })
 
 export const updateArticleFolderSchema = articleFolderSchema.omit({ type: true }).partial()

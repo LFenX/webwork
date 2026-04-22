@@ -54,8 +54,8 @@ export async function VisitStatsPanel({ userId }: { userId: string }) {
         </div>
       </div>
 
-      <div className="border border-[--color-border] bg-[--color-bg-surface] rounded-[--radius-lg] p-4 mb-4 overflow-x-auto">
-        <p className="text-xs text-[--color-text-muted] mb-3">近 52 周主页访问热力图</p>
+      <div className="border border-[--color-border] bg-[--color-bg-surface] rounded-[--radius-lg] p-4 mb-4">
+        <p className="text-xs text-[--color-text-muted] mb-3">近 26 周主页访问热力图</p>
         <ActivityHeatmap data={heatmapData} />
       </div>
 

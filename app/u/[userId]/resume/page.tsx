@@ -25,13 +25,13 @@ export default async function UserResumePage({ params }: { params: Promise<{ use
   return (
     <ArticleLayout backHref={`/u/${ownerId}`} backLabel={`返回 ${displayName}`}>
       <header className="mb-10">
-        <h1 className="text-3xl font-semibold mb-4 leading-tight">简历</h1>
+        <h1 className="text-3xl font-semibold leading-tight">简历</h1>
       </header>
       {resume.mode === "pdf" && resume.pdfPath ? (
         <iframe
           src={resume.pdfPath}
-          className="w-full border border-[--color-border] rounded"
-          style={{ height: "85vh" }}
+          className="min-h-[72vh] w-full rounded border border-[--color-border]"
+          style={{ height: "min(86vh, 980px)" }}
           title="简历 PDF"
         />
       ) : resume.content ? (

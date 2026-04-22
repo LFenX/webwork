@@ -63,7 +63,7 @@ export default async function ReflectionsPage({ searchParams }: { searchParams: 
               href={`/reflections/${encodeURIComponent(post.slug)}`}
               className="block group hover:no-underline"
             >
-              <div className="flex items-start gap-4 py-4 border-b border-[--color-border]">
+              <div draggable data-post-id={post.id} className="flex cursor-grab items-start gap-4 py-4 border-b border-[--color-border] active:cursor-grabbing">
                 <span className="font-mono text-xs text-[--color-text-muted] mt-0.5 shrink-0 w-[6rem] pt-0.5">
                   {post.date?.slice(0, 10)}
                 </span>

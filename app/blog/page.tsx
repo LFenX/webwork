@@ -40,7 +40,7 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
         <div className="space-y-0">
           {posts.map((post) => (
             <Link key={post.slug} href={`/blog/${encodeURIComponent(post.slug)}`} className="block group hover:no-underline">
-              <div className="flex items-start gap-4 py-4 border-b border-[--color-border]">
+              <div draggable data-post-id={post.id} className="flex cursor-grab items-start gap-4 py-4 border-b border-[--color-border] active:cursor-grabbing">
                 <span className="font-mono text-xs text-[--color-text-muted] mt-0.5 shrink-0 w-[6rem] pt-0.5">{post.date?.slice(0, 10)}</span>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-[--color-text-primary] group-hover:text-[--color-accent] transition-colors">{post.title}</p>

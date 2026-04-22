@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { canManageUsers, requireAdmin } from "@/lib/admin"
+import { getEditableUpdateLog } from "@/lib/update-log"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -8,7 +9,7 @@ const NO_STORE = { "Cache-Control": "no-store" }
 export async function GET() {
   try {
     const admin = await requireAdmin()
-    const [requests, passwordRequests, users, activities] = await Promise.all([
+    const [requests, passwordRequests, updates] = await Promise.all([
       prisma.registrationRequest.findMany({
         where: { status: "pending" },
         orderBy: { createdAt: "desc" },
@@ -24,27 +25,7 @@ export async function GET() {
           user: { select: { id: true, email: true, displayName: true } },
         },
       }),
-      prisma.$queryRaw<Array<{ id: string; email: string; displayName: string; role: string; lastLoginAt: Date | null; createdAt: Date }>>`
-        SELECT id, email, displayName, role, lastLoginAt, createdAt
-        FROM User
-        ORDER BY createdAt DESC
-      `,
-      prisma.$queryRaw<Array<{ id: string; action: string; detail: string; ipAddress: string; geoLocation: string; deviceInfo: string; createdAt: Date; user: null; userEmail: string | null; userDisplayName: string | null }>>`
-        SELECT a.id, a.action, a.detail, a.ipAddress, a.geoLocation, a.deviceInfo, a.createdAt, u.email AS userEmail, u.displayName AS userDisplayName
-        FROM UserActivity a
-        LEFT JOIN User u ON u.id = a.userId
-        ORDER BY a.createdAt DESC
-        LIMIT 80
-      `.then((rows) => rows.map((row) => ({
-        id: row.id,
-        action: row.action,
-        detail: row.detail,
-        ipAddress: row.ipAddress,
-        geoLocation: row.geoLocation,
-        deviceInfo: row.deviceInfo,
-        createdAt: row.createdAt,
-        user: row.userEmail ? { email: row.userEmail, displayName: row.userDisplayName ?? "" } : null,
-      }))),
+      getEditableUpdateLog(),
     ])
 
     return NextResponse.json(
@@ -53,8 +34,7 @@ export async function GET() {
         canManageUsers: canManageUsers(admin.role),
         requests,
         passwordRequests,
-        users,
-        activities,
+        updates,
       },
       { headers: NO_STORE }
     )

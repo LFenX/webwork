@@ -1,0 +1,11 @@
+ALTER TABLE "ArticleFolder" ADD COLUMN "coverOpacity" INTEGER NOT NULL DEFAULT 100;
+
+CREATE TABLE "UpdateLogOverride" (
+  "hash" TEXT NOT NULL PRIMARY KEY,
+  "customMessage" TEXT,
+  "useOriginal" BOOLEAN NOT NULL DEFAULT true,
+  "hidden" BOOLEAN NOT NULL DEFAULT false,
+  "updatedById" TEXT,
+  "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

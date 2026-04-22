@@ -37,6 +37,7 @@ model User {
   uploads      Upload[]
   sessions     UserSession[]
   articleFolders ArticleFolder[]
+  resumeVersions ResumeVersion[]
 
   sentRequests     FriendRequest[] @relation("sent")
   receivedRequests FriendRequest[] @relation("received")
@@ -210,11 +211,24 @@ model ArticleFolder {
   name          String
   description   String   @default("")
   coverImageUrl String   @default("")
+  coverPositionX Int     @default(50)
+  coverPositionY Int     @default(50)
+  coverOpacity   Int     @default(100)
   posts         Post[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([userId, type])
+}
+
+model UpdateLogOverride {
+  hash          String   @id
+  customMessage String?
+  useOriginal   Boolean  @default(true)
+  hidden        Boolean  @default(false)
+  updatedById   String?
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
 }
 
 model ModuleVisibility {
@@ -264,6 +278,19 @@ model Resume {
   content   String   @default("")
   pdfPath   String?
   updatedAt DateTime @updatedAt
+}
+
+model ResumeVersion {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  pdfPath      String
+  originalName String
+  size         Int
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model SiteSettings {

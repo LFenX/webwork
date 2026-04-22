@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get("q")
   const from = searchParams.get("from")
   const to = searchParams.get("to")
+  const limit = Math.min(Math.max(Number(searchParams.get("limit") ?? 50), 1), 50)
+  const offset = Math.max(Number(searchParams.get("cursor") ?? 0), 0)
 
   const where: Record<string, unknown> = { userId: session.userId }
   if (status) where.status = status
@@ -53,7 +55,14 @@ export async function GET(req: NextRequest) {
         return terms.every((term) => haystack.includes(term))
       })
 
-  return NextResponse.json(filteredJobs, { headers: NO_STORE })
+  const items = filteredJobs.slice(offset, offset + limit)
+  const hasMore = filteredJobs.length > offset + limit
+
+  return NextResponse.json({
+    items,
+    nextCursor: hasMore ? String(offset + items.length) : null,
+    hasMore,
+  }, { headers: NO_STORE })
 }
 
 export async function POST(req: NextRequest) {

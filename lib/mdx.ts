@@ -7,7 +7,7 @@ export interface PostMeta {
   tags: string[]
   summary: string
   slug: string
-  type: string
+  type: "blog" | "daily" | "reflections" | "notes"
   visibility: string
   folderId: string | null
   folder: { id: string; name: string } | null
@@ -28,6 +28,9 @@ export type ArticleFolderItem = {
   name: string
   description: string
   coverImageUrl: string
+  coverPositionX: number
+  coverPositionY: number
+  coverOpacity: number
   postCount: number
 }
 
@@ -61,6 +64,9 @@ export async function getArticleFolders(
     name: folder.name,
     description: folder.description,
     coverImageUrl: folder.coverImageUrl,
+    coverPositionX: folder.coverPositionX,
+    coverPositionY: folder.coverPositionY,
+    coverOpacity: folder.coverOpacity,
     postCount: folder._count.posts,
   }))
 }
@@ -93,7 +99,7 @@ export async function getPosts(
   return posts.map((p) => ({
     id: p.id,
     slug: p.slug,
-    type: p.type,
+    type: p.type as PostMeta["type"],
     title: p.title,
     date: p.date.toISOString().slice(0, 10),
     tags: JSON.parse(p.tags || "[]") as string[],
@@ -130,7 +136,7 @@ export async function getPost(
   return {
     id: p.id,
     slug: p.slug,
-    type: p.type,
+    type: p.type as PostMeta["type"],
     title: p.title,
     date: p.date.toISOString().slice(0, 10),
     tags: JSON.parse(p.tags || "[]") as string[],

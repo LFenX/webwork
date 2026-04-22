@@ -162,8 +162,8 @@ export default async function HomePage() {
           <StatsCard title="连续写作" value={writingStats.streak} sub="天" trend={writingStats.streak > 0 ? "up" : "neutral"} />
           <StatsCard title="本月新增" value={writingStats.thisMonth} sub="篇" />
         </div>
-        <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4 overflow-x-auto">
-          <p className="text-xs text-[--color-text-muted] mb-3">近 52 周活跃热力图（文章 + 投递）</p>
+        <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
+          <p className="text-xs text-[--color-text-muted] mb-3">近 26 周活跃热力图（文章 + 投递）</p>
           <ActivityHeatmap data={activityData} />
         </div>
         {writingStats.topTags.length > 0 && (

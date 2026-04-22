@@ -4,6 +4,7 @@ import { ArticleAside } from "@/components/article-sidebar"
 import { CommentsSection } from "@/components/comments-section"
 import { MarkdownContent } from "@/components/markdown-content"
 import { VisibilityToggle } from "@/components/visibility-toggle"
+import { PostFolderSelect } from "@/components/post-folder-select"
 import type { CreatorProfile } from "@/lib/profile"
 import { formatChinaDateTime } from "@/lib/time"
 
@@ -15,6 +16,7 @@ type ArticleReaderProps = {
     date: string
     tags: string[]
     content: string
+    type: "blog" | "daily" | "reflections" | "notes"
     visibility: string
     createdAt: string
     updatedAt: string
@@ -65,9 +67,13 @@ export function ArticleReader({ post, creator, backHref, backLabel, editHref, ca
             <span className="inline-flex items-center gap-1.5">
               <User size={14} /> 作者 {post.author.displayName || post.author.email}
             </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Folder size={14} /> {post.folder?.name || "未分类"}
-            </span>
+            {canEdit ? (
+              <PostFolderSelect postId={post.id} type={post.type} initialFolderId={post.folder?.id ?? null} />
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                <Folder size={14} /> {post.folder?.name || "未分类"}
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5">
               <Hash size={14} /> 总字数 {post.wordCount}
             </span>

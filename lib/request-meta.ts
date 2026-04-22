@@ -10,6 +10,8 @@ type RequestLike = {
   headers: Headers
 }
 
+const geoCache = new Map<string, string>()
+
 function firstHeader(headers: Headers, names: string[]) {
   for (const name of names) {
     const value = headers.get(name)
@@ -31,7 +33,10 @@ function isPrivateOrLocalIp(ipAddress: string) {
 }
 
 function shouldEnrichGeoLocation(location: string) {
-  return !location || location === "未知" || /^[A-Z]{2}$/i.test(location)
+  const trimmed = (location || "").trim()
+  if (!trimmed || trimmed === "未知") return true
+  if (trimmed === "本地/内网") return false
+  return !trimmed.includes(" / ")
 }
 
 export function getClientIp(headers: Headers) {
@@ -52,18 +57,21 @@ export function getGeoLocation(headers: Headers, ipAddress: string) {
   return location || "未知"
 }
 
-async function lookupPublicGeoLocation(ipAddress: string) {
-  if (!ipAddress || ipAddress === "未知" || isPrivateOrLocalIp(ipAddress)) return ""
+function normalizePublicLocation(country?: string, region?: string, city?: string) {
+  const parts = [country, region, city]
+    .map((part) => (part || "").trim())
+    .filter(Boolean)
+  return Array.from(new Set(parts)).join(" / ")
+}
 
+async function fetchIpWhoLocation(ipAddress: string) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 1500)
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 900)
     const response = await fetch(`https://ipwho.is/${encodeURIComponent(ipAddress)}?lang=zh-CN`, {
       cache: "no-store",
       signal: controller.signal,
     })
-    clearTimeout(timeout)
-
     if (!response.ok) return ""
     const data = (await response.json()) as {
       success?: boolean
@@ -72,10 +80,64 @@ async function lookupPublicGeoLocation(ipAddress: string) {
       city?: string
     }
     if (data.success === false) return ""
-    return [data.country, data.region, data.city].filter(Boolean).join(" / ")
-  } catch {
-    return ""
+    return normalizePublicLocation(data.country, data.region, data.city)
+  } finally {
+    clearTimeout(timeout)
   }
+}
+
+async function fetchIpApiLocation(ipAddress: string) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 1500)
+  try {
+    const response = await fetch(
+      `http://ip-api.com/json/${encodeURIComponent(ipAddress)}?lang=zh-CN&fields=status,country,regionName,city`,
+      { cache: "no-store", signal: controller.signal }
+    )
+    if (!response.ok) return ""
+    const data = (await response.json()) as {
+      status?: string
+      country?: string
+      regionName?: string
+      city?: string
+    }
+    if (data.status !== "success") return ""
+    return normalizePublicLocation(data.country, data.regionName, data.city)
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+export async function lookupPublicGeoLocation(ipAddress: string) {
+  if (!ipAddress || ipAddress === "未知" || isPrivateOrLocalIp(ipAddress)) return ""
+  const cached = geoCache.get(ipAddress)
+  if (cached !== undefined) return cached
+
+  const providers = [fetchIpWhoLocation, fetchIpApiLocation]
+  for (const provider of providers) {
+    try {
+      const location = await provider(ipAddress)
+      if (!location) continue
+      geoCache.set(ipAddress, location)
+      return location
+    } catch {
+      // Try the next public source before falling back to the stored value.
+    }
+  }
+  return ""
+}
+
+export async function lookupChinaIpGeoLocation(ipAddress: string) {
+  const location = await lookupPublicGeoLocation(ipAddress)
+  if (location === "中国" || location.startsWith("中国 / ") || location === "China" || location.startsWith("China / ")) return location
+  return ""
+}
+
+export async function resolveStoredGeoLocation(ipAddress: string, geoLocation: string) {
+  const trimmed = (geoLocation || "").trim()
+  if (trimmed.includes(" / ") || trimmed === "本地/内网") return trimmed
+  if (shouldEnrichGeoLocation(trimmed)) return await lookupPublicGeoLocation(ipAddress) || trimmed || "未知"
+  return trimmed || "未知"
 }
 
 export function getDeviceInfo(headers: Headers) {
@@ -115,7 +177,7 @@ export async function getRequestMeta(req?: RequestLike): Promise<RequestMeta> {
 
   return {
     ipAddress,
-    geoLocation: enrichedGeoLocation || headerGeoLocation,
+    geoLocation: enrichedGeoLocation || headerGeoLocation || "未知",
     deviceInfo: getDeviceInfo(req.headers),
   }
 }

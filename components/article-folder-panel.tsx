@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Folder, Pencil, Plus } from "lucide-react"
@@ -19,7 +19,7 @@ type ArticleFolderPanelProps = {
   selectedFolder?: string
 }
 
-const EMPTY_FORM = { name: "", description: "", coverImageUrl: "" }
+const EMPTY_FORM = { name: "", description: "", coverImageUrl: "", coverPositionX: 50, coverPositionY: 50, coverOpacity: 100 }
 
 export function ArticleFolderPanel({ type, basePath, folders, selectedFolder }: ArticleFolderPanelProps) {
   const router = useRouter()
@@ -27,6 +27,22 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder }: 
   const [editing, setEditing] = useState<ArticleFolderItem | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [uploadingCover, setUploadingCover] = useState(false)
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
+
+  useEffect(() => {
+    function handleDragStart(event: DragEvent) {
+      const target = event.target instanceof Element ? event.target.closest("[data-post-id]") : null
+      const postId = target?.getAttribute("data-post-id")
+      if (!postId) return
+      window.sessionStorage.setItem("dragging-post-id", postId)
+      event.dataTransfer?.setData("text/plain", postId)
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
+    }
+
+    document.addEventListener("dragstart", handleDragStart)
+    return () => document.removeEventListener("dragstart", handleDragStart)
+  }, [])
 
   function startCreate() {
     setEditing(null)
@@ -40,8 +56,50 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder }: 
       name: folder.name,
       description: folder.description,
       coverImageUrl: folder.coverImageUrl,
+      coverPositionX: folder.coverPositionX,
+      coverPositionY: folder.coverPositionY,
+      coverOpacity: folder.coverOpacity,
     })
     setOpen(true)
+  }
+
+  async function uploadCover(file: File) {
+    setUploadingCover(true)
+    try {
+      const data = new FormData()
+      data.append("file", file)
+      const res = await fetch("/api/upload", { method: "POST", body: data })
+      if (!res.ok) throw new Error()
+      const json = await res.json() as { url?: string }
+      if (!json.url) throw new Error()
+      const coverImageUrl = json.url
+      setForm((current) => ({ ...current, coverImageUrl, coverPositionX: 50, coverPositionY: 50, coverOpacity: 100 }))
+      toast.success("背景图片已上传")
+    } catch {
+      toast.error("上传背景图片失败")
+    } finally {
+      setUploadingCover(false)
+    }
+  }
+
+  async function moveDraggedPost(folderId: string | null) {
+    const postId = window.sessionStorage.getItem("dragging-post-id")
+    if (!postId) return
+    setDragOverFolder(null)
+    try {
+      const res = await fetch(`/api/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success(folderId ? "文章已放入文件夹" : "文章已移到未分类")
+      router.refresh()
+    } catch {
+      toast.error("移动文章失败")
+    } finally {
+      window.sessionStorage.removeItem("dragging-post-id")
+    }
   }
 
   async function saveFolder() {
@@ -88,9 +146,9 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder }: 
   }
 
   function folderCardClasses(active: boolean) {
-    return `min-h-28 rounded-[--radius-lg] border p-4 transition-colors ${
+    return `min-h-28 rounded-[--radius-lg] border transition-colors ${
       active
-        ? "border-[--color-text-primary] bg-[--color-bg-surface]"
+        ? "border-[--color-text-primary] bg-[--color-bg-surface] shadow-[0_8px_24px_rgba(15,23,42,.08)]"
         : "border-[--color-border] hover:border-[--color-border-strong]"
     }`
   }
@@ -110,36 +168,77 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder }: 
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Link href={basePath} className={`${folderCardClasses(!selectedFolder)} hover:no-underline`}>
-          <div className="flex items-center gap-2 text-sm font-medium text-[--color-text-primary]">
-            <Folder size={14} /> 全部文章
+          <div className="p-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-[--color-text-primary]">
+              <Folder size={14} /> 全部文章
+            </div>
+            <p className="mt-2 text-xs text-[--color-text-muted]">查看当前模块的所有文章</p>
+            {!selectedFolder && <p className="mt-3 text-xs text-[--color-accent]">当前筛选</p>}
           </div>
-          <p className="mt-2 text-xs text-[--color-text-muted]">查看当前模块的所有文章</p>
-          {!selectedFolder && <p className="mt-3 text-xs text-[--color-accent]">当前筛选</p>}
         </Link>
 
-        <Link href={`${basePath}?folder=uncategorized`} className={`${folderCardClasses(selectedFolder === "uncategorized")} hover:no-underline`}>
-          <div className="flex items-center gap-2 text-sm font-medium text-[--color-text-primary]">
-            <Folder size={14} /> 未分类
+        <Link
+          href={`${basePath}?folder=uncategorized`}
+          onDragOver={(event) => {
+            event.preventDefault()
+            setDragOverFolder("uncategorized")
+          }}
+          onDragLeave={() => setDragOverFolder(null)}
+          onDrop={(event) => {
+            event.preventDefault()
+            void moveDraggedPost(null)
+          }}
+          className={`${folderCardClasses(selectedFolder === "uncategorized")} ${dragOverFolder === "uncategorized" ? "border-[--color-accent] bg-[--color-bg-hover]" : ""} hover:no-underline`}
+        >
+          <div className="p-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-[--color-text-primary]">
+              <Folder size={14} /> 未分类
+            </div>
+            <p className="mt-2 text-xs text-[--color-text-muted]">尚未放入文件夹的文章</p>
+            {selectedFolder === "uncategorized" && <p className="mt-3 text-xs text-[--color-accent]">当前筛选</p>}
           </div>
-          <p className="mt-2 text-xs text-[--color-text-muted]">尚未放入文件夹的文章</p>
-          {selectedFolder === "uncategorized" && <p className="mt-3 text-xs text-[--color-accent]">当前筛选</p>}
         </Link>
 
         {folders.map((folder) => (
           <article
             key={folder.id}
-            className={`${folderCardClasses(selectedFolder === folder.id)} overflow-hidden`}
-            style={folder.coverImageUrl ? {
-              backgroundImage: `linear-gradient(rgba(250,249,245,.84), rgba(250,249,245,.92)), url(${folder.coverImageUrl})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            } : undefined}
+            onDragOver={(event) => {
+              event.preventDefault()
+              setDragOverFolder(folder.id)
+            }}
+            onDragLeave={() => setDragOverFolder(null)}
+            onDrop={(event) => {
+              event.preventDefault()
+              void moveDraggedPost(folder.id)
+            }}
+            className={`${folderCardClasses(selectedFolder === folder.id)} ${dragOverFolder === folder.id ? "border-[--color-accent] bg-[--color-bg-hover]" : ""} overflow-hidden`}
           >
-            <div className="flex min-h-20 flex-col">
+            <div className="grid min-h-28 grid-cols-[112px_minmax(0,1fr)]">
+              <div className="border-r border-[--color-border] bg-[--color-bg-hover]">
+                {folder.coverImageUrl ? (
+                  <div
+                    className="h-full min-h-28 bg-cover bg-center"
+                    style={{
+                      backgroundImage: `url(${folder.coverImageUrl})`,
+                      backgroundPosition: `${folder.coverPositionX}% ${folder.coverPositionY}%`,
+                      opacity: folder.coverOpacity / 100,
+                    }}
+                  />
+                ) : (
+                  <div className="flex h-full min-h-28 items-center justify-center text-[--color-text-muted]">
+                    <Folder size={28} />
+                  </div>
+                )}
+              </div>
+              <div className="flex min-h-28 flex-col p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="flex items-center gap-2 text-sm font-medium text-[--color-text-primary]">
-                    <Folder size={14} /> {folder.name}
+                    <span className={`relative inline-block h-4 w-5 ${selectedFolder === folder.id ? "translate-y-0.5" : ""}`}>
+                      <span className={`absolute left-0 top-1 h-3 w-5 rounded-sm border border-current transition-transform ${selectedFolder === folder.id ? "translate-y-1" : ""}`} />
+                      <span className={`absolute left-0 top-0 h-2 w-5 origin-bottom rounded-t-sm border border-current bg-[--color-bg-surface] transition-transform ${selectedFolder === folder.id ? "-rotate-12 -translate-y-0.5" : ""}`} />
+                    </span>
+                    {folder.name}
                   </p>
                   <p className="mt-1 line-clamp-2 text-xs text-[--color-text-muted]">{folder.description || "暂无简介"}</p>
                 </div>
@@ -148,9 +247,9 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder }: 
 
               <div className="mt-auto flex items-center justify-between pt-4">
                 {selectedFolder === folder.id ? (
-                  <span className="text-xs text-[--color-accent]">当前筛选</span>
+                  <span className="text-xs text-[--color-accent]">文件夹已打开</span>
                 ) : (
-                  <span className="text-xs text-[--color-text-muted]">点击打开查看文章</span>
+                  <span className="text-xs text-[--color-text-muted]">拖文章到这里归档</span>
                 )}
                 <div className="flex items-center gap-2">
                   <Button asChild variant="outline" size="sm">
@@ -160,6 +259,7 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder }: 
                     <Pencil size={14} /> 编辑
                   </Button>
                 </div>
+              </div>
               </div>
             </div>
           </article>
@@ -185,9 +285,57 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder }: 
               <Textarea value={form.description} onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))} />
             </div>
             <div>
-              <Label className="mb-1 block text-xs">背景图片 URL</Label>
-              <Input value={form.coverImageUrl} onChange={(e) => setForm((current) => ({ ...current, coverImageUrl: e.target.value }))} />
+              <Label className="mb-1 block text-xs">背景图片</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                disabled={uploadingCover}
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) void uploadCover(file)
+                }}
+              />
+              {form.coverImageUrl && (
+                <div
+                  className="mt-3 h-32 rounded-[--radius-sm] border border-[--color-border] bg-cover"
+                  style={{ backgroundImage: `url(${form.coverImageUrl})`, backgroundPosition: `${form.coverPositionX}% ${form.coverPositionY}%` }}
+                />
+              )}
             </div>
+            {form.coverImageUrl && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="mb-1 block text-xs">横向范围</Label>
+                  <Input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={form.coverPositionX}
+                    onChange={(event) => setForm((current) => ({ ...current, coverPositionX: Number(event.target.value) }))}
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs">纵向范围</Label>
+                  <Input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={form.coverPositionY}
+                    onChange={(event) => setForm((current) => ({ ...current, coverPositionY: Number(event.target.value) }))}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label className="mb-1 block text-xs">透明度</Label>
+                  <Input
+                    type="range"
+                    min="20"
+                    max="100"
+                    value={form.coverOpacity}
+                    onChange={(event) => setForm((current) => ({ ...current, coverOpacity: Number(event.target.value) }))}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

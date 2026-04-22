@@ -33,7 +33,7 @@ export function CreatorCard({ profile }: { profile: CreatorProfile }) {
   const name = profile.displayName || profile.email
 
   return (
-    <section className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5 text-center shadow-sm">
+    <section className="flex flex-col items-center rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5 text-center shadow-sm">
       <UserAvatar
         size="lg"
         name={name}
@@ -44,12 +44,12 @@ export function CreatorCard({ profile }: { profile: CreatorProfile }) {
       />
       <h2 className="text-base font-semibold">{name}</h2>
       {profile.bio && <p className="mt-1 text-xs leading-5 text-[--color-text-muted]">{profile.bio}</p>}
-      <div className="mt-4 space-y-2 text-left text-xs text-[--color-text-muted]">
-        <div className="flex items-center gap-2 break-all">
+      <div className="mt-4 flex w-full flex-col items-center gap-2 text-center text-xs text-[--color-text-muted]">
+        <div className="flex max-w-full items-center justify-center gap-2 break-all">
           <Mail size={13} /> {profile.email}
         </div>
         {profile.location && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-2">
             <MapPin size={13} /> {profile.location}
           </div>
         )}

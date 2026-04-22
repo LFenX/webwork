@@ -25,7 +25,17 @@ export async function PUT(req: NextRequest) {
 
   const body = await req.json()
   const parsed = resumeSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: "参数错误" }, { status: 400 })
+  if (!parsed.success) return NextResponse.json({ error: "参数错误" }, { status: 400, headers: NO_STORE })
+
+  if (parsed.data.mode === "pdf" && parsed.data.pdfPath) {
+    const ownedVersion = await prisma.resumeVersion.findFirst({
+      where: { userId: session.userId, pdfPath: parsed.data.pdfPath },
+      select: { id: true },
+    })
+    if (!ownedVersion) {
+      return NextResponse.json({ error: "PDF 版本不存在或不属于当前用户" }, { status: 400, headers: NO_STORE })
+    }
+  }
 
   const resume = await prisma.resume.upsert({
     where: { userId: session.userId },
@@ -33,5 +43,6 @@ export async function PUT(req: NextRequest) {
     create: { userId: session.userId, ...parsed.data },
   })
   revalidatePath("/resume")
+  revalidatePath("/resume/edit")
   return NextResponse.json(resume, { headers: NO_STORE })
 }
