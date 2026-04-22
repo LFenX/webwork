@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   const posts = await prisma.post.findMany({
     where,
     orderBy: { date: "desc" },
-    select: { id: true, type: true, slug: true, title: true, summary: true, tags: true, date: true, visibility: true },
+    select: { id: true, type: true, slug: true, title: true, summary: true, tags: true, date: true, visibility: true, folderId: true },
   })
 
   const result = posts.map((p) => ({
@@ -46,11 +46,19 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "参数错误", detail: parsed.error.flatten() }, { status: 400 })
   }
-  const { tags, date, visibility, ...rest } = parsed.data
+  const { tags, date, visibility, folderId, ...rest } = parsed.data
+  if (folderId) {
+    const folder = await prisma.articleFolder.findFirst({
+      where: { id: folderId, userId: session.userId, type: rest.type },
+      select: { id: true },
+    })
+    if (!folder) return NextResponse.json({ error: "文件夹不存在" }, { status: 400, headers: NO_STORE })
+  }
   const post = await prisma.post.create({
     data: {
       ...rest,
       userId: session.userId,
+      folderId: folderId || null,
       tags: JSON.stringify(tags ?? []),
       date: date ? new Date(date) : new Date(),
       visibility: visibility ?? "private",

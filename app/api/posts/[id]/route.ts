@@ -43,11 +43,21 @@ export async function PATCH(
   if (!parsed.success) {
     return NextResponse.json({ error: "参数错误" }, { status: 400 })
   }
-  const { tags, date, visibility, ...rest } = parsed.data
+  const { tags, date, visibility, folderId, ...rest } = parsed.data
   const data: Record<string, unknown> = { ...rest }
   if (tags !== undefined) data.tags = JSON.stringify(tags)
   if (date) data.date = new Date(date)
   if (visibility !== undefined) data.visibility = visibility
+  if (folderId !== undefined) {
+    if (folderId) {
+      const folder = await prisma.articleFolder.findFirst({
+        where: { id: folderId, userId: session.userId, type: existing.type },
+        select: { id: true },
+      })
+      if (!folder) return NextResponse.json({ error: "文件夹不存在" }, { status: 400, headers: NO_STORE })
+    }
+    data.folderId = folderId || null
+  }
 
   const post = await prisma.post.update({ where: { id }, data })
   revalidatePath(`/${post.type}`)

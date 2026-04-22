@@ -51,6 +51,6 @@ export async function POST(req: NextRequest) {
     select: { id: true, status: true, requestedAt: true },
   })
 
-  await recordActivity(user.id, "request_password_change", "提交密码修改申请")
+  await recordActivity(user.id, "request_password_change", "提交密码修改申请", req)
   return NextResponse.json({ request }, { status: 202, headers: NO_STORE })
 }

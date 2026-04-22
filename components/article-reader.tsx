@@ -1,10 +1,11 @@
 import Link from "next/link"
-import { ArrowLeft, Calendar, Pencil } from "lucide-react"
+import { ArrowLeft, Calendar, Clock, Folder, Hash, Pencil, RefreshCcw, User } from "lucide-react"
 import { ArticleAside } from "@/components/article-sidebar"
 import { CommentsSection } from "@/components/comments-section"
 import { MarkdownContent } from "@/components/markdown-content"
 import { VisibilityToggle } from "@/components/visibility-toggle"
 import type { CreatorProfile } from "@/lib/profile"
+import { formatChinaDateTime } from "@/lib/time"
 
 type ArticleReaderProps = {
   post: {
@@ -15,6 +16,12 @@ type ArticleReaderProps = {
     tags: string[]
     content: string
     visibility: string
+    createdAt: string
+    updatedAt: string
+    author: { email: string; displayName: string }
+    folder: { id: string; name: string } | null
+    wordCount: number
+    readingMinutes: number
   }
   creator: CreatorProfile
   backHref: string
@@ -48,9 +55,24 @@ export function ArticleReader({ post, creator, backHref, backLabel, editHref, ca
         </div>
         <header className="mb-10">
           <h1 className="mb-4 text-3xl font-semibold leading-tight text-[--color-text-primary]">{post.title}</h1>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-[--color-text-muted]">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[--color-text-muted]">
             <span className="inline-flex items-center gap-1.5 font-mono">
-              <Calendar size={14} /> {post.date?.slice(0, 10)}
+              <Calendar size={14} /> 发布于 {formatChinaDateTime(post.createdAt)}
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-mono">
+              <RefreshCcw size={14} /> 更新于 {formatChinaDateTime(post.updatedAt)}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <User size={14} /> 作者 {post.author.displayName || post.author.email}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Folder size={14} /> {post.folder?.name || "未分类"}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Hash size={14} /> 总字数 {post.wordCount}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Clock size={14} /> 阅读时长 {post.readingMinutes} 分钟
             </span>
             {post.tags.map((tag) => (
               <span key={tag} className="rounded bg-[--color-bg-hover] px-1.5 py-0.5 text-xs">{tag}</span>

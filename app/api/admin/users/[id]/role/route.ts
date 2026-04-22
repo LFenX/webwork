@@ -30,7 +30,7 @@ export async function PATCH(
       WHERE id = ${id}
     `
     const user = { id, email: target.email, displayName: target.displayName, role }
-    await recordActivity(admin.id, "update_user_role", `设置 ${user.email} 为 ${role}`)
+    await recordActivity(admin.id, "update_user_role", `设置 ${user.email} 为 ${role}`, req)
     return NextResponse.json(user, { headers: NO_STORE })
   } catch {
     return NextResponse.json({ error: "无权限" }, { status: 403, headers: NO_STORE })

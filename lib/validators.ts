@@ -53,6 +53,7 @@ export const createPostSchema = z.object({
   content: z.string().default(""),
   date: z.string().datetime().or(z.string().date()).optional(),
   visibility: z.enum(["private", "friends"]).optional().default("private"),
+  folderId: z.string().nullable().optional(),
 })
 
 export const updatePostSchema = z.object({
@@ -62,7 +63,17 @@ export const updatePostSchema = z.object({
   content: z.string().optional(),
   date: z.string().datetime().or(z.string().date()).optional(),
   visibility: z.enum(["private", "friends"]).optional(),
+  folderId: z.string().nullable().optional(),
 })
+
+export const articleFolderSchema = z.object({
+  type: z.enum(["blog", "daily", "reflections", "notes"]),
+  name: z.string().trim().min(1, "文件夹名称不能为空").max(60),
+  description: z.string().trim().max(200).optional().default(""),
+  coverImageUrl: z.string().trim().max(500).optional().default(""),
+})
+
+export const updateArticleFolderSchema = articleFolderSchema.omit({ type: true }).partial()
 
 export const resumeSchema = z.object({
   mode: z.enum(["markdown", "pdf"]).optional(),

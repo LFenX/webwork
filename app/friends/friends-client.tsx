@@ -5,12 +5,17 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { UserPlus, UserMinus, Check, X, Clock, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { UserAvatar } from "@/components/user-avatar"
 
 interface Friend {
   id: string
   email: string
   displayName: string
   bio: string
+  avatarText: string
+  avatarUrl: string | null
+  presenceStatus: "online" | "away" | "offline"
   friendshipId: string
 }
 
@@ -40,6 +45,12 @@ async function fetchFriendData() {
   }
 }
 
+function presenceLabel(status: Friend["presenceStatus"]) {
+  if (status === "online") return "在线"
+  if (status === "away") return "离开"
+  return "下线"
+}
+
 export function FriendsClient() {
   const [friends, setFriends] = useState<Friend[]>([])
   const [received, setReceived] = useState<FriendRequest[]>([])
@@ -47,6 +58,7 @@ export function FriendsClient() {
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [unfriendTarget, setUnfriendTarget] = useState<Friend | null>(null)
   const [, startTransition] = useTransition()
 
   const loadAll = useCallback(async () => {
@@ -139,6 +151,7 @@ export function FriendsClient() {
     const res = await fetch(`/api/friend-requests/${friendshipId}`, { method: "DELETE" })
     if (res.ok) {
       toast.success("已解除好友关系")
+      setUnfriendTarget(null)
       await loadAll()
     } else {
       toast.error("操作失败")
@@ -250,17 +263,25 @@ export function FriendsClient() {
           <div className="space-y-0">
             {friends.map((friend) => (
               <div key={friend.id} className="flex items-center justify-between py-3 border-b border-[--color-border]">
-                <Link href={`/u/${friend.id}`} className="hover:no-underline group">
-                  <p className="text-sm font-medium group-hover:text-[--color-accent] transition-colors">
-                    {friend.displayName || friend.email}
-                  </p>
-                  <p className="text-xs text-[--color-text-muted]">{friend.email}</p>
-                  {friend.bio && (
-                    <p className="text-xs text-[--color-text-muted] mt-0.5 truncate max-w-[300px]">{friend.bio}</p>
-                  )}
+                <Link href={`/u/${friend.id}`} className="flex min-w-0 items-center gap-3 hover:no-underline group">
+                  <UserAvatar
+                    name={friend.displayName}
+                    email={friend.email}
+                    avatarText={friend.avatarText}
+                    avatarUrl={friend.avatarUrl}
+                    presenceStatus={friend.presenceStatus}
+                    size="sm"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium group-hover:text-[--color-accent] transition-colors">
+                      {friend.displayName || friend.email}
+                    </span>
+                    <span className="block text-xs text-[--color-text-muted] truncate">{friend.email}</span>
+                    <span className="block text-xs text-[--color-text-muted]">{presenceLabel(friend.presenceStatus)}</span>
+                  </span>
                 </Link>
                 <button
-                  onClick={() => handleUnfriend(friend.friendshipId)}
+                  onClick={() => setUnfriendTarget(friend)}
                   className="inline-flex items-center gap-1 text-xs text-[--color-text-muted] hover:text-red-500 transition-colors"
                 >
                   <UserMinus size={12} /> 解除好友
@@ -270,6 +291,26 @@ export function FriendsClient() {
           </div>
         )}
       </section>
+
+      <Dialog open={Boolean(unfriendTarget)} onOpenChange={(open) => !open && setUnfriendTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认解除好友？</DialogTitle>
+            <DialogDescription>
+              将解除与 {unfriendTarget?.displayName || unfriendTarget?.email} 的好友关系，之后需要重新发送好友请求才能恢复。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUnfriendTarget(null)}>取消</Button>
+            <Button
+              variant="destructive"
+              onClick={() => unfriendTarget && handleUnfriend(unfriendTarget.friendshipId)}
+            >
+              确认解除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

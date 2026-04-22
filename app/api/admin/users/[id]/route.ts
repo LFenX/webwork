@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -39,7 +39,7 @@ export async function DELETE(
     }
 
     await prisma.user.delete({ where: { id } })
-    await recordActivity(admin.id, "delete_user", `删除用户 ${user.email}`)
+    await recordActivity(admin.id, "delete_user", `删除用户 ${user.email}`, req)
     return NextResponse.json({ ok: true }, { headers: NO_STORE })
   } catch {
     return NextResponse.json({ error: "无权限" }, { status: 403, headers: NO_STORE })

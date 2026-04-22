@@ -36,6 +36,9 @@ type Activity = {
   id: string
   action: string
   detail: string
+  ipAddress: string
+  geoLocation: string
+  deviceInfo: string
   createdAt: string
   user: { email: string; displayName: string } | null
 }
@@ -259,18 +262,37 @@ export function AdminClient() {
               <ShieldCheck size={16} />
               <h2 className="text-sm font-semibold">最近登录和操作行为</h2>
             </div>
-            <div className="border border-[--color-border] rounded-[--radius-lg] overflow-hidden bg-[--color-bg-surface]">
+            <div className="border border-[--color-border] rounded-[--radius-lg] overflow-x-auto bg-[--color-bg-surface]">
               {data.activities.length === 0 ? (
                 <p className="p-4 text-sm text-[--color-text-muted]">暂无行为记录</p>
-              ) : data.activities.map((activity) => (
-                <div key={activity.id} className="grid md:grid-cols-[180px_180px_1fr] gap-2 px-4 py-3 border-b border-[--color-border] last:border-b-0 text-sm">
-                  <span className="text-xs text-[--color-text-muted]">{formatTime(activity.createdAt)}</span>
-                  <span className="text-xs font-mono text-[--color-text-secondary]">{activity.action}</span>
-                  <span className="text-xs text-[--color-text-muted]">
-                    {(activity.user?.displayName || activity.user?.email || "系统")}：{activity.detail}
-                  </span>
-                </div>
-              ))}
+              ) : (
+                <table className="w-full min-w-[1040px] table-fixed text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-[--color-border-strong] bg-[--color-bg-hover]">
+                      <th className="w-[150px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">时间</th>
+                      <th className="w-[180px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">行为</th>
+                      <th className="w-[300px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户与详情</th>
+                      <th className="w-[170px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">IP 地址</th>
+                      <th className="w-[120px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">地理位置</th>
+                      <th className="w-[120px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">设备信息</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.activities.map((activity) => (
+                      <tr key={activity.id} className="border-b border-[--color-border] last:border-b-0">
+                        <td className="px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(activity.createdAt)}</td>
+                        <td className="px-4 py-3 text-xs font-mono text-[--color-text-secondary] break-words">{activity.action}</td>
+                        <td className="px-4 py-3 text-xs text-[--color-text-muted] break-words">
+                          {(activity.user?.displayName || activity.user?.email || "系统")}：{activity.detail}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono text-[--color-text-muted] break-all">{activity.ipAddress || "未知"}</td>
+                        <td className="px-4 py-3 text-xs text-[--color-text-muted] break-words">{activity.geoLocation || "未知"}</td>
+                        <td className="px-4 py-3 text-xs text-[--color-text-muted] break-words">{activity.deviceInfo || "未知"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </section>
         </div>

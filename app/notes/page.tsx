@@ -1,35 +1,44 @@
 import Link from "next/link"
-import { getPosts } from "@/lib/mdx"
+import { getArticleFolders, getPosts } from "@/lib/mdx"
 import { requireAuth } from "@/lib/auth"
 import { getModuleVisibility } from "@/lib/permissions"
+import { ArticleFolderPanel } from "@/components/article-folder-panel"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 import { Plus } from "lucide-react"
 
 export const metadata = { title: "笔记 — My Space" }
 
-export default async function NotesPage() {
-  const { userId } = await requireAuth()
-  const [posts, visibility] = await Promise.all([
-    getPosts("notes", userId),
+export default async function NotesPage({ searchParams }: { searchParams: Promise<{ folder?: string }> }) {
+  const [{ userId }, { folder }] = await Promise.all([requireAuth(), searchParams])
+  const folderFilter = folder === "uncategorized" ? null : folder || undefined
+  const [posts, visibility, folders] = await Promise.all([
+    getPosts("notes", userId, ["private", "friends", "public"], folderFilter),
     getModuleVisibility(userId, "notes"),
+    getArticleFolders("notes", userId),
   ])
   const allTags = Array.from(new Set(posts.flatMap((p) => p.tags ?? [])))
 
   return (
     <div className="max-w-[800px] mx-auto px-6 py-10">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold mb-1">笔记</h1>
-          <p className="text-sm text-[--color-text-muted]">{posts.length} 篇笔记</p>
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold mb-1">笔记</h1>
+            <p className="text-sm text-[--color-text-muted]">{posts.length} 篇笔记</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <ModuleVisibilitySelect module="notes" initialVisibility={visibility} />
+            <Link
+              href="/notes/new"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[--color-text-primary] text-white rounded-[--radius-sm] hover:no-underline hover:opacity-90 transition-opacity"
+            >
+              <Plus size={13} /> 新建
+            </Link>
+          </div>
         </div>
-        <ModuleVisibilitySelect module="notes" initialVisibility={visibility} />
-        <Link
-          href="/notes/new"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[--color-text-primary] text-white rounded-[--radius-sm] hover:no-underline hover:opacity-90 transition-opacity"
-        >
-          <Plus size={13} /> 新建
-        </Link>
       </div>
+
+      <ArticleFolderPanel type="notes" basePath="/notes" folders={folders} selectedFolder={folder} />
 
       {allTags.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-6">

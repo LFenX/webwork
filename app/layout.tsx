@@ -8,6 +8,7 @@ import { getOptionalSession } from "@/lib/auth"
 import { getSiteSettings } from "@/lib/mdx"
 import { ServiceWorkerCleanup } from "@/components/service-worker-cleanup"
 import { VisualViewportVars } from "@/components/visual-viewport-vars"
+import { SessionHeartbeat } from "@/components/session-heartbeat"
 import { getUserAdminInfo, normalizeUserRole } from "@/lib/admin"
 import { getCreatorProfile } from "@/lib/profile"
 
@@ -73,6 +74,7 @@ export default async function RootLayout({
         <main key={session?.userId ?? "guest"} className="flex-1">{children}</main>
         <SiteFooter />
         <Toaster position="bottom-right" />
+        {session && <SessionHeartbeat />}
         <ServiceWorkerCleanup />
         <VisualViewportVars />
       </body>

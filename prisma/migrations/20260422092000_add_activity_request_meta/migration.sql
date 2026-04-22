@@ -1,0 +1,3 @@
+ALTER TABLE "UserActivity" ADD COLUMN "ipAddress" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "UserActivity" ADD COLUMN "geoLocation" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "UserActivity" ADD COLUMN "deviceInfo" TEXT NOT NULL DEFAULT '';

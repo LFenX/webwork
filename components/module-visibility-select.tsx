@@ -8,11 +8,9 @@ import type { ModuleKey } from "@/lib/permissions"
 export function ModuleVisibilitySelect({
   module,
   initialVisibility,
-  label = "模块可见性",
 }: {
   module: ModuleKey
   initialVisibility: "private" | "friends"
-  label?: string
 }) {
   const router = useRouter()
   const [visibility, setVisibility] = useState(initialVisibility)
@@ -45,17 +43,15 @@ export function ModuleVisibilitySelect({
   }
 
   return (
-    <label className="inline-flex items-center gap-2 text-xs text-[--color-text-muted]">
-      <span>{label}</span>
-      <select
-        value={visibility}
-        disabled={saving}
-        onChange={(event) => handleChange(event.target.value)}
-        className="h-8 rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-surface] px-2.5 text-sm text-[--color-text-primary] outline-none hover:bg-[--color-bg-hover] focus:border-[--color-text-primary]"
-      >
-        <option value="private">私密</option>
-        <option value="friends">好友可见</option>
-      </select>
-    </label>
+    <select
+      value={visibility}
+      disabled={saving}
+      onChange={(event) => handleChange(event.target.value)}
+      className="h-8 rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-surface] px-2.5 text-sm text-[--color-text-primary] outline-none hover:bg-[--color-bg-hover] focus:border-[--color-text-primary]"
+      aria-label="模块可见性"
+    >
+      <option value="private">私密</option>
+      <option value="friends">好友可见</option>
+    </select>
   )
 }

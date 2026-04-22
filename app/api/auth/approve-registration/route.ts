@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     where: { id: request.id },
     data: { status: "approved", approvedAt: new Date() },
   })
-  await recordActivity(admin.id, "approve_registration", `同意 ${request.email} 注册`)
+  await recordActivity(admin.id, "approve_registration", `同意 ${request.email} 注册`, req)
 
   console.log(`[注册审核] 已通过: ${request.email}`)
 

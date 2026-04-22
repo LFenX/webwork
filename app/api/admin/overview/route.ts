@@ -29,8 +29,8 @@ export async function GET() {
         FROM User
         ORDER BY createdAt DESC
       `,
-      prisma.$queryRaw<Array<{ id: string; action: string; detail: string; createdAt: Date; user: null; userEmail: string | null; userDisplayName: string | null }>>`
-        SELECT a.id, a.action, a.detail, a.createdAt, u.email AS userEmail, u.displayName AS userDisplayName
+      prisma.$queryRaw<Array<{ id: string; action: string; detail: string; ipAddress: string; geoLocation: string; deviceInfo: string; createdAt: Date; user: null; userEmail: string | null; userDisplayName: string | null }>>`
+        SELECT a.id, a.action, a.detail, a.ipAddress, a.geoLocation, a.deviceInfo, a.createdAt, u.email AS userEmail, u.displayName AS userDisplayName
         FROM UserActivity a
         LEFT JOIN User u ON u.id = a.userId
         ORDER BY a.createdAt DESC
@@ -39,6 +39,9 @@ export async function GET() {
         id: row.id,
         action: row.action,
         detail: row.detail,
+        ipAddress: row.ipAddress,
+        geoLocation: row.geoLocation,
+        deviceInfo: row.deviceInfo,
         createdAt: row.createdAt,
         user: row.userEmail ? { email: row.userEmail, displayName: row.userDisplayName ?? "" } : null,
       }))),

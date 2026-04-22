@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -33,7 +33,7 @@ export async function POST(
       }),
     ])
 
-    await recordActivity(admin.id, "approve_password_change", `同意 ${request.user.email} 修改密码`)
+    await recordActivity(admin.id, "approve_password_change", `同意 ${request.user.email} 修改密码`, req)
     revalidatePath("/admin")
     return NextResponse.json({ ok: true }, { headers: NO_STORE })
   } catch {

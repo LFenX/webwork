@@ -1,6 +1,7 @@
 import "server-only"
 import { prisma } from "@/lib/db"
 import { getSession } from "@/lib/session"
+import { getRequestMeta } from "@/lib/request-meta"
 
 export const OWNER_EMAIL = "fli.gda@foxmail.com"
 
@@ -57,8 +58,17 @@ export async function requireAdmin() {
   return admin
 }
 
-export async function recordActivity(userId: string | null, action: string, detail = "") {
+export async function recordActivity(userId: string | null, action: string, detail = "", req?: { headers: Headers }) {
+  const meta = await getRequestMeta(req)
   await prisma.userActivity.create({
-    data: { userId, action, detail, createdAt: new Date() },
+    data: {
+      action,
+      detail,
+      ipAddress: meta.ipAddress,
+      geoLocation: meta.geoLocation,
+      deviceInfo: meta.deviceInfo,
+      createdAt: new Date(),
+      ...(userId ? { user: { connect: { id: userId } } } : {}),
+    },
   })
 }

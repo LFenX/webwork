@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/db"
-import { createSession } from "@/lib/session"
+import { startUserSession } from "@/lib/session"
 import { loginSchema } from "@/lib/validators"
 import { normalizeUserRole, recordActivity } from "@/lib/admin"
 
@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
     where: { id: normalizedUser.id },
     data: { lastLoginAt: new Date() },
   })
-  await recordActivity(normalizedUser.id, "login", "登录")
-  await createSession({ userId: normalizedUser.id, email: normalizedUser.email })
+  await recordActivity(normalizedUser.id, "login", "登录", req)
+  await startUserSession({ userId: normalizedUser.id, email: normalizedUser.email, req })
 
   return NextResponse.json({ ok: true }, { headers: NO_STORE })
 }

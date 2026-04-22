@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowRight, BookOpen, BriefcaseBusiness, CalendarDays, FileText, MessageSquareText, NotebookText, type LucideIcon } from "lucide-react"
+import { ArrowLeft, ArrowRight, BookOpen, BriefcaseBusiness, CalendarDays, FileText, MessageSquareText, NotebookText, type LucideIcon } from "lucide-react"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
@@ -10,6 +10,7 @@ import { GuestbookSection } from "@/components/guestbook-section"
 import { FunnelChart } from "@/components/funnel-chart"
 import { StatsCard } from "@/components/stats-card"
 import { StatusBadge } from "@/components/status-badge"
+import { UserAvatar } from "@/components/user-avatar"
 import { formatChinaDate, formatDateKey } from "@/lib/time"
 
 const ARTICLE_MODULES = [
@@ -137,7 +138,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
   const [{ userId: ownerId }, session] = await Promise.all([params, getOptionalSession()])
   const owner = await prisma.user.findUnique({
     where: { id: ownerId },
-    select: { id: true, displayName: true, email: true, bio: true },
+    select: { id: true, displayName: true, email: true, bio: true, avatarText: true, avatarUrl: true },
   })
   if (!owner) notFound()
 
@@ -192,8 +193,26 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-10">
       <header className="mb-10">
-        <h1 className="text-2xl font-semibold mb-1">{displayName}</h1>
-        {owner.bio && <p className="text-sm text-[--color-text-muted] mt-2">{owner.bio}</p>}
+        {level === "friend" && (
+          <Link href="/friends" className="mb-4 inline-flex items-center gap-1.5 text-xs text-[--color-text-muted] hover:text-[--color-accent] hover:no-underline">
+            <ArrowLeft size={13} /> 返回好友
+          </Link>
+        )}
+        <div className="flex items-start gap-4">
+          <UserAvatar
+            name={displayName}
+            email={owner.email}
+            avatarText={owner.avatarText}
+            avatarUrl={owner.avatarUrl}
+            size="xl"
+            className="mt-0.5"
+          />
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold mb-1">{displayName}</h1>
+            <p className="text-sm text-[--color-text-muted]">{owner.email}</p>
+            {owner.bio && <p className="text-sm text-[--color-text-muted] mt-2">{owner.bio}</p>}
+          </div>
+        </div>
         {!showHomeContent && <p className="text-sm text-[--color-text-muted] mt-4">主页内容暂未对好友开放。</p>}
       </header>
 

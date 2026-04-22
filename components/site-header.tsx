@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { SettingsDialog } from "@/components/settings-dialog"
@@ -38,6 +39,16 @@ export function SiteHeader({
   displayName,
 }: SiteHeaderProps) {
   const pathname = usePathname()
+  const [presenceStatus, setPresenceStatus] = useState<"online" | "away" | "offline">(session ? "online" : "offline")
+
+  useEffect(() => {
+    const onPresence = (event: Event) => {
+      const status = (event as CustomEvent).detail
+      if (status === "online" || status === "away" || status === "offline") setPresenceStatus(status)
+    }
+    window.addEventListener("session-presence", onPresence)
+    return () => window.removeEventListener("session-presence", onPresence)
+  }, [])
 
   async function handleLogout() {
     await fetch("/api/auth/logout", {
@@ -90,6 +101,7 @@ export function SiteHeader({
                   email={session.email}
                   avatarText={avatarText}
                   avatarUrl={avatarUrl}
+                  presenceStatus={presenceStatus}
                 />
               </Link>
               <Link

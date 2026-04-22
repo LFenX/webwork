@@ -1,31 +1,39 @@
 import Link from "next/link"
-import { getPosts } from "@/lib/mdx"
+import { getArticleFolders, getPosts } from "@/lib/mdx"
 import { requireAuth } from "@/lib/auth"
 import { getModuleVisibility } from "@/lib/permissions"
+import { ArticleFolderPanel } from "@/components/article-folder-panel"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 import { Plus } from "lucide-react"
 
 export const metadata = { title: "博客 — My Space" }
 
-export default async function BlogPage() {
-  const { userId } = await requireAuth()
-  const [posts, visibility] = await Promise.all([
-    getPosts("blog", userId),
+export default async function BlogPage({ searchParams }: { searchParams: Promise<{ folder?: string }> }) {
+  const [{ userId }, { folder }] = await Promise.all([requireAuth(), searchParams])
+  const folderFilter = folder === "uncategorized" ? null : folder || undefined
+  const [posts, visibility, folders] = await Promise.all([
+    getPosts("blog", userId, ["private", "friends", "public"], folderFilter),
     getModuleVisibility(userId, "blog"),
+    getArticleFolders("blog", userId),
   ])
 
   return (
     <div className="max-w-[800px] mx-auto px-6 py-10">
-      <div className="mb-8 flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold mb-1">博客</h1>
-          <p className="text-sm text-[--color-text-muted]">{posts.length} 篇文章</p>
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold mb-1">博客</h1>
+            <p className="text-sm text-[--color-text-muted]">{posts.length} 篇文章</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <ModuleVisibilitySelect module="blog" initialVisibility={visibility} />
+            <Link href="/blog/new" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[--color-text-primary] text-white rounded-[--radius-sm] hover:no-underline hover:opacity-90 transition-opacity">
+              <Plus size={13} /> 新建
+            </Link>
+          </div>
         </div>
-        <ModuleVisibilitySelect module="blog" initialVisibility={visibility} />
-        <Link href="/blog/new" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[--color-text-primary] text-white rounded-[--radius-sm] hover:no-underline hover:opacity-90 transition-opacity">
-          <Plus size={13} /> 新建
-        </Link>
       </div>
+      <ArticleFolderPanel type="blog" basePath="/blog" folders={folders} selectedFolder={folder} />
       {posts.length === 0 ? (
         <p className="text-sm text-[--color-text-muted]">还没有博客文章，点击右上角新建。</p>
       ) : (

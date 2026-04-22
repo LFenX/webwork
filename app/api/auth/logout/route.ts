@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { deleteSession } from "@/lib/session"
+import { deleteSession, getSessionCookiePayload, markSessionLoggedOut } from "@/lib/session"
 
 export const dynamic = "force-dynamic"
 
@@ -13,6 +13,8 @@ function getPublicUrl(req: Request, pathname: string) {
 }
 
 export async function GET(req: Request) {
+  const session = await getSessionCookiePayload()
+  if (session) await markSessionLoggedOut(session.sessionId)
   await deleteSession()
   const url = getPublicUrl(req, "/login")
   const response = NextResponse.redirect(url, { headers: NO_STORE })
@@ -21,6 +23,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST() {
+  const session = await getSessionCookiePayload()
+  if (session) await markSessionLoggedOut(session.sessionId)
   await deleteSession()
   const response = NextResponse.json({ ok: true }, { headers: NO_STORE })
   response.cookies.delete("session")

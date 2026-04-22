@@ -35,6 +35,8 @@ model User {
   activities   UserActivity[]
   passwordChangeRequests PasswordChangeRequest[]
   uploads      Upload[]
+  sessions     UserSession[]
+  articleFolders ArticleFolder[]
 
   sentRequests     FriendRequest[] @relation("sent")
   receivedRequests FriendRequest[] @relation("received")
@@ -51,10 +53,34 @@ model UserActivity {
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   action    String
   detail    String   @default("")
+  ipAddress String   @default("")
+  geoLocation String @default("")
+  deviceInfo String  @default("")
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+model UserSession {
+  id                 String   @id @default(cuid())
+  sessionId          String   @unique
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status             String   @default("active")
+  ipAddress          String   @default("")
+  geoLocation        String   @default("")
+  deviceInfo         String   @default("")
+  replacedByLocation String   @default("")
+  replacedByDevice   String   @default("")
+  lastSeenAt         DateTime @default(now())
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([sessionId])
+  @@index([lastSeenAt])
 }
 
 model RegistrationRequest {
@@ -157,6 +183,8 @@ model Post {
   id         String   @id @default(cuid())
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId   String?
+  folder     ArticleFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   type       String
   slug       String
   title      String
@@ -171,6 +199,22 @@ model Post {
 
   @@unique([userId, type, slug])
   @@index([userId, type, date])
+  @@index([folderId])
+}
+
+model ArticleFolder {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          String
+  name          String
+  description   String   @default("")
+  coverImageUrl String   @default("")
+  posts         Post[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, type])
 }
 
 model ModuleVisibility {

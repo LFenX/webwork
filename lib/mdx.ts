@@ -9,21 +9,86 @@ export interface PostMeta {
   slug: string
   type: string
   visibility: string
+  folderId: string | null
+  folder: { id: string; name: string } | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Post extends PostMeta {
   content: string
+  author: { id: string; email: string; displayName: string }
+  wordCount: number
+  readingMinutes: number
+}
+
+export type ArticleFolderItem = {
+  id: string
+  type: string
+  name: string
+  description: string
+  coverImageUrl: string
+  postCount: number
+}
+
+function postStats(content: string) {
+  const text = content
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/[#>*_`~\-[\]()]/g, " ")
+    .trim()
+  const cjk = text.match(/[\u4e00-\u9fff]/g)?.length ?? 0
+  const words = text.match(/[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*/g)?.length ?? 0
+  const wordCount = cjk + words
+  return {
+    wordCount,
+    readingMinutes: Math.max(1, Math.ceil(wordCount / 400)),
+  }
+}
+
+export async function getArticleFolders(
+  type: "blog" | "daily" | "reflections" | "notes",
+  userId: string
+): Promise<ArticleFolderItem[]> {
+  const folders = await prisma.articleFolder.findMany({
+    where: { type, userId },
+    orderBy: { updatedAt: "desc" },
+    include: { _count: { select: { posts: true } } },
+  })
+  return folders.map((folder) => ({
+    id: folder.id,
+    type: folder.type,
+    name: folder.name,
+    description: folder.description,
+    coverImageUrl: folder.coverImageUrl,
+    postCount: folder._count.posts,
+  }))
 }
 
 export async function getPosts(
   type: "blog" | "daily" | "reflections" | "notes",
   userId: string,
-  visibilities: string[] = ["private", "friends", "public"]
+  visibilities: string[] = ["private", "friends", "public"],
+  folderId?: string | null
 ): Promise<PostMeta[]> {
+  const folderFilter = folderId === undefined ? {} : { folderId }
   const posts = await prisma.post.findMany({
-    where: { type, userId, visibility: { in: visibilities } },
+    where: { type, userId, visibility: { in: visibilities }, ...folderFilter },
     orderBy: { date: "desc" },
-    select: { id: true, slug: true, title: true, date: true, tags: true, summary: true, type: true, visibility: true },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      date: true,
+      tags: true,
+      summary: true,
+      type: true,
+      visibility: true,
+      folderId: true,
+      createdAt: true,
+      updatedAt: true,
+      folder: { select: { id: true, name: true } },
+    },
   })
   return posts.map((p) => ({
     id: p.id,
@@ -34,6 +99,10 @@ export async function getPosts(
     tags: JSON.parse(p.tags || "[]") as string[],
     summary: p.summary,
     visibility: p.visibility,
+    folderId: p.folderId,
+    folder: p.folder,
+    createdAt: p.createdAt.toISOString(),
+    updatedAt: p.updatedAt.toISOString(),
   }))
 }
 
@@ -51,8 +120,13 @@ export async function getPost(
       userId,
       visibility: { in: visibilities },
     },
+    include: {
+      user: { select: { id: true, email: true, displayName: true } },
+      folder: { select: { id: true, name: true } },
+    },
   })
   if (!p) return null
+  const stats = postStats(p.content)
   return {
     id: p.id,
     slug: p.slug,
@@ -63,6 +137,12 @@ export async function getPost(
     summary: p.summary,
     content: p.content,
     visibility: p.visibility,
+    folderId: p.folderId,
+    folder: p.folder,
+    createdAt: p.createdAt.toISOString(),
+    updatedAt: p.updatedAt.toISOString(),
+    author: p.user,
+    ...stats,
   }
 }
 

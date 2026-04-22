@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Eye, Trash2 } from "lucide-react"
@@ -33,7 +33,13 @@ interface PostEditorClientProps {
     content: string
     date: string
     visibility: string
+    folderId?: string | null
   }
+}
+
+type FolderOption = {
+  id: string
+  name: string
 }
 
 const TYPE_BASE: Record<string, string> = {
@@ -63,9 +69,24 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
     initialData?.date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10)
   )
   const [visibility, setVisibility] = useState(initialData?.visibility ?? "private")
+  const [folderId, setFolderId] = useState(initialData?.folderId ?? "")
+  const [folders, setFolders] = useState<FolderOption[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    fetch(`/api/article-folders?type=${type}`, { cache: "no-store" })
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => {
+        if (active && Array.isArray(data)) setFolders(data)
+      })
+      .catch(() => null)
+    return () => {
+      active = false
+    }
+  }, [type])
 
   async function handleSave() {
     if (!title.trim()) {
@@ -75,7 +96,7 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
     setSaving(true)
     try {
       const tags = tagsRaw.split(",").map((tag) => tag.trim()).filter(Boolean)
-      const body = { title, summary, tags, content, date, visibility }
+      const body = { title, summary, tags, content, date, visibility, folderId: folderId || null }
 
       if (mode === "create") {
         const slug = `${slugify(title)}-${Date.now().toString(36)}`
@@ -206,6 +227,19 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
                   <option value="friends">好友可见</option>
                 </select>
               </div>
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs">所属文件夹</Label>
+              <select
+                value={folderId}
+                onChange={(event) => setFolderId(event.target.value)}
+                className="h-9 w-full rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-surface] px-2.5 text-sm text-[--color-text-primary] outline-none hover:bg-[--color-bg-hover] focus:border-[--color-text-primary]"
+              >
+                <option value="">未分类</option>
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>{folder.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <Label className="mb-2 block text-xs">正文</Label>

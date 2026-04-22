@@ -96,10 +96,10 @@ export async function PUT(req: NextRequest) {
   const user = { id: session.userId, email: email ?? session.email }
 
   if (email && email !== session.email) {
-    await createSession({ userId: user.id, email: user.email })
+    await createSession({ userId: user.id, email: user.email, sessionId: session.sessionId })
   }
 
-  await recordActivity(session.userId, "update_profile", "更新用户信息")
+  await recordActivity(session.userId, "update_profile", "更新用户信息", req)
   revalidatePath("/")
   revalidatePath("/", "layout")
   return NextResponse.json(settings, { headers: NO_STORE })

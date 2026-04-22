@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -32,7 +32,7 @@ export async function POST(
       where: { id },
       data: { status: "approved", approvedAt: new Date() },
     })
-    await recordActivity(admin.id, "approve_registration", `同意 ${request.email} 注册`)
+    await recordActivity(admin.id, "approve_registration", `同意 ${request.email} 注册`, req)
 
     return NextResponse.json({ ok: true, user }, { headers: NO_STORE })
   } catch {
