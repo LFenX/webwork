@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Eye, Trash2 } from "lucide-react"
@@ -42,6 +42,16 @@ type FolderOption = {
   name: string
 }
 
+type EditorDraft = {
+  title: string
+  summary: string
+  tagsRaw: string
+  content: string
+  date: string
+  visibility: string
+  folderId: string
+}
+
 const TYPE_BASE: Record<string, string> = {
   blog: "/blog",
   daily: "/daily",
@@ -60,20 +70,96 @@ function slugify(s: string): string {
 export function PostEditorClient({ mode, type, typeLabel, creator, initialData }: PostEditorClientProps) {
   const router = useRouter()
   const base = TYPE_BASE[type]
-
-  const [title, setTitle] = useState(initialData?.title ?? "")
-  const [summary, setSummary] = useState(initialData?.summary ?? "")
-  const [tagsRaw, setTagsRaw] = useState((initialData?.tags ?? []).join(", "))
-  const [content, setContent] = useState(initialData?.content ?? "")
-  const [date, setDate] = useState(
-    initialData?.date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10)
+  const draftKey = useMemo(
+    () => `post-editor-draft:${type}:${initialData?.id ?? mode}`,
+    [initialData?.id, mode, type]
   )
-  const [visibility, setVisibility] = useState(initialData?.visibility ?? "private")
-  const [folderId, setFolderId] = useState(initialData?.folderId ?? "")
+  const initialDraft = useMemo<EditorDraft>(() => ({
+    title: initialData?.title ?? "",
+    summary: initialData?.summary ?? "",
+    tagsRaw: (initialData?.tags ?? []).join(", "),
+    content: initialData?.content ?? "",
+    date: initialData?.date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+    visibility: initialData?.visibility ?? "private",
+    folderId: initialData?.folderId ?? "",
+  }), [initialData])
+  const draftReady = useRef(false)
+
+  const [title, setTitle] = useState(initialDraft.title)
+  const [summary, setSummary] = useState(initialDraft.summary)
+  const [tagsRaw, setTagsRaw] = useState(initialDraft.tagsRaw)
+  const [content, setContent] = useState(initialDraft.content)
+  const [date, setDate] = useState(initialDraft.date)
+  const [visibility, setVisibility] = useState(initialDraft.visibility)
+  const [folderId, setFolderId] = useState(initialDraft.folderId)
   const [folders, setFolders] = useState<FolderOption[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(draftKey)
+    if (!raw) {
+      draftReady.current = true
+      return
+    }
+
+    try {
+      const draft = JSON.parse(raw) as Partial<EditorDraft> & { savedAt?: number }
+      const hasDraftContent = Boolean(
+        draft.title || draft.summary || draft.tagsRaw || draft.content || draft.folderId
+      )
+      const differs =
+        draft.title !== title ||
+        draft.summary !== summary ||
+        draft.tagsRaw !== tagsRaw ||
+        draft.content !== content ||
+        draft.date !== date ||
+        draft.visibility !== visibility ||
+        draft.folderId !== folderId
+
+      if (hasDraftContent && differs && window.confirm("检测到未保存的本地草稿，是否恢复？")) {
+        window.setTimeout(() => {
+          setTitle(draft.title ?? "")
+          setSummary(draft.summary ?? "")
+          setTagsRaw(draft.tagsRaw ?? "")
+          setContent(draft.content ?? "")
+          setDate(draft.date ?? new Date().toISOString().slice(0, 10))
+          setVisibility(draft.visibility ?? "private")
+          setFolderId(draft.folderId ?? "")
+          toast.success("已恢复未保存草稿")
+        }, 0)
+      }
+    } catch {
+      window.localStorage.removeItem(draftKey)
+    } finally {
+      draftReady.current = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey])
+
+  useEffect(() => {
+    if (!draftReady.current) return
+    const draft: EditorDraft = { title, summary, tagsRaw, content, date, visibility, folderId }
+    if (JSON.stringify(draft) === JSON.stringify(initialDraft)) {
+      window.localStorage.removeItem(draftKey)
+      return
+    }
+    window.localStorage.setItem(draftKey, JSON.stringify({ ...draft, savedAt: Date.now() }))
+  }, [content, date, draftKey, folderId, initialDraft, summary, tagsRaw, title, visibility])
+
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!draftReady.current) return
+      const saved = window.localStorage.getItem(draftKey)
+      if (!saved) return
+      event.preventDefault()
+      event.returnValue = ""
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [draftKey])
 
   useEffect(() => {
     let active = true
@@ -108,6 +194,7 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
         })
         if (!res.ok) throw new Error()
         const post = await res.json()
+        window.localStorage.removeItem(draftKey)
         toast.success("已创建")
         router.push(`${base}/${encodeURIComponent(post.slug)}`)
       } else if (initialData) {
@@ -118,6 +205,7 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
           cache: "no-store",
         })
         if (!res.ok) throw new Error()
+        window.localStorage.removeItem(draftKey)
         toast.success("已保存")
         router.push(`${base}/${encodeURIComponent(initialData.slug)}`)
       }
@@ -134,6 +222,7 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
     setDeleting(true)
     try {
       await fetch(`/api/posts/${initialData.id}`, { method: "DELETE", cache: "no-store" })
+      window.localStorage.removeItem(draftKey)
       toast.success("已删除")
       router.push(base)
     } catch {
@@ -175,8 +264,8 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
           </div>
         </div>
 
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5 shadow-sm">
-          <div className="grid gap-4">
+        <div className="min-w-0 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5 shadow-sm">
+          <div className="grid min-w-0 gap-4">
             <div>
               <Label className="mb-1 block text-xs">标题 *</Label>
               <Input
@@ -241,7 +330,7 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
                 ))}
               </select>
             </div>
-            <div>
+            <div className="min-w-0">
               <Label className="mb-2 block text-xs">正文</Label>
               <MarkdownEditor
                 value={content}

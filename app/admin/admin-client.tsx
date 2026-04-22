@@ -290,71 +290,79 @@ export function AdminClient() {
               <UserCog size={16} />
               <h2 className="text-sm font-semibold">用户管理</h2>
             </div>
-            <div
-              className="max-h-[520px] overflow-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]"
-              onScroll={(event) => {
-                if (isNearBottom(event) && usersHasMore && !usersLoading) void loadUsers(usersCursor, true)
-              }}
-            >
-              <table className="w-full min-w-[860px] table-fixed text-sm">
-                <thead className="sticky top-0 z-10">
-                  <tr className="border-b-2 border-[--color-border-strong] bg-[--color-bg-hover]">
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户</th>
-                    <th className="w-[150px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">权限</th>
-                    <th className="w-[190px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">最近登录</th>
-                    <th className="w-[150px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">删除条件</th>
-                    {data.canManageUsers && <th className="w-[80px] px-4 py-2.5" />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => {
-                    const inactiveDays = daysSince(user.lastLoginAt)
-                    const deletable = inactiveDays !== null && inactiveDays >= 30
-                    return (
-                      <tr key={user.id} className="border-b border-[--color-border] last:border-b-0">
-                        <td className="px-4 py-3">
-                          <p className="truncate font-medium">{user.displayName || user.email}</p>
-                          <p className="truncate font-mono text-xs text-[--color-text-muted]">{user.email}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          {data.canManageUsers && user.role !== "owner" ? (
-                            <Select value={user.role === "admin" ? "admin" : "user"} onValueChange={(role) => updateRole(user.id, role)}>
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="user">成员</SelectItem>
-                                <SelectItem value="admin">普通管理员</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-xs">
-                              {user.role === "owner" && <ShieldCheck size={13} />}
-                              {user.role === "owner" ? "终极管理员" : user.role === "admin" ? "普通管理员" : "成员"}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(user.lastLoginAt)}</td>
-                        <td className="px-4 py-3 text-xs text-[--color-text-muted]">
-                          {deletable ? "可删除" : inactiveDays === null ? "从未登录，不可删" : `还需 ${30 - inactiveDays} 天`}
-                        </td>
-                        {data.canManageUsers && (
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => deleteUser(user)}
-                              className="p-1 text-[--color-text-muted] hover:text-[--color-danger]"
-                              title="删除用户"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
-                        )}
+            <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+              <div className="overflow-x-auto bg-[--color-bg-surface]">
+                <div className="min-w-[860px]">
+                  <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+                    <thead>
+                      <tr>
+                        <th className="w-[290px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户</th>
+                        <th className="w-[150px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">权限</th>
+                        <th className="w-[190px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">最近登录</th>
+                        <th className="w-[150px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">删除条件</th>
+                        {data.canManageUsers && <th className="w-[80px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5" />}
                       </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-              {usersLoading && <p className="p-3 text-center text-xs text-[--color-text-muted]">加载更多成员...</p>}
+                    </thead>
+                  </table>
+                  <div
+                    className="max-h-[470px] overflow-y-auto"
+                    onScroll={(event) => {
+                      if (isNearBottom(event) && usersHasMore && !usersLoading) void loadUsers(usersCursor, true)
+                    }}
+                  >
+                    <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+                      <tbody>
+                        {users.map((user) => {
+                          const inactiveDays = daysSince(user.lastLoginAt)
+                          const deletable = inactiveDays !== null && inactiveDays >= 30
+                          return (
+                            <tr key={user.id}>
+                              <td className="w-[290px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
+                                <p className="truncate font-medium">{user.displayName || user.email}</p>
+                                <p className="truncate font-mono text-xs text-[--color-text-muted]">{user.email}</p>
+                              </td>
+                              <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
+                                {data.canManageUsers && user.role !== "owner" ? (
+                                  <Select value={user.role === "admin" ? "admin" : "user"} onValueChange={(role) => updateRole(user.id, role)}>
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="user">成员</SelectItem>
+                                      <SelectItem value="admin">普通管理员</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-xs">
+                                    {user.role === "owner" && <ShieldCheck size={13} />}
+                                    {user.role === "owner" ? "终极管理员" : user.role === "admin" ? "普通管理员" : "成员"}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="w-[190px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(user.lastLoginAt)}</td>
+                              <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                                {deletable ? "可删除" : inactiveDays === null ? "从未登录，不可删" : `还需 ${30 - inactiveDays} 天`}
+                              </td>
+                              {data.canManageUsers && (
+                                <td className="w-[80px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-right">
+                                  <button
+                                    onClick={() => deleteUser(user)}
+                                    className="p-1 text-[--color-text-muted] hover:text-[--color-danger]"
+                                    title="删除用户"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                    {usersLoading && <p className="p-3 text-center text-xs text-[--color-text-muted]">加载更多成员...</p>}
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -370,43 +378,51 @@ export function AdminClient() {
                 </Button>
               )}
             </div>
-            <div
-              className="max-h-[560px] overflow-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]"
-              onScroll={(event) => {
-                if (isNearBottom(event) && activitiesHasMore && !activitiesLoading) void loadActivities(activitiesCursor, true)
-              }}
-            >
+            <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
               {activities.length === 0 ? (
                 <p className="p-4 text-sm text-[--color-text-muted]">暂无行为记录</p>
               ) : (
-                <table className="w-full min-w-[1080px] table-fixed text-sm">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="border-b-2 border-[--color-border-strong] bg-[--color-bg-hover]">
-                      <th className="w-[160px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">时间</th>
-                      <th className="w-[170px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">行为</th>
-                      <th className="w-[300px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户与详情</th>
-                      <th className="w-[180px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">IP 地址</th>
-                      <th className="w-[160px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">地理位置</th>
-                      <th className="w-[140px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">设备信息</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activities.map((activity) => (
-                      <tr key={activity.id} className="border-b border-[--color-border] last:border-b-0">
-                        <td className="px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(activity.createdAt)}</td>
-                        <td className="break-words px-4 py-3 font-mono text-xs text-[--color-text-secondary]">{activity.action}</td>
-                        <td className="break-words px-4 py-3 text-xs text-[--color-text-muted]">
-                          {(activity.user?.displayName || activity.user?.email || "系统")}：{activity.detail}
-                        </td>
-                        <td className="break-all px-4 py-3 font-mono text-xs text-[--color-text-muted]">{activity.ipAddress || "未知"}</td>
-                        <td className="break-words px-4 py-3 text-xs text-[--color-text-muted]">{activity.geoLocation || "未知"}</td>
-                        <td className="break-words px-4 py-3 text-xs text-[--color-text-muted]">{activity.deviceInfo || "未知"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto bg-[--color-bg-surface]">
+                  <div className="min-w-[1080px]">
+                    <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+                      <thead>
+                        <tr>
+                          <th className="w-[160px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">时间</th>
+                          <th className="w-[170px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">行为</th>
+                          <th className="w-[300px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户与详情</th>
+                          <th className="w-[180px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">IP 地址</th>
+                          <th className="w-[160px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">地理位置</th>
+                          <th className="w-[140px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">设备信息</th>
+                        </tr>
+                      </thead>
+                    </table>
+                    <div
+                      className="max-h-[500px] overflow-y-auto"
+                      onScroll={(event) => {
+                        if (isNearBottom(event) && activitiesHasMore && !activitiesLoading) void loadActivities(activitiesCursor, true)
+                      }}
+                    >
+                      <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+                        <tbody>
+                          {activities.map((activity) => (
+                            <tr key={activity.id}>
+                              <td className="w-[160px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(activity.createdAt)}</td>
+                              <td className="w-[170px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-secondary]">{activity.action}</td>
+                              <td className="w-[300px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                                {(activity.user?.displayName || activity.user?.email || "系统")}：{activity.detail}
+                              </td>
+                              <td className="w-[180px] break-all border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted]">{activity.ipAddress || "未知"}</td>
+                              <td className="w-[160px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{activity.geoLocation || "未知"}</td>
+                              <td className="w-[140px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{activity.deviceInfo || "未知"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {activitiesLoading && <p className="p-3 text-center text-xs text-[--color-text-muted]">加载更多日志...</p>}
+                    </div>
+                  </div>
+                </div>
               )}
-              {activitiesLoading && <p className="p-3 text-center text-xs text-[--color-text-muted]">加载更多日志...</p>}
             </div>
           </section>
 

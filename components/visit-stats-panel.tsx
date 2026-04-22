@@ -97,7 +97,7 @@ export async function VisitStatsPanel({ userId }: { userId: string }) {
                       </span>
                     </div>
                     <div className="text-xs text-[--color-text-muted]">
-                      {formatChinaDateTime(visit.createdAt)} · {visit.path}
+                      {formatChinaDateTime(visit.createdAt)}
                     </div>
                   </div>
                 ))

@@ -57,9 +57,56 @@
 :root {
   --background: var(--color-bg-primary);
   --foreground: var(--color-text-primary);
+  --popover: var(--color-bg-surface);
+  --popover-foreground: var(--color-text-primary);
+  --muted: var(--color-bg-hover);
+  --muted-foreground: var(--color-text-secondary);
+  --border: var(--color-border);
+  --input: var(--color-border);
+  --ring: var(--color-border-strong);
+  --accent: var(--color-bg-hover);
+  --accent-foreground: var(--color-text-primary);
   --app-viewport-height: 100vh;
   --app-viewport-offset-top: 0px;
   --keyboard-inset-bottom: 0px;
+}
+
+.editor-floating-panel {
+  border: 1px solid var(--color-border);
+  background: #fff !important;
+  background-color: #fff !important;
+  color: var(--color-text-primary) !important;
+  opacity: 1 !important;
+  z-index: 2000 !important;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
+  isolation: isolate;
+}
+
+.editor-toolbar {
+  isolation: isolate;
+}
+
+.tiptap-code-block {
+  position: relative;
+  z-index: 0;
+}
+
+select,
+option {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
+table {
+  background-color: var(--color-bg-surface);
+}
+
+thead,
+tbody,
+tr,
+th,
+td {
+  background-clip: padding-box;
 }
 
 @supports (height: 100dvh) {
@@ -281,6 +328,13 @@ a:hover {
   line-height: 1.8;
   color: var(--color-text-secondary);
   min-height: inherit;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tiptap-wrapper,
+.tiptap-wrapper * {
+  box-sizing: border-box;
 }
 .tiptap-content .ProseMirror > * + * { margin-top: 0.75em; }
 .tiptap-content .ProseMirror h1,
@@ -305,7 +359,7 @@ a:hover {
   margin: 1em 0;
   font-style: italic;
 }
-.tiptap-content .ProseMirror pre {
+.tiptap-content .ProseMirror pre:not(.tiptap-code-block-pre) {
   background: #1e1e2e;
   color: #cdd6f4;
   border-radius: var(--radius-md);
@@ -316,6 +370,8 @@ a:hover {
   margin: 1em 0;
 }
 .tiptap-content .ProseMirror pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+/* NodeView wrapper replaces bare pre styling */
+.tiptap-content .ProseMirror > .tiptap-details { margin: 1em 0; }
 .tiptap-content .ProseMirror code:not(pre code) {
   background: var(--color-bg-hover);
   border: 1px solid var(--color-border);
@@ -378,6 +434,34 @@ a:hover {
   background: var(--color-bg-hover);
   font-weight: 600;
   color: var(--color-text-primary);
+}
+.tiptap-content .ProseMirror table[data-variant="bordered"] th,
+.tiptap-content .ProseMirror table[data-variant="bordered"] td {
+  border-width: 2px;
+}
+.tiptap-content .ProseMirror table[data-variant="striped"] tr:nth-child(even) td {
+  background: var(--color-bg-hover);
+}
+.tiptap-content .ProseMirror table[data-variant="minimal"] th,
+.tiptap-content .ProseMirror table[data-variant="minimal"] td {
+  border-left: none;
+  border-right: none;
+}
+.tiptap-content .ProseMirror table[data-variant="minimal"] th {
+  background: transparent;
+}
+.tiptap-content .ProseMirror table[data-variant="card"] {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+.tiptap-content .ProseMirror table[data-variant="card"] th,
+.tiptap-content .ProseMirror table[data-variant="card"] td {
+  border-left: none;
+  border-right: none;
 }
 .tiptap-content .ProseMirror .selectedCell:after {
   content: "";
@@ -495,11 +579,230 @@ a:hover {
 .markdown-alert-important .markdown-alert-title { color: #8b5cf6; }
 .markdown-alert-caution .markdown-alert-title { color: #ef4444; }
 
-/* ─── highlight.js scope override (dark code blocks) ─────────────────────────── */
+/* ─── highlight.js: only remove background, keep token colors ───────────────── */
 .prose pre .hljs,
 .tiptap-content .ProseMirror pre .hljs {
   background: transparent;
-  color: inherit;
+}
+
+/* ─── Code block wrapper (NodeView) ─────────────────────────────────────────── */
+.tiptap-code-block-pre {
+  background: #1e1e2e;
+  color: #cdd6f4;
+  border-radius: var(--radius-md);
+  padding: 1em 1.25em;
+  overflow-x: auto;
+  font-size: 0.875em;
+  font-family: var(--font-mono), monospace;
+  margin: 0;
+}
+/* NodeView wrapper provides the margin */
+.tiptap-content .ProseMirror .tiptap-code-block-pre { margin: 0; }
+.tiptap-code-block[data-theme="default"] .tiptap-code-block-pre,
+.tiptap-code-block[data-theme="dark"] .tiptap-code-block-pre {
+  background: #1e1e2e;
+  color: #cdd6f4;
+}
+.tiptap-code-block[data-theme="github"] .tiptap-code-block-pre {
+  background: #f6f8fa;
+  color: #24292f;
+  border: 1px solid #d0d7de;
+}
+.tiptap-code-block[data-theme="nord"] .tiptap-code-block-pre {
+  background: #2e3440;
+  color: #d8dee9;
+}
+.tiptap-code-block[data-theme="monokai"] .tiptap-code-block-pre {
+  background: #272822;
+  color: #f8f8f2;
+}
+.tiptap-code-block[data-theme="github"] select,
+.tiptap-code-block[data-theme="github"] span {
+  border-color: rgba(36, 41, 47, 0.2);
+  background: rgba(36, 41, 47, 0.08);
+  color: rgba(36, 41, 47, 0.75);
+}
+
+/* ─── HR variants ────────────────────────────────────────────────────────────── */
+.tiptap-content .ProseMirror hr[data-variant="dashed"] {
+  border-top-style: dashed;
+  border-top-width: 2px;
+}
+.tiptap-content .ProseMirror hr[data-variant="dotted"] {
+  border-top-style: dotted;
+  border-top-width: 2px;
+}
+.tiptap-content .ProseMirror hr[data-variant="double"] {
+  border-top: none;
+  height: 4px;
+  background: linear-gradient(
+    to bottom,
+    var(--color-border-strong) 0px,
+    var(--color-border-strong) 1px,
+    transparent 1px,
+    transparent 2px,
+    var(--color-border-strong) 2px,
+    var(--color-border-strong) 3px
+  );
+}
+.tiptap-content .ProseMirror hr[data-variant="thick"] {
+  border-top-width: 4px;
+  border-color: var(--color-text-primary);
+}
+.tiptap-content .ProseMirror hr[data-variant="wavy"] {
+  border: none;
+  height: 6px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='6'%3E%3Cpath d='M0 3 Q5 0 10 3 Q15 6 20 3' stroke='%23D4D1C7' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: center;
+}
+.tiptap-content .ProseMirror hr[data-variant="ornament"] {
+  border: none;
+  text-align: center;
+  overflow: visible;
+  position: relative;
+  height: 1px;
+  background: var(--color-border);
+}
+.tiptap-content .ProseMirror hr[data-variant="ornament"]::after {
+  content: "✦";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--color-bg-surface);
+  padding: 0 0.75em;
+  color: var(--color-text-muted);
+  font-size: 0.75em;
+}
+
+/* Same variants for prose (reading view) */
+.prose hr[data-variant="dashed"]  { border-top-style: dashed; border-top-width: 2px; }
+.prose hr[data-variant="dotted"]  { border-top-style: dotted; border-top-width: 2px; }
+.prose hr[data-variant="double"] {
+  border: none; height: 4px;
+  background: linear-gradient(to bottom, currentColor 0 1px, transparent 1px 2px, currentColor 2px 3px);
+}
+.prose hr[data-variant="thick"]   { border-top-width: 4px; border-color: currentColor; }
+.prose hr[data-variant="wavy"] {
+  border: none; height: 6px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='6'%3E%3Cpath d='M0 3 Q5 0 10 3 Q15 6 20 3' stroke='%239A968C' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: center;
+}
+.prose hr[data-variant="ornament"] {
+  border: none; text-align: center; overflow: visible;
+  position: relative; height: 1px; background: currentColor;
+}
+.prose hr[data-variant="ornament"]::after {
+  content: "✦";
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  background: var(--color-bg-surface); padding: 0 0.75em;
+  color: var(--color-text-muted); font-size: 0.75em;
+}
+
+/* ─── Details / Collapse block ───────────────────────────────────────────────── */
+.tiptap-details {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.tiptap-details-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--color-bg-hover);
+  padding: 0.5rem 0.75rem;
+  user-select: none;
+}
+.tiptap-details-toggle {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 0.75rem;
+  background: none;
+  border: none;
+  transition: background 0.15s;
+}
+.tiptap-details-toggle:hover { background: var(--color-border); }
+.tiptap-details-summary-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  cursor: text;
+}
+.tiptap-details-summary-input::placeholder { color: var(--color-text-muted); }
+.tiptap-details-delete {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.tiptap-details-delete:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+.tiptap-details-content {
+  padding: 0.75rem 1rem;
+}
+.tiptap-details-content > * + * { margin-top: 0.5em; }
+
+/* Details in prose reading view */
+.prose details {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin: 1em 0;
+}
+.prose details summary {
+  background: var(--color-bg-hover);
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-weight: 500;
+  list-style: none;
+}
+.prose details summary::marker,
+.prose details summary::-webkit-details-marker { display: none; }
+.prose details summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.5rem;
+  transition: transform 0.2s;
+  font-size: 0.75rem;
+}
+.prose details[open] summary::before { transform: rotate(90deg); }
+.prose details > *:not(summary) { padding: 0.75rem 1rem; }
+
+/* ─── Math edit input ────────────────────────────────────────────────────────── */
+.tiptap-math-edit { vertical-align: baseline; }
+
+/* ─── Scrollbar hide for toolbar ─────────────────────────────────────────────── */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+@media (max-width: 767px) {
+  .tiptap-wrapper button {
+    min-width: 2rem;
+    min-height: 2rem;
+  }
 }
 
 /* KaTeX display math centering */

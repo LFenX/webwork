@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/db"
-import { getPosts } from "@/lib/mdx"
+import { getArticleFolders, getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
 import { canViewModule, getAccessLevel, recordVisit, visibleTo } from "@/lib/permissions"
+import { ArticleFolderPanel } from "@/components/article-folder-panel"
+import { FriendModuleNav } from "@/components/friend-module-nav"
+import { getFriendVisibleModules } from "@/lib/friend-module-nav"
 
-export default async function UserNotesPage({ params }: { params: Promise<{ userId: string }> }) {
-  const [{ userId: ownerId }, session] = await Promise.all([params, getOptionalSession()])
+export default async function UserNotesPage({ params, searchParams }: { params: Promise<{ userId: string }>; searchParams: Promise<{ folder?: string }> }) {
+  const [{ userId: ownerId }, { folder }, session] = await Promise.all([params, searchParams, getOptionalSession()])
   const owner = await prisma.user.findUnique({
     where: { id: ownerId },
     select: { id: true, displayName: true, email: true },
@@ -17,18 +20,26 @@ export default async function UserNotesPage({ params }: { params: Promise<{ user
   if (level === "none") notFound()
   const moduleVisible = await canViewModule(ownerId, "notes", level)
   await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "notes", path: `/u/${ownerId}/notes` })
-  const posts = moduleVisible ? await getPosts("notes", ownerId, visibleTo(level)) : []
+  const folderFilter = folder === "uncategorized" ? null : folder || undefined
+  const [posts, folders, visibleModules] = moduleVisible
+    ? await Promise.all([
+        getPosts("notes", ownerId, visibleTo(level), folderFilter),
+        getArticleFolders("notes", ownerId),
+        getFriendVisibleModules(ownerId, level),
+      ])
+    : [[], [], await getFriendVisibleModules(ownerId, level)]
   const displayName = owner.displayName || owner.email
 
   return (
     <div className="max-w-[800px] mx-auto px-6 py-10">
+      <FriendModuleNav ownerId={ownerId} displayName={displayName} current="notes" modules={visibleModules} />
       <div className="mb-6">
-        <Link href={`/u/${ownerId}`} className="text-xs text-[--color-text-muted] hover:text-[--color-accent] mb-2 block">
-          ← {displayName}
-        </Link>
         <h1 className="text-xl font-semibold mb-1">笔记</h1>
         <p className="text-sm text-[--color-text-muted]">{posts.length} 篇笔记</p>
       </div>
+      {moduleVisible && (
+        <ArticleFolderPanel type="notes" basePath={`/u/${ownerId}/notes`} folders={folders} selectedFolder={folder} readOnly />
+      )}
       {posts.length === 0 ? (
         <p className="text-sm text-[--color-text-muted]">暂无可见内容。</p>
       ) : (

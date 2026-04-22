@@ -8,6 +8,7 @@ import { getRequestMeta } from "@/lib/request-meta"
 const COOKIE_NAME = "session"
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 export const AWAY_AFTER_MS = 30 * 60 * 1000
+export const FOREGROUND_OFFLINE_AFTER_MS = 5 * 60 * 1000
 export const EXPIRE_AFTER_MS = 12 * 60 * 60 * 1000
 
 function getKey() {
@@ -108,6 +109,8 @@ export async function startUserSession({
         geoLocation: meta.geoLocation,
         deviceInfo: meta.deviceInfo,
         lastSeenAt: now,
+        lastActiveAt: now,
+        lastForegroundAt: now,
         expiresAt,
       },
     }),

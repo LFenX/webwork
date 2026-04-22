@@ -1,6 +1,6 @@
 "use client"
 
-import { UIEvent, useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { ExternalLink, Eye, Pencil, Plus, Search, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -81,11 +81,6 @@ const defaultForm: JobForm = {
   baseLocation: "",
   hrContact: "",
   link: "",
-}
-
-function nearBottom(event: UIEvent<HTMLDivElement>) {
-  const target = event.currentTarget
-  return target.scrollTop + target.clientHeight >= target.scrollHeight - 120
 }
 
 export function JobsClient() {
@@ -295,67 +290,80 @@ export function JobsClient() {
             action={{ label: "新建记录", onClick: openCreate }}
           />
         ) : (
-          <div className="max-h-[560px] overflow-auto" onScroll={(event) => nearBottom(event) && hasMore && !loadingMore && void loadJobs(nextCursor, true)}>
-            <table className="min-w-[1180px] table-fixed text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="border-b-2 border-[--color-border-strong] bg-[--color-bg-hover]">
-                  <th className="w-[150px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">公司</th>
-                  <th className="w-[180px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">职位</th>
-                  <th className="w-[110px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">渠道</th>
-                  <th className="w-[100px] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">投递日期</th>
-                  <th className="w-[120px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">状态</th>
-                  <th className="w-[90px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">BASE</th>
-                  <th className="w-[120px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">联系人</th>
-                  <th className="w-[70px] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">面试</th>
-                  <th className="w-[86px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">链接</th>
-                  <th className="w-[170px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">备注</th>
-                  <th className="w-[90px] px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map((job) => (
-                  <tr
-                    key={job.id}
-                    className="group cursor-pointer border-b border-[--color-border] transition-colors hover:bg-[--color-bg-hover]"
-                    onClick={() => openDetail(job)}
-                  >
-                    <td className="truncate px-4 py-3 font-medium">{job.company}</td>
-                    <td className="truncate px-4 py-3 text-[--color-text-secondary]">{job.position}</td>
-                    <td className="truncate px-4 py-3 font-mono text-xs text-[--color-text-muted]">{job.channel}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-[--color-text-muted]">{formatChinaDate(job.appliedAt, { month: "2-digit", day: "2-digit" })}</td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <Select value={job.status} onValueChange={(v) => handleStatusChange(job.id, v)}>
-                        <SelectTrigger className="h-6 w-auto gap-1 border-0 bg-transparent p-0 shadow-none focus:ring-0">
-                          <StatusBadge status={job.status} type="job" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="truncate px-4 py-3 text-xs text-[--color-text-muted]">{job.baseLocation || "-"}</td>
-                    <td className="truncate px-4 py-3 text-xs text-[--color-text-muted]">{job.hrContact || "-"}</td>
-                    <td className="px-4 py-3 text-center font-mono text-xs text-[--color-text-muted]">{job._count?.interviews ?? 0}</td>
-                    <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      {job.link ? (
-                        <a href={job.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[--color-link] hover:underline">
-                          投递 <ExternalLink size={10} />
-                        </a>
-                      ) : <span className="text-xs text-[--color-text-muted]">-</span>}
-                    </td>
-                    <td className="truncate px-4 py-3 text-xs text-[--color-text-muted]">{job.notes}</td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <button onClick={() => openDetail(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-link]" title="查看"><Eye size={13} /></button>
-                        <button onClick={() => openEdit(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-text-primary]" title="编辑"><Pencil size={13} /></button>
-                        <button onClick={() => handleDelete(job.id)} className="p-1 text-[--color-text-muted] hover:text-[--color-danger]" title="删除"><Trash2 size={13} /></button>
-                      </div>
-                    </td>
+          <div className="overflow-x-auto bg-[--color-bg-surface]">
+            <div className="min-w-[1180px]">
+              <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+                <thead>
+                  <tr>
+                    <th className="w-[150px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">公司</th>
+                    <th className="w-[180px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">职位</th>
+                    <th className="w-[110px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">渠道</th>
+                    <th className="w-[100px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">投递日期</th>
+                    <th className="w-[120px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">状态</th>
+                    <th className="w-[90px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">BASE</th>
+                    <th className="w-[120px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">联系人</th>
+                    <th className="w-[70px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">面试</th>
+                    <th className="w-[86px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">链接</th>
+                    <th className="w-[170px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">备注</th>
+                    <th className="w-[90px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {loadingMore && <p className="p-3 text-center text-xs text-[--color-text-muted]">加载更多记录...</p>}
+                </thead>
+              </table>
+              <div>
+                <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+                  <tbody>
+                    {jobs.map((job) => (
+                      <tr
+                        key={job.id}
+                        className="group cursor-pointer transition-colors hover:bg-[--color-bg-hover]"
+                        onClick={() => openDetail(job)}
+                      >
+                        <td className="w-[150px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-medium group-hover:bg-[--color-bg-hover]">{job.company}</td>
+                        <td className="w-[180px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-[--color-text-secondary] group-hover:bg-[--color-bg-hover]">{job.position}</td>
+                        <td className="w-[110px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job.channel}</td>
+                        <td className="w-[100px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{formatChinaDate(job.appliedAt, { month: "2-digit", day: "2-digit" })}</td>
+                        <td className="w-[120px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]" onClick={(e) => e.stopPropagation()}>
+                          <Select value={job.status} onValueChange={(v) => handleStatusChange(job.id, v)}>
+                            <SelectTrigger className="h-6 w-auto gap-1 border-0 bg-transparent p-0 shadow-none focus:ring-0">
+                              <StatusBadge status={job.status} type="job" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="w-[90px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job.baseLocation || "-"}</td>
+                        <td className="w-[120px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job.hrContact || "-"}</td>
+                        <td className="w-[70px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-center font-mono text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job._count?.interviews ?? 0}</td>
+                        <td className="w-[86px] whitespace-nowrap border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]" onClick={(e) => e.stopPropagation()}>
+                          {job.link ? (
+                            <a href={job.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[--color-link] hover:underline">
+                              投递 <ExternalLink size={10} />
+                            </a>
+                          ) : <span className="text-xs text-[--color-text-muted]">-</span>}
+                        </td>
+                        <td className="w-[170px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job.notes}</td>
+                        <td className="w-[90px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                            <button onClick={() => openDetail(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-link]" title="查看"><Eye size={13} /></button>
+                            <button onClick={() => openEdit(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-text-primary]" title="编辑"><Pencil size={13} /></button>
+                            <button onClick={() => handleDelete(job.id)} className="p-1 text-[--color-text-muted] hover:text-[--color-danger]" title="删除"><Trash2 size={13} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {loadingMore && <p className="p-3 text-center text-xs text-[--color-text-muted]">加载更多记录...</p>}
+                {hasMore && !loadingMore && (
+                  <div className="border-t border-[--color-border] p-3 text-center">
+                    <Button type="button" variant="outline" size="sm" onClick={() => void loadJobs(nextCursor, true)}>
+                      加载更多
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

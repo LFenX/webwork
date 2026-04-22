@@ -40,8 +40,7 @@ export default async function ResumePage() {
           {resume.mode === "pdf" && resume.pdfPath ? (
             <iframe
               src={resume.pdfPath}
-              className="min-h-[72vh] w-full rounded border border-[--color-border]"
-              style={{ height: "min(86vh, 980px)" }}
+              className="h-[1200px] min-h-[calc(var(--app-viewport-height)-12rem)] w-full rounded border border-[--color-border]"
               title="简历 PDF"
             />
           ) : resume.content ? (

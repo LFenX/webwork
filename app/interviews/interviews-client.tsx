@@ -236,84 +236,90 @@ export function InterviewsClient() {
             action={{ label: "新建记录", onClick: openCreate }}
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b-2 border-[--color-border-strong] bg-[--color-bg-hover]">
-                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[110px]">公司</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted]">职位</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[80px]">轮次</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[60px]">形式</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[110px] font-mono">日期</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[60px]">自评</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[80px]">结果</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted]">反馈</th>
-                  <th className="px-4 py-2.5 w-[80px]"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {interviews.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-b border-[--color-border] hover:bg-[--color-bg-hover] transition-colors group"
-                  >
-                    <td className="px-4 py-3 font-medium">{item.company}</td>
-                    <td className="px-4 py-3 text-[--color-text-secondary]">{item.position}</td>
-                    <td className="px-4 py-3 text-xs text-[--color-text-muted] font-mono">{item.round}</td>
-                    <td className="px-4 py-3 text-xs text-[--color-text-muted]">{item.format}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-[--color-text-muted]">
-                      {formatChinaDate(item.scheduledAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.selfRating ? (
-                        <div className="flex gap-0.5">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star
-                              key={i}
-                              size={12}
-                              className={(item.selfRating ?? 0) > i ? "text-[--color-warning]" : "text-[--color-border-strong]"}
-                              fill={(item.selfRating ?? 0) > i ? "currentColor" : "none"}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-[--color-text-muted] text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={item.result} type="interview" />
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[--color-text-muted] max-w-[160px] truncate">
-                      {item.feedback}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => openDetail(item)}
-                          className="p-1 text-[--color-text-muted] hover:text-[--color-link]"
-                          title="查看详情"
-                        >
-                          <ChevronDown size={14} />
-                        </button>
-                        <button
-                          onClick={() => openEdit(item)}
-                          className="p-1 text-[--color-text-muted] hover:text-[--color-text-primary] text-xs"
-                          title="编辑"
-                        >
-                          编辑
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="p-1 text-[--color-text-muted] hover:text-[--color-danger]"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
+          <div className="overflow-x-auto bg-[--color-bg-surface]">
+            <div className="min-w-[1090px]">
+              <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+                <thead>
+                  <tr>
+                    <th className="w-[130px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">公司</th>
+                    <th className="w-[180px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">职位</th>
+                    <th className="w-[100px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">轮次</th>
+                    <th className="w-[80px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">形式</th>
+                    <th className="w-[130px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">日期</th>
+                    <th className="w-[80px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">自评</th>
+                    <th className="w-[100px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">结果</th>
+                    <th className="w-[200px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">反馈</th>
+                    <th className="w-[90px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+              </table>
+              <div>
+                <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+                  <tbody>
+                    {interviews.map((item) => (
+                      <tr
+                        key={item.id}
+                        className="group transition-colors hover:bg-[--color-bg-hover]"
+                      >
+                        <td className="w-[130px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-medium group-hover:bg-[--color-bg-hover]">{item.company}</td>
+                        <td className="w-[180px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-[--color-text-secondary] group-hover:bg-[--color-bg-hover]">{item.position}</td>
+                        <td className="w-[100px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{item.round}</td>
+                        <td className="w-[80px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{item.format}</td>
+                        <td className="w-[130px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">
+                          {formatChinaDate(item.scheduledAt)}
+                        </td>
+                        <td className="w-[80px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]">
+                          {item.selfRating ? (
+                            <div className="flex gap-0.5">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  size={12}
+                                  className={(item.selfRating ?? 0) > i ? "text-[--color-warning]" : "text-[--color-border-strong]"}
+                                  fill={(item.selfRating ?? 0) > i ? "currentColor" : "none"}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-[--color-text-muted]">—</span>
+                          )}
+                        </td>
+                        <td className="w-[100px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]">
+                          <StatusBadge status={item.result} type="interview" />
+                        </td>
+                        <td className="w-[200px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">
+                          {item.feedback}
+                        </td>
+                        <td className="w-[90px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]">
+                          <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                            <button
+                              onClick={() => openDetail(item)}
+                              className="p-1 text-[--color-text-muted] hover:text-[--color-link]"
+                              title="查看详情"
+                            >
+                              <ChevronDown size={14} />
+                            </button>
+                            <button
+                              onClick={() => openEdit(item)}
+                              className="p-1 text-xs text-[--color-text-muted] hover:text-[--color-text-primary]"
+                              title="编辑"
+                            >
+                              编辑
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              className="p-1 text-[--color-text-muted] hover:text-[--color-danger]"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
       </div>

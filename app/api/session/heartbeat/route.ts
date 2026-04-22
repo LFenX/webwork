@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { AWAY_AFTER_MS, deleteSession, EXPIRE_AFTER_MS, getSessionCookiePayload } from "@/lib/session"
+import { deleteSession, EXPIRE_AFTER_MS, getSessionCookiePayload } from "@/lib/session"
+import { presenceFromSession } from "@/lib/presence"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -14,13 +15,15 @@ function replacedMessage(location: string, device: string) {
 export async function POST(req: Request) {
   const payload = await getSessionCookiePayload()
   if (!payload) return NextResponse.json({ status: "offline" }, { status: 401, headers: NO_STORE })
-  const body = await req.json().catch(() => null) as { touch?: boolean } | null
+  const body = await req.json().catch(() => null) as { touch?: boolean; foreground?: boolean } | null
 
   const session = await prisma.userSession.findUnique({
     where: { sessionId: payload.sessionId },
     select: {
       status: true,
       lastSeenAt: true,
+      lastActiveAt: true,
+      lastForegroundAt: true,
       replacedByLocation: true,
       replacedByDevice: true,
     },
@@ -55,14 +58,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "expired", message: "登录已超过 12 小时未操作，请重新登录。" }, { status: 401, headers: NO_STORE })
   }
 
-  const age = Date.now() - session.lastSeenAt.getTime()
-  if (body?.touch) {
-    await prisma.userSession.update({
+  const now = new Date()
+  const data: { lastSeenAt: Date; lastForegroundAt?: Date; lastActiveAt?: Date } = { lastSeenAt: now }
+  if (body?.foreground) data.lastForegroundAt = now
+  if (body?.touch) data.lastActiveAt = now
+
+  if (body?.foreground || body?.touch || body?.foreground === false) {
+    const updated = await prisma.userSession.update({
       where: { sessionId: payload.sessionId },
-      data: { lastSeenAt: new Date() },
+      data,
+      select: { lastSeenAt: true, lastActiveAt: true, lastForegroundAt: true },
     })
-    return NextResponse.json({ status: "online" }, { headers: NO_STORE })
+    const status = body?.foreground === false ? "offline" : presenceFromSession(updated, true)
+    return NextResponse.json({ status }, { headers: NO_STORE })
   }
 
-  return NextResponse.json({ status: age >= AWAY_AFTER_MS ? "away" : "online" }, { headers: NO_STORE })
+  return NextResponse.json({ status: presenceFromSession(session, true) }, { headers: NO_STORE })
 }

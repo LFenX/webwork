@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/db"
-import { getPosts } from "@/lib/mdx"
+import { getArticleFolders, getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
 import { canViewModule, getAccessLevel, recordVisit, visibleTo } from "@/lib/permissions"
+import { ArticleFolderPanel } from "@/components/article-folder-panel"
+import { FriendModuleNav } from "@/components/friend-module-nav"
+import { getFriendVisibleModules } from "@/lib/friend-module-nav"
 
-export default async function UserBlogPage({ params }: { params: Promise<{ userId: string }> }) {
-  const [{ userId: ownerId }, session] = await Promise.all([params, getOptionalSession()])
+export default async function UserBlogPage({ params, searchParams }: { params: Promise<{ userId: string }>; searchParams: Promise<{ folder?: string }> }) {
+  const [{ userId: ownerId }, { folder }, session] = await Promise.all([params, searchParams, getOptionalSession()])
   const owner = await prisma.user.findUnique({
     where: { id: ownerId },
     select: { id: true, displayName: true, email: true },
@@ -17,20 +20,28 @@ export default async function UserBlogPage({ params }: { params: Promise<{ userI
   if (level === "none") notFound()
   const moduleVisible = await canViewModule(ownerId, "blog", level)
   await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "blog", path: `/u/${ownerId}/blog` })
-  const posts = moduleVisible ? await getPosts("blog", ownerId, visibleTo(level)) : []
+  const folderFilter = folder === "uncategorized" ? null : folder || undefined
+  const [posts, folders, visibleModules] = moduleVisible
+    ? await Promise.all([
+        getPosts("blog", ownerId, visibleTo(level), folderFilter),
+        getArticleFolders("blog", ownerId),
+        getFriendVisibleModules(ownerId, level),
+      ])
+    : [[], [], await getFriendVisibleModules(ownerId, level)]
   const displayName = owner.displayName || owner.email
 
   return (
     <div className="max-w-[800px] mx-auto px-6 py-10">
+      <FriendModuleNav ownerId={ownerId} displayName={displayName} current="blog" modules={visibleModules} />
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <Link href={`/u/${ownerId}`} className="text-xs text-[--color-text-muted] hover:text-[--color-accent] mb-2 block">
-            ← {displayName}
-          </Link>
           <h1 className="text-xl font-semibold mb-1">博客</h1>
           <p className="text-sm text-[--color-text-muted]">{posts.length} 篇文章</p>
         </div>
       </div>
+      {moduleVisible && (
+        <ArticleFolderPanel type="blog" basePath={`/u/${ownerId}/blog`} folders={folders} selectedFolder={folder} readOnly />
+      )}
       {posts.length === 0 ? (
         <p className="text-sm text-[--color-text-muted]">暂无可见内容。</p>
       ) : (

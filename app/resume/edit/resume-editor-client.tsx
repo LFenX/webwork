@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ArrowLeft, Eye, FileText, Trash2, Upload } from "lucide-react"
+import { ArrowLeft, Download, Eye, FileText, Trash2, Upload } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -185,10 +185,10 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
         <div className="space-y-5">
           {pdfPath ? (
             <div>
-              <Label className="mb-2 block text-xs">当前 PDF</Label>
+              <Label className="mb-2 block text-xs">当前简历版本</Label>
               <iframe
                 src={pdfPath}
-                className="h-[72vh] min-h-[560px] w-full rounded border border-[--color-border]"
+                className="h-[1200px] min-h-[calc(var(--app-viewport-height)-12rem)] w-full rounded border border-[--color-border]"
                 title="简历 PDF"
               />
             </div>
@@ -224,10 +224,10 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
 
           <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
             <div className="border-b border-[--color-border] px-4 py-3">
-              <h2 className="text-sm font-semibold">PDF 版本</h2>
+              <h2 className="text-sm font-semibold">简历版本</h2>
             </div>
             {versions.length === 0 ? (
-              <p className="p-4 text-sm text-[--color-text-muted]">暂无 PDF 版本</p>
+              <p className="p-4 text-sm text-[--color-text-muted]">暂无简历版本</p>
             ) : (
               <div className="divide-y divide-[--color-border]">
                 {versions.map((version) => {
@@ -242,6 +242,11 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
                       {!isCurrent && (
                         <Button size="sm" variant="outline" onClick={() => setCurrentVersion(version)}>设为展示</Button>
                       )}
+                      <Button asChild size="sm" variant="outline">
+                        <a href={version.pdfPath} download={version.originalName || version.name} className="gap-1.5">
+                          <Download size={14} /> 下载
+                        </a>
+                      </Button>
                       <button
                         onClick={() => deleteVersion(version)}
                         className="p-1 text-[--color-text-muted] hover:text-[--color-danger]"

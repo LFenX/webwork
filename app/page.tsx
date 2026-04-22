@@ -206,27 +206,27 @@ export default async function HomePage() {
       </section>
 
       {/* Recent content */}
-      <div className="grid md:grid-cols-2 gap-8 mb-10">
-        <section>
+      <div className="grid min-w-0 gap-8 mb-10 md:grid-cols-2">
+        <section className="min-w-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-semibold text-[--color-text-muted] uppercase tracking-wider">最近文章</h2>
             <Link href="/blog" className="text-xs text-[--color-text-muted] hover:text-[--color-link] flex items-center gap-1">
               全部 <ArrowRight size={12} />
             </Link>
           </div>
-          <div className="space-y-0">
+          <div className="min-w-0 space-y-0 overflow-hidden">
             {allPosts.length === 0 ? (
               <p className="text-sm text-[--color-text-muted]">还没有文章</p>
             ) : (
               allPosts.map((post) => (
-                <Link key={`${post.type}-${post.slug}`} href={`/${post.type}/${encodeURIComponent(post.slug)}`} className="block group hover:no-underline">
-                  <div className="flex items-start gap-3 py-2.5 border-b border-[--color-border]">
-                    <span className="font-mono text-xs text-[--color-text-muted] mt-0.5 shrink-0 w-[4.5rem]">{post.date?.slice(0, 10)}</span>
+                <Link key={`${post.type}-${post.slug}`} href={`/${post.type}/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
+                  <div className="flex min-w-0 items-start gap-2 py-2.5 border-b border-[--color-border] sm:gap-3">
+                    <span className="font-mono text-xs text-[--color-text-muted] mt-0.5 shrink-0 w-16 sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[--color-text-primary] group-hover:text-[--color-accent] transition-colors truncate">{post.title}</p>
                       {post.summary && <p className="text-xs text-[--color-text-muted] truncate mt-0.5">{post.summary}</p>}
                     </div>
-                    <span className="text-xs text-[--color-text-muted] shrink-0">{post.typeLabel}</span>
+                    <span className="max-w-[3rem] shrink-0 truncate text-xs text-[--color-text-muted]">{post.typeLabel}</span>
                   </div>
                 </Link>
               ))
@@ -234,21 +234,21 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section>
+        <section className="min-w-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-semibold text-[--color-text-muted] uppercase tracking-wider">最近日常</h2>
             <Link href="/daily" className="text-xs text-[--color-text-muted] hover:text-[--color-link] flex items-center gap-1">
               全部 <ArrowRight size={12} />
             </Link>
           </div>
-          <div className="space-y-0">
+          <div className="min-w-0 space-y-0 overflow-hidden">
             {recentDaily.length === 0 ? (
               <p className="text-sm text-[--color-text-muted]">还没有日常记录</p>
             ) : (
               recentDaily.map((post) => (
-                <Link key={post.slug} href={`/daily/${encodeURIComponent(post.slug)}`} className="block group hover:no-underline">
-                  <div className="flex items-start gap-3 py-2.5 border-b border-[--color-border]">
-                    <span className="font-mono text-xs text-[--color-text-muted] mt-0.5 shrink-0 w-[4.5rem]">{post.date?.slice(0, 10)}</span>
+                <Link key={post.slug} href={`/daily/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
+                  <div className="flex min-w-0 items-start gap-2 py-2.5 border-b border-[--color-border] sm:gap-3">
+                    <span className="font-mono text-xs text-[--color-text-muted] mt-0.5 shrink-0 w-16 sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[--color-text-primary] group-hover:text-[--color-accent] transition-colors truncate">{post.title}</p>
                       {post.summary && <p className="text-xs text-[--color-text-muted] truncate mt-0.5">{post.summary}</p>}
@@ -274,14 +274,13 @@ export default async function HomePage() {
           </div>
           <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] overflow-hidden">
             {recentJobs.map((job, i) => (
-              <div key={job.id} className={`flex items-center gap-4 px-4 py-3 ${i < recentJobs.length - 1 ? "border-b border-[--color-border]" : ""}`}>
+              <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${i < recentJobs.length - 1 ? "border-b border-[--color-border]" : ""}`}>
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium text-sm">{job.company}</span>
-                  <span className="text-[--color-text-muted] text-sm mx-1.5">·</span>
-                  <span className="text-sm text-[--color-text-secondary]">{job.position}</span>
+                  <p className="truncate text-sm font-medium">{job.company}</p>
+                  <p className="truncate text-xs text-[--color-text-secondary] sm:text-sm">{job.position}</p>
                 </div>
                 <StatusBadge status={job.status} type="job" />
-                <span className="font-mono text-xs text-[--color-text-muted] shrink-0">
+                <span className="hidden shrink-0 font-mono text-xs text-[--color-text-muted] sm:inline">
                   {formatChinaDate(job.appliedAt)}
                 </span>
               </div>

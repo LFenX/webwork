@@ -31,6 +31,8 @@ export type ArticleFolderItem = {
   coverPositionX: number
   coverPositionY: number
   coverOpacity: number
+  coverFitMode: string
+  coverScale: number
   postCount: number
 }
 
@@ -67,6 +69,8 @@ export async function getArticleFolders(
     coverPositionX: folder.coverPositionX,
     coverPositionY: folder.coverPositionY,
     coverOpacity: folder.coverOpacity,
+    coverFitMode: folder.coverFitMode,
+    coverScale: folder.coverScale,
     postCount: folder._count.posts,
   }))
 }

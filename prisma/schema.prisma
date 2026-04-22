@@ -75,6 +75,8 @@ model UserSession {
   replacedByLocation String   @default("")
   replacedByDevice   String   @default("")
   lastSeenAt         DateTime @default(now())
+  lastActiveAt       DateTime @default(now())
+  lastForegroundAt   DateTime @default(now())
   expiresAt          DateTime
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -82,6 +84,7 @@ model UserSession {
   @@index([userId, status])
   @@index([sessionId])
   @@index([lastSeenAt])
+  @@index([lastForegroundAt])
 }
 
 model RegistrationRequest {
@@ -214,6 +217,8 @@ model ArticleFolder {
   coverPositionX Int     @default(50)
   coverPositionY Int     @default(50)
   coverOpacity   Int     @default(100)
+  coverFitMode   String  @default("auto")
+  coverScale     Int     @default(100)
   posts         Post[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

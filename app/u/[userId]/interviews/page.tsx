@@ -1,13 +1,14 @@
 import { Star } from "lucide-react"
 import { notFound } from "next/navigation"
-import Link from "next/link"
 import { SimpleBarChart } from "@/components/charts/bar-chart"
 import { SimplePieChart } from "@/components/charts/pie-chart"
 import { StatsCard } from "@/components/stats-card"
 import { StatusBadge } from "@/components/status-badge"
+import { FriendModuleNav } from "@/components/friend-module-nav"
 import { prisma } from "@/lib/db"
 import { getOptionalSession } from "@/lib/auth"
 import { canViewModule, getAccessLevel, recordVisit } from "@/lib/permissions"
+import { getFriendVisibleModules } from "@/lib/friend-module-nav"
 import { INTERVIEW_RESULTS } from "@/lib/enums"
 import { formatChinaDate, formatChinaDateTime } from "@/lib/time"
 
@@ -79,14 +80,13 @@ export default async function UserInterviewsPage({ params }: { params: Promise<{
   await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "interviews", path: `/u/${ownerId}/interviews` })
 
   const displayName = owner.displayName || owner.email
+  const visibleModules = await getFriendVisibleModules(ownerId, level)
   const stats = buildStats(interviews)
 
   return (
     <div className="mx-auto max-w-[1200px] px-6 py-10">
+      <FriendModuleNav ownerId={ownerId} displayName={displayName} current="interviews" modules={visibleModules} />
       <div className="mb-8">
-        <Link href={`/u/${ownerId}`} className="mb-2 block text-xs text-[--color-text-muted] hover:text-[--color-accent]">
-          ← {displayName}
-        </Link>
         <h1 className="mb-1 text-xl font-semibold">面试记录</h1>
         <p className="text-sm text-[--color-text-muted]">记录每一轮面试，复盘提升</p>
       </div>

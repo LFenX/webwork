@@ -74,6 +74,8 @@ export const articleFolderSchema = z.object({
   coverPositionX: z.number().int().min(0).max(100).optional().default(50),
   coverPositionY: z.number().int().min(0).max(100).optional().default(50),
   coverOpacity: z.number().int().min(0).max(100).optional().default(100),
+  coverFitMode: z.enum(["auto", "manual"]).optional().default("auto"),
+  coverScale: z.number().int().min(40).max(240).optional().default(100),
 })
 
 export const updateArticleFolderSchema = articleFolderSchema.omit({ type: true }).partial()

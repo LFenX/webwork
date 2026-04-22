@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import type { Editor } from "@tiptap/react"
 import {
   AlignCenter,
@@ -13,7 +13,6 @@ import {
   ChevronDown,
   Code,
   Code2,
-  Columns3,
   FileCode2,
   FolderOpen,
   FunctionSquare,
@@ -27,29 +26,27 @@ import {
   Link2,
   List,
   ListOrdered,
-  Maximize2,
-  Minimize2,
+  MoreHorizontal,
   Minus,
   Quote,
   Redo2,
-  Rows3,
   Strikethrough,
   Subscript,
   Superscript,
   Table,
-  Trash2,
   Underline,
   Undo2,
+  SeparatorHorizontal,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ALLOWED_MIME, UPLOAD_ERROR_MESSAGES } from "@/lib/upload"
+import { HR_VARIANTS, type HRVariant } from "@/components/editor/hr-variants"
+import { TABLE_VARIANTS, type TableVariant } from "@/components/editor/table-variants"
 
 interface EditorToolbarProps {
   editor: Editor | null
   postId?: string
-  fullscreen: boolean
-  onToggleFullscreen: () => void
   onOpenImageManager: () => void
   editType: "wysiwyg" | "markdown"
   onToggleEditType: () => void
@@ -134,7 +131,7 @@ function ColorPicker({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => onOpenChange(null)} />
-          <div className="absolute left-0 top-full z-50 mt-1 w-[156px] rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-2 shadow-lg">
+          <div className="editor-floating-panel absolute left-0 top-full z-50 mt-1 w-[156px] rounded-[--radius-md] p-2 shadow-lg">
             <div className="grid grid-cols-5 gap-1">
               {colors.map((color) => (
                 <button
@@ -157,6 +154,56 @@ function ColorPicker({
     </div>
   )
 }
+
+// ── HR variant picker ─────────────────────────────────────────────────────────
+
+function HRPicker({
+  open,
+  onOpenChange,
+  onSelect,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onSelect: (variant: HRVariant) => void
+}) {
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onMouseDown={(e) => { e.preventDefault(); onOpenChange(!open) }}
+        title="插入分割线"
+        className="inline-flex h-7 items-center gap-0.5 rounded px-1 text-[--color-text-secondary] transition-colors hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+      >
+        <Minus size={14} />
+        <ChevronDown size={10} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => onOpenChange(false)} />
+          <div className="editor-floating-panel absolute left-0 top-full z-50 mt-1 min-w-[180px] rounded-[--radius-md] p-2 shadow-lg">
+            {HR_VARIANTS.map((v) => (
+              <button
+                key={v.value}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onSelect(v.value)
+                  onOpenChange(false)
+                }}
+                className="flex w-full items-center justify-between gap-4 rounded px-3 py-2 text-sm hover:bg-[--color-bg-hover]"
+              >
+                <span className="w-20 shrink-0 font-mono text-xs leading-none text-[--color-text-muted]">{v.preview}</span>
+                <span className="text-[--color-text-secondary]">{v.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Image insert dialog ───────────────────────────────────────────────────────
 
 function ImageInsertDialog({ editor, postId }: { editor: Editor | null; postId?: string }) {
   const [open, setOpen] = useState(false)
@@ -211,7 +258,7 @@ function ImageInsertDialog({ editor, postId }: { editor: Editor | null; postId?:
 
   return (
     <>
-      <ToolBtn onClick={() => setOpen(true)} title="插入图片">
+      <ToolBtn onClick={() => setOpen(true)} title="插入图片" disabled={!editor}>
         <ImageIcon size={14} />
       </ToolBtn>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -244,10 +291,7 @@ function ImageInsertDialog({ editor, postId }: { editor: Editor | null; postId?:
                     ? "border-[--color-accent] bg-[--color-bg-hover]"
                     : "border-[--color-border-strong] hover:border-[--color-text-muted]"
                 }`}
-                onDragOver={(event) => {
-                  event.preventDefault()
-                  setDragOver(true)
-                }}
+                onDragOver={(event) => { event.preventDefault(); setDragOver(true) }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={(event) => {
                   event.preventDefault()
@@ -326,6 +370,8 @@ function ImageInsertDialog({ editor, postId }: { editor: Editor | null; postId?:
   )
 }
 
+// ── Link dialog ───────────────────────────────────────────────────────────────
+
 function LinkDialog({ editor }: { editor: Editor | null }) {
   const [open, setOpen] = useState(false)
   const [href, setHref] = useState("")
@@ -357,7 +403,7 @@ function LinkDialog({ editor }: { editor: Editor | null }) {
 
   return (
     <>
-      <ToolBtn onClick={openDialog} active={editor?.isActive("link")} title="插入链接">
+      <ToolBtn onClick={openDialog} active={editor?.isActive("link")} title="插入链接" disabled={!editor}>
         <Link2 size={14} />
       </ToolBtn>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -414,23 +460,27 @@ function LinkDialog({ editor }: { editor: Editor | null }) {
   )
 }
 
+// ── Table insert dialog ───────────────────────────────────────────────────────
+
 function TableDialog({ editor }: { editor: Editor | null }) {
   const [rows, setRows] = useState(3)
   const [cols, setCols] = useState(3)
+  const [variant, setVariant] = useState<TableVariant>("default")
+  const [withHeaderRow, setWithHeaderRow] = useState(true)
   const [open, setOpen] = useState(false)
 
   function insert() {
-    editor?.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run()
+    editor?.chain().focus().insertTable({ rows, cols, withHeaderRow }).updateAttributes("table", { variant }).run()
     setOpen(false)
   }
 
   return (
     <>
-      <ToolBtn onClick={() => setOpen(true)} title="插入表格">
+      <ToolBtn onClick={() => setOpen(true)} title="插入表格" disabled={!editor}>
         <Table size={14} />
       </ToolBtn>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xs">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>插入表格</DialogTitle>
           </DialogHeader>
@@ -459,12 +509,34 @@ function TableDialog({ editor }: { editor: Editor | null }) {
                 />
               </div>
             </div>
+            <div>
+              <label className="mb-1 block text-xs text-[--color-text-muted]">表格样式</label>
+              <select
+                value={variant}
+                onChange={(event) => setVariant(event.target.value as TableVariant)}
+                className="h-8 w-full rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-surface] px-2.5 text-sm outline-none"
+              >
+                {TABLE_VARIANTS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-[--color-text-secondary]">
+              <input
+                type="checkbox"
+                checked={withHeaderRow}
+                onChange={(event) => setWithHeaderRow(event.target.checked)}
+              />
+              包含表头行
+            </label>
             <button
               type="button"
               onClick={insert}
-              className="h-8 w-full rounded-[--radius-sm] bg-[--color-text-primary] text-sm text-white"
+              className="mt-1 h-9 w-full rounded-[--radius-sm] bg-[--color-text-primary] text-sm font-medium text-[--color-bg-surface]"
             >
-              插入 {rows} x {cols} 表格
+              确定插入 {rows} x {cols} 表格
             </button>
           </div>
         </DialogContent>
@@ -473,217 +545,269 @@ function TableDialog({ editor }: { editor: Editor | null }) {
   )
 }
 
+// ── Main toolbar ──────────────────────────────────────────────────────────────
+
 export function EditorToolbar({
   editor,
   postId,
-  fullscreen,
-  onToggleFullscreen,
   onOpenImageManager,
   editType,
   onToggleEditType,
 }: EditorToolbarProps) {
   const [openColorPicker, setOpenColorPicker] = useState<string | null>(null)
+  const [hrPickerOpen, setHrPickerOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
 
-  const insertMath = useCallback((block: boolean) => {
+  // Minimal toolbar for source-code mode (issue #3 fix)
+  if (editType === "markdown") {
+    return (
+      <div className="flex items-center gap-1 rounded-t-[--radius-md] border-b border-[--color-border] bg-[--color-bg-primary] px-2 py-1.5">
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); onToggleEditType() }}
+          title="切换到所见即所得"
+          className="inline-flex h-7 items-center gap-1.5 rounded bg-[--color-text-primary] px-2 text-xs text-[--color-bg-surface]"
+        >
+          <FileCode2 size={13} />
+          <span>退出源码模式</span>
+        </button>
+        <span className="ml-1 text-xs text-[--color-text-muted]">Markdown 源码编辑中</span>
+        <div className="ml-auto">
+          <ToolBtn onClick={onOpenImageManager} title="图片库">
+            <FolderOpen size={14} />
+          </ToolBtn>
+        </div>
+      </div>
+    )
+  }
+
+  function insertMath(block: boolean) {
     if (!editor) return
-    const formula = window.prompt(block ? "输入块级公式" : "输入行内公式", block ? "E = mc^2" : "x^2")
-    if (!formula?.trim()) return
     editor.chain().focus().insertContent({
       type: block ? "blockMath" : "inlineMath",
-      attrs: { formula: formula.trim() },
+      attrs: { formula: block ? "E = mc^2" : "x^2" },
     }).run()
-  }, [editor])
+  }
 
-  const insertDetails = useCallback(() => {
-    editor?.chain().focus().insertContent("<details><summary>点击展开</summary><p>内容</p></details>").run()
-  }, [editor])
+  function insertDetails() {
+    editor?.chain().focus().insertContent({
+      type: "details",
+      attrs: { open: true, summary: "点击展开" },
+      content: [{ type: "paragraph", content: [{ type: "text", text: "在这里输入内容..." }] }],
+    }).run()
+  }
 
-  const insertCallout = useCallback((type: string) => {
-    const map: Record<string, string> = {
-      note: "NOTE",
-      tip: "TIP",
-      warning: "WARNING",
-      important: "IMPORTANT",
-    }
-    editor?.chain().focus().insertContent(`\n> [!${map[type] ?? "NOTE"}]\n> 内容\n`).run()
-  }, [editor])
+  function insertCallout(type: string) {
+    editor?.chain().focus().insertContent({
+      type: "callout",
+      attrs: { type },
+      content: [{ type: "paragraph", content: [{ type: "text", text: "内容的的" }] }],
+    }).run()
+  }
 
-  const insertMermaid = useCallback(() => {
-    editor?.chain().focus().insertContent("```mermaid\ngraph TD\n  A --> B\n```").run()
-  }, [editor])
+  function insertMermaid() {
+    editor?.chain().focus().toggleCodeBlock({ language: "mermaid" }).run()
+  }
 
-  const insertPageBreak = useCallback(() => {
-    editor?.chain().focus().insertContent('<div class="page-break"></div>').run()
-  }, [editor])
+  function insertPageBreak() {
+    editor?.chain().focus().insertContent({ type: "pageBreak" }).run()
+  }
 
-  if (!editor) return null
+  function insertHR(variant: HRVariant) {
+    if (!editor) return
+    editor.chain().focus().insertContent({ type: "horizontalRule", attrs: { variant } }).run()
+  }
 
-  return (
-    <div className="flex flex-wrap items-center gap-0.5 rounded-t-[--radius-md] border-b border-[--color-border] bg-[--color-bg-primary] px-2 py-1.5">
-      <ToolBtn onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="撤销 (Ctrl+Z)">
+  const primaryTools = (
+    <>
+      {/* History */}
+      <ToolBtn onClick={() => editor?.chain().focus().undo().run()} disabled={!editor?.can().undo()} title="撤销 (Ctrl+Z)">
         <Undo2 size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="重做 (Ctrl+Y)">
+      <ToolBtn onClick={() => editor?.chain().focus().redo().run()} disabled={!editor?.can().redo()} title="重做 (Ctrl+Y)">
         <Redo2 size={14} />
       </ToolBtn>
-
       <Separator />
+      <ToolBtn onClick={() => editor?.chain().focus().toggleBold().run()} active={editor?.isActive("bold")} title="粗体 (Ctrl+B)">
+        <Bold size={14} />
+      </ToolBtn>
+      <ToolBtn onClick={() => editor?.chain().focus().toggleItalic().run()} active={editor?.isActive("italic")} title="斜体 (Ctrl+I)">
+        <Italic size={14} />
+      </ToolBtn>
+      <ToolBtn onClick={() => editor?.chain().focus().toggleUnderline().run()} active={editor?.isActive("underline")} title="下划线 (Ctrl+U)">
+        <Underline size={14} />
+      </ToolBtn>
+      <ToolBtn onClick={() => editor?.chain().focus().toggleStrike().run()} active={editor?.isActive("strike")} title="删除线">
+        <Strikethrough size={14} />
+      </ToolBtn>
+      <ToolBtn onClick={() => editor?.chain().focus().toggleCode().run()} active={editor?.isActive("code")} title="行内代码">
+        <Code size={14} />
+      </ToolBtn>
+      <Separator />
+      <ToolBtn onClick={() => editor?.chain().focus().toggleBulletList().run()} active={editor?.isActive("bulletList")} title="无序列表">
+        <List size={14} />
+      </ToolBtn>
+      <ToolBtn onClick={() => editor?.chain().focus().toggleOrderedList().run()} active={editor?.isActive("orderedList")} title="有序列表">
+        <ListOrdered size={14} />
+      </ToolBtn>
+      <Separator />
+      <ToolBtn
+        onClick={onToggleEditType}
+        title="切换到源码模式"
+      >
+        <FileCode2 size={14} />
+      </ToolBtn>
+    </>
+  )
 
-      <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive("heading", { level: 1 })} title="标题 1">
+  const secondaryTools = (
+    <>
+      {/* Headings */}
+      <ToolBtn onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} active={editor?.isActive("heading", { level: 1 })} title="标题 1">
         <Heading1 size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })} title="标题 2">
+      <ToolBtn onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} active={editor?.isActive("heading", { level: 2 })} title="标题 2">
         <Heading2 size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive("heading", { level: 3 })} title="标题 3">
+      <ToolBtn onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} active={editor?.isActive("heading", { level: 3 })} title="标题 3">
         <Heading3 size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()} active={editor.isActive("heading", { level: 4 })} title="标题 4">
+      <ToolBtn onClick={() => editor?.chain().focus().toggleHeading({ level: 4 }).run()} active={editor?.isActive("heading", { level: 4 })} title="标题 4">
         <Heading4 size={14} />
       </ToolBtn>
 
       <Separator />
 
-      <ToolBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")} title="粗体 (Ctrl+B)">
-        <Bold size={14} />
-      </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")} title="斜体 (Ctrl+I)">
-        <Italic size={14} />
-      </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")} title="下划线 (Ctrl+U)">
-        <Underline size={14} />
-      </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")} title="删除线">
-        <Strikethrough size={14} />
-      </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive("code")} title="行内代码">
-        <Code size={14} />
-      </ToolBtn>
-
-      <Separator />
-
+      {/* Color */}
       <ColorPicker
         id="text"
         colors={TEXT_COLORS}
         open={openColorPicker === "text"}
         onOpenChange={setOpenColorPicker}
-        onSelect={(color) => editor.chain().focus().setColor(color).run()}
+        onSelect={(color) => editor?.chain().focus().setColor(color).run()}
       >
-        <span className="text-xs font-bold" style={{ color: (editor.getAttributes("textStyle").color as string) || "currentColor" }}>A</span>
+        <span className="text-xs font-bold" style={{ color: (editor?.getAttributes("textStyle").color as string) || "currentColor" }}>A</span>
       </ColorPicker>
       <ColorPicker
         id="highlight"
         colors={HIGHLIGHT_COLORS}
         open={openColorPicker === "highlight"}
         onOpenChange={setOpenColorPicker}
-        onSelect={(color) => editor.chain().focus().toggleHighlight({ color }).run()}
+        onSelect={(color) => editor?.chain().focus().toggleHighlight({ color }).run()}
       >
         <Highlighter size={14} />
       </ColorPicker>
 
       <Separator />
 
-      <ToolBtn onClick={() => editor.chain().focus().setTextAlign("left").run()} active={editor.isActive({ textAlign: "left" })} title="左对齐">
+      {/* Alignment */}
+      <ToolBtn onClick={() => editor?.chain().focus().setTextAlign("left").run()} active={editor?.isActive({ textAlign: "left" })} title="左对齐">
         <AlignLeft size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().setTextAlign("center").run()} active={editor.isActive({ textAlign: "center" })} title="居中">
+      <ToolBtn onClick={() => editor?.chain().focus().setTextAlign("center").run()} active={editor?.isActive({ textAlign: "center" })} title="居中">
         <AlignCenter size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().setTextAlign("right").run()} active={editor.isActive({ textAlign: "right" })} title="右对齐">
+      <ToolBtn onClick={() => editor?.chain().focus().setTextAlign("right").run()} active={editor?.isActive({ textAlign: "right" })} title="右对齐">
         <AlignRight size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().setTextAlign("justify").run()} active={editor.isActive({ textAlign: "justify" })} title="两端对齐">
+      <ToolBtn onClick={() => editor?.chain().focus().setTextAlign("justify").run()} active={editor?.isActive({ textAlign: "justify" })} title="两端对齐">
         <AlignJustify size={14} />
       </ToolBtn>
 
       <Separator />
 
-      <ToolBtn onClick={() => editor.chain().focus().toggleSuperscript().run()} active={editor.isActive("superscript")} title="上标">
+      {/* Script */}
+      <ToolBtn onClick={() => editor?.chain().focus().toggleSuperscript().run()} active={editor?.isActive("superscript")} title="上标">
         <Superscript size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleSubscript().run()} active={editor.isActive("subscript")} title="下标">
+      <ToolBtn onClick={() => editor?.chain().focus().toggleSubscript().run()} active={editor?.isActive("subscript")} title="下标">
         <Subscript size={14} />
       </ToolBtn>
 
       <Separator />
 
-      <ToolBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} title="引用">
+      {/* Block elements */}
+      <ToolBtn onClick={() => editor?.chain().focus().toggleBlockquote().run()} active={editor?.isActive("blockquote")} title="引用">
         <Quote size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="分割线">
-        <Minus size={14} />
-      </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive("codeBlock")} title="代码块">
+      <ToolBtn onClick={() => editor?.chain().focus().toggleCodeBlock().run()} active={editor?.isActive("codeBlock")} title="代码块">
         <Code2 size={14} />
       </ToolBtn>
+      <HRPicker open={hrPickerOpen} onOpenChange={setHrPickerOpen} onSelect={insertHR} />
 
       <Separator />
 
-      <ToolBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} title="无序列表">
-        <List size={14} />
-      </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} title="有序列表">
-        <ListOrdered size={14} />
-      </ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive("taskList")} title="任务列表">
+      <ToolBtn onClick={() => editor?.chain().focus().toggleTaskList().run()} active={editor?.isActive("taskList")} title="任务列表">
         <CheckSquare size={14} />
       </ToolBtn>
 
       <Separator />
 
+      {/* Insert */}
       <LinkDialog editor={editor} />
       <ImageInsertDialog editor={editor} postId={postId} />
       <TableDialog editor={editor} />
-      {editor.isActive("table") && (
-        <>
-          <ToolBtn onClick={() => editor.chain().focus().addColumnAfter().run()} title="添加列">
-            <Columns3 size={14} />
-          </ToolBtn>
-          <ToolBtn onClick={() => editor.chain().focus().addRowAfter().run()} title="添加行">
-            <Rows3 size={14} />
-          </ToolBtn>
-          <ToolBtn onClick={() => editor.chain().focus().deleteTable().run()} title="删除表格">
-            <Trash2 size={14} />
-          </ToolBtn>
-        </>
-      )}
-      <ToolBtn onClick={() => insertMath(false)} title="行内数学公式">
+
+      <Separator />
+
+      {/* Math */}
+      <ToolBtn onClick={() => insertMath(false)} title="行内数学公式（插入后点击编辑）" disabled={!editor}>
         <FunctionSquare size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => insertMath(true)} title="块级数学公式">
+      <ToolBtn onClick={() => insertMath(true)} title="块级数学公式（插入后点击编辑）" disabled={!editor}>
         <span className="text-xs font-mono leading-none">Σ</span>
       </ToolBtn>
 
       <Separator />
 
-      <ToolBtn onClick={insertDetails} title="折叠块">
+      {/* Advanced */}
+      <ToolBtn onClick={insertDetails} title="折叠块" disabled={!editor}>
         <ChevronDown size={14} />
       </ToolBtn>
-      <ToolBtn onClick={() => insertCallout("note")} title="提示框">
+      <ToolBtn onClick={() => insertCallout("note")} title="提示框" disabled={!editor}>
         <AlertCircle size={14} />
       </ToolBtn>
-      <ToolBtn onClick={insertMermaid} title="Mermaid 图表">
-        <FileCode2 size={14} />
+      <ToolBtn onClick={insertMermaid} title="Mermaid 图表（代码块 mermaid 语言）" disabled={!editor}>
+        <Code2 size={14} />
       </ToolBtn>
-      <ToolBtn onClick={insertPageBreak} title="分页符">
-        <Rows3 size={14} />
+      <ToolBtn onClick={insertPageBreak} title="分页符" disabled={!editor}>
+        <SeparatorHorizontal size={14} />
       </ToolBtn>
 
       <Separator />
 
+      {/* Mode & assets */}
       <ToolBtn onClick={onOpenImageManager} title="图片库">
         <FolderOpen size={14} />
       </ToolBtn>
-      <ToolBtn
-        onClick={onToggleEditType}
-        active={editType === "markdown"}
-        title={editType === "wysiwyg" ? "切换到源码模式" : "切换到所见即所得"}
-      >
-        <FileCode2 size={14} />
-      </ToolBtn>
-      <ToolBtn onClick={onToggleFullscreen} title={fullscreen ? "恢复编辑框宽度" : "加宽编辑框"}>
-        {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-      </ToolBtn>
-    </div>
+    </>
+  )
+
+  return (
+    <>
+      <div className="editor-toolbar relative z-[1000] hidden w-full min-w-0 max-w-full flex-wrap items-center gap-0.5 overflow-visible rounded-t-[--radius-md] border-b border-[--color-border] bg-[--color-bg-primary] px-2 py-1.5 md:flex">
+        {primaryTools}
+        <Separator />
+        {secondaryTools}
+      </div>
+      <div className="editor-toolbar relative z-[1000] flex w-full min-w-0 max-w-full items-center gap-0.5 rounded-t-[--radius-md] border-b border-[--color-border] bg-[--color-bg-primary] px-2 py-1.5 md:hidden">
+        {primaryTools}
+        <div className="ml-auto">
+          <ToolBtn onClick={() => setMoreOpen((open) => !open)} title="更多工具">
+            <MoreHorizontal size={15} />
+          </ToolBtn>
+        </div>
+        {moreOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+            <div className="absolute left-2 right-2 top-full z-50 mt-1 max-h-[70vh] overflow-y-auto rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-3 shadow-lg">
+              <div className="grid grid-cols-6 gap-1.5">
+                {secondaryTools}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   )
 }
