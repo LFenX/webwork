@@ -2,15 +2,20 @@ import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { requireAuth } from "@/lib/auth"
+import { getModuleVisibility } from "@/lib/permissions"
 import { StatsCard } from "@/components/stats-card"
 import { StatusBadge } from "@/components/status-badge"
 import { ActivityHeatmap } from "@/components/activity-heatmap"
 import { FunnelChart } from "@/components/funnel-chart"
+import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
+import { VisitStatsPanel } from "@/components/visit-stats-panel"
+import { UserAvatar } from "@/components/user-avatar"
 import { ArrowRight, FileText, BookOpen, CalendarDays } from "lucide-react"
+import { formatChinaDate, formatDateKey } from "@/lib/time"
+import { GuestbookSection } from "@/components/guestbook-section"
 
-function toLocalDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-}
+export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
 
 async function getStats(userId: string) {
   const jobs = await prisma.jobApplication.findMany({ where: { userId } })
@@ -41,8 +46,8 @@ async function getActivityData(userId: string) {
     prisma.jobApplication.findMany({ where: { userId }, select: { appliedAt: true }, orderBy: { appliedAt: "desc" }, take: 1000 }),
   ])
   const data: Record<string, number> = {}
-  posts.forEach((p) => { const k = toLocalDate(p.date); data[k] = (data[k] ?? 0) + 1 })
-  jobs.forEach((j) => { const k = toLocalDate(j.appliedAt); data[k] = (data[k] ?? 0) + 1 })
+  posts.forEach((p) => { const k = formatDateKey(p.date); data[k] = (data[k] ?? 0) + 1 })
+  jobs.forEach((j) => { const k = formatDateKey(j.appliedAt); data[k] = (data[k] ?? 0) + 1 })
   return data
 }
 
@@ -63,29 +68,48 @@ async function getWritingStats(userId: string) {
     .slice(0, 12)
     .map(([tag, count]) => ({ tag, count }))
 
-  const today = toLocalDate(new Date())
-  const dateset = new Set(posts.map((p) => toLocalDate(p.date)))
+  const today = formatDateKey(new Date())
+  const dateset = new Set(posts.map((p) => formatDateKey(p.date)))
   let streak = 0
   const cur = new Date()
-  while (dateset.has(toLocalDate(cur))) {
+  while (dateset.has(formatDateKey(cur))) {
     streak++
     cur.setDate(cur.getDate() - 1)
   }
 
-  const thisMonth = posts.filter((p) => toLocalDate(p.date).slice(0, 7) === today.slice(0, 7)).length
+  const thisMonth = posts.filter((p) => formatDateKey(p.date).slice(0, 7) === today.slice(0, 7)).length
   return { totalChars, topTags, streak, thisMonth, total: posts.length }
+}
+
+async function getProfile(userId: string) {
+  const rows = await prisma.$queryRaw<Array<{ displayName: string; email: string; bio: string; avatarText: string; avatarUrl: string | null; location: string }>>`
+    SELECT displayName, email, bio, avatarText, avatarUrl, location
+    FROM User
+    WHERE id = ${userId}
+    LIMIT 1
+  `
+  return rows[0] ?? null
 }
 
 export default async function HomePage() {
   const session = await requireAuth()
   const { userId } = session
 
-  const [stats, recentJobs, activityData, writingStats] = await Promise.all([
+  const [stats, recentJobs, activityData, writingStats, profile, guestbookMessages] = await Promise.all([
     getStats(userId),
     getRecentJobs(userId),
     getActivityData(userId),
     getWritingStats(userId),
+    getProfile(userId),
+    prisma.guestbookMessage.findMany({
+      where: { ownerId: userId },
+      orderBy: { createdAt: "desc" },
+      include: { author: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } } },
+    }).then((msgs) =>
+      msgs.map((m) => ({ id: m.id, content: m.content, createdAt: m.createdAt.toISOString(), author: m.author }))
+    ),
   ])
+  const homeVisibility = await getModuleVisibility(userId, "home")
 
   const allPosts = [
     ...(await getPosts("blog", userId)).map((p) => ({ ...p, typeLabel: "博客" })),
@@ -106,6 +130,29 @@ export default async function HomePage() {
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-10">
+      {profile && (
+        <section className="mb-8 flex items-center gap-4 border border-[--color-border] bg-[--color-bg-surface] rounded-[--radius-lg] px-4 py-4">
+          <UserAvatar
+            size="md"
+            name={profile.displayName}
+            email={profile.email}
+            avatarText={profile.avatarText}
+            avatarUrl={profile.avatarUrl}
+          />
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-base font-semibold text-[--color-text-primary]">{profile.displayName || profile.email}</h1>
+              {profile.location && <span className="text-xs text-[--color-text-muted]">{profile.location}</span>}
+            </div>
+            {profile.bio && <p className="text-sm text-[--color-text-secondary] line-clamp-2">{profile.bio}</p>}
+            <p className="text-xs text-[--color-text-muted] font-mono break-all">{profile.email}</p>
+          </div>
+        </section>
+      )}
+      <div className="flex justify-end mb-6">
+        <ModuleVisibilitySelect module="home" initialVisibility={homeVisibility} />
+      </div>
+
       {/* Writing stats */}
       <section className="mb-10">
         <h2 className="text-xs font-semibold text-[--color-text-muted] uppercase tracking-wider mb-4">写作统计</h2>
@@ -214,9 +261,11 @@ export default async function HomePage() {
         </section>
       </div>
 
+      <VisitStatsPanel userId={userId} />
+
       {/* Recent job activity */}
       {recentJobs.length > 0 && (
-        <section>
+        <section className="mt-12">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-semibold text-[--color-text-muted] uppercase tracking-wider">最近求职动态</h2>
             <Link href="/jobs" className="text-xs text-[--color-text-muted] hover:text-[--color-link] flex items-center gap-1">
@@ -233,7 +282,7 @@ export default async function HomePage() {
                 </div>
                 <StatusBadge status={job.status} type="job" />
                 <span className="font-mono text-xs text-[--color-text-muted] shrink-0">
-                  {new Date(job.appliedAt).toLocaleDateString("zh-CN")}
+                  {formatChinaDate(job.appliedAt)}
                 </span>
               </div>
             ))}
@@ -241,8 +290,15 @@ export default async function HomePage() {
         </section>
       )}
 
+      <GuestbookSection
+        ownerId={userId}
+        initialMessages={guestbookMessages}
+        isOwner={true}
+        canPost={false}
+      />
+
       {/* Quick links */}
-      <section className="mt-10 pt-8 border-t border-[--color-border]">
+      <section className="hidden">
         <div className="flex flex-wrap gap-3">
           {[
             { href: "/resume", label: "查看简历", icon: FileText },

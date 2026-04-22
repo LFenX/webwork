@@ -1,0 +1,18 @@
+
+> webappwork-tmp@0.1.0 dev
+> next dev -p 3001
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://100.126.79.86:3001
+- Environments: .env
+✓ Ready in 691ms
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3000
+- PID:          80756
+- Dir:          D:\appmy\webappwork
+- Log:          .next\dev\logs\next-development.log
+
+Run taskkill /PID 80756 /F to stop it.
+[?25h

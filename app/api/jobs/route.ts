@@ -18,9 +18,6 @@ export async function GET(req: NextRequest) {
 
   const where: Record<string, unknown> = { userId: session.userId }
   if (status) where.status = status
-  if (q) {
-    where.OR = [{ company: { contains: q } }, { position: { contains: q } }]
-  }
   if (from || to) {
     where.appliedAt = {}
     if (from) (where.appliedAt as Record<string, unknown>).gte = new Date(from)
@@ -32,7 +29,31 @@ export async function GET(req: NextRequest) {
     orderBy: { appliedAt: "desc" },
     include: { _count: { select: { interviews: true } } },
   })
-  return NextResponse.json(jobs, { headers: NO_STORE })
+
+  const terms = q?.trim().toLowerCase().split(/\s+/).filter(Boolean) ?? []
+  const filteredJobs = terms.length === 0
+    ? jobs
+    : jobs.filter((job) => {
+        const haystack = [
+          job.company,
+          job.position,
+          job.channel,
+          job.status,
+          job.baseLocation,
+          job.hrContact,
+          job.link,
+          job.notes,
+          job.appliedAt.toISOString(),
+          job.appliedAt.toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" }),
+          String(job._count.interviews),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+        return terms.every((term) => haystack.includes(term))
+      })
+
+  return NextResponse.json(filteredJobs, { headers: NO_STORE })
 }
 
 export async function POST(req: NextRequest) {

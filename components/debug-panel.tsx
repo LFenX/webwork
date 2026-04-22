@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { formatChinaTime } from "@/lib/time"
 
 interface ErrorLog {
   id: string
@@ -25,7 +26,7 @@ export function DebugPanel() {
 
     const newLog: ErrorLog = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      timestamp: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
+      timestamp: formatChinaTime(new Date()),
       type,
       message,
       url: window.location.href,

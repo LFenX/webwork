@@ -4,7 +4,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { SettingsDialog } from "@/components/settings-dialog"
-import { Users, LogOut, LogIn } from "lucide-react"
+import { UserAvatar } from "@/components/user-avatar"
+import { Shield, Users, LogOut, LogIn } from "lucide-react"
 
 const NAV_ITEMS = [
   { href: "/", label: "首页" },
@@ -21,14 +22,29 @@ interface SiteHeaderProps {
   ownerName?: string
   heroTagline?: string
   session?: { userId: string; email: string } | null
+  role?: string
+  avatarText?: string | null
+  avatarUrl?: string | null
+  displayName?: string | null
 }
 
-export function SiteHeader({ ownerName = "LFen", heroTagline = "", session }: SiteHeaderProps) {
+export function SiteHeader({
+  ownerName = "LFen",
+  heroTagline = "",
+  session,
+  role = "user",
+  avatarText,
+  avatarUrl,
+  displayName,
+}: SiteHeaderProps) {
   const pathname = usePathname()
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" })
-    window.location.assign("/login")
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      cache: "no-store",
+    }).catch(() => null)
+    window.location.replace("/login")
   }
 
   return (
@@ -36,6 +52,7 @@ export function SiteHeader({ ownerName = "LFen", heroTagline = "", session }: Si
       <div className="max-w-[1200px] mx-auto px-6 flex items-center gap-6 h-12">
         <Link
           href="/"
+          prefetch={false}
           className="font-semibold text-[--color-text-primary] text-sm tracking-tight hover:no-underline shrink-0"
         >
           {ownerName}
@@ -51,6 +68,7 @@ export function SiteHeader({ ownerName = "LFen", heroTagline = "", session }: Si
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={false}
                     className={cn(
                       "px-3 py-1 rounded-[--radius-sm] text-sm transition-colors duration-150 hover:no-underline whitespace-nowrap",
                       isActive
@@ -65,8 +83,18 @@ export function SiteHeader({ ownerName = "LFen", heroTagline = "", session }: Si
             </nav>
 
             <div className="flex items-center gap-2 shrink-0">
+              <Link href="/" prefetch={false} className="hover:no-underline" title={displayName || session.email}>
+                <UserAvatar
+                  size="sm"
+                  name={displayName || ownerName}
+                  email={session.email}
+                  avatarText={avatarText}
+                  avatarUrl={avatarUrl}
+                />
+              </Link>
               <Link
                 href="/friends"
+                prefetch={false}
                 className={cn(
                   "inline-flex items-center gap-1 px-2 py-1 rounded-[--radius-sm] text-sm transition-colors hover:no-underline",
                   pathname === "/friends"
@@ -77,7 +105,22 @@ export function SiteHeader({ ownerName = "LFen", heroTagline = "", session }: Si
               >
                 <Users size={13} />
               </Link>
-              <SettingsDialog ownerName={ownerName} heroTagline={heroTagline} />
+              {(role === "owner" || role === "admin") && (
+                <Link
+                  href="/admin"
+                  prefetch={false}
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2 py-1 rounded-[--radius-sm] text-sm transition-colors hover:no-underline",
+                    pathname === "/admin"
+                      ? "bg-[--color-text-primary] text-[--color-bg-surface]"
+                      : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"
+                  )}
+                  title="管理员"
+                >
+                  <Shield size={13} />
+                </Link>
+              )}
+              <SettingsDialog ownerName={ownerName} heroTagline={heroTagline} email={session.email} />
               <button
                 onClick={handleLogout}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-[--radius-sm] text-sm text-[--color-text-muted] hover:text-[--color-text-primary] hover:bg-[--color-bg-hover] transition-colors"
@@ -92,6 +135,7 @@ export function SiteHeader({ ownerName = "LFen", heroTagline = "", session }: Si
             <div className="flex-1" />
             <Link
               href="/login"
+              prefetch={false}
               className="inline-flex items-center gap-1.5 px-3 py-1 text-sm text-[--color-text-secondary] hover:text-[--color-text-primary] hover:no-underline"
             >
               <LogIn size={13} /> 登录

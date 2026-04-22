@@ -28,6 +28,12 @@ export async function GET() {
   jobs.forEach((j) => { statusCount[j.status] = (statusCount[j.status] ?? 0) + 1 })
   const statusDist = Object.entries(statusCount).map(([name, value]) => ({ name, value }))
 
+  const channelCount: Record<string, number> = {}
+  jobs.forEach((j) => { channelCount[j.channel] = (channelCount[j.channel] ?? 0) + 1 })
+  const channelDist = Object.entries(channelCount)
+    .sort(([, a], [, b]) => b - a)
+    .map(([name, value]) => ({ name, value }))
+
   const monthCount: Record<string, number> = {}
   jobs.forEach((j) => {
     const key = format(new Date(j.appliedAt), "yyyy-MM")
@@ -38,7 +44,7 @@ export async function GET() {
     .map(([name, value]) => ({ name: name.slice(5), value }))
 
   return NextResponse.json(
-    { total, replied, replyRate, hasInterview, interviewRate, offers, offerRate, statusDist, monthlyTrend },
+    { total, replied, replyRate, hasInterview, interviewRate, offers, offerRate, statusDist, channelDist, monthlyTrend },
     { headers: NO_STORE }
   )
 }

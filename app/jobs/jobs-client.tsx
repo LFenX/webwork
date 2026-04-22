@@ -17,6 +17,7 @@ import { SimpleBarChart } from "@/components/charts/bar-chart"
 import { SimpleLineChart } from "@/components/charts/line-chart"
 import { JOB_STATUS, JOB_CHANNELS } from "@/lib/enums"
 import { apiFetch, apiPost, apiPatch, apiDelete } from "@/lib/api-client"
+import { formatChinaDate } from "@/lib/time"
 
 interface Job {
   id: string
@@ -38,6 +39,7 @@ interface Stats {
   interviewRate: number
   offerRate: number
   statusDist: { name: string; value: number }[]
+  channelDist: { name: string; value: number }[]
   monthlyTrend: { name: string; value: number }[]
 }
 
@@ -210,6 +212,10 @@ export function JobsClient() {
                 <p className="text-xs text-[--color-text-muted] mb-3">按状态分布</p>
                 <SimpleBarChart data={statusDist} height={Math.max(120, statusDist.length * 32)} />
               </div>
+              <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
+                <p className="text-xs text-[--color-text-muted] mb-3">按渠道分布</p>
+                <SimpleBarChart data={stats.channelDist} height={Math.max(120, stats.channelDist.length * 32)} />
+              </div>
               {stats.monthlyTrend.length > 1 && (
                 <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
                   <p className="text-xs text-[--color-text-muted] mb-3">按月投递趋势</p>
@@ -226,7 +232,7 @@ export function JobsClient() {
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[--color-text-muted]" />
           <Input
-            placeholder="搜索公司或职位..."
+            placeholder="搜索任意字段，可用空格组合条件..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 h-8 text-sm border-[--color-border]"
@@ -276,6 +282,7 @@ export function JobsClient() {
                   <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[90px] font-mono">投递日期</th>
                   <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[110px]">状态</th>
                   <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[70px]">BASE</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[90px]">联系人</th>
                   <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[70px] font-mono">面试</th>
                   <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted] w-[60px]">链接</th>
                   <th className="text-left px-4 py-2.5 font-medium text-xs text-[--color-text-muted]">备注</th>
@@ -293,7 +300,7 @@ export function JobsClient() {
                     <td className="px-4 py-3 text-[--color-text-secondary]">{job.position}</td>
                     <td className="px-4 py-3 text-xs text-[--color-text-muted] font-mono">{job.channel}</td>
                     <td className="px-4 py-3 font-mono text-xs text-[--color-text-muted]">
-                      {new Date(job.appliedAt).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })}
+                      {formatChinaDate(job.appliedAt, { month: "2-digit", day: "2-digit" })}
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <Select value={job.status} onValueChange={(v) => handleStatusChange(job.id, v)}>
@@ -308,6 +315,7 @@ export function JobsClient() {
                       </Select>
                     </td>
                     <td className="px-4 py-3 text-xs text-[--color-text-muted]">{job.baseLocation || "—"}</td>
+                    <td className="px-4 py-3 text-xs text-[--color-text-muted] max-w-[110px] truncate">{job.hrContact || "—"}</td>
                     <td className="px-4 py-3 font-mono text-xs text-center text-[--color-text-muted]">
                       {job._count?.interviews ?? 0}
                     </td>
@@ -319,7 +327,7 @@ export function JobsClient() {
                           rel="noopener noreferrer"
                           className="text-xs text-[--color-link] hover:underline flex items-center gap-0.5"
                         >
-                          投递页 <ExternalLink size={10} />
+                          投递 <ExternalLink size={10} />
                         </a>
                       ) : (
                         <span className="text-xs text-[--color-text-muted]">—</span>
@@ -383,7 +391,7 @@ export function JobsClient() {
                   </div>
                   <div>
                     <span className="text-[--color-text-muted] block mb-0.5">投递日期</span>
-                    <span className="font-mono">{new Date(detailJob.appliedAt).toLocaleDateString("zh-CN")}</span>
+                    <span className="font-mono">{formatChinaDate(detailJob.appliedAt)}</span>
                   </div>
                   <div>
                     <span className="text-[--color-text-muted] block mb-0.5">BASE 地</span>

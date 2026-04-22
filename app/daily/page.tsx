@@ -1,13 +1,18 @@
 import Link from "next/link"
 import { getPosts } from "@/lib/mdx"
 import { requireAuth } from "@/lib/auth"
+import { getModuleVisibility } from "@/lib/permissions"
+import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 import { Plus } from "lucide-react"
 
 export const metadata = { title: "日常 — My Space" }
 
 export default async function DailyPage() {
   const { userId } = await requireAuth()
-  const posts = await getPosts("daily", userId)
+  const [posts, visibility] = await Promise.all([
+    getPosts("daily", userId),
+    getModuleVisibility(userId, "daily"),
+  ])
 
   const grouped = posts.reduce<Record<string, typeof posts>>((acc, post) => {
     const ym = post.date?.slice(0, 7) ?? "未知"
@@ -24,6 +29,7 @@ export default async function DailyPage() {
           <h1 className="text-xl font-semibold mb-1">日常</h1>
           <p className="text-sm text-[--color-text-muted]">{posts.length} 篇记录</p>
         </div>
+        <ModuleVisibilitySelect module="daily" initialVisibility={visibility} />
         <Link
           href="/daily/new"
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[--color-text-primary] text-white rounded-[--radius-sm] hover:no-underline hover:opacity-90 transition-opacity"

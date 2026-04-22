@@ -2,7 +2,7 @@ import { PrismaLibSql } from "@prisma/adapter-libsql"
 import { PrismaClient } from "@/app/generated/prisma/client"
 
 // Version key — bump this whenever schema changes to invalidate the HMR-cached instance
-const SCHEMA_VERSION = "v3-multiuser"
+const SCHEMA_VERSION = "v7-avatar-password-requests"
 
 const g = globalThis as unknown as {
   prisma?: InstanceType<typeof PrismaClient>

@@ -3,11 +3,13 @@
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ArrowLeft, Upload } from "lucide-react"
+import { ArrowLeft, Eye, Upload } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { MarkdownEditor } from "@/components/markdown-editor"
+import { MarkdownContent } from "@/components/markdown-content"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface ResumeEditorClientProps {
   initialContent: string
@@ -22,6 +24,7 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
   const [pdfPath, setPdfPath] = useState(initialPdfPath)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function handleSaveMarkdown() {
@@ -102,9 +105,14 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
             </button>
           </div>
           {mode === "markdown" && (
-            <Button size="sm" onClick={handleSaveMarkdown} disabled={saving}>
-              {saving ? "保存中..." : "保存"}
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)} className="gap-1.5">
+                <Eye size={14} /> 预览
+              </Button>
+              <Button size="sm" onClick={handleSaveMarkdown} disabled={saving}>
+                {saving ? "保存中..." : "保存"}
+              </Button>
+            </>
           )}
           {mode === "pdf" && pdfPath && (
             <Button size="sm" onClick={handleSavePdfMode} disabled={saving}>
@@ -159,6 +167,17 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
           </div>
         </div>
       )}
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>简历预览</DialogTitle>
+          </DialogHeader>
+          <div className="prose mt-2">
+            <MarkdownContent source={content} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

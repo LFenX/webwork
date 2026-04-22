@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
+import { unlink } from "node:fs/promises"
+import path from "node:path"
 import { prisma } from "@/lib/db"
 import { updatePostSchema } from "@/lib/validators"
 import { revalidatePath } from "next/cache"
 import { getSession } from "@/lib/session"
+
+export const runtime = "nodejs"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -67,7 +71,11 @@ export async function DELETE(
   const post = await prisma.post.findFirst({ where: { id, userId: session.userId }, select: { type: true, slug: true } })
   if (!post) return NextResponse.json({ error: "未找到" }, { status: 404, headers: NO_STORE })
 
+  const uploads = await prisma.upload.findMany({ where: { postId: id }, select: { url: true, id: true } })
   await prisma.post.delete({ where: { id } })
+  for (const up of uploads) {
+    try { await unlink(path.join(process.cwd(), "public", up.url)) } catch { /* already gone */ }
+  }
   revalidatePath(`/${post.type}`)
   revalidatePath("/")
   return NextResponse.json({ ok: true }, { headers: NO_STORE })

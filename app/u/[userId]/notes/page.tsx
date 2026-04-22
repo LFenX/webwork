@@ -3,7 +3,7 @@ import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
-import { getAccessLevel, visibleTo } from "@/lib/permissions"
+import { canViewModule, getAccessLevel, recordVisit, visibleTo } from "@/lib/permissions"
 
 export default async function UserNotesPage({ params }: { params: Promise<{ userId: string }> }) {
   const [{ userId: ownerId }, session] = await Promise.all([params, getOptionalSession()])
@@ -14,7 +14,10 @@ export default async function UserNotesPage({ params }: { params: Promise<{ user
   if (!owner) notFound()
 
   const level = await getAccessLevel(session?.userId ?? null, ownerId)
-  const posts = await getPosts("notes", ownerId, visibleTo(level))
+  if (level === "none") notFound()
+  const moduleVisible = await canViewModule(ownerId, "notes", level)
+  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "notes", path: `/u/${ownerId}/notes` })
+  const posts = moduleVisible ? await getPosts("notes", ownerId, visibleTo(level)) : []
   const displayName = owner.displayName || owner.email
 
   return (

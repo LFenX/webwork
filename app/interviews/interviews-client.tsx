@@ -16,6 +16,7 @@ import { SimplePieChart } from "@/components/charts/pie-chart"
 import { SimpleBarChart } from "@/components/charts/bar-chart"
 import { INTERVIEW_ROUNDS, INTERVIEW_FORMATS, INTERVIEW_RESULTS } from "@/lib/enums"
 import { apiFetch, apiPost, apiPatch, apiDelete } from "@/lib/api-client"
+import { formatChinaDate, formatChinaDateTime } from "@/lib/time"
 
 interface Interview {
   id: string
@@ -261,7 +262,7 @@ export function InterviewsClient() {
                     <td className="px-4 py-3 text-xs text-[--color-text-muted] font-mono">{item.round}</td>
                     <td className="px-4 py-3 text-xs text-[--color-text-muted]">{item.format}</td>
                     <td className="px-4 py-3 font-mono text-xs text-[--color-text-muted]">
-                      {new Date(item.scheduledAt).toLocaleDateString("zh-CN")}
+                      {formatChinaDate(item.scheduledAt)}
                     </td>
                     <td className="px-4 py-3">
                       {item.selfRating ? (
@@ -400,7 +401,7 @@ export function InterviewsClient() {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div><span className="text-[--color-text-muted]">职位：</span>{detailItem.position}</div>
                 <div><span className="text-[--color-text-muted]">形式：</span>{detailItem.format}</div>
-                <div><span className="text-[--color-text-muted]">日期：</span><span className="font-mono">{new Date(detailItem.scheduledAt).toLocaleString("zh-CN")}</span></div>
+                <div><span className="text-[--color-text-muted]">日期：</span><span className="font-mono">{formatChinaDateTime(detailItem.scheduledAt)}</span></div>
                 <div><span className="text-[--color-text-muted]">面试官：</span>{detailItem.interviewers || "—"}</div>
                 <div><span className="text-[--color-text-muted]">结果：</span><StatusBadge status={detailItem.result} type="interview" /></div>
                 <div className="flex items-center gap-1">

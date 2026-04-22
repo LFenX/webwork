@@ -1,10 +1,9 @@
 import { notFound } from "next/navigation"
-import { prisma } from "@/lib/db"
 import { getPost } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
-import { getAccessLevel, visibleTo } from "@/lib/permissions"
-import { MarkdownContent } from "@/components/markdown-content"
-import { ArticleLayout } from "@/components/article-layout"
+import { getCreatorProfile } from "@/lib/profile"
+import { canViewModule, getAccessLevel, recordVisit, visibleTo } from "@/lib/permissions"
+import { ArticleReader } from "@/components/article-reader"
 
 export default async function UserNotePostPage({
   params,
@@ -12,34 +11,21 @@ export default async function UserNotePostPage({
   params: Promise<{ userId: string; slug: string }>
 }) {
   const [{ userId: ownerId, slug }, session] = await Promise.all([params, getOptionalSession()])
-  const owner = await prisma.user.findUnique({
-    where: { id: ownerId },
-    select: { id: true, displayName: true, email: true },
-  })
-  if (!owner) notFound()
+  const creator = await getCreatorProfile(ownerId)
+  if (!creator) notFound()
 
   const level = await getAccessLevel(session?.userId ?? null, ownerId)
+  if (!(await canViewModule(ownerId, "notes", level))) notFound()
   const post = await getPost("notes", decodeURIComponent(slug), ownerId, visibleTo(level))
   if (!post) notFound()
-
-  const displayName = owner.displayName || owner.email
+  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "notes", path: `/u/${ownerId}/notes/${slug}`, postId: post.id })
 
   return (
-    <ArticleLayout backHref={`/u/${ownerId}/notes`} backLabel={`${displayName} 的笔记`}>
-      <header className="mb-10">
-        <h1 className="text-3xl font-semibold mb-4 leading-tight">{post.title}</h1>
-        <div className="flex items-center gap-4 text-sm text-[--color-text-muted]">
-          <span className="font-mono">{post.date?.slice(0, 10)}</span>
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {post.tags.map((tag) => (
-                <span key={tag} className="px-1.5 py-0.5 bg-[--color-bg-hover] rounded text-xs">{tag}</span>
-              ))}
-            </div>
-          )}
-        </div>
-      </header>
-      <MarkdownContent source={post.content} />
-    </ArticleLayout>
+    <ArticleReader
+      post={post}
+      creator={creator}
+      backHref={`/u/${ownerId}/notes`}
+      backLabel={`返回 ${creator.displayName || creator.email} 的笔记`}
+    />
   )
 }

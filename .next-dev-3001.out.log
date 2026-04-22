@@ -1,0 +1,14 @@
+
+> webappwork-tmp@0.1.0 dev
+> next dev -p 3001
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://100.126.79.86:3001
+- Environments: .env
+✓ Ready in 441ms
+- Experiments (use with caution):
+  · serverActions
+
+ GET /login 200 in 451ms (next.js: 134ms, application-code: 316ms)
+ GET / 200 in 902ms (next.js: 33ms, application-code: 869ms)

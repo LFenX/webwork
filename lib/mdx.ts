@@ -76,13 +76,22 @@ export async function getResumeContent(userId: string): Promise<{ mode: string; 
 }
 
 export async function getSiteSettings(userId: string): Promise<{ ownerName: string; heroTagline: string }> {
-  const DEFAULT = { ownerName: "LFen", heroTagline: "这里是我的个人空间，记录博客、日常、心得，以及正在进行中的求职旅程。" }
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { displayName: true, email: true },
+  })
+  const fallbackName = user?.displayName || user?.email || "My Space"
+  const DEFAULT = { ownerName: fallbackName, heroTagline: "这里是我的个人空间，记录博客、日常、心得，以及正在进行中的求职旅程。" }
   try {
-    const s = await prisma.siteSettings.upsert({
-      where: { userId },
-      update: {},
-      create: { userId, ...DEFAULT },
-    })
+    let s = await prisma.siteSettings.findUnique({ where: { userId } })
+    if (!s) {
+      s = await prisma.siteSettings.create({ data: { userId, ...DEFAULT } })
+    } else if ((s.ownerName === "LFen" || !s.ownerName) && fallbackName !== "My Space") {
+      s = await prisma.siteSettings.update({
+        where: { userId },
+        data: { ownerName: fallbackName },
+      })
+    }
     return { ownerName: s.ownerName, heroTagline: s.heroTagline }
   } catch {
     return DEFAULT

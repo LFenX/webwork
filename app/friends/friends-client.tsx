@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useTransition } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { UserPlus, UserMinus, Check, X, Clock, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface Friend {
   id: string
@@ -155,23 +156,29 @@ export function FriendsClient() {
         <h2 className="text-sm font-semibold text-[--color-text-secondary] mb-3 flex items-center gap-1.5">
           <UserPlus size={14} /> 添加好友
         </h2>
-        <div className="flex gap-2">
+        <form
+          className="flex flex-col gap-2 sm:flex-row"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleSendRequest()
+          }}
+        >
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSendRequest()}
             placeholder="输入对方邮箱"
             className="flex-1 px-3 py-1.5 text-sm border border-[--color-border] rounded-[--radius-sm] bg-[--color-bg-input] focus:outline-none focus:border-[--color-accent]"
           />
-          <button
-            onClick={handleSendRequest}
+          <Button
+            type="submit"
             disabled={sending || !email.trim()}
-            className="px-4 py-1.5 text-sm bg-[--color-text-primary] text-white rounded-[--radius-sm] disabled:opacity-50 hover:opacity-90 transition-opacity"
+            className="h-9 px-4 shrink-0 bg-[#1A1A1A] text-white hover:bg-[#333333]"
           >
-            {sending ? "发送中…" : "发送请求"}
-          </button>
-        </div>
+            <UserPlus size={14} />
+            {sending ? "发送中…" : "发送好友请求"}
+          </Button>
+        </form>
       </section>
 
       {/* Received requests */}
@@ -190,7 +197,7 @@ export function FriendsClient() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleRespond(req.id, "accept")}
-                    className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-[--color-accent] text-white rounded-[--radius-sm] hover:opacity-90"
+                    className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-[#1A1A1A] text-white rounded-[--radius-sm] hover:bg-[#333333]"
                   >
                     <Check size={11} /> 接受
                   </button>

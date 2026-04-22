@@ -16,6 +16,7 @@ export async function areFriends(viewerId: string, ownerId: string): Promise<boo
  *   "none"    – no access to private content
  */
 export type AccessLevel = "self" | "friend" | "none"
+export type ModuleKey = "home" | "resume" | "blog" | "daily" | "reflections" | "notes" | "jobs" | "interviews"
 
 export async function getAccessLevel(
   viewerId: string | null,
@@ -31,5 +32,48 @@ export async function getAccessLevel(
 export function visibleTo(level: AccessLevel): string[] {
   if (level === "self") return ["private", "friends", "public"]
   if (level === "friend") return ["friends", "public"]
-  return ["public"]
+  return []
+}
+
+export async function getModuleVisibility(userId: string, module: ModuleKey): Promise<"private" | "friends"> {
+  const setting = await prisma.moduleVisibility.findUnique({
+    where: { userId_module: { userId, module } },
+    select: { visibility: true },
+  })
+  return setting?.visibility === "friends" ? "friends" : "private"
+}
+
+export async function canViewModule(
+  ownerId: string,
+  module: ModuleKey,
+  level: AccessLevel
+): Promise<boolean> {
+  if (level === "self") return true
+  if (level !== "friend") return false
+  return (await getModuleVisibility(ownerId, module)) === "friends"
+}
+
+export async function recordVisit({
+  ownerId,
+  visitorId,
+  module,
+  path,
+  postId,
+}: {
+  ownerId: string
+  visitorId: string | null
+  module: ModuleKey
+  path: string
+  postId?: string
+}) {
+  if (visitorId === ownerId) return
+  await prisma.visitLog.create({
+    data: {
+      ownerId,
+      visitorId,
+      module,
+      path,
+      postId,
+    },
+  }).catch(() => null)
 }

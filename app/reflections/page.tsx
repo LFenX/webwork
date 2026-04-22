@@ -1,13 +1,18 @@
 import Link from "next/link"
 import { getPosts } from "@/lib/mdx"
 import { requireAuth } from "@/lib/auth"
+import { getModuleVisibility } from "@/lib/permissions"
+import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 import { Plus } from "lucide-react"
 
 export const metadata = { title: "心得 — My Space" }
 
 export default async function ReflectionsPage() {
   const { userId } = await requireAuth()
-  const posts = await getPosts("reflections", userId)
+  const [posts, visibility] = await Promise.all([
+    getPosts("reflections", userId),
+    getModuleVisibility(userId, "reflections"),
+  ])
   const allTags = Array.from(new Set(posts.flatMap((p) => p.tags ?? [])))
 
   return (
@@ -17,6 +22,7 @@ export default async function ReflectionsPage() {
           <h1 className="text-xl font-semibold mb-1">心得</h1>
           <p className="text-sm text-[--color-text-muted]">{posts.length} 篇思考</p>
         </div>
+        <ModuleVisibilitySelect module="reflections" initialVisibility={visibility} />
         <Link
           href="/reflections/new"
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[--color-text-primary] text-white rounded-[--radius-sm] hover:no-underline hover:opacity-90 transition-opacity"

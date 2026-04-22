@@ -3,7 +3,26 @@ import { deleteSession } from "@/lib/session"
 
 export const dynamic = "force-dynamic"
 
+const NO_STORE = { "Cache-Control": "no-store" }
+
+function getPublicUrl(req: Request, pathname: string) {
+  const forwardedHost = req.headers.get("x-forwarded-host")
+  const forwardedProto = req.headers.get("x-forwarded-proto") ?? "https"
+  if (forwardedHost) return new URL(pathname, `${forwardedProto}://${forwardedHost}`)
+  return new URL(pathname, req.url)
+}
+
+export async function GET(req: Request) {
+  await deleteSession()
+  const url = getPublicUrl(req, "/login")
+  const response = NextResponse.redirect(url, { headers: NO_STORE })
+  response.cookies.delete("session")
+  return response
+}
+
 export async function POST() {
   await deleteSession()
-  return NextResponse.json({ ok: true })
+  const response = NextResponse.json({ ok: true }, { headers: NO_STORE })
+  response.cookies.delete("session")
+  return response
 }

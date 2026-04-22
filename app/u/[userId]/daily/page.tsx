@@ -3,7 +3,7 @@ import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
-import { getAccessLevel, visibleTo } from "@/lib/permissions"
+import { canViewModule, getAccessLevel, recordVisit, visibleTo } from "@/lib/permissions"
 
 export default async function UserDailyPage({ params }: { params: Promise<{ userId: string }> }) {
   const [{ userId: ownerId }, session] = await Promise.all([params, getOptionalSession()])
@@ -14,7 +14,10 @@ export default async function UserDailyPage({ params }: { params: Promise<{ user
   if (!owner) notFound()
 
   const level = await getAccessLevel(session?.userId ?? null, ownerId)
-  const posts = await getPosts("daily", ownerId, visibleTo(level))
+  if (level === "none") notFound()
+  const moduleVisible = await canViewModule(ownerId, "daily", level)
+  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "daily", path: `/u/${ownerId}/daily` })
+  const posts = moduleVisible ? await getPosts("daily", ownerId, visibleTo(level)) : []
   const displayName = owner.displayName || owner.email
 
   const grouped = posts.reduce<Record<string, typeof posts>>((acc, post) => {

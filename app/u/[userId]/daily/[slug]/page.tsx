@@ -1,10 +1,9 @@
 import { notFound } from "next/navigation"
-import { prisma } from "@/lib/db"
 import { getPost } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
-import { getAccessLevel, visibleTo } from "@/lib/permissions"
-import { MarkdownContent } from "@/components/markdown-content"
-import { ArticleLayout } from "@/components/article-layout"
+import { getCreatorProfile } from "@/lib/profile"
+import { canViewModule, getAccessLevel, recordVisit, visibleTo } from "@/lib/permissions"
+import { ArticleReader } from "@/components/article-reader"
 
 export default async function UserDailyPostPage({
   params,
@@ -12,25 +11,21 @@ export default async function UserDailyPostPage({
   params: Promise<{ userId: string; slug: string }>
 }) {
   const [{ userId: ownerId, slug }, session] = await Promise.all([params, getOptionalSession()])
-  const owner = await prisma.user.findUnique({
-    where: { id: ownerId },
-    select: { id: true, displayName: true, email: true },
-  })
-  if (!owner) notFound()
+  const creator = await getCreatorProfile(ownerId)
+  if (!creator) notFound()
 
   const level = await getAccessLevel(session?.userId ?? null, ownerId)
+  if (!(await canViewModule(ownerId, "daily", level))) notFound()
   const post = await getPost("daily", decodeURIComponent(slug), ownerId, visibleTo(level))
   if (!post) notFound()
-
-  const displayName = owner.displayName || owner.email
+  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "daily", path: `/u/${ownerId}/daily/${slug}`, postId: post.id })
 
   return (
-    <ArticleLayout backHref={`/u/${ownerId}/daily`} backLabel={`${displayName} 的日常`}>
-      <header className="mb-10">
-        <h1 className="text-3xl font-semibold mb-4 leading-tight">{post.title}</h1>
-        <span className="font-mono text-sm text-[--color-text-muted]">{post.date?.slice(0, 10)}</span>
-      </header>
-      <MarkdownContent source={post.content} />
-    </ArticleLayout>
+    <ArticleReader
+      post={post}
+      creator={creator}
+      backHref={`/u/${ownerId}/daily`}
+      backLabel={`返回 ${creator.displayName || creator.email} 的日常`}
+    />
   )
 }

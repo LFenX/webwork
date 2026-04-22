@@ -1,0 +1,13 @@
+
+> webappwork-tmp@0.1.0 dev
+> next dev --port 3000
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://100.126.79.86:3000
+- Environments: .env
+✓ Ready in 1370ms
+
+○ Compiling /login ...
+ GET /login 200 in 24.6s (next.js: 22.4s, application-code: 2.3s)
+ GET / 200 in 792ms (next.js: 42ms, application-code: 750ms)

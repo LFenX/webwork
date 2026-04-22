@@ -52,10 +52,17 @@ export const createPostSchema = z.object({
   tags: z.array(z.string()).optional().default([]),
   content: z.string().default(""),
   date: z.string().datetime().or(z.string().date()).optional(),
-  visibility: z.enum(["private", "friends", "public"]).optional().default("private"),
+  visibility: z.enum(["private", "friends"]).optional().default("private"),
 })
 
-export const updatePostSchema = createPostSchema.omit({ type: true, slug: true }).partial()
+export const updatePostSchema = z.object({
+  title: z.string().min(1, "鏍囬涓嶈兘涓虹┖").optional(),
+  summary: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  content: z.string().optional(),
+  date: z.string().datetime().or(z.string().date()).optional(),
+  visibility: z.enum(["private", "friends"]).optional(),
+})
 
 export const resumeSchema = z.object({
   mode: z.enum(["markdown", "pdf"]).optional(),
@@ -66,6 +73,36 @@ export const resumeSchema = z.object({
 export const siteSettingsSchema = z.object({
   ownerName: z.string().min(1).optional(),
   heroTagline: z.string().optional(),
+  displayName: z.string().trim().min(1).max(50).optional(),
+  avatarText: z.string().trim().max(20).optional(),
+  avatarUrl: z.string().trim().max(500).optional().nullable(),
+  avatarDataUrl: z.string().max(2_500_000).optional().nullable(),
+  location: z.string().trim().max(80).optional(),
+  bio: z.string().trim().max(200).optional(),
+  email: z.string().trim().toLowerCase().email().optional(),
+})
+
+export const passwordChangeRequestSchema = z.object({
+  email: z.string().trim().toLowerCase().email().optional(),
+  password: z.string().min(8, "密码至少 8 位"),
+})
+
+export const moduleVisibilitySchema = z.object({
+  module: z.enum(["home", "resume", "blog", "daily", "reflections", "notes", "jobs", "interviews"]),
+  visibility: z.enum(["private", "friends"]),
+})
+
+export const commentSchema = z.object({
+  content: z.string().trim().min(1, "评论不能为空").max(1000, "评论不能超过 1000 字"),
+})
+
+export const guestbookMessageSchema = z.object({
+  ownerId: z.string().min(1),
+  content: z.string().trim().min(1, "留言不能为空").max(500, "留言不能超过 500 字"),
+})
+
+export const uploadQuerySchema = z.object({
+  postId: z.string().cuid().optional(),
 })
 
 export type CreateJobInput = z.infer<typeof createJobSchema>

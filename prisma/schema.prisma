@@ -15,6 +15,11 @@ model User {
   passwordHash String
   displayName  String   @default("")
   bio          String   @default("")
+  avatarText   String   @default("")
+  avatarUrl    String?
+  location     String   @default("")
+  role         String   @default("user")
+  lastLoginAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -23,11 +28,59 @@ model User {
   interviews   InterviewRecord[]
   resume       Resume?
   settings     SiteSettings?
+  moduleVisibilities ModuleVisibility[]
+  visitsOwned  VisitLog[] @relation("visitOwner")
+  visitsMade   VisitLog[] @relation("visitVisitor")
+  comments     Comment[]
+  activities   UserActivity[]
+  passwordChangeRequests PasswordChangeRequest[]
+  uploads      Upload[]
 
   sentRequests     FriendRequest[] @relation("sent")
   receivedRequests FriendRequest[] @relation("received")
   friendshipsA     Friendship[]    @relation("a")
   friendshipsB     Friendship[]    @relation("b")
+
+  guestbookOwned   GuestbookMessage[] @relation("guestbookOwner")
+  guestbookWritten GuestbookMessage[] @relation("guestbookAuthor")
+}
+
+model UserActivity {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+model RegistrationRequest {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  displayName  String
+  status       String    @default("pending")
+  approveToken String    @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  approvedAt   DateTime?
+}
+
+model PasswordChangeRequest {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash    String
+  status          String    @default("pending")
+  requestedAt     DateTime  @default(now())
+  respondedAt     DateTime?
+  approvedById    String?
+
+  @@index([userId, status])
+  @@index([status, requestedAt])
 }
 
 model FriendRequest {
@@ -114,9 +167,50 @@ model Post {
   date       DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  comments   Comment[]
 
   @@unique([userId, type, slug])
   @@index([userId, type, date])
+}
+
+model ModuleVisibility {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module     String
+  visibility String   @default("private")
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, module])
+  @@index([userId])
+}
+
+model VisitLog {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     User     @relation("visitOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  visitorId String?
+  visitor   User?    @relation("visitVisitor", fields: [visitorId], references: [id], onDelete: SetNull)
+  module    String
+  path      String
+  postId    String?
+  createdAt DateTime @default(now())
+
+  @@index([ownerId, module, createdAt])
+  @@index([visitorId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([postId, createdAt])
+  @@index([authorId])
 }
 
 model Resume {
@@ -134,4 +228,32 @@ model SiteSettings {
   ownerName   String   @default("LFen")
   heroTagline String   @default("这里是我的个人空间，记录博客、日常、心得，以及正在进行中的求职旅程。")
   updatedAt   DateTime @updatedAt
+}
+
+model GuestbookMessage {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     User     @relation("guestbookOwner",  fields: [ownerId],  references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("guestbookAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([ownerId, createdAt])
+}
+
+model Upload {
+  id           String   @id @default(cuid())
+  userId       String
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  url          String
+  postId       String?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([postId])
 }

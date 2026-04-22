@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { SiteHeader } from "@/components/site-header"
@@ -6,6 +6,13 @@ import { SiteFooter } from "@/components/site-footer"
 import { Toaster } from "@/components/ui/sonner"
 import { getOptionalSession } from "@/lib/auth"
 import { getSiteSettings } from "@/lib/mdx"
+import { ServiceWorkerCleanup } from "@/components/service-worker-cleanup"
+import { VisualViewportVars } from "@/components/visual-viewport-vars"
+import { getUserAdminInfo, normalizeUserRole } from "@/lib/admin"
+import { getCreatorProfile } from "@/lib/profile"
+
+export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,6 +25,13 @@ const geistMono = Geist_Mono({
 })
 
 const DEFAULT_SETTINGS = { ownerName: "My Space", heroTagline: "" }
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
+  themeColor: "#FAF9F5",
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   const session = await getOptionalSession()
@@ -35,6 +49,11 @@ export default async function RootLayout({
 }>) {
   const session = await getOptionalSession()
   const settings = session ? await getSiteSettings(session.userId) : DEFAULT_SETTINGS
+  const user = session ? await getUserAdminInfo(session.userId) : null
+  const [normalizedUser, profile] = await Promise.all([
+    user ? normalizeUserRole(user) : null,
+    session ? getCreatorProfile(session.userId) : null,
+  ])
 
   return (
     <html
@@ -46,10 +65,16 @@ export default async function RootLayout({
           ownerName={settings.ownerName}
           heroTagline={settings.heroTagline}
           session={session}
+          role={normalizedUser?.role}
+          avatarText={profile?.avatarText}
+          avatarUrl={profile?.avatarUrl}
+          displayName={profile?.displayName}
         />
-        <main className="flex-1">{children}</main>
+        <main key={session?.userId ?? "guest"} className="flex-1">{children}</main>
         <SiteFooter />
         <Toaster position="bottom-right" />
+        <ServiceWorkerCleanup />
+        <VisualViewportVars />
       </body>
     </html>
   )

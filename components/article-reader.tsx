@@ -1,0 +1,68 @@
+import Link from "next/link"
+import { ArrowLeft, Calendar, Pencil } from "lucide-react"
+import { ArticleAside } from "@/components/article-sidebar"
+import { CommentsSection } from "@/components/comments-section"
+import { MarkdownContent } from "@/components/markdown-content"
+import { VisibilityToggle } from "@/components/visibility-toggle"
+import type { CreatorProfile } from "@/lib/profile"
+
+type ArticleReaderProps = {
+  post: {
+    id: string
+    slug: string
+    title: string
+    date: string
+    tags: string[]
+    content: string
+    visibility: string
+  }
+  creator: CreatorProfile
+  backHref: string
+  backLabel: string
+  editHref?: string
+  canEdit?: boolean
+}
+
+export function ArticleReader({ post, creator, backHref, backLabel, editHref, canEdit = false }: ArticleReaderProps) {
+  return (
+    <div className="mx-auto grid w-full max-w-[1360px] grid-cols-1 gap-6 px-6 py-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <article className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] px-6 py-8 shadow-sm md:px-10 lg:px-12">
+        <div className="mb-10 flex items-center justify-between gap-4">
+          <Link
+            href={backHref}
+            className="inline-flex items-center gap-1.5 text-sm text-[--color-text-muted] hover:text-[--color-text-primary] hover:no-underline"
+          >
+            <ArrowLeft size={14} /> {backLabel}
+          </Link>
+          {canEdit && editHref && (
+            <div className="flex items-center gap-3">
+              <VisibilityToggle postId={post.id} initialVisibility={post.visibility} />
+              <Link
+                href={editHref}
+                className="inline-flex items-center gap-1.5 rounded-[--radius-sm] bg-[--color-text-primary] px-3 py-1.5 text-sm text-[--color-bg-surface] hover:no-underline"
+              >
+                <Pencil size={14} /> 编辑
+              </Link>
+            </div>
+          )}
+        </div>
+        <header className="mb-10">
+          <h1 className="mb-4 text-3xl font-semibold leading-tight text-[--color-text-primary]">{post.title}</h1>
+          <div className="flex flex-wrap items-center gap-3 text-sm text-[--color-text-muted]">
+            <span className="inline-flex items-center gap-1.5 font-mono">
+              <Calendar size={14} /> {post.date?.slice(0, 10)}
+            </span>
+            {post.tags.map((tag) => (
+              <span key={tag} className="rounded bg-[--color-bg-hover] px-1.5 py-0.5 text-xs">{tag}</span>
+            ))}
+          </div>
+        </header>
+        <MarkdownContent source={post.content} />
+        <div className="mt-12 border-t border-[--color-border] pt-8">
+          <CommentsSection postId={post.id} />
+        </div>
+      </article>
+      <ArticleAside profile={creator} content={post.content} />
+    </div>
+  )
+}

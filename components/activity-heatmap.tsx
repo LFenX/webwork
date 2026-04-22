@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { formatDateKey } from "@/lib/time"
 
 interface ActivityHeatmapProps {
   data: Record<string, number>
@@ -19,10 +20,6 @@ function getColor(count: number): string {
   return "#1e6b1e"
 }
 
-function toLocalDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-}
-
 export function ActivityHeatmap({ data }: ActivityHeatmapProps) {
   const cells = useMemo(() => {
     const today = new Date()
@@ -31,7 +28,7 @@ export function ActivityHeatmap({ data }: ActivityHeatmapProps) {
       for (let d = 0; d < DAYS; d++) {
         const date = new Date(today)
         date.setDate(today.getDate() - (w * 7 + (today.getDay() - d + 7) % 7))
-        const key = toLocalDate(date)
+        const key = formatDateKey(date)
         result.push({ date: key, count: data[key] ?? 0, col: WEEKS - 1 - w, row: d })
       }
     }
