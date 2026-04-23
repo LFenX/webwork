@@ -1,11 +1,12 @@
 import Link from "next/link"
+import { Pencil } from "lucide-react"
 import { getResumeContent } from "@/lib/mdx"
 import { requireAuth } from "@/lib/auth"
 import { MarkdownContent } from "@/components/markdown-content"
-import { PrintButton } from "@/components/print-button"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
+import { PrintButton } from "@/components/print-button"
+import { ResumePdfViewer } from "@/components/resume-pdf-viewer"
 import { getModuleVisibility } from "@/lib/permissions"
-import { Pencil } from "lucide-react"
 
 export const metadata = { title: "简历 - My Space" }
 export const dynamic = "force-dynamic"
@@ -19,9 +20,9 @@ export default async function ResumePage() {
   ])
 
   return (
-    <div className="mx-auto max-w-[1040px] px-4 py-16 sm:px-8">
-      <div className={resume.mode === "pdf" ? "mx-auto max-w-[960px]" : "mx-auto max-w-[760px]"}>
-        <div className="no-print mb-12 flex items-center justify-between">
+    <div className="mx-auto w-full max-w-[960px] px-4 py-12 sm:px-8 sm:py-16">
+      <div className={resume.mode === "pdf" ? "mx-auto w-full" : "mx-auto max-w-[760px]"}>
+        <div className="no-print mb-10 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-semibold">简历</h1>
           <div className="flex items-center gap-3">
             <ModuleVisibilitySelect module="resume" initialVisibility={visibility} />
@@ -38,11 +39,7 @@ export default async function ResumePage() {
 
         <div id="resume-content">
           {resume.mode === "pdf" && resume.pdfPath ? (
-            <iframe
-              src={resume.pdfPath}
-              className="h-[1200px] min-h-[calc(var(--app-viewport-height)-12rem)] w-full rounded border border-[--color-border]"
-              title="简历 PDF"
-            />
+            <ResumePdfViewer src={resume.pdfPath} />
           ) : resume.content ? (
             <MarkdownContent source={resume.content} />
           ) : (

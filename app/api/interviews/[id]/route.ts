@@ -22,6 +22,10 @@ export async function PATCH(
   if (!parsed.success) return NextResponse.json({ error: "参数错误" }, { status: 400 })
 
   const { scheduledAt, ...rest } = parsed.data
+  if (rest.jobId) {
+    const job = await prisma.jobApplication.findFirst({ where: { id: rest.jobId, userId: session.userId }, select: { id: true } })
+    if (!job) return NextResponse.json({ error: "关联投递不存在" }, { status: 400, headers: NO_STORE })
+  }
   const data: Record<string, unknown> = { ...rest }
   if (scheduledAt) data.scheduledAt = new Date(scheduledAt)
 

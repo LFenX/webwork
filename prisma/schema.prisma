@@ -43,6 +43,9 @@ model User {
   receivedRequests FriendRequest[] @relation("received")
   friendshipsA     Friendship[]    @relation("a")
   friendshipsB     Friendship[]    @relation("b")
+  sentChatMessages     ChatMessage[]    @relation("chatSent")
+  receivedChatMessages ChatMessage[]    @relation("chatReceived")
+  chatAttachments      ChatAttachment[]
 
   guestbookOwned   GuestbookMessage[] @relation("guestbookOwner")
   guestbookWritten GuestbookMessage[] @relation("guestbookAuthor")
@@ -139,6 +142,38 @@ model Friendship {
 }
 
 // ─── Content ─────────────────────────────────────────────────────────────────
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  senderId    String
+  receiverId  String
+  sender      User     @relation("chatSent", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User     @relation("chatReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+  text        String   @default("")
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+  attachments ChatAttachment[]
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, senderId, createdAt])
+}
+
+model ChatAttachment {
+  id           String      @id @default(cuid())
+  messageId    String
+  message      ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploaderId   String
+  uploader     User        @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  storagePath  String
+  createdAt    DateTime    @default(now())
+
+  @@index([messageId])
+  @@index([uploaderId])
+}
 
 model JobApplication {
   id           String    @id @default(cuid())

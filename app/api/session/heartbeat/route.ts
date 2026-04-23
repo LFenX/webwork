@@ -69,7 +69,7 @@ export async function POST(req: Request) {
       data,
       select: { lastSeenAt: true, lastActiveAt: true, lastForegroundAt: true },
     })
-    const status = body?.foreground === false ? "offline" : presenceFromSession(updated, true)
+    const status = presenceFromSession(updated, true)
     return NextResponse.json({ status }, { headers: NO_STORE })
   }
 

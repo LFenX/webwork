@@ -28,6 +28,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "参数错误", detail: parsed.error.flatten() }, { status: 400 })
   }
   const { scheduledAt, ...rest } = parsed.data
+  if (rest.jobId) {
+    const job = await prisma.jobApplication.findFirst({ where: { id: rest.jobId, userId: session.userId }, select: { id: true } })
+    if (!job) return NextResponse.json({ error: "关联投递不存在" }, { status: 400, headers: NO_STORE })
+  }
   const record = await prisma.interviewRecord.create({
     data: { ...rest, userId: session.userId, scheduledAt: new Date(scheduledAt) },
   })

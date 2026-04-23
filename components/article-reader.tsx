@@ -34,7 +34,7 @@ type ArticleReaderProps = {
 
 export function ArticleReader({ post, creator, backHref, backLabel, editHref, canEdit = false }: ArticleReaderProps) {
   return (
-    <div className="mx-auto grid w-full max-w-[1360px] grid-cols-1 gap-6 px-6 py-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="mx-auto w-full max-w-[1360px] px-6 py-10 lg:pr-[330px]">
       <article className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] px-6 py-8 shadow-sm md:px-10 lg:px-12">
         <div className="mb-10 flex items-center justify-between gap-4">
           <Link

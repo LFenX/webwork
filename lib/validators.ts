@@ -26,7 +26,17 @@ export const createJobSchema = z.object({
   link: z.string().optional().nullable(),
 })
 
-export const updateJobSchema = createJobSchema.partial()
+export const updateJobSchema = z.object({
+  company: z.string().min(1, "公司名称不能为空").optional(),
+  position: z.string().min(1, "职位不能为空").optional(),
+  channel: z.string().optional(),
+  appliedAt: z.string().datetime().or(z.string().date()).optional(),
+  status: z.string().optional(),
+  notes: z.string().optional().nullable(),
+  baseLocation: z.string().optional().nullable(),
+  hrContact: z.string().optional().nullable(),
+  link: z.string().optional().nullable(),
+})
 
 export const createInterviewSchema = z.object({
   company: z.string().min(1, "公司名称不能为空"),
@@ -42,7 +52,19 @@ export const createInterviewSchema = z.object({
   jobId: z.string().optional().nullable(),
 })
 
-export const updateInterviewSchema = createInterviewSchema.partial()
+export const updateInterviewSchema = z.object({
+  company: z.string().min(1, "公司名称不能为空").optional(),
+  position: z.string().min(1, "职位不能为空").optional(),
+  round: z.string().optional(),
+  format: z.string().optional(),
+  scheduledAt: z.string().datetime().or(z.string()).optional(),
+  interviewers: z.string().optional().nullable(),
+  questions: z.string().optional().nullable(),
+  selfRating: z.number().int().min(1).max(5).optional().nullable(),
+  result: z.string().optional(),
+  feedback: z.string().optional().nullable(),
+  jobId: z.string().optional().nullable(),
+})
 
 export const createPostSchema = z.object({
   type: z.enum(["blog", "daily", "reflections", "notes"]),

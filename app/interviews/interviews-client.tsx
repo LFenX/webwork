@@ -34,6 +34,19 @@ interface Interview {
   job?: { company: string; position: string } | null
 }
 
+interface JobOption {
+  id: string
+  company: string
+  position: string
+  status: string
+  channel: string
+  appliedAt: string
+}
+
+interface JobsPage {
+  items: JobOption[]
+}
+
 interface Stats {
   total: number
   passed: number
@@ -79,6 +92,7 @@ function StarRating({ value, onChange }: { value: number | null; onChange: (v: n
 export function InterviewsClient() {
   const [interviews, setInterviews] = useState<Interview[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
+  const [jobOptions, setJobOptions] = useState<JobOption[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -109,12 +123,40 @@ export function InterviewsClient() {
     return () => { cancelled = true }
   }, [refreshKey])
 
+  useEffect(() => {
+    let cancelled = false
+    async function loadJobs() {
+      try {
+        const page = await apiFetch<JobsPage>(`/api/jobs?limit=50&_t=${Date.now()}`)
+        if (!cancelled) setJobOptions(page.items)
+      } catch {
+        if (!cancelled) setJobOptions([])
+      }
+    }
+    loadJobs()
+    return () => { cancelled = true }
+  }, [refreshKey])
+
   function triggerRefresh() { setRefreshKey(k => k + 1) }
 
   function openCreate() {
     setEditingInterview(null)
-    setForm(defaultForm)
+    setForm({ ...defaultForm })
     setDialogOpen(true)
+  }
+
+  function selectJob(jobId: string) {
+    if (jobId === "none") {
+      setForm((current) => ({ ...current, jobId: "" }))
+      return
+    }
+    const job = jobOptions.find((item) => item.id === jobId)
+    setForm((current) => ({
+      ...current,
+      jobId,
+      company: job?.company ?? current.company,
+      position: job?.position ?? current.position,
+    }))
   }
 
   function openEdit(item: Interview) {
@@ -331,6 +373,22 @@ export function InterviewsClient() {
             <DialogTitle>{editingInterview ? "编辑面试记录" : "新建面试记录"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            <div>
+              <Label className="text-xs mb-1 block">关联投递</Label>
+              <Select value={form.jobId || "none"} onValueChange={selectJob}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="选择一条求职投递" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">不关联投递</SelectItem>
+                  {jobOptions.map((job) => (
+                    <SelectItem key={job.id} value={job.id}>
+                      {job.company} / {job.position} / {job.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs mb-1 block">公司 *</Label>
@@ -405,6 +463,7 @@ export function InterviewsClient() {
           {detailItem && (
             <div className="space-y-4 mt-2 text-sm">
               <div className="grid grid-cols-2 gap-2 text-xs">
+                <div><span className="text-[--color-text-muted]">关联投递：</span>{detailItem.job ? `${detailItem.job.company} / ${detailItem.job.position}` : "—"}</div>
                 <div><span className="text-[--color-text-muted]">职位：</span>{detailItem.position}</div>
                 <div><span className="text-[--color-text-muted]">形式：</span>{detailItem.format}</div>
                 <div><span className="text-[--color-text-muted]">日期：</span><span className="font-mono">{formatChinaDateTime(detailItem.scheduledAt)}</span></div>

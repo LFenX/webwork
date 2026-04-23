@@ -382,10 +382,15 @@ export function AdminClient() {
               {activities.length === 0 ? (
                 <p className="p-4 text-sm text-[--color-text-muted]">暂无行为记录</p>
               ) : (
-                <div className="overflow-x-auto bg-[--color-bg-surface]">
+                <div
+                  className="max-h-[500px] overflow-auto bg-[--color-bg-surface]"
+                  onScroll={(event) => {
+                    if (isNearBottom(event) && activitiesHasMore && !activitiesLoading) void loadActivities(activitiesCursor, true)
+                  }}
+                >
                   <div className="min-w-[1080px]">
                     <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
-                      <thead>
+                      <thead className="sticky top-0 z-10">
                         <tr>
                           <th className="w-[160px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">时间</th>
                           <th className="w-[170px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">行为</th>
@@ -395,14 +400,6 @@ export function AdminClient() {
                           <th className="w-[140px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">设备信息</th>
                         </tr>
                       </thead>
-                    </table>
-                    <div
-                      className="max-h-[500px] overflow-y-auto"
-                      onScroll={(event) => {
-                        if (isNearBottom(event) && activitiesHasMore && !activitiesLoading) void loadActivities(activitiesCursor, true)
-                      }}
-                    >
-                      <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
                         <tbody>
                           {activities.map((activity) => (
                             <tr key={activity.id}>
@@ -419,7 +416,6 @@ export function AdminClient() {
                         </tbody>
                       </table>
                       {activitiesLoading && <p className="p-3 text-center text-xs text-[--color-text-muted]">加载更多日志...</p>}
-                    </div>
                   </div>
                 </div>
               )}

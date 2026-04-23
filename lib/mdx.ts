@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { countWords, readingMinutes } from "@/lib/text-stats"
 
 export interface PostMeta {
   id: string
@@ -37,17 +38,10 @@ export type ArticleFolderItem = {
 }
 
 function postStats(content: string) {
-  const text = content
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/<[^>]+>/g, "")
-    .replace(/[#>*_`~\-[\]()]/g, " ")
-    .trim()
-  const cjk = text.match(/[\u4e00-\u9fff]/g)?.length ?? 0
-  const words = text.match(/[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*/g)?.length ?? 0
-  const wordCount = cjk + words
+  const wordCount = countWords(content)
   return {
     wordCount,
-    readingMinutes: Math.max(1, Math.ceil(wordCount / 400)),
+    readingMinutes: readingMinutes(wordCount),
   }
 }
 

@@ -88,7 +88,7 @@ export function TocCard({ content }: { content: string }) {
 
 export function ArticleAside({ profile, content }: { profile: CreatorProfile; content: string }) {
   return (
-    <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+    <aside className="mt-6 space-y-4 lg:fixed lg:bottom-6 lg:right-[max(1.5rem,calc((100vw-1360px)/2+1.5rem))] lg:top-20 lg:mt-0 lg:w-[300px] lg:overflow-y-auto">
       <CreatorCard profile={profile} />
       <TocCard content={content} />
     </aside>

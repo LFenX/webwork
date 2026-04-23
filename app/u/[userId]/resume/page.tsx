@@ -4,8 +4,8 @@ import { getResumeContent } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
 import { canViewModule, getAccessLevel, recordVisit } from "@/lib/permissions"
 import { MarkdownContent } from "@/components/markdown-content"
-import { ArticleLayout } from "@/components/article-layout"
-import { FriendModuleLinks } from "@/components/friend-module-nav"
+import { FriendModuleNav } from "@/components/friend-module-nav"
+import { ResumePdfViewer } from "@/components/resume-pdf-viewer"
 import { getFriendVisibleModules } from "@/lib/friend-module-nav"
 
 export default async function UserResumePage({ params }: { params: Promise<{ userId: string }> }) {
@@ -26,25 +26,20 @@ export default async function UserResumePage({ params }: { params: Promise<{ use
   const visibleModules = await getFriendVisibleModules(ownerId, level)
 
   return (
-    <ArticleLayout
-      backHref={`/u/${ownerId}`}
-      backLabel={`返回 ${displayName}`}
-      actions={<FriendModuleLinks ownerId={ownerId} current="resume" modules={visibleModules} />}
-    >
-      <header className="mb-10">
-        <h1 className="text-3xl font-semibold leading-tight">简历</h1>
-      </header>
-      {resume.mode === "pdf" && resume.pdfPath ? (
-        <iframe
-          src={resume.pdfPath}
-          className="h-[1200px] min-h-[calc(var(--app-viewport-height)-12rem)] w-full rounded border border-[--color-border]"
-          title="简历 PDF"
-        />
-      ) : resume.content ? (
-        <MarkdownContent source={resume.content} />
-      ) : (
-        <p className="text-sm text-[--color-text-muted]">暂无简历内容。</p>
-      )}
-    </ArticleLayout>
+    <div className="mx-auto w-full max-w-[960px] px-4 py-12 sm:px-8 sm:py-16">
+      <FriendModuleNav ownerId={ownerId} displayName={displayName} current="resume" modules={visibleModules} />
+      <div className={resume.mode === "pdf" ? "mx-auto w-full" : "mx-auto max-w-[760px]"}>
+        <header className="mb-10">
+          <h1 className="text-3xl font-semibold leading-tight">简历</h1>
+        </header>
+        {resume.mode === "pdf" && resume.pdfPath ? (
+          <ResumePdfViewer src={resume.pdfPath} />
+        ) : resume.content ? (
+          <MarkdownContent source={resume.content} />
+        ) : (
+          <p className="text-sm text-[--color-text-muted]">暂无简历内容。</p>
+        )}
+      </div>
+    </div>
   )
 }

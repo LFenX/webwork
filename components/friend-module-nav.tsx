@@ -12,6 +12,14 @@ const MODULE_LABEL: Record<FriendModuleNavKey, string> = {
   interviews: "面试",
 }
 
+function moduleLinkClass(active: boolean) {
+  return `inline-flex h-7 items-center border-b px-0.5 text-sm leading-none transition-colors hover:text-[--color-link] hover:no-underline ${
+    active
+      ? "border-[--color-link] text-[--color-text-secondary]"
+      : "border-transparent text-[--color-text-secondary]"
+  }`
+}
+
 export function FriendModuleNav({
   ownerId,
   displayName,
@@ -26,10 +34,10 @@ export function FriendModuleNav({
   const visibleModules = FRIEND_MODULE_NAV_KEYS.filter((module) => modules[module])
 
   return (
-    <nav className="mb-8 flex flex-wrap items-center gap-2 text-sm">
+    <nav className="mb-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
       <Link
         href={`/u/${ownerId}`}
-        className="inline-flex h-8 items-center gap-1.5 rounded-[--radius-sm] border border-[--color-border] px-3 text-[--color-text-muted] transition-colors hover:border-[--color-border-strong] hover:text-[--color-text-primary] hover:no-underline"
+        className="inline-flex h-7 items-center gap-1.5 border-b border-transparent px-0.5 text-[--color-text-secondary] transition-colors hover:text-[--color-link] hover:no-underline"
       >
         <ArrowLeft size={13} /> {displayName}
       </Link>
@@ -37,11 +45,7 @@ export function FriendModuleNav({
         <Link
           key={module}
           href={`/u/${ownerId}/${module}`}
-          className={`inline-flex h-8 items-center rounded-[--radius-sm] border px-3 transition-colors hover:no-underline ${
-            module === current
-              ? "border-[#111827] bg-[#111827] text-white"
-              : "border-[--color-border] text-[--color-text-secondary] hover:border-[--color-border-strong] hover:bg-[--color-bg-hover]"
-          }`}
+          className={moduleLinkClass(module === current)}
           aria-current={module === current ? "page" : undefined}
         >
           {MODULE_LABEL[module]}
@@ -61,16 +65,12 @@ export function FriendModuleLinks({
   modules: Record<FriendModuleNavKey, boolean>
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
       {FRIEND_MODULE_NAV_KEYS.filter((module) => modules[module]).map((module) => (
         <Link
           key={module}
           href={`/u/${ownerId}/${module}`}
-          className={`inline-flex h-8 items-center rounded-[--radius-sm] border px-3 text-sm transition-colors hover:no-underline ${
-            module === current
-              ? "border-[#111827] bg-[#111827] text-white"
-              : "border-[--color-border] text-[--color-text-secondary] hover:border-[--color-border-strong] hover:bg-[--color-bg-hover]"
-          }`}
+          className={moduleLinkClass(module === current)}
           aria-current={module === current ? "page" : undefined}
         >
           {MODULE_LABEL[module]}
