@@ -3,14 +3,12 @@ import { ArrowRight } from "lucide-react"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { requireAuth } from "@/lib/auth"
-import { getModuleVisibility } from "@/lib/permissions"
 import { getAnnouncementFeed } from "@/lib/announcement-feed"
 import { ActivityHeatmap } from "@/components/activity-heatmap"
 import { AnnouncementChannelBar } from "@/components/announcement-channel-bar"
 import { FunnelChart } from "@/components/funnel-chart"
 import { GuestbookSection } from "@/components/guestbook-section"
 import { HomeLayoutBoard } from "@/components/home-layout-board"
-import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 import { StatsCard } from "@/components/stats-card"
 import { StatusBadge } from "@/components/status-badge"
 import { UserAvatar } from "@/components/user-avatar"
@@ -18,6 +16,7 @@ import { VisitStatsPanel } from "@/components/visit-stats-panel"
 import { formatChinaDate, formatDateKey } from "@/lib/time"
 import { normalizeHomeLayout } from "@/lib/home-layout"
 import { countWords } from "@/lib/text-stats"
+import { getUserSiteSettings } from "@/lib/settings"
 
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
@@ -172,6 +171,7 @@ function SectionTitle({ title, href }: { title: string; href?: string }) {
 export default async function HomePage() {
   const session = await requireAuth()
   const { userId } = session
+  const userSettings = await getUserSiteSettings(userId)
 
   const [
     stats,
@@ -183,7 +183,6 @@ export default async function HomePage() {
     profile,
     guestbookMessages,
     announcements,
-    homeVisibility,
     homeLayout,
     articleGroups,
     recentDaily,
@@ -209,7 +208,6 @@ export default async function HomePage() {
       }))
     ),
     getAnnouncementFeed(userId, 50),
-    getModuleVisibility(userId, "home"),
     prisma.homeLayout.findUnique({ where: { userId }, select: { config: true } }).then((row) => normalizeHomeLayout(row?.config)),
     Promise.all(ARTICLE_TYPES.map(async (type) => (await getPosts(type, userId)).map((post) => ({ ...post, typeLabel: ARTICLE_LABEL[type] })))),
     getPosts("daily", userId),
@@ -383,7 +381,7 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-[1200px] px-6 pb-10 pt-4">
-      <AnnouncementChannelBar initialAnnouncements={announcements} userId={userId} />
+      <AnnouncementChannelBar initialAnnouncements={announcements} userId={userId} locale={userSettings.language} />
 
       {profile && (
         <section className="mb-6 flex items-center gap-4 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] px-4 py-4">
@@ -402,13 +400,9 @@ export default async function HomePage() {
         widgets={homeWidgets}
         initialLayout={homeLayout}
         editable
-        toolbar={<ModuleVisibilitySelect module="home" initialVisibility={homeVisibility} />}
       />
 
       <div className="hidden">
-      <div className="mb-8 flex justify-end">
-        <ModuleVisibilitySelect module="home" initialVisibility={homeVisibility} />
-      </div>
 
       <section className="mb-10">
         <SectionTitle title="写作统计" />

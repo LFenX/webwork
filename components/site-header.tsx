@@ -3,27 +3,32 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
+import { Settings, Shield, Users, LogOut, LogIn } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { SettingsDialog } from "@/components/settings-dialog"
 import { UserAvatar } from "@/components/user-avatar"
 import { clearChatOutboxForUser } from "@/lib/chat-outbox"
 import { clearUserLocalState } from "@/lib/client-storage"
-import { Shield, Users, LogOut, LogIn } from "lucide-react"
-
-const NAV_ITEMS = [
-  { href: "/", label: "首页" },
-  { href: "/resume", label: "简历" },
-  { href: "/blog", label: "博客" },
-  { href: "/daily", label: "日常" },
-  { href: "/reflections", label: "心得" },
-  { href: "/notes", label: "笔记" },
-  { href: "/jobs", label: "求职" },
-  { href: "/interviews", label: "面试" },
-]
+import type { AppLocale } from "@/lib/i18n"
 
 interface SiteHeaderProps {
   ownerName?: string
   heroTagline?: string
+  locale: AppLocale
+  navDict: {
+    home: string
+    resume: string
+    blog: string
+    daily: string
+    reflections: string
+    notes: string
+    jobs: string
+    interviews: string
+    friends: string
+    admin: string
+    login: string
+    logout: string
+    settings: string
+  }
   session?: { userId: string; email: string } | null
   role?: string
   avatarText?: string | null
@@ -34,6 +39,8 @@ interface SiteHeaderProps {
 export function SiteHeader({
   ownerName = "LFen",
   heroTagline = "",
+  locale,
+  navDict,
   session,
   role = "user",
   avatarText,
@@ -44,6 +51,17 @@ export function SiteHeader({
   const [presenceStatus, setPresenceStatus] = useState<"online" | "away" | "offline">(session ? "online" : "offline")
   const [friendUnreadCount, setFriendUnreadCount] = useState(0)
   const visibleFriendUnreadCount = session ? friendUnreadCount : 0
+
+  const navItems = [
+    { href: "/", label: navDict.home },
+    { href: "/resume", label: navDict.resume },
+    { href: "/blog", label: navDict.blog },
+    { href: "/daily", label: navDict.daily },
+    { href: "/reflections", label: navDict.reflections },
+    { href: "/notes", label: navDict.notes },
+    { href: "/jobs", label: navDict.jobs },
+    { href: "/interviews", label: navDict.interviews },
+  ]
 
   useEffect(() => {
     const onPresence = (event: Event) => {
@@ -86,29 +104,29 @@ export function SiteHeader({
   }
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 border-b border-[--color-border] bg-[--color-bg-primary]/95 backdrop-blur-sm">
-      <div className="max-w-[1200px] mx-auto px-6 flex items-center gap-6 h-12">
+    <header data-locale={locale} className="fixed inset-x-0 top-0 z-40 border-b border-[--color-border] bg-[--color-bg-primary]/95 backdrop-blur-sm">
+      <div className="mx-auto flex h-12 max-w-[1200px] items-center gap-6 px-6">
         <Link
           href="/"
           prefetch={false}
-          className="font-semibold text-[--color-text-primary] text-sm tracking-tight hover:no-underline shrink-0"
+          className="shrink-0 text-sm font-semibold tracking-tight text-[--color-text-primary] hover:no-underline"
+          title={heroTagline}
         >
           {ownerName}
         </Link>
 
         {session ? (
           <>
-            <nav className="flex items-center gap-1 overflow-x-auto flex-1">
-              {NAV_ITEMS.map((item) => {
-                const isActive =
-                  item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+            <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
+              {navItems.map((item) => {
+                const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     prefetch={false}
                     className={cn(
-                      "px-3 py-1 rounded-[--radius-sm] text-sm transition-colors duration-150 hover:no-underline whitespace-nowrap",
+                      "whitespace-nowrap rounded-[--radius-sm] px-3 py-1 text-sm transition-colors duration-150 hover:no-underline",
                       isActive
                         ? "bg-[--color-text-primary] text-[--color-bg-surface]"
                         : "text-[--color-text-secondary] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
@@ -120,7 +138,7 @@ export function SiteHeader({
               })}
             </nav>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex shrink-0 items-center gap-2">
               <Link href="/" prefetch={false} className="hover:no-underline" title={displayName || session.email}>
                 <UserAvatar
                   size="sm"
@@ -135,12 +153,12 @@ export function SiteHeader({
                 href="/friends"
                 prefetch={false}
                 className={cn(
-                  "relative inline-flex items-center gap-1 px-2 py-1 rounded-[--radius-sm] text-sm transition-colors hover:no-underline",
+                  "relative inline-flex items-center gap-1 rounded-[--radius-sm] px-2 py-1 text-sm transition-colors hover:no-underline",
                   pathname === "/friends"
                     ? "bg-[--color-text-primary] text-[--color-bg-surface]"
                     : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"
                 )}
-                title="好友"
+                title={navDict.friends}
               >
                 <Users size={13} />
                 {visibleFriendUnreadCount > 0 && (
@@ -154,21 +172,33 @@ export function SiteHeader({
                   href="/admin"
                   prefetch={false}
                   className={cn(
-                    "inline-flex items-center gap-1 px-2 py-1 rounded-[--radius-sm] text-sm transition-colors hover:no-underline",
+                    "inline-flex items-center gap-1 rounded-[--radius-sm] px-2 py-1 text-sm transition-colors hover:no-underline",
                     pathname === "/admin"
                       ? "bg-[--color-text-primary] text-[--color-bg-surface]"
                       : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"
                   )}
-                  title="管理员"
+                  title={navDict.admin}
                 >
                   <Shield size={13} />
                 </Link>
               )}
-              <SettingsDialog ownerName={ownerName} heroTagline={heroTagline} email={session.email} />
+              <Link
+                href="/settings"
+                prefetch={false}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-[--radius-sm] px-2 py-1 text-sm transition-colors hover:no-underline",
+                  pathname.startsWith("/settings")
+                    ? "bg-[--color-text-primary] text-[--color-bg-surface]"
+                    : "text-[--color-text-muted] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+                )}
+                title={navDict.settings}
+              >
+                <Settings size={13} />
+              </Link>
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-[--radius-sm] text-sm text-[--color-text-muted] hover:text-[--color-text-primary] hover:bg-[--color-bg-hover] transition-colors"
-                title="退出登录"
+                className="inline-flex items-center gap-1 rounded-[--radius-sm] px-2 py-1 text-sm text-[--color-text-muted] transition-colors hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+                title={navDict.logout}
               >
                 <LogOut size={13} />
               </button>
@@ -182,7 +212,7 @@ export function SiteHeader({
               prefetch={false}
               className="inline-flex items-center gap-1.5 px-3 py-1 text-sm text-[--color-text-secondary] hover:text-[--color-text-primary] hover:no-underline"
             >
-              <LogIn size={13} /> 登录
+              <LogIn size={13} /> {navDict.login}
             </Link>
           </>
         )}

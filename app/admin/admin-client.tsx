@@ -157,6 +157,7 @@ export function AdminClient() {
   const [geoRefreshing, setGeoRefreshing] = useState(false)
   const [announcementSaving, setAnnouncementSaving] = useState(false)
   const [stickerUploading, setStickerUploading] = useState(false)
+  const [ownerTransferTargetId, setOwnerTransferTargetId] = useState<string>("")
 
   const hasPermission = (permission: AdminPermissionKey) => data?.permissions?.[permission] ?? false
 
@@ -269,6 +270,14 @@ export function AdminClient() {
     pending: (data?.requests.length ?? 0) + (data?.passwordRequests.length ?? 0),
   }), [data, users])
 
+  const ownerTransferCandidates = users.filter((user) => user.id !== data?.currentAdmin.id && user.role !== "owner")
+  const effectiveOwnerTransferTargetId =
+    ownerTransferCandidates.some((user) => user.id === ownerTransferTargetId)
+      ? ownerTransferTargetId
+      : (ownerTransferCandidates[0]?.id ?? "")
+  const selectedOwnerTransferUser =
+    ownerTransferCandidates.find((user) => user.id === effectiveOwnerTransferTargetId) ?? null
+
   async function approve(id: string) {
     await apiPost(`/api/admin/registrations/${id}/approve`, {})
     toast.success("已同意注册申请")
@@ -285,6 +294,17 @@ export function AdminClient() {
     await apiPatch(`/api/admin/users/${id}/role`, { role })
     toast.success("成员权限已更新")
     setRefreshKey((key) => key + 1)
+  }
+
+  async function transferOwner(user: UserItem) {
+    if (!confirm(`确认将终极管理员身份转让给 ${user.email} 吗？转让后你会变为普通管理员，但保留全部管理员权限。`)) return
+    try {
+      await apiPost(`/api/admin/users/${user.id}/transfer-owner`, {})
+      toast.success("终极管理员身份已完成转让")
+      setRefreshKey((key) => key + 1)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "转让失败")
+    }
   }
 
   async function updateAdminPermission(admin: AdminPermissionItem, key: AdminPermissionKey, value: boolean) {
@@ -311,6 +331,14 @@ export function AdminClient() {
     }
   }
 
+  function getDeleteBlockedReason(user: UserItem, inactiveDays: number | null) {
+    if (!data) return "Temporarily unavailable"
+    if (user.id === data.currentAdmin.id) return "Cannot delete yourself"
+    if (user.role === "owner") return "Cannot delete the owner"
+    if (inactiveDays === null) return "Never logged in"
+    if (inactiveDays < 30) return `${30 - inactiveDays} days remaining`
+    return null
+  }
   async function saveUpdateLog(item: UpdateLogItem) {
     const customMessage = updateDrafts[item.hash] ?? item.customMessage ?? item.originalMessage
     await apiPatch(`/api/admin/updates/${item.hash}`, { customMessage, useOriginal: false, hidden: false })
@@ -437,6 +465,34 @@ export function AdminClient() {
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck size={16} />
                 <h2 className="text-sm font-semibold">管理员权限配置</h2>
+              </div>
+              <div className="mb-3 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
+                <p className="text-sm font-medium">终极管理员转让</p>
+                <p className="mt-1 text-xs text-[--color-text-muted]">
+                  转让后，当前终极管理员会降级为普通管理员，但自动保留全部管理员权限。
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Select value={effectiveOwnerTransferTargetId} onValueChange={setOwnerTransferTargetId} disabled={ownerTransferCandidates.length === 0}>
+                    <SelectTrigger className="h-9 w-[280px] text-xs">
+                      <SelectValue placeholder="选择新的终极管理员" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ownerTransferCandidates.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.displayName || user.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => selectedOwnerTransferUser && transferOwner(selectedOwnerTransferUser)}
+                    disabled={!selectedOwnerTransferUser}
+                  >
+                    转让终极管理员
+                  </Button>
+                </div>
               </div>
               <div className="space-y-3 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
                 {adminPermissions.length === 0 ? (
@@ -609,85 +665,97 @@ export function AdminClient() {
           <section>
             <div className="mb-3 flex items-center gap-2">
               <UserCog size={16} />
-              <h2 className="text-sm font-semibold">用户管理</h2>
+              <h2 className="text-sm font-semibold">User Management</h2>
             </div>
             <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-              <div className="overflow-x-auto bg-[--color-bg-surface]">
-                <div className="min-w-[860px]">
+              <div
+                className="max-h-[470px] overflow-auto bg-[--color-bg-surface]"
+                onScroll={(event) => {
+                  if (isNearBottom(event) && usersHasMore && !usersLoading) void loadUsers(usersCursor, true)
+                }}
+              >
+                <div className="min-w-[950px]">
                   <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
-                    <thead>
+                    <thead className="sticky top-0 z-10">
                       <tr>
-                        <th className="glass-nav-bg w-[290px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户</th>
-                        <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">权限</th>
-                        <th className="glass-nav-bg w-[190px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">最近登录</th>
-                        <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">删除条件</th>
-                        {data.canManageUsers && <th className="glass-nav-bg w-[80px] border-b-2 border-[--color-border-strong] px-4 py-2.5" />}
+                        <th className="glass-nav-bg w-[290px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">User</th>
+                        <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Role</th>
+                        <th className="glass-nav-bg w-[190px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Last Login</th>
+                        <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Delete Rule</th>
+                        {data.canManageUsers && <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5" />}
                       </tr>
                     </thead>
-                  </table>
-                  <div
-                    className="max-h-[470px] overflow-y-auto"
-                    onScroll={(event) => {
-                      if (isNearBottom(event) && usersHasMore && !usersLoading) void loadUsers(usersCursor, true)
-                    }}
-                  >
-                    <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
-                      <tbody>
-                        {users.map((user) => {
-                          const inactiveDays = daysSince(user.lastLoginAt)
-                          const deletable = inactiveDays !== null && inactiveDays >= 30
-                          return (
-                            <tr key={user.id}>
-                              <td className="w-[290px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
-                                <p className="truncate font-medium">{user.displayName || user.email}</p>
-                                <p className="truncate font-mono text-xs text-[--color-text-muted]">{user.email}</p>
-                              </td>
-                              <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
-                                {data.canManageUsers && user.role !== "owner" ? (
-                                  <Select value={user.role === "admin" ? "admin" : "user"} onValueChange={(role) => updateRole(user.id, role)}>
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="user">成员</SelectItem>
-                                      <SelectItem value="admin">普通管理员</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-xs">
-                                    {user.role === "owner" && <ShieldCheck size={13} />}
-                                    {user.role === "owner" ? "终极管理员" : user.role === "admin" ? "普通管理员" : "成员"}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="w-[190px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(user.lastLoginAt)}</td>
-                              <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {deletable ? "可删除" : inactiveDays === null ? "从未登录，不可删" : `还需 ${30 - inactiveDays} 天`}
-                              </td>
-                              {data.canManageUsers && (
-                                <td className="w-[80px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-right">
+                    <tbody>
+                      {users.map((user) => {
+                        const inactiveDays = daysSince(user.lastLoginAt)
+                        const deleteBlockedReason = getDeleteBlockedReason(user, inactiveDays)
+                        const canEditRole =
+                          data.canManageUsers &&
+                          user.role !== "owner" &&
+                          (data.currentAdmin.role === "owner" || user.role !== "admin")
+                        const canTransferOwner =
+                          data.currentAdmin.role === "owner" &&
+                          user.id !== data.currentAdmin.id &&
+                          user.role !== "owner"
+
+                        return (
+                          <tr key={user.id}>
+                            <td className="w-[290px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
+                              <p className="truncate font-medium">{user.displayName || user.email}</p>
+                              <p className="truncate font-mono text-xs text-[--color-text-muted]">{user.email}</p>
+                            </td>
+                            <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
+                              {canEditRole ? (
+                                <Select value={user.role === "admin" ? "admin" : "user"} onValueChange={(role) => updateRole(user.id, role)}>
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="user">User</SelectItem>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs">
+                                  {user.role === "owner" && <ShieldCheck size={13} />}
+                                  {user.role === "owner" ? "Owner" : user.role === "admin" ? "Admin" : "User"}
+                                </span>
+                              )}
+                            </td>
+                            <td className="w-[190px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(user.lastLoginAt)}</td>
+                            <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                              {deleteBlockedReason ?? "Deletable"}
+                            </td>
+                            {data.canManageUsers && (
+                              <td className="w-[170px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
+                                <div className="flex items-center justify-end gap-2">
+                                  {canTransferOwner && (
+                                    <Button size="sm" variant="outline" onClick={() => transferOwner(user)} className="h-8 px-2 text-xs">
+                                      Transfer
+                                    </Button>
+                                  )}
                                   <button
                                     onClick={() => deleteUser(user)}
-                                    className="p-1 text-[--color-text-muted] hover:text-[--color-danger]"
-                                    title="删除用户"
+                                    disabled={Boolean(deleteBlockedReason)}
+                                    className="p-1 text-[--color-text-muted] hover:text-[--color-danger] disabled:cursor-not-allowed disabled:opacity-40"
+                                    title={deleteBlockedReason ?? "Delete user"}
                                   >
                                     <Trash2 size={14} />
                                   </button>
-                                </td>
-                              )}
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                    {usersLoading && <p className="p-3 text-center text-xs text-[--color-text-muted]">加载更多成员...</p>}
-                  </div>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  {usersLoading && <p className="p-3 text-center text-xs text-[--color-text-muted]">Loading more users...</p>}
                 </div>
               </div>
             </div>
           </section>
           )}
-
           {hasPermission("viewActivityLogs") && (
           <section>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

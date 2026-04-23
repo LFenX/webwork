@@ -12,6 +12,7 @@ import { UserAvatar } from "@/components/user-avatar"
 import { GroupAvatar } from "@/components/group-avatar"
 import { deleteChatOutboxItem, listChatOutboxItems, saveChatOutboxItem, type ChatOutboxItem } from "@/lib/chat-outbox"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
+import { getDictionary, type AppLocale } from "@/lib/i18n"
 
 export type AnnouncementItem = {
   type?: "announcement" | "broadcast"
@@ -35,6 +36,10 @@ type Channel = {
   id: string
   type: string
   name: string
+  announcement?: string
+  ownerId?: string | null
+  ownerName?: string | null
+  currentUserRole?: "owner" | "member" | null
   members: Friend[]
 }
 
@@ -143,7 +148,16 @@ function outboxToChannelMessage(item: ChatOutboxItem, currentUserId: string): Ch
   }
 }
 
-export function AnnouncementChannelBar({ initialAnnouncements, userId }: { initialAnnouncements: AnnouncementItem[]; userId: string }) {
+export function AnnouncementChannelBar({
+  initialAnnouncements,
+  userId,
+  locale = "zh-CN",
+}: {
+  initialAnnouncements: AnnouncementItem[]
+  userId: string
+  locale?: AppLocale
+}) {
+  const dict = getDictionary(locale)
   const [open, setOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [announcements, setAnnouncements] = useState(initialAnnouncements)
@@ -254,7 +268,7 @@ export function AnnouncementChannelBar({ initialAnnouncements, userId }: { initi
           <SheetHeader className="border-b border-[--color-border] px-4 py-3">
             <SheetTitle className="text-base">频道</SheetTitle>
           </SheetHeader>
-          <GroupChatClient userId={userId} onWorldAnnouncement={refreshAnnouncements} />
+          <GroupChatClient userId={userId} locale={locale} onWorldAnnouncement={refreshAnnouncements} />
         </SheetContent>
       </Sheet>
 
@@ -286,7 +300,16 @@ export function AnnouncementChannelBar({ initialAnnouncements, userId }: { initi
   )
 }
 
-export function GroupChatClient({ userId, onWorldAnnouncement = noopWorldAnnouncement }: { userId: string; onWorldAnnouncement?: () => void }) {
+export function GroupChatClient({
+  userId,
+  locale = "zh-CN",
+  onWorldAnnouncement = noopWorldAnnouncement,
+}: {
+  userId: string
+  locale?: AppLocale
+  onWorldAnnouncement?: () => void
+}) {
+  const dict = getDictionary(locale)
   const [channels, setChannels] = useState<Channel[]>([])
   const [friends, setFriends] = useState<Friend[]>([])
   const [currentUserId, setCurrentUserId] = useState("")
@@ -551,6 +574,11 @@ export function GroupChatClient({ userId, onWorldAnnouncement = noopWorldAnnounc
                 <span className="hidden sm:inline">邀请</span>
               </Button>
             )}
+            {!isWorld && selected ? (
+              <Button asChild type="button" size="sm" variant="outline" className="h-8">
+                <Link href={`/channels/${selected.id}`}>{dict.channels.manage}</Link>
+              </Button>
+            ) : null}
             <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => selected && loadMessages(selected.id)}>
               <RefreshCcw size={14} />
               <span className="hidden sm:inline">刷新</span>

@@ -118,6 +118,7 @@ export const siteSettingsSchema = z.object({
   location: z.string().trim().max(80).optional(),
   bio: z.string().trim().max(200).optional(),
   email: z.string().trim().toLowerCase().email().optional(),
+  language: z.enum(["zh-CN", "en-US"]).optional(),
 })
 
 export const passwordChangeRequestSchema = z.object({
@@ -156,6 +157,11 @@ export const channelCreateSchema = z.object({
 
 export const channelInviteSchema = z.object({
   memberIds: z.array(z.string().min(1)).min(1, "请选择要邀请的好友"),
+})
+
+export const channelManageSchema = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  announcement: z.string().trim().max(500).optional(),
 })
 
 export const uploadQuerySchema = z.object({

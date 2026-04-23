@@ -1,0 +1,5 @@
+ALTER TABLE "SiteSettings"
+ADD COLUMN "language" TEXT NOT NULL DEFAULT 'zh-CN';
+
+ALTER TABLE "ChatChannel"
+ADD COLUMN "announcement" TEXT NOT NULL DEFAULT '';

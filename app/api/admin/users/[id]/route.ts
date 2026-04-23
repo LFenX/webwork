@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { OWNER_EMAIL, recordActivity, requireAdminPermission } from "@/lib/admin"
+import { canDeleteManagedUser, recordActivity, requireAdminPermission } from "@/lib/admin"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -11,28 +11,23 @@ export async function DELETE(
 ) {
   try {
     const admin = await requireAdminPermission("manageUsers")
-
     const { id } = await params
-    if (id === admin.id) {
-      return NextResponse.json({ error: "不能删除当前登录用户" }, { status: 400, headers: NO_STORE })
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { email: true, role: true, lastLoginAt: true },
+    })
+    if (!user) {
+      return NextResponse.json({ error: "用户不存在" }, { status: 404, headers: NO_STORE })
     }
 
-    const rows = await prisma.$queryRaw<Array<{ email: string; lastLoginAt: Date | null }>>`
-      SELECT email, "lastLoginAt"
-      FROM "User"
-      WHERE id = ${id}
-      LIMIT 1
-    `
-    const user = rows[0] ?? null
-    if (!user) return NextResponse.json({ error: "用户不存在" }, { status: 404, headers: NO_STORE })
-    if (user.email.toLowerCase() === OWNER_EMAIL) {
-      return NextResponse.json({ error: "不能删除终极管理员" }, { status: 400, headers: NO_STORE })
-    }
-
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - 30)
-    if (!user.lastLoginAt || user.lastLoginAt > cutoff) {
-      return NextResponse.json({ error: "用户未满足 30 天未登录，删除失败" }, { status: 400, headers: NO_STORE })
+    const blockedReason = canDeleteManagedUser(admin, {
+      id,
+      role: user.role,
+      lastLoginAt: user.lastLoginAt,
+    })
+    if (blockedReason) {
+      return NextResponse.json({ error: blockedReason }, { status: 400, headers: NO_STORE })
     }
 
     await prisma.user.delete({ where: { id } })
