@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { getSession } from "@/lib/session"
+import { publishRealtime } from "@/lib/realtime-events"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -45,6 +46,7 @@ export async function PATCH(
         create: { userAId: a, userBId: b },
       }),
     ])
+    publishRealtime([request.fromUserId, request.toUserId], { type: "friend-request:accepted", data: { requestId: id, userIds: [request.fromUserId, request.toUserId] } })
   } else {
     await prisma.friendRequest.update({
       where: { id },

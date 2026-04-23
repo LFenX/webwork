@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { deleteSession, EXPIRE_AFTER_MS, getSessionCookiePayload } from "@/lib/session"
+import { closeUserSession, deleteSession, EXPIRE_AFTER_MS, FOREGROUND_OFFLINE_AFTER_MS, getSessionCookiePayload } from "@/lib/session"
 import { presenceFromSession } from "@/lib/presence"
+import { recordActivity } from "@/lib/admin"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -21,9 +22,12 @@ export async function POST(req: Request) {
     where: { sessionId: payload.sessionId },
     select: {
       status: true,
+      userId: true,
+      sessionId: true,
       lastSeenAt: true,
       lastActiveAt: true,
       lastForegroundAt: true,
+      lastResumeActivityAt: true,
       replacedByLocation: true,
       replacedByDevice: true,
     },
@@ -50,18 +54,20 @@ export async function POST(req: Request) {
   }
 
   if (Date.now() - session.lastSeenAt.getTime() >= EXPIRE_AFTER_MS) {
-    await prisma.userSession.update({
-      where: { sessionId: payload.sessionId },
-      data: { status: "expired" },
-    }).catch(() => null)
+    await closeUserSession(payload.sessionId, "expired", "expired", "登录已超过 12 小时未操作", req)
     await deleteSession()
     return NextResponse.json({ status: "expired", message: "登录已超过 12 小时未操作，请重新登录。" }, { status: 401, headers: NO_STORE })
   }
 
   const now = new Date()
-  const data: { lastSeenAt: Date; lastForegroundAt?: Date; lastActiveAt?: Date } = { lastSeenAt: now }
+  const shouldRecordResume =
+    Boolean(body?.foreground) &&
+    now.getTime() - session.lastForegroundAt.getTime() >= FOREGROUND_OFFLINE_AFTER_MS &&
+    (!session.lastResumeActivityAt || now.getTime() - session.lastResumeActivityAt.getTime() >= 60_000)
+  const data: { lastSeenAt: Date; lastForegroundAt?: Date; lastActiveAt?: Date; lastResumeActivityAt?: Date } = { lastSeenAt: now }
   if (body?.foreground) data.lastForegroundAt = now
   if (body?.touch) data.lastActiveAt = now
+  if (shouldRecordResume) data.lastResumeActivityAt = now
 
   if (body?.foreground || body?.touch || body?.foreground === false) {
     const updated = await prisma.userSession.update({
@@ -69,6 +75,9 @@ export async function POST(req: Request) {
       data,
       select: { lastSeenAt: true, lastActiveAt: true, lastForegroundAt: true },
     })
+    if (shouldRecordResume) {
+      await recordActivity(session.userId, "resume_online", "重新回到 Web App 并刷新在线状态", req, session.sessionId)
+    }
     const status = presenceFromSession(updated, true)
     return NextResponse.json({ status }, { headers: NO_STORE })
   }

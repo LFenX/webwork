@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/db"
-import { recordActivity, requireAdmin } from "@/lib/admin"
+import { recordActivity, requireAdminPermission } from "@/lib/admin"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -11,7 +11,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await requireAdmin()
+    const admin = await requireAdminPermission("approvePasswordChanges")
     const { id } = await params
     const request = await prisma.passwordChangeRequest.findUnique({
       where: { id },

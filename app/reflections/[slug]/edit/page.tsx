@@ -11,5 +11,5 @@ export default async function EditReflectionPage({ params }: { params: Promise<{
     getCreatorProfile(userId),
   ])
   if (!post) notFound()
-  return <PostEditorClient mode="edit" type="reflections" typeLabel="心得" initialData={post} creator={creator} />
+  return <PostEditorClient mode="edit" type="reflections" typeLabel="心得" userId={userId} initialData={post} creator={creator} />
 }

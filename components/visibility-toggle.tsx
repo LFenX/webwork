@@ -50,7 +50,7 @@ export function VisibilityToggle({
       value={visibility === "friends" ? "friends" : "private"}
       disabled={saving}
       onChange={(event) => updateVisibility(event.target.value)}
-      className="h-8 rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-surface] px-2.5 text-sm text-[--color-text-primary] outline-none hover:bg-[--color-bg-hover] focus:border-[--color-text-primary]"
+      className="h-10 rounded-md border border-input bg-background px-3 !text-sm font-medium text-[--color-text-primary] outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
       aria-label="文章可见性"
     >
       {OPTIONS.map((option) => (

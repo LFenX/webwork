@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { getSession } from "@/lib/session"
 import { areFriends, getAccessLevel } from "@/lib/permissions"
 import { guestbookMessageSchema } from "@/lib/validators"
+import { canUseSticker } from "@/lib/stickers"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "desc" },
     include: {
       author: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+      sticker: { select: { id: true, scope: true, name: true, originalName: true, mimeType: true, size: true, isAnimated: true } },
     },
   })
 
@@ -30,6 +32,10 @@ export async function GET(req: NextRequest) {
     messages.map((m) => ({
       id: m.id,
       content: m.content,
+      parentId: m.parentId,
+      stickerId: m.stickerId,
+      stickerEmoji: m.stickerEmoji,
+      sticker: m.sticker ? { ...m.sticker, url: `/api/stickers/${m.sticker.id}/file` } : null,
       createdAt: m.createdAt.toISOString(),
       author: m.author,
     })),
@@ -50,7 +56,13 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { ownerId, content } = parsed.data
+  const { ownerId, content, parentId, stickerId, stickerEmoji } = parsed.data
+  if (!content && !stickerId && !stickerEmoji) {
+    return NextResponse.json({ error: "留言不能为空" }, { status: 400, headers: NO_STORE })
+  }
+  if (stickerId && !(await canUseSticker(session.userId, stickerId))) {
+    return NextResponse.json({ error: "表情包不存在" }, { status: 400, headers: NO_STORE })
+  }
 
   if (session.userId === ownerId) {
     return NextResponse.json({ error: "不能给自己留言" }, { status: 400, headers: NO_STORE })
@@ -59,15 +71,27 @@ export async function POST(req: NextRequest) {
   const friends = await areFriends(session.userId, ownerId)
   if (!friends) return NextResponse.json({ error: "只有好友才能留言" }, { status: 403, headers: NO_STORE })
 
+  if (parentId) {
+    const parent = await prisma.guestbookMessage.findFirst({
+      where: { id: parentId, ownerId },
+      select: { id: true },
+    })
+    if (!parent) return NextResponse.json({ error: "回复的留言不存在" }, { status: 400, headers: NO_STORE })
+  }
+
   const message = await prisma.guestbookMessage.create({
     data: {
       id: crypto.randomUUID(),
       ownerId,
       authorId: session.userId,
+      parentId: parentId ?? null,
       content,
+      stickerId: stickerId ?? null,
+      stickerEmoji: stickerEmoji ?? null,
     },
     include: {
       author: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+      sticker: { select: { id: true, scope: true, name: true, originalName: true, mimeType: true, size: true, isAnimated: true } },
     },
   })
 
@@ -75,6 +99,10 @@ export async function POST(req: NextRequest) {
     {
       id: message.id,
       content: message.content,
+      parentId: message.parentId,
+      stickerId: message.stickerId,
+      stickerEmoji: message.stickerEmoji,
+      sticker: message.sticker ? { ...message.sticker, url: `/api/stickers/${message.sticker.id}/file` } : null,
       createdAt: message.createdAt.toISOString(),
       author: message.author,
     },

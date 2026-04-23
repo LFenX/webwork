@@ -68,7 +68,7 @@ export function ArticleReader({ post, creator, backHref, backLabel, editHref, ca
               <User size={14} /> 作者 {post.author.displayName || post.author.email}
             </span>
             {canEdit ? (
-              <PostFolderSelect postId={post.id} type={post.type} initialFolderId={post.folder?.id ?? null} />
+              <PostFolderSelect postId={post.id} type={post.type} userId={creator.id} initialFolderId={post.folder?.id ?? null} />
             ) : (
               <span className="inline-flex items-center gap-1.5">
                 <Folder size={14} /> {post.folder?.name || "未分类"}

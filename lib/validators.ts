@@ -131,12 +131,31 @@ export const moduleVisibilitySchema = z.object({
 })
 
 export const commentSchema = z.object({
-  content: z.string().trim().min(1, "评论不能为空").max(1000, "评论不能超过 1000 字"),
+  content: z.string().trim().max(1000, "评论不能超过 1000 字").default(""),
+  parentId: z.string().min(1).optional().nullable(),
+  stickerId: z.string().min(1).optional().nullable(),
+  stickerEmoji: z.string().trim().max(20).optional().nullable(),
 })
 
 export const guestbookMessageSchema = z.object({
   ownerId: z.string().min(1),
-  content: z.string().trim().min(1, "留言不能为空").max(500, "留言不能超过 500 字"),
+  content: z.string().trim().max(500, "留言不能超过 500 字").default(""),
+  parentId: z.string().min(1).optional().nullable(),
+  stickerId: z.string().min(1).optional().nullable(),
+  stickerEmoji: z.string().trim().max(20).optional().nullable(),
+})
+
+export const announcementSchema = z.object({
+  content: z.string().trim().min(1, "公告不能为空").max(500, "公告不能超过 500 字"),
+})
+
+export const channelCreateSchema = z.object({
+  name: z.string().trim().min(1, "群组名称不能为空").max(60, "群组名称不能超过 60 字"),
+  memberIds: z.array(z.string().min(1)).default([]),
+})
+
+export const channelInviteSchema = z.object({
+  memberIds: z.array(z.string().min(1)).min(1, "请选择要邀请的好友"),
 })
 
 export const uploadQuerySchema = z.object({

@@ -11,5 +11,5 @@ export default async function EditDailyPage({ params }: { params: Promise<{ slug
     getCreatorProfile(userId),
   ])
   if (!post) notFound()
-  return <PostEditorClient mode="edit" type="daily" typeLabel="日常" initialData={post} creator={creator} />
+  return <PostEditorClient mode="edit" type="daily" typeLabel="日常" userId={userId} initialData={post} creator={creator} />
 }

@@ -14,7 +14,7 @@ function getPublicUrl(req: Request, pathname: string) {
 
 export async function GET(req: Request) {
   const session = await getSessionCookiePayload()
-  if (session) await markSessionLoggedOut(session.sessionId)
+  if (session) await markSessionLoggedOut(session.sessionId, req)
   await deleteSession()
   const url = getPublicUrl(req, "/login")
   const response = NextResponse.redirect(url, { headers: NO_STORE })
@@ -22,9 +22,9 @@ export async function GET(req: Request) {
   return response
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   const session = await getSessionCookiePayload()
-  if (session) await markSessionLoggedOut(session.sessionId)
+  if (session) await markSessionLoggedOut(session.sessionId, req)
   await deleteSession()
   const response = NextResponse.json({ ok: true }, { headers: NO_STORE })
   response.cookies.delete("session")

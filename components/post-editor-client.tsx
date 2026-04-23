@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MarkdownEditor } from "@/components/markdown-editor"
 import { MarkdownContent } from "@/components/markdown-content"
+import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ interface PostEditorClientProps {
   mode: "create" | "edit"
   type: "blog" | "daily" | "reflections" | "notes"
   typeLabel: string
+  userId: string
   creator?: CreatorProfile | null
   initialData?: {
     id: string
@@ -52,6 +54,9 @@ type EditorDraft = {
   folderId: string
 }
 
+const DRAFT_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const FOLDER_CACHE_TTL_MS = 5 * 60 * 1000
+
 const TYPE_BASE: Record<string, string> = {
   blog: "/blog",
   daily: "/daily",
@@ -67,13 +72,14 @@ function slugify(s: string): string {
     .slice(0, 80) || Date.now().toString()
 }
 
-export function PostEditorClient({ mode, type, typeLabel, creator, initialData }: PostEditorClientProps) {
+export function PostEditorClient({ mode, type, typeLabel, userId, creator, initialData }: PostEditorClientProps) {
   const router = useRouter()
   const base = TYPE_BASE[type]
   const draftKey = useMemo(
-    () => `post-editor-draft:${type}:${initialData?.id ?? mode}`,
-    [initialData?.id, mode, type]
+    () => userStorageKey(userId, "post-draft", `${type}:${initialData?.id ?? mode}`),
+    [initialData?.id, mode, type, userId]
   )
+  const folderCacheKey = useMemo(() => userStorageKey(userId, "article-folders", type), [type, userId])
   const initialDraft = useMemo<EditorDraft>(() => ({
     title: initialData?.title ?? "",
     summary: initialData?.summary ?? "",
@@ -98,14 +104,18 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
   const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(draftKey)
-    if (!raw) {
+    const draft = readUserStorage<Partial<EditorDraft>>({
+      kind: "local",
+      key: draftKey,
+      userId,
+      ttlMs: DRAFT_TTL_MS,
+    })
+    if (!draft) {
       draftReady.current = true
       return
     }
 
     try {
-      const draft = JSON.parse(raw) as Partial<EditorDraft> & { savedAt?: number }
       const hasDraftContent = Boolean(
         draft.title || draft.summary || draft.tagsRaw || draft.content || draft.folderId
       )
@@ -131,7 +141,7 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
         }, 0)
       }
     } catch {
-      window.localStorage.removeItem(draftKey)
+      removeUserStorage("local", draftKey)
     } finally {
       draftReady.current = true
     }
@@ -142,16 +152,16 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
     if (!draftReady.current) return
     const draft: EditorDraft = { title, summary, tagsRaw, content, date, visibility, folderId }
     if (JSON.stringify(draft) === JSON.stringify(initialDraft)) {
-      window.localStorage.removeItem(draftKey)
+      removeUserStorage("local", draftKey)
       return
     }
-    window.localStorage.setItem(draftKey, JSON.stringify({ ...draft, savedAt: Date.now() }))
-  }, [content, date, draftKey, folderId, initialDraft, summary, tagsRaw, title, visibility])
+    writeUserStorage({ kind: "local", key: draftKey, userId, value: draft })
+  }, [content, date, draftKey, folderId, initialDraft, summary, tagsRaw, title, userId, visibility])
 
   useEffect(() => {
     function handleBeforeUnload(event: BeforeUnloadEvent) {
       if (!draftReady.current) return
-      const saved = window.localStorage.getItem(draftKey)
+      const saved = readUserStorage<EditorDraft>({ kind: "local", key: draftKey, userId, ttlMs: DRAFT_TTL_MS })
       if (!saved) return
       event.preventDefault()
       event.returnValue = ""
@@ -159,20 +169,25 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
 
     window.addEventListener("beforeunload", handleBeforeUnload)
     return () => window.removeEventListener("beforeunload", handleBeforeUnload)
-  }, [draftKey])
+  }, [draftKey, userId])
 
   useEffect(() => {
     let active = true
+    const cached = readUserStorage<FolderOption[]>({ kind: "session", key: folderCacheKey, userId, ttlMs: FOLDER_CACHE_TTL_MS })
+    if (cached) window.setTimeout(() => setFolders(cached), 0)
     fetch(`/api/article-folders?type=${type}`, { cache: "no-store" })
       .then((res) => res.ok ? res.json() : [])
       .then((data) => {
-        if (active && Array.isArray(data)) setFolders(data)
+        if (active && Array.isArray(data)) {
+          setFolders(data)
+          writeUserStorage({ kind: "session", key: folderCacheKey, userId, value: data })
+        }
       })
       .catch(() => null)
     return () => {
       active = false
     }
-  }, [type])
+  }, [folderCacheKey, type, userId])
 
   async function handleSave() {
     if (!title.trim()) {
@@ -194,7 +209,7 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
         })
         if (!res.ok) throw new Error()
         const post = await res.json()
-        window.localStorage.removeItem(draftKey)
+        removeUserStorage("local", draftKey)
         toast.success("已创建")
         router.push(`${base}/${encodeURIComponent(post.slug)}`)
       } else if (initialData) {
@@ -205,7 +220,7 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
           cache: "no-store",
         })
         if (!res.ok) throw new Error()
-        window.localStorage.removeItem(draftKey)
+        removeUserStorage("local", draftKey)
         toast.success("已保存")
         router.push(`${base}/${encodeURIComponent(initialData.slug)}`)
       }
@@ -222,7 +237,7 @@ export function PostEditorClient({ mode, type, typeLabel, creator, initialData }
     setDeleting(true)
     try {
       await fetch(`/api/posts/${initialData.id}`, { method: "DELETE", cache: "no-store" })
-      window.localStorage.removeItem(draftKey)
+      removeUserStorage("local", draftKey)
       toast.success("已删除")
       router.push(base)
     } catch {

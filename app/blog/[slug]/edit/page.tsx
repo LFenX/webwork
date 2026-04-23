@@ -11,5 +11,5 @@ export default async function EditBlogPage({ params }: { params: Promise<{ slug:
     getCreatorProfile(userId),
   ])
   if (!post) notFound()
-  return <PostEditorClient mode="edit" type="blog" typeLabel="博客" initialData={post} creator={creator} />
+  return <PostEditorClient mode="edit" type="blog" typeLabel="博客" userId={userId} initialData={post} creator={creator} />
 }

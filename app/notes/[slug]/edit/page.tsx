@@ -11,5 +11,5 @@ export default async function EditNotePage({ params }: { params: Promise<{ slug:
     getCreatorProfile(userId),
   ])
   if (!post) notFound()
-  return <PostEditorClient mode="edit" type="notes" typeLabel="笔记" initialData={post} creator={creator} />
+  return <PostEditorClient mode="edit" type="notes" typeLabel="笔记" userId={userId} initialData={post} creator={creator} />
 }

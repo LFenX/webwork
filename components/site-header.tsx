@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { UserAvatar } from "@/components/user-avatar"
+import { clearChatOutboxForUser } from "@/lib/chat-outbox"
+import { clearUserLocalState } from "@/lib/client-storage"
 import { Shield, Users, LogOut, LogIn } from "lucide-react"
 
 const NAV_ITEMS = [
@@ -40,6 +42,8 @@ export function SiteHeader({
 }: SiteHeaderProps) {
   const pathname = usePathname()
   const [presenceStatus, setPresenceStatus] = useState<"online" | "away" | "offline">(session ? "online" : "offline")
+  const [friendUnreadCount, setFriendUnreadCount] = useState(0)
+  const visibleFriendUnreadCount = session ? friendUnreadCount : 0
 
   useEffect(() => {
     const onPresence = (event: Event) => {
@@ -50,7 +54,30 @@ export function SiteHeader({
     return () => window.removeEventListener("session-presence", onPresence)
   }, [])
 
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    async function refreshUnread() {
+      const res = await fetch(`/api/chats/summary?_t=${Date.now()}`, { cache: "no-store" }).catch(() => null)
+      if (!res?.ok) return
+      const data = await res.json().catch(() => null)
+      if (cancelled) return
+      const items = Array.isArray(data?.items) ? data.items : []
+      setFriendUnreadCount(items.reduce((sum: number, item: { unreadCount?: number }) => sum + Math.max(0, Number(item.unreadCount) || 0), 0))
+    }
+    void refreshUnread()
+    window.addEventListener("chat-unread-refresh", refreshUnread)
+    return () => {
+      cancelled = true
+      window.removeEventListener("chat-unread-refresh", refreshUnread)
+    }
+  }, [session])
+
   async function handleLogout() {
+    if (session?.userId) {
+      clearUserLocalState(session.userId)
+      await clearChatOutboxForUser(session.userId)
+    }
     await fetch("/api/auth/logout", {
       method: "POST",
       cache: "no-store",
@@ -59,7 +86,7 @@ export function SiteHeader({
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[--color-border] bg-[--color-bg-primary]/95 backdrop-blur-sm">
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-[--color-border] bg-[--color-bg-primary]/95 backdrop-blur-sm">
       <div className="max-w-[1200px] mx-auto px-6 flex items-center gap-6 h-12">
         <Link
           href="/"
@@ -108,7 +135,7 @@ export function SiteHeader({
                 href="/friends"
                 prefetch={false}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2 py-1 rounded-[--radius-sm] text-sm transition-colors hover:no-underline",
+                  "relative inline-flex items-center gap-1 px-2 py-1 rounded-[--radius-sm] text-sm transition-colors hover:no-underline",
                   pathname === "/friends"
                     ? "bg-[--color-text-primary] text-[--color-bg-surface]"
                     : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"
@@ -116,6 +143,11 @@ export function SiteHeader({
                 title="好友"
               >
                 <Users size={13} />
+                {visibleFriendUnreadCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-red-500 px-1 text-center font-mono text-[10px] leading-4 text-white">
+                    {visibleFriendUnreadCount > 99 ? "99+" : visibleFriendUnreadCount}
+                  </span>
+                )}
               </Link>
               {(role === "owner" || role === "admin") && (
                 <Link

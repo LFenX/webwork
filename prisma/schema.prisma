@@ -36,6 +36,8 @@ model User {
   passwordChangeRequests PasswordChangeRequest[]
   uploads      Upload[]
   sessions     UserSession[]
+  adminPermission AdminPermission? @relation("adminPermissionUser")
+  updatedAdminPermissions AdminPermission[] @relation("adminPermissionUpdater")
   articleFolders ArticleFolder[]
   resumeVersions ResumeVersion[]
 
@@ -43,9 +45,20 @@ model User {
   receivedRequests FriendRequest[] @relation("received")
   friendshipsA     Friendship[]    @relation("a")
   friendshipsB     Friendship[]    @relation("b")
+  announcementViews AnnouncementView[]
+  broadcastViews     WorldBroadcastView[]
+  stickerAssets      StickerAsset[]       @relation("stickerOwner")
+  uploadedStickers   StickerAsset[]       @relation("stickerUploader")
+  homeLayout         HomeLayout?
   sentChatMessages     ChatMessage[]    @relation("chatSent")
   receivedChatMessages ChatMessage[]    @relation("chatReceived")
   chatAttachments      ChatAttachment[]
+  announcements        Announcement[]
+  worldBroadcasts      WorldBroadcast[]
+  channelMemberships   ChatChannelMember[]
+  channelMessages      ChannelMessage[]
+  channelAttachments   ChannelAttachment[]
+  createdChannels      ChatChannel[]      @relation("channelCreator")
 
   guestbookOwned   GuestbookMessage[] @relation("guestbookOwner")
   guestbookWritten GuestbookMessage[] @relation("guestbookAuthor")
@@ -55,6 +68,7 @@ model UserActivity {
   id        String   @id @default(cuid())
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId String?
   action    String
   detail    String   @default("")
   ipAddress String   @default("")
@@ -63,6 +77,7 @@ model UserActivity {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+  @@index([sessionId, createdAt])
   @@index([createdAt])
 }
 
@@ -80,6 +95,9 @@ model UserSession {
   lastSeenAt         DateTime @default(now())
   lastActiveAt       DateTime @default(now())
   lastForegroundAt   DateTime @default(now())
+  lastResumeActivityAt DateTime?
+  loggedOutAt        DateTime?
+  logoutReason       String   @default("")
   expiresAt          DateTime
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -88,6 +106,27 @@ model UserSession {
   @@index([sessionId])
   @@index([lastSeenAt])
   @@index([lastForegroundAt])
+  @@index([loggedOutAt])
+}
+
+model AdminPermission {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation("adminPermissionUser", fields: [userId], references: [id], onDelete: Cascade)
+  approveRegistrations   Boolean  @default(false)
+  approvePasswordChanges Boolean  @default(false)
+  viewActivityLogs       Boolean  @default(false)
+  manageUsers            Boolean  @default(false)
+  manageAnnouncements    Boolean  @default(false)
+  manageStickers         Boolean  @default(false)
+  manageUpdateLogs       Boolean  @default(false)
+  refreshGeoLocations    Boolean  @default(false)
+  updatedById            String?
+  updatedBy              User?    @relation("adminPermissionUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([updatedById])
 }
 
 model RegistrationRequest {
@@ -122,6 +161,7 @@ model FriendRequest {
   toUserId    String
   from        User      @relation("sent",     fields: [fromUserId], references: [id], onDelete: Cascade)
   to          User      @relation("received", fields: [toUserId],   references: [id], onDelete: Cascade)
+  note        String    @default("")
   status      String    @default("pending")
   createdAt   DateTime  @default(now())
   respondedAt DateTime?
@@ -150,12 +190,16 @@ model ChatMessage {
   sender      User     @relation("chatSent", fields: [senderId], references: [id], onDelete: Cascade)
   receiver    User     @relation("chatReceived", fields: [receiverId], references: [id], onDelete: Cascade)
   text        String   @default("")
+  stickerId   String?
+  sticker     StickerAsset? @relation("chatSticker", fields: [stickerId], references: [id], onDelete: SetNull)
+  stickerEmoji String?
   readAt      DateTime?
   createdAt   DateTime @default(now())
   attachments ChatAttachment[]
 
   @@index([senderId, receiverId, createdAt])
   @@index([receiverId, senderId, createdAt])
+  @@index([stickerId])
 }
 
 model ChatAttachment {
@@ -170,6 +214,159 @@ model ChatAttachment {
   size         Int
   storagePath  String
   createdAt    DateTime    @default(now())
+
+  @@index([messageId])
+  @@index([uploaderId])
+}
+
+model Announcement {
+  id                 String          @id @default(cuid())
+  authorId           String
+  author             User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content            String
+  source             String          @default("admin")
+  sourceChannelId    String?
+  sourceMessageId    String?
+  fromWorldChannel   Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  views              AnnouncementView[]
+
+  @@index([createdAt])
+  @@index([authorId])
+}
+
+model WorldBroadcast {
+  id              String     @id @default(cuid())
+  authorId        String
+  author          User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  channelId       String
+  messageId       String     @unique
+  content         String
+  createdAt       DateTime   @default(now())
+  views           WorldBroadcastView[]
+
+  @@index([createdAt])
+  @@index([authorId])
+}
+
+model WorldBroadcastView {
+  id          String         @id @default(cuid())
+  broadcastId String
+  userId      String
+  viewCount   Int            @default(0)
+  hidden      Boolean        @default(false)
+  lastViewedAt DateTime?
+  broadcast   WorldBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([broadcastId, userId])
+  @@index([userId, hidden, viewCount])
+}
+
+model AnnouncementView {
+  id             String       @id @default(cuid())
+  announcementId String
+  userId         String
+  viewCount      Int          @default(0)
+  hidden         Boolean      @default(false)
+  lastViewedAt   DateTime?
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId, hidden, viewCount])
+}
+
+model StickerAsset {
+  id          String   @id @default(cuid())
+  scope       String
+  ownerId     String?
+  owner       User?    @relation("stickerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  uploaderId  String?
+  uploader    User?    @relation("stickerUploader", fields: [uploaderId], references: [id], onDelete: SetNull)
+  name        String   @default("")
+  filename    String
+  originalName String
+  mimeType    String
+  size        Int
+  storagePath String
+  isAnimated  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  chatMessages ChatMessage[] @relation("chatSticker")
+  channelMessages ChannelMessage[] @relation("channelSticker")
+  comments    Comment[] @relation("commentSticker")
+  guestbookMessages GuestbookMessage[] @relation("guestbookSticker")
+
+  @@index([scope, createdAt])
+  @@index([ownerId, createdAt])
+}
+
+model HomeLayout {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  config    Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model ChatChannel {
+  id          String              @id @default(cuid())
+  type        String              @default("group")
+  name        String
+  createdById String?
+  createdBy   User?               @relation("channelCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  members     ChatChannelMember[]
+  messages    ChannelMessage[]
+
+  @@index([type])
+  @@index([createdById])
+}
+
+model ChatChannelMember {
+  id        String      @id @default(cuid())
+  channelId String
+  userId    String
+  role      String      @default("member")
+  joinedAt  DateTime    @default(now())
+  channel   ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([userId])
+}
+
+model ChannelMessage {
+  id          String              @id @default(cuid())
+  channelId   String
+  senderId    String
+  channel     ChatChannel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender      User                @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  text        String              @default("")
+  stickerId   String?
+  sticker     StickerAsset?       @relation("channelSticker", fields: [stickerId], references: [id], onDelete: SetNull)
+  stickerEmoji String?
+  createdAt   DateTime            @default(now())
+  attachments ChannelAttachment[]
+
+  @@index([channelId, createdAt])
+  @@index([senderId, createdAt])
+  @@index([stickerId])
+}
+
+model ChannelAttachment {
+  id           String         @id @default(cuid())
+  messageId    String
+  message      ChannelMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploaderId   String
+  uploader     User           @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  storagePath  String
+  createdAt    DateTime       @default(now())
 
   @@index([messageId])
   @@index([uploaderId])
@@ -304,11 +501,19 @@ model Comment {
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment? @relation("commentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("commentReplies")
   content   String
+  stickerId   String?
+  sticker     StickerAsset? @relation("commentSticker", fields: [stickerId], references: [id], onDelete: SetNull)
+  stickerEmoji String?
   createdAt DateTime @default(now())
 
   @@index([postId, createdAt])
   @@index([authorId])
+  @@index([parentId])
+  @@index([stickerId])
 }
 
 model Resume {
@@ -347,10 +552,18 @@ model GuestbookMessage {
   owner     User     @relation("guestbookOwner",  fields: [ownerId],  references: [id], onDelete: Cascade)
   authorId  String
   author    User     @relation("guestbookAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    GuestbookMessage? @relation("guestbookReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   GuestbookMessage[] @relation("guestbookReplies")
   content   String
+  stickerId   String?
+  sticker     StickerAsset? @relation("guestbookSticker", fields: [stickerId], references: [id], onDelete: SetNull)
+  stickerEmoji String?
   createdAt DateTime @default(now())
 
   @@index([ownerId, createdAt])
+  @@index([parentId])
+  @@index([stickerId])
 }
 
 model Upload {

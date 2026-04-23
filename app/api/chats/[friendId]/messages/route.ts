@@ -13,6 +13,8 @@ import {
   serializeMessage,
 } from "@/lib/chat"
 import { publishChatMessage } from "@/lib/chat-events"
+import { publishRealtime } from "@/lib/realtime-events"
+import { canUseSticker } from "@/lib/stickers"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -44,7 +46,11 @@ export async function GET(
     },
     orderBy: { createdAt: "desc" },
     take: limit,
-    include: { attachments: { select: { id: true, originalName: true, mimeType: true, size: true } } },
+    include: {
+      sender: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
+      sticker: { select: { id: true, scope: true, name: true, originalName: true, mimeType: true, size: true, isAnimated: true } },
+      attachments: { select: { id: true, originalName: true, mimeType: true, size: true } },
+    },
   })
 
   await prisma.chatMessage.updateMany({
@@ -73,10 +79,15 @@ export async function POST(
 
   const form = await req.formData()
   const text = String(form.get("text") ?? "").trim().slice(0, CHAT_TEXT_MAX_LENGTH)
+  const stickerId = String(form.get("stickerId") ?? "").trim() || null
+  const stickerEmoji = String(form.get("stickerEmoji") ?? "").trim().slice(0, 20) || null
   const files = form.getAll("files").filter((item): item is File => item instanceof File && item.size > 0)
 
-  if (!text && files.length === 0) {
+  if (!text && files.length === 0 && !stickerId && !stickerEmoji) {
     return NextResponse.json({ error: "请输入消息或选择文件" }, { status: 400, headers: NO_STORE })
+  }
+  if (stickerId && !(await canUseSticker(session.userId, stickerId))) {
+    return NextResponse.json({ error: "表情包不存在" }, { status: 400, headers: NO_STORE })
   }
 
   const totalSize = files.reduce((sum, file) => sum + file.size, 0)
@@ -87,8 +98,12 @@ export async function POST(
   }
 
   const message = await prisma.chatMessage.create({
-    data: { senderId: session.userId, receiverId: friendId, text },
-    include: { attachments: { select: { id: true, originalName: true, mimeType: true, size: true } } },
+    data: { senderId: session.userId, receiverId: friendId, text, stickerId, stickerEmoji },
+    include: {
+      sender: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
+      sticker: { select: { id: true, scope: true, name: true, originalName: true, mimeType: true, size: true, isAnimated: true } },
+      attachments: { select: { id: true, originalName: true, mimeType: true, size: true } },
+    },
   })
 
   const attachmentData = []
@@ -116,10 +131,15 @@ export async function POST(
 
   const created = await prisma.chatMessage.findUniqueOrThrow({
     where: { id: message.id },
-    include: { attachments: { select: { id: true, originalName: true, mimeType: true, size: true } } },
+    include: {
+      sender: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
+      sticker: { select: { id: true, scope: true, name: true, originalName: true, mimeType: true, size: true, isAnimated: true } },
+      attachments: { select: { id: true, originalName: true, mimeType: true, size: true } },
+    },
   })
   const payload = serializeMessage(created)
   publishChatMessage(payload)
+  publishRealtime([session.userId, friendId], { type: "chat:message", data: payload })
 
   return NextResponse.json(payload, { status: 201, headers: NO_STORE })
 }

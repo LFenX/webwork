@@ -7,5 +7,5 @@ export const metadata = { title: "新建心得 · My Space" }
 export default async function NewReflectionPage() {
   const { userId } = await requireAuth()
   const creator = await getCreatorProfile(userId)
-  return <PostEditorClient mode="create" type="reflections" typeLabel="心得" creator={creator} />
+  return <PostEditorClient mode="create" type="reflections" typeLabel="心得" userId={userId} creator={creator} />
 }

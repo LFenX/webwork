@@ -9,6 +9,7 @@ export default async function ResumeEditPage() {
   const resume = await getResumeContent(userId)
   return (
     <ResumeEditorClient
+      userId={userId}
       initialContent={resume.content}
       initialMode={resume.mode}
       initialPdfPath={resume.pdfPath ?? null}

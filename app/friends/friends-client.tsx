@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ChatPanel, type ChatFriend, type ChatSummary, messagePreview, presenceLabel, useChatSession } from "@/components/friend-chat"
 import { UserAvatar } from "@/components/user-avatar"
+import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 
 interface Friend extends ChatFriend {
   bio: string
@@ -19,11 +20,20 @@ interface FriendRequest {
   id: string
   from: { id: string; email: string; displayName: string }
   to: { id: string; email: string; displayName: string }
+  note: string
   status: string
   createdAt: string
 }
 
 type ViewMode = "friends" | "chat"
+const FRIEND_CACHE_TTL_MS = 90 * 1000
+
+type FriendData = {
+  friends: Friend[]
+  received: FriendRequest[]
+  sent: FriendRequest[]
+  summaries: ChatSummary[]
+}
 
 function formatChatTime(value?: string | null) {
   if (!value) return ""
@@ -59,7 +69,7 @@ function AvatarWithUnread({ friend, unreadCount }: { friend: Friend; unreadCount
   )
 }
 
-async function fetchFriendData() {
+async function fetchFriendData(): Promise<FriendData> {
   const responses = await Promise.all([
     fetch("/api/friends", { cache: "no-store" }),
     fetch("/api/friend-requests?direction=received", { cache: "no-store" }),
@@ -77,7 +87,7 @@ async function fetchFriendData() {
   }
 }
 
-export function FriendsClient() {
+export function FriendsClient({ userId }: { userId: string }) {
   const [view, setView] = useState<ViewMode>("friends")
   const [friends, setFriends] = useState<Friend[]>([])
   const [received, setReceived] = useState<FriendRequest[]>([])
@@ -85,10 +95,12 @@ export function FriendsClient() {
   const [summaries, setSummaries] = useState<Record<string, ChatSummary>>({})
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null)
   const [email, setEmail] = useState("")
+  const [requestNote, setRequestNote] = useState("")
   const [loading, setLoading] = useState(true)
   const [requestSending, setRequestSending] = useState(false)
   const [unfriendTarget, setUnfriendTarget] = useState<Friend | null>(null)
   const [, startTransition] = useTransition()
+  const friendCacheKey = userStorageKey(userId, "friends-cache", "overview")
 
   const selectedFriend = useMemo(
     () => friends.find((friend) => friend.id === selectedFriendId) ?? null,
@@ -107,11 +119,26 @@ export function FriendsClient() {
     }
   }, [])
 
-  const chat = useChatSession(view === "chat" ? selectedFriendId : null, selectedFriend, refreshSummary)
+  const chat = useChatSession(view === "chat" ? selectedFriendId : null, selectedFriend, refreshSummary, userId)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
+      const cached = readUserStorage<FriendData>({
+        kind: "session",
+        key: friendCacheKey,
+        userId,
+        ttlMs: FRIEND_CACHE_TTL_MS,
+      })
+      if (cached) {
+        startTransition(() => {
+          setFriends(cached.friends)
+          setReceived(cached.received)
+          setSent(cached.sent)
+          setSummaries(Object.fromEntries(cached.summaries.map((item: ChatSummary) => [item.friendId, item])))
+        })
+        setLoading(false)
+      }
       const data = await fetchFriendData()
       startTransition(() => {
         setFriends(data.friends)
@@ -119,12 +146,13 @@ export function FriendsClient() {
         setSent(data.sent)
         setSummaries(Object.fromEntries(data.summaries.map((item: ChatSummary) => [item.friendId, item])))
       })
+      writeUserStorage({ kind: "session", key: friendCacheKey, userId, value: data })
     } catch {
       toast.error("加载好友数据失败")
     } finally {
       setLoading(false)
     }
-  }, [startTransition])
+  }, [friendCacheKey, startTransition, userId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadAll(), 0)
@@ -144,13 +172,13 @@ export function FriendsClient() {
   }
 
   async function handleSendRequest() {
-    if (!email.trim()) return
+    if (!email.trim() || !requestNote.trim()) return
     setRequestSending(true)
     try {
       const res = await fetch("/api/friend-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), note: requestNote.trim() }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -158,6 +186,8 @@ export function FriendsClient() {
       } else {
         toast.success(data.message ?? "好友请求已发送")
         setEmail("")
+        setRequestNote("")
+        removeUserStorage("session", friendCacheKey)
         await loadAll()
       }
     } finally {
@@ -173,6 +203,7 @@ export function FriendsClient() {
     })
     if (res.ok) {
       toast.success(action === "accept" ? "已接受" : "已拒绝")
+      removeUserStorage("session", friendCacheKey)
       await loadAll()
     } else {
       toast.error("操作失败")
@@ -183,6 +214,7 @@ export function FriendsClient() {
     const res = await fetch(`/api/friend-requests/${id}`, { method: "DELETE" })
     if (res.ok) {
       toast.success("已取消")
+      removeUserStorage("session", friendCacheKey)
       await loadAll()
     } else {
       toast.error("操作失败")
@@ -194,6 +226,7 @@ export function FriendsClient() {
     if (res.ok) {
       toast.success("已解除好友关系")
       setUnfriendTarget(null)
+      removeUserStorage("session", friendCacheKey)
       await loadAll()
     } else {
       toast.error("操作失败")
@@ -218,7 +251,7 @@ export function FriendsClient() {
         <button
           type="button"
           onClick={() => switchView("chat")}
-          className={`flex flex-col items-center gap-1 text-sm transition-colors ${view === "chat" ? "text-[--color-link]" : "text-[--color-text-primary] hover:text-[--color-link]"}`}
+          className="flex flex-col items-center gap-1 text-sm text-[--color-link] transition-colors hover:text-[--color-accent]"
         >
           <MessageCircle size={24} strokeWidth={1.8} />
           <span>聊天</span>
@@ -232,8 +265,10 @@ export function FriendsClient() {
           sent={sent}
           summaries={summaries}
           email={email}
+          requestNote={requestNote}
           requestSending={requestSending}
           onEmailChange={setEmail}
+          onRequestNoteChange={setRequestNote}
           onSendRequest={handleSendRequest}
           onAccept={(id) => handleRespond(id, "accept")}
           onReject={(id) => handleRespond(id, "reject")}
@@ -249,6 +284,7 @@ export function FriendsClient() {
           selectedFriend={selectedFriend}
           onSelectFriend={setSelectedFriendId}
           chat={chat}
+          userId={userId}
         />
       )}
 
@@ -278,8 +314,10 @@ function FriendsView({
   sent,
   summaries,
   email,
+  requestNote,
   requestSending,
   onEmailChange,
+  onRequestNoteChange,
   onSendRequest,
   onAccept,
   onReject,
@@ -292,8 +330,10 @@ function FriendsView({
   sent: FriendRequest[]
   summaries: Record<string, ChatSummary>
   email: string
+  requestNote: string
   requestSending: boolean
   onEmailChange: (value: string) => void
+  onRequestNoteChange: (value: string) => void
   onSendRequest: () => void
   onAccept: (id: string) => void
   onReject: (id: string) => void
@@ -322,7 +362,15 @@ function FriendsView({
               placeholder="输入对方邮箱"
               className="rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-input] px-3 py-1.5 text-sm focus:border-[--color-accent] focus:outline-none"
             />
-            <Button type="submit" disabled={requestSending || !email.trim()} className="h-9 gap-1.5">
+            <textarea
+              value={requestNote}
+              onChange={(event) => onRequestNoteChange(event.target.value)}
+              maxLength={120}
+              rows={2}
+              placeholder="好友申请备注"
+              className="resize-none rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-input] px-3 py-1.5 text-sm focus:border-[--color-accent] focus:outline-none"
+            />
+            <Button type="submit" disabled={requestSending || !email.trim() || !requestNote.trim()} className="h-9 gap-1.5">
               <UserPlus size={14} />
               {requestSending ? "发送中..." : "发送好友请求"}
             </Button>
@@ -363,6 +411,7 @@ function ChatWorkspace({
   selectedFriend,
   onSelectFriend,
   chat,
+  userId,
 }: {
   friends: Friend[]
   summaries: Record<string, ChatSummary>
@@ -370,6 +419,7 @@ function ChatWorkspace({
   selectedFriend: Friend | null
   onSelectFriend: (id: string) => void
   chat: ReturnType<typeof useChatSession>
+  userId: string
 }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
@@ -401,14 +451,18 @@ function ChatWorkspace({
           sending={chat.sending}
           text={chat.text}
           files={chat.files}
+          sticker={chat.sticker}
           sendOriginal={chat.sendOriginal}
           onTextChange={chat.setText}
           onFilesChange={chat.setFiles}
+          onStickerChange={chat.setSticker}
+          onStickerPick={chat.pickSticker}
           onSendOriginalChange={chat.setSendOriginal}
           onSend={chat.sendMessage}
           onReload={chat.loadMessages}
           onRetryMessage={chat.retryMessage}
           onDiscardMessage={chat.discardMessage}
+          userId={userId}
           className="h-[calc(var(--app-viewport-height)-13rem)] min-h-[560px]"
         />
       </div>
@@ -507,6 +561,7 @@ function SentList({ requests, onCancel }: { requests: FriendRequest[]; onCancel:
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{req.to.displayName || req.to.email}</p>
               <p className="truncate text-xs text-[--color-text-muted]">{req.to.email}</p>
+              <p className="mt-1 line-clamp-2 text-xs text-[--color-text-secondary]">备注：{req.note}</p>
             </div>
             <button onClick={() => onCancel(req.id)} className="text-xs text-[--color-text-muted] transition-colors hover:text-[--color-text-primary]">
               取消
@@ -540,6 +595,7 @@ function RequestList({
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{req.from.displayName || req.from.email}</p>
               <p className="truncate text-xs text-[--color-text-muted]">{req.from.email}</p>
+              <p className="mt-1 line-clamp-2 text-xs text-[--color-text-secondary]">备注：{req.note}</p>
             </div>
             <div className="flex shrink-0 gap-2">
               <button onClick={() => onAccept(req.id)} className="inline-flex items-center gap-1 rounded-[--radius-sm] bg-[#1A1A1A] px-3 py-1 text-xs text-white hover:bg-[#333333]">

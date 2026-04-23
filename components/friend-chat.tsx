@@ -1,11 +1,15 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
-import { AlertCircle, CheckCircle2, Circle, Download, File as FileIcon, Image as ImageIcon, Loader2, Paperclip, RefreshCcw, Send, X } from "lucide-react"
+import { AlertCircle, CheckCircle2, Circle, Download, File as FileIcon, Loader2, Paperclip, RefreshCcw, Send, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { StickerPicker, type StickerPick } from "@/components/sticker-picker"
 import { UserAvatar } from "@/components/user-avatar"
+import { deleteChatOutboxItem, listChatOutboxItems, saveChatOutboxItem, type ChatOutboxItem } from "@/lib/chat-outbox"
+import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 
 export interface ChatFriend {
   id: string
@@ -29,8 +33,12 @@ export type ChatMessage = {
   senderId: string
   receiverId: string
   text: string
+  stickerId?: string | null
+  stickerEmoji?: string | null
+  sticker?: { id: string; url: string; name?: string; originalName?: string; isAnimated?: boolean } | null
   readAt: string | null
   createdAt: string
+  sender?: ChatFriend
   attachments: ChatAttachment[]
   localStatus?: "sending" | "failed"
   progress?: number
@@ -47,10 +55,14 @@ type PendingDraft = {
   text: string
   file: File | null
   sendOriginal: boolean
+  sticker?: StickerPick | null
+  clientMutationId?: string
 }
 
 const IMAGE_MAX_EDGE = 1600
 const IMAGE_QUALITY = 0.82
+const TIME_GAP_MS = 5 * 60 * 1000
+const INPUT_DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 
 export function presenceLabel(status?: ChatFriend["presenceStatus"]) {
   if (status === "online") return "在线"
@@ -75,6 +87,11 @@ function formatTime(value: string) {
   if (diffDays <= 0) return time
   if (diffDays < 7) return `${date.toLocaleDateString("zh-CN", { weekday: "short" })} ${time}`
   return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")} ${time}`
+}
+
+function shouldShowTime(previous: ChatMessage | undefined, current: ChatMessage) {
+  if (!previous) return true
+  return new Date(current.createdAt).getTime() - new Date(previous.createdAt).getTime() > TIME_GAP_MS
 }
 
 function formatBytes(size: number) {
@@ -126,16 +143,23 @@ function uploadMessage({
   friendId,
   text,
   file,
+  sticker,
+  clientMutationId,
   onProgress,
 }: {
   friendId: string
   text: string
   file: File | null
+  sticker?: StickerPick | null
+  clientMutationId?: string
   onProgress: (progress: number) => void
 }) {
   return new Promise<ChatMessage>((resolve, reject) => {
     const form = new FormData()
     form.set("text", text)
+    if (sticker?.type === "asset") form.set("stickerId", sticker.id)
+    if (sticker?.type === "emoji") form.set("stickerEmoji", sticker.emoji)
+    if (clientMutationId) form.set("clientMutationId", clientMutationId)
     if (file) form.append("files", file)
 
     const request = new XMLHttpRequest()
@@ -154,17 +178,46 @@ function uploadMessage({
   })
 }
 
-export function useChatSession(friendId: string | null, initialFriend?: ChatFriend | null, onSummaryChange?: () => void) {
+function draftToLocalMessage(item: ChatOutboxItem, friendId: string): ChatMessage {
+  return {
+    id: item.id,
+    senderId: "self",
+    receiverId: friendId,
+    text: item.text,
+    readAt: null,
+    createdAt: new Date(item.createdAt).toISOString(),
+    stickerId: item.sticker?.type === "asset" ? item.sticker.id : null,
+    stickerEmoji: item.sticker?.type === "emoji" ? item.sticker.emoji : null,
+    sticker: item.sticker?.type === "asset" ? { id: item.sticker.id, url: item.sticker.url, name: item.sticker.name } : null,
+    attachments: item.files.map((file, index) => ({
+      id: `${item.id}-file-${index}`,
+      originalName: file.name || "file",
+      mimeType: file.type || "application/octet-stream",
+      size: file.size,
+      downloadUrl: URL.createObjectURL(file),
+    })),
+    localStatus: "failed",
+    progress: 0,
+    error: item.lastError ?? "消息未发送，可以重试或丢弃。",
+  }
+}
+
+export function useChatSession(friendId: string | null, initialFriend?: ChatFriend | null, onSummaryChange?: () => void, userId?: string) {
   const [loadedFriend, setLoadedFriend] = useState<ChatFriend | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [text, setText] = useState("")
   const [files, setFiles] = useState<File[]>([])
+  const [sticker, setSticker] = useState<StickerPick | null>(null)
   const [sendOriginal, setSendOriginal] = useState(false)
   const [pendingDrafts, setPendingDrafts] = useState<Record<string, PendingDraft>>({})
   const [activeUploads, setActiveUploads] = useState(0)
   const [loading, setLoading] = useState(false)
   const friend = initialFriend ?? loadedFriend
   const sending = activeUploads > 0
+  const inputDraftKey = useMemo(
+    () => userId && friendId ? userStorageKey(userId, "chat-input", `direct:${friendId}`) : "",
+    [friendId, userId]
+  )
 
   const loadMessages = useCallback(async () => {
     if (!friendId) return
@@ -173,26 +226,52 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
       const res = await fetch(`/api/chats/${friendId}/messages?limit=50&_t=${Date.now()}`, { cache: "no-store" })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? "加载聊天失败")
+      let restoredDrafts: ChatOutboxItem[] = []
+      if (userId) {
+        restoredDrafts = await listChatOutboxItems(userId, "direct", friendId)
+        setPendingDrafts(Object.fromEntries(restoredDrafts.map((item) => [item.id, {
+          text: item.text,
+          file: item.files[0] ?? null,
+          sendOriginal: Boolean(item.sendOriginal),
+          sticker: item.sticker ?? null,
+          clientMutationId: item.clientMutationId,
+        }])))
+      }
       setLoadedFriend(data.friend ?? null)
-      setMessages(Array.isArray(data.items) ? data.items : [])
+      const items = Array.isArray(data.items) ? data.items : []
+      setMessages([...items, ...restoredDrafts.map((item) => draftToLocalMessage(item, friendId))])
       onSummaryChange?.()
+      window.dispatchEvent(new CustomEvent("chat-unread-refresh"))
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "加载聊天失败")
     } finally {
       setLoading(false)
     }
-  }, [friendId, onSummaryChange])
+  }, [friendId, onSummaryChange, userId])
 
   useEffect(() => {
     if (!friendId) return
     const timer = window.setTimeout(() => {
       setFiles([])
-      setText("")
+      setSticker(null)
       setPendingDrafts({})
+      const savedText = inputDraftKey && userId
+        ? readUserStorage<{ text: string }>({ kind: "session", key: inputDraftKey, userId, ttlMs: INPUT_DRAFT_TTL_MS })?.text ?? ""
+        : ""
+      setText(savedText)
       void loadMessages()
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [friendId, loadMessages])
+  }, [friendId, inputDraftKey, loadMessages, userId])
+
+  useEffect(() => {
+    if (!inputDraftKey || !userId) return
+    if (!text) {
+      removeUserStorage("session", inputDraftKey)
+      return
+    }
+    writeUserStorage({ kind: "session", key: inputDraftKey, userId, value: { text } })
+  }, [inputDraftKey, text, userId])
 
   useEffect(() => {
     if (!friendId) return
@@ -218,11 +297,14 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
         friendId,
         text: draft.text,
         file: preparedFile,
+        sticker: draft.sticker,
+        clientMutationId: draft.clientMutationId,
         onProgress: (progress) => {
           setMessages((current) => current.map((item) => (item.id === localId ? { ...item, progress } : item)))
         },
       })
       setMessages((current) => current.map((item) => (item.id === localId ? uploaded : item)))
+      await deleteChatOutboxItem(localId)
       setPendingDrafts((current) => {
         const next = { ...current }
         delete next[localId]
@@ -231,16 +313,34 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
       onSummaryChange?.()
     } catch (error) {
       const message = error instanceof Error ? error.message : "发送失败"
+      if (userId && friendId) {
+        await saveChatOutboxItem({
+          id: localId,
+          clientMutationId: draft.clientMutationId ?? localId,
+          userId,
+          conversationType: "direct",
+          conversationId: friendId,
+          text: draft.text,
+          sendOriginal: draft.sendOriginal,
+          sticker: draft.sticker ?? null,
+          files: draft.file ? [draft.file] : [],
+          createdAt: Date.now(),
+          lastError: message,
+        }).catch((saveError) => {
+          toast.error(saveError instanceof Error ? saveError.message : "保存本地重试消息失败")
+        })
+      }
       setMessages((current) => current.map((item) => (item.id === localId ? { ...item, localStatus: "failed", error: message, progress: 0 } : item)))
       toast.error(message)
     } finally {
       setActiveUploads((count) => Math.max(0, count - 1))
     }
-  }, [friend, friendId, onSummaryChange])
+  }, [friend, friendId, onSummaryChange, userId])
 
   const enqueueDraft = useCallback((draft: PendingDraft) => {
     if (!friendId) return
-    const localId = `local-${crypto.randomUUID()}`
+    const clientMutationId = draft.clientMutationId ?? crypto.randomUUID()
+    const localId = draft.clientMutationId ? `local-${draft.clientMutationId}` : `local-${clientMutationId}`
     const attachment = draft.file
       ? [{
           id: `${localId}-file`,
@@ -257,26 +357,41 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
       text: draft.text,
       readAt: null,
       createdAt: new Date().toISOString(),
+      stickerId: draft.sticker?.type === "asset" ? draft.sticker.id : null,
+      stickerEmoji: draft.sticker?.type === "emoji" ? draft.sticker.emoji : null,
+      sticker: draft.sticker?.type === "asset" ? { id: draft.sticker.id, url: draft.sticker.url, name: draft.sticker.name } : null,
       attachments: attachment,
       localStatus: "sending",
       progress: 0,
     }
 
+    const pending = { ...draft, clientMutationId }
     setMessages((current) => [...current, localMessage])
-    setPendingDrafts((current) => ({ ...current, [localId]: draft }))
-    void submitDraft(draft, localId)
+    setPendingDrafts((current) => ({ ...current, [localId]: pending }))
+    void submitDraft(pending, localId)
   }, [friendId, submitDraft])
 
   const sendMessage = useCallback(() => {
     if (!friendId || !friend || sending) return
     const draftText = text.trim()
-    if (!draftText && files.length === 0) return
+    if (!draftText && files.length === 0 && !sticker) return
 
-    if (draftText) enqueueDraft({ text: draftText, file: null, sendOriginal })
+    if (draftText || sticker) enqueueDraft({ text: draftText, file: null, sendOriginal, sticker })
     files.forEach((file) => enqueueDraft({ text: "", file, sendOriginal }))
+    if (inputDraftKey) removeUserStorage("session", inputDraftKey)
     setText("")
     setFiles([])
-  }, [enqueueDraft, files, friend, friendId, sendOriginal, sending, text])
+    setSticker(null)
+  }, [enqueueDraft, files, friend, friendId, inputDraftKey, sendOriginal, sending, sticker, text])
+
+  const pickSticker = useCallback((pick: StickerPick) => {
+    if (pick.type === "emoji") {
+      setText((current) => `${current}${pick.emoji}`)
+      return
+    }
+    if (!friendId || !friend || sending) return
+    enqueueDraft({ text: "", file: null, sendOriginal, sticker: pick })
+  }, [enqueueDraft, friend, friendId, sendOriginal, sending])
 
   const retryMessage = useCallback((messageId: string) => {
     const draft = pendingDrafts[messageId]
@@ -287,6 +402,7 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
 
   const discardMessage = useCallback((messageId: string) => {
     setMessages((current) => current.filter((item) => item.id !== messageId))
+    void deleteChatOutboxItem(messageId)
     setPendingDrafts((current) => {
       const next = { ...current }
       delete next[messageId]
@@ -302,9 +418,12 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
     text,
     files,
     sendOriginal,
+    sticker,
     setText,
     setFiles,
     setSendOriginal,
+    setSticker,
+    pickSticker,
     loadMessages,
     sendMessage,
     retryMessage,
@@ -319,9 +438,12 @@ export function ChatPanel({
   sending,
   text,
   files,
+  sticker,
   sendOriginal = false,
   onTextChange,
   onFilesChange,
+  onStickerChange,
+  onStickerPick,
   onSendOriginalChange,
   onSend,
   onReload,
@@ -329,6 +451,7 @@ export function ChatPanel({
   onDiscardMessage,
   className = "",
   headerPrefix,
+  userId,
 }: {
   friend: ChatFriend | null
   messages: ChatMessage[]
@@ -336,9 +459,12 @@ export function ChatPanel({
   sending: boolean
   text: string
   files: File[]
+  sticker?: StickerPick | null
   sendOriginal?: boolean
   onTextChange: (value: string) => void
   onFilesChange: (files: File[]) => void
+  onStickerChange?: (sticker: StickerPick | null) => void
+  onStickerPick?: (sticker: StickerPick) => void
   onSendOriginalChange?: (value: boolean) => void
   onSend: () => void
   onReload: () => void
@@ -346,10 +472,13 @@ export function ChatPanel({
   onDiscardMessage?: (messageId: string) => void
   className?: string
   headerPrefix?: React.ReactNode
+  userId?: string
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const [failedMessage, setFailedMessage] = useState<ChatMessage | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [previewImage, setPreviewImage] = useState<ChatAttachment | null>(null)
   const hasImageDraft = useMemo(() => files.some((file) => file.type.startsWith("image/")), [files])
 
   useEffect(() => {
@@ -370,14 +499,16 @@ export function ChatPanel({
       <div className="flex shrink-0 items-center justify-between border-b border-[--color-border] px-3 py-2.5 sm:px-4 sm:py-3">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {headerPrefix}
-          <UserAvatar
-            name={friend.displayName}
-            email={friend.email}
-            avatarText={friend.avatarText}
-            avatarUrl={friend.avatarUrl}
-            presenceStatus={friend.presenceStatus}
-            size="sm"
-          />
+          <button type="button" onClick={() => setProfileOpen(true)} className="shrink-0">
+            <UserAvatar
+              name={friend.displayName}
+              email={friend.email}
+              avatarText={friend.avatarText}
+              avatarUrl={friend.avatarUrl}
+              presenceStatus={friend.presenceStatus}
+              size="sm"
+            />
+          </button>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{friend.displayName || friend.email}</p>
             <p className="truncate text-xs text-[--color-text-muted]">{presenceLabel(friend.presenceStatus)} / {friend.email}</p>
@@ -396,18 +527,36 @@ export function ChatPanel({
           <p className="py-10 text-center text-sm text-[--color-text-muted]">还没有消息，发一句问候吧。</p>
         ) : (
           <div className="space-y-3">
-            {messages.map((message) => {
+            {messages.map((message, index) => {
+              const previous = messages[index - 1]
               const mine = message.senderId !== friend.id
+              const sender = message.sender ?? (mine ? { id: "self", email: "", displayName: "我", avatarText: "", avatarUrl: null } : friend)
+              const assetStickerOnly = !message.text && !message.stickerEmoji && Boolean(message.sticker) && message.attachments.length === 0
+              const imageOnly = !message.text && !message.stickerEmoji && !message.sticker && message.attachments.length > 0 && message.attachments.every((attachment) => attachment.mimeType.startsWith("image/"))
               return (
-                <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                  <div className={`group relative max-w-[84%] rounded-[--radius-md] border px-3 py-2 shadow-sm ${
-                    mine ? "border-[#d5e2ff] bg-[#f7faff] text-[--color-text-primary]" : "border-[--color-border] bg-[--color-bg-primary]"
+                <div key={message.id}>
+                  {shouldShowTime(previous, message) && (
+                    <p className="my-4 text-center font-mono text-xs text-[--color-text-muted]">{formatTime(message.createdAt)}</p>
+                  )}
+                  <div className={`flex items-start gap-2 ${mine ? "justify-end" : "justify-start"}`}>
+                  {!mine && (
+                    <button type="button" onClick={() => setProfileOpen(true)} className="shrink-0">
+                      <UserAvatar size="sm" name={sender.displayName} email={sender.email} avatarText={sender.avatarText} avatarUrl={sender.avatarUrl} />
+                    </button>
+                  )}
+                  <div className={(assetStickerOnly || imageOnly) ? "group relative max-w-[84%]" : `wechat-bubble group relative max-w-[84%] px-3 py-2 text-[--color-text-primary] ${
+                    mine ? "wechat-bubble-right" : "wechat-bubble-left"
                   }`}>
                     {message.text && <p className="whitespace-pre-wrap break-words text-sm">{message.text}</p>}
+                    {message.stickerEmoji && <p className="text-5xl leading-none">{message.stickerEmoji}</p>}
+                    {message.sticker && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={message.sticker.url} alt={message.sticker.name || message.sticker.originalName || "sticker"} className={assetStickerOnly ? "max-h-36 max-w-36 object-contain" : "max-h-32 max-w-32 object-contain"} />
+                    )}
                     {message.attachments.length > 0 && (
                       <div className="mt-2 space-y-2">
                         {message.attachments.map((attachment) => (
-                          <AttachmentView key={attachment.id} attachment={attachment} mine={mine} />
+                          <AttachmentView key={attachment.id} attachment={attachment} mine={mine} onPreview={setPreviewImage} />
                         ))}
                       </div>
                     )}
@@ -428,10 +577,11 @@ export function ChatPanel({
                           <AlertCircle size={14} />
                         </button>
                       )}
-                      <p className="text-right font-mono text-[10px] text-[--color-text-muted]">
-                        {formatTime(message.createdAt)}
-                      </p>
                     </div>
+                  </div>
+                  {mine && (
+                    <UserAvatar size="sm" name={sender.displayName} email={sender.email} avatarText={sender.avatarText} avatarUrl={sender.avatarUrl} />
+                  )}
                   </div>
                 </div>
               )
@@ -465,8 +615,20 @@ export function ChatPanel({
         </div>
       )}
 
+      {sticker?.type === "asset" && (
+        <div className="shrink-0 border-t border-[--color-border] px-3 py-2 sm:px-4">
+          <span className="inline-flex items-center gap-2 rounded border border-[--color-border] bg-[--color-bg-hover] px-2 py-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={sticker.url} alt={sticker.name} className="h-10 w-10 object-contain" />
+            <button type="button" onClick={() => onStickerChange?.(null)} className="text-[--color-text-muted] hover:text-[--color-danger]">
+              <X size={13} />
+            </button>
+          </span>
+        </div>
+      )}
+
       <form
-        className="flex shrink-0 gap-2 border-t border-[--color-border] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+        className="wechat-composer shrink-0 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
         onSubmit={(event) => {
           event.preventDefault()
           onSend()
@@ -482,21 +644,27 @@ export function ChatPanel({
             event.currentTarget.value = ""
           }}
         />
-        <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} className="h-9 shrink-0">
-          <Paperclip size={14} />
-        </Button>
-        <textarea
-          value={text}
-          onChange={(event) => onTextChange(event.target.value)}
-          onFocus={() => window.setTimeout(() => endRef.current?.scrollIntoView({ block: "end" }), 80)}
-          placeholder="输入消息..."
-          rows={1}
-          className="max-h-24 min-h-9 flex-1 resize-none rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-primary] px-3 py-2 text-sm outline-none focus:border-[--color-accent]"
-        />
-        <Button type="submit" size="sm" disabled={sending || (!text.trim() && files.length === 0)} className="h-9 shrink-0 gap-1.5">
-          <Send size={14} />
-          <span className="hidden sm:inline">{sending ? "发送中" : "发送"}</span>
-        </Button>
+        <div className="wechat-composer-panel flex flex-col">
+          <textarea
+            value={text}
+            onChange={(event) => onTextChange(event.target.value)}
+            onFocus={() => window.setTimeout(() => endRef.current?.scrollIntoView({ block: "end" }), 80)}
+            placeholder="输入消息..."
+            rows={3}
+            className="wechat-composer-input max-h-32 flex-1 resize-none px-3 py-3 text-sm text-[--color-text-primary]"
+          />
+          <div className="flex items-center gap-1 px-3 pb-3">
+            <StickerPicker userId={userId} onPick={(pick) => onStickerPick ? onStickerPick(pick) : onStickerChange?.(pick)} />
+            <Button type="button" variant="ghost" size="sm" onClick={() => inputRef.current?.click()} className="h-9 w-9 shrink-0 px-0 text-[--color-text-secondary] hover:bg-[#ededed]">
+              <Paperclip size={18} />
+            </Button>
+            <div className="flex-1" />
+            <Button type="submit" size="sm" disabled={sending || (!text.trim() && files.length === 0 && !sticker)} className="h-9 shrink-0 rounded-md bg-[#f0f0f0] px-5 text-sm font-normal text-[#9b9b9b] shadow-none hover:bg-[#e8e8e8] enabled:bg-[#3b82f6] enabled:text-white">
+              <Send size={14} className="sm:hidden" />
+              <span>{sending ? "发送中" : "发送"}</span>
+            </Button>
+          </div>
+        </div>
       </form>
 
       <Dialog open={Boolean(failedMessage)} onOpenChange={(open) => !open && setFailedMessage(null)}>
@@ -522,6 +690,54 @@ export function ChatPanel({
               }}
             >
               重新发送
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <UserAvatar
+                size="sm"
+                name={friend.displayName}
+                email={friend.email}
+                avatarText={friend.avatarText}
+                avatarUrl={friend.avatarUrl}
+                presenceStatus={friend.presenceStatus}
+              />
+              <span>{friend.displayName || friend.email}</span>
+            </DialogTitle>
+            <DialogDescription>{presenceLabel(friend.presenceStatus)} / {friend.email}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button asChild variant="outline">
+              <Link href={`/u/${friend.id}`}>主页</Link>
+            </Button>
+            <Button asChild>
+              <Link href={`/friends/chat/${friend.id}`}>个人聊天</Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(previewImage)} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-w-[min(92vw,920px)]">
+          <DialogHeader>
+            <DialogTitle>{previewImage?.originalName || "图片预览"}</DialogTitle>
+          </DialogHeader>
+          {previewImage && (
+            <div className="flex max-h-[75vh] items-center justify-center overflow-auto rounded-[--radius-md] bg-black/5 p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={previewImage.downloadUrl} alt={previewImage.originalName} className="max-h-[72vh] max-w-full object-contain" />
+            </div>
+          )}
+          <DialogFooter>
+            <Button asChild variant="outline">
+              <a href={previewImage?.downloadUrl} download={previewImage?.originalName}>
+                <Download size={14} /> 下载
+              </a>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -560,16 +776,20 @@ function DraftFilePreview({ file, onRemove }: { file: File; onRemove: () => void
   )
 }
 
-function AttachmentView({ attachment, mine }: { attachment: ChatAttachment; mine: boolean }) {
+function AttachmentView({ attachment, mine, onPreview }: { attachment: ChatAttachment; mine: boolean; onPreview: (attachment: ChatAttachment) => void }) {
   const isImage = attachment.mimeType.startsWith("image/")
+  if (isImage) {
+    return (
+      <button type="button" onClick={() => onPreview(attachment)} className="block max-w-full overflow-hidden rounded-[--radius-md] hover:opacity-95">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={attachment.downloadUrl} alt={attachment.originalName} className="max-h-72 max-w-full object-contain" />
+      </button>
+    )
+  }
   return (
     <div className={`overflow-hidden rounded border ${mine ? "border-[#d5e2ff] bg-white" : "border-[--color-border] bg-[--color-bg-hover]"}`}>
-      {isImage && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={attachment.downloadUrl} alt={attachment.originalName} className="max-h-56 w-full object-contain" />
-      )}
       <a href={attachment.downloadUrl} className="flex items-center gap-2 px-2 py-2 text-xs text-[--color-link] hover:no-underline">
-        {isImage ? <ImageIcon size={14} /> : <FileIcon size={14} />}
+        <FileIcon size={14} />
         <span className="min-w-0 flex-1 truncate">{attachment.originalName}</span>
         <span>{formatBytes(attachment.size)}</span>
         <Download size={14} />

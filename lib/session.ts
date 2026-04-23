@@ -67,10 +67,7 @@ export async function getSession(): Promise<SessionPayload | null> {
   if (!session || session.status !== "active") return null
 
   if (Date.now() - session.lastSeenAt.getTime() >= EXPIRE_AFTER_MS) {
-    await prisma.userSession.update({
-      where: { sessionId: payload.sessionId },
-      data: { status: "expired" },
-    }).catch(() => null)
+    await closeUserSession(payload.sessionId, "expired", "expired", "登录已超过 12 小时未操作")
     return null
   }
 
@@ -90,6 +87,10 @@ export async function startUserSession({
   const expiresAt = new Date(now.getTime() + COOKIE_MAX_AGE * 1000)
   const sessionId = crypto.randomUUID()
   const meta = await getRequestMeta(req)
+  const replacedSessions = await prisma.userSession.findMany({
+    where: { userId, status: "active" },
+    select: { userId: true, sessionId: true, loggedOutAt: true },
+  })
 
   await prisma.$transaction([
     prisma.userSession.updateMany({
@@ -98,6 +99,8 @@ export async function startUserSession({
         status: "replaced",
         replacedByLocation: meta.geoLocation,
         replacedByDevice: meta.deviceInfo,
+        loggedOutAt: now,
+        logoutReason: "replaced",
       },
     }),
     prisma.userSession.create({
@@ -116,16 +119,69 @@ export async function startUserSession({
     }),
   ])
 
+  const replacedActivityRows = replacedSessions
+    .filter((session) => !session.loggedOutAt)
+    .map((session) => ({
+      userId: session.userId,
+      sessionId: session.sessionId,
+      action: "logout",
+      detail: "被新的登录替换下线",
+      ipAddress: meta.ipAddress,
+      geoLocation: meta.geoLocation,
+      deviceInfo: meta.deviceInfo,
+      createdAt: now,
+    }))
+  if (replacedActivityRows.length > 0) {
+    await prisma.userActivity.createMany({ data: replacedActivityRows }).catch(() => null)
+  }
+
   const payload = { userId, email, sessionId }
   await createSession(payload)
   return payload
 }
 
-export async function markSessionLoggedOut(sessionId: string): Promise<void> {
+export async function closeUserSession(
+  sessionId: string,
+  status: "logged_out" | "expired" | "replaced",
+  reason: string,
+  detail: string,
+  req?: { headers: Headers }
+): Promise<void> {
+  const existing = await prisma.userSession.findUnique({
+    where: { sessionId },
+    select: { userId: true, sessionId: true, loggedOutAt: true },
+  })
+  if (!existing) return
+
+  const meta = await getRequestMeta(req)
+  const now = new Date()
   await prisma.userSession.update({
     where: { sessionId },
-    data: { status: "logged_out" },
+    data: {
+      status,
+      logoutReason: reason,
+      ...(existing.loggedOutAt ? {} : { loggedOutAt: now }),
+    },
   }).catch(() => null)
+
+  if (!existing.loggedOutAt) {
+    await prisma.userActivity.create({
+      data: {
+        userId: existing.userId,
+        sessionId: existing.sessionId,
+        action: "logout",
+        detail,
+        ipAddress: meta.ipAddress,
+        geoLocation: meta.geoLocation,
+        deviceInfo: meta.deviceInfo,
+        createdAt: now,
+      },
+    }).catch(() => null)
+  }
+}
+
+export async function markSessionLoggedOut(sessionId: string, req?: { headers: Headers }): Promise<void> {
+  await closeUserSession(sessionId, "logged_out", "manual", "主动退出登录", req)
 }
 
 export async function deleteSession(): Promise<void> {

@@ -1,11 +1,12 @@
 "use client"
 
-import { UIEvent, useEffect, useMemo, useState } from "react"
-import { GitCommitHorizontal, KeyRound, RotateCcw, Save, ShieldCheck, Trash2, UserCheck, UserCog } from "lucide-react"
+import { ChangeEvent, UIEvent, useEffect, useMemo, useState } from "react"
+import { GitCommitHorizontal, Image as ImageIcon, KeyRound, RotateCcw, Save, ShieldCheck, Trash2, Upload, UserCheck, UserCog } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiDelete, apiFetch, apiPatch, apiPost } from "@/lib/api-client"
+import { ADMIN_PERMISSION_DEFS, type AdminPermissionKey, type AdminPermissionMap } from "@/lib/admin-permissions"
 import { formatChinaDateTime } from "@/lib/time"
 
 type RegistrationRequest = {
@@ -23,6 +24,14 @@ type UserItem = {
   role: string
   lastLoginAt: string | null
   createdAt: string
+}
+
+type AdminPermissionItem = {
+  id: string
+  email: string
+  displayName: string
+  role: string
+  permissions: AdminPermissionMap
 }
 
 type PasswordChangeRequest = {
@@ -53,9 +62,33 @@ type UpdateLogItem = {
   hidden?: boolean
 }
 
+type AnnouncementItem = {
+  id: string
+  content: string
+  source: string
+  fromWorldChannel: boolean
+  createdAt: string
+  author: { id: string; email: string; displayName: string }
+}
+
+type BroadcastItem = {
+  id: string
+  content: string
+  createdAt: string
+  author: { id: string; email: string; displayName: string }
+}
+
+type StickerItem = {
+  id: string
+  name: string
+  originalName: string
+  url: string
+}
+
 type Overview = {
   currentAdmin: UserItem
   canManageUsers: boolean
+  permissions: AdminPermissionMap
   requests: RegistrationRequest[]
   passwordRequests: PasswordChangeRequest[]
   updates: UpdateLogItem[]
@@ -86,6 +119,11 @@ export function AdminClient() {
   const [data, setData] = useState<Overview | null>(null)
   const [users, setUsers] = useState<UserItem[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([])
+  const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>([])
+  const [stickers, setStickers] = useState<StickerItem[]>([])
+  const [adminPermissions, setAdminPermissions] = useState<AdminPermissionItem[]>([])
+  const [announcementDraft, setAnnouncementDraft] = useState("")
   const [usersCursor, setUsersCursor] = useState<string | null>(null)
   const [activitiesCursor, setActivitiesCursor] = useState<string | null>(null)
   const [usersHasMore, setUsersHasMore] = useState(false)
@@ -96,6 +134,10 @@ export function AdminClient() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [updateDrafts, setUpdateDrafts] = useState<Record<string, string>>({})
   const [geoRefreshing, setGeoRefreshing] = useState(false)
+  const [announcementSaving, setAnnouncementSaving] = useState(false)
+  const [stickerUploading, setStickerUploading] = useState(false)
+
+  const hasPermission = (permission: AdminPermissionKey) => data?.permissions?.[permission] ?? false
 
   async function loadUsers(cursor: string | null, append: boolean) {
     setUsersLoading(true)
@@ -125,6 +167,26 @@ export function AdminClient() {
     }
   }
 
+  async function loadAnnouncements() {
+    const data = await apiFetch<{ items: AnnouncementItem[] }>("/api/announcements?history=1&limit=100")
+    setAnnouncements(Array.isArray(data.items) ? data.items : [])
+  }
+
+  async function loadBroadcasts() {
+    const data = await apiFetch<{ items: BroadcastItem[] }>("/api/world-broadcasts?limit=100")
+    setBroadcasts(Array.isArray(data.items) ? data.items : [])
+  }
+
+  async function loadStickers() {
+    const data = await apiFetch<{ items: StickerItem[] }>("/api/admin/stickers")
+    setStickers(Array.isArray(data.items) ? data.items : [])
+  }
+
+  async function loadAdminPermissions() {
+    const data = await apiFetch<{ items: AdminPermissionItem[] }>("/api/admin/permissions")
+    setAdminPermissions(Array.isArray(data.items) ? data.items : [])
+  }
+
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -133,7 +195,13 @@ export function AdminClient() {
         const overview = await apiFetch<Overview>("/api/admin/overview")
         if (cancelled) return
         setData(overview)
-        await Promise.all([loadUsers(null, false), loadActivities(null, false)])
+        await Promise.all([
+          overview.permissions.manageUsers ? loadUsers(null, false) : Promise.resolve(setUsers([])),
+          overview.permissions.viewActivityLogs ? loadActivities(null, false) : Promise.resolve(setActivities([])),
+          overview.permissions.manageAnnouncements ? Promise.all([loadAnnouncements(), loadBroadcasts()]) : Promise.resolve(),
+          overview.permissions.manageStickers ? loadStickers() : Promise.resolve(setStickers([])),
+          overview.currentAdmin.role === "owner" ? loadAdminPermissions() : Promise.resolve(setAdminPermissions([])),
+        ])
       } catch (error) {
         if (!cancelled) toast.error(error instanceof Error ? error.message : "加载失败")
       } finally {
@@ -168,6 +236,19 @@ export function AdminClient() {
     await apiPatch(`/api/admin/users/${id}/role`, { role })
     toast.success("成员权限已更新")
     setRefreshKey((key) => key + 1)
+  }
+
+  async function updateAdminPermission(admin: AdminPermissionItem, key: AdminPermissionKey, value: boolean) {
+    const permissions = { ...admin.permissions, [key]: value }
+    setAdminPermissions((items) => items.map((item) => item.id === admin.id ? { ...item, permissions } : item))
+    try {
+      const updated = await apiPatch<AdminPermissionItem>(`/api/admin/permissions/${admin.id}`, { permissions })
+      setAdminPermissions((items) => items.map((item) => item.id === admin.id ? { ...item, permissions: updated.permissions } : item))
+      toast.success("管理员权限已更新")
+    } catch (error) {
+      setAdminPermissions((items) => items.map((item) => item.id === admin.id ? admin : item))
+      toast.error(error instanceof Error ? error.message : "权限更新失败")
+    }
   }
 
   async function deleteUser(user: UserItem) {
@@ -217,6 +298,65 @@ export function AdminClient() {
     }
   }
 
+  async function publishAnnouncement() {
+    const content = announcementDraft.trim()
+    if (!content) return
+    setAnnouncementSaving(true)
+    try {
+      await apiPost("/api/announcements", { content })
+      toast.success("公告已发布")
+      setAnnouncementDraft("")
+      await loadAnnouncements()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "发布公告失败")
+    } finally {
+      setAnnouncementSaving(false)
+    }
+  }
+
+  async function deleteAnnouncement(item: AnnouncementItem) {
+    if (!confirm(`确认删除这条公告？\n${item.content}`)) return
+    try {
+      await apiDelete(`/api/announcements/${item.id}`)
+      toast.success("公告已删除")
+      await loadAnnouncements()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除公告失败")
+    }
+  }
+
+  async function deleteBroadcast(item: BroadcastItem) {
+    if (!confirm(`确认删除这条世界频道广播？\n${item.content}`)) return
+    await apiDelete(`/api/world-broadcasts/${item.id}`)
+    toast.success("广播历史已删除")
+    await loadBroadcasts()
+  }
+
+  async function uploadPublicStickers(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? [])
+    event.currentTarget.value = ""
+    if (files.length === 0) return
+    setStickerUploading(true)
+    try {
+      const form = new FormData()
+      files.forEach((file) => form.append("files", file))
+      const res = await fetch("/api/admin/stickers", { method: "POST", body: form })
+      if (!res.ok) throw new Error("上传失败")
+      toast.success("公用表情包已上传")
+      await loadStickers()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "上传失败")
+    } finally {
+      setStickerUploading(false)
+    }
+  }
+
+  async function deletePublicSticker(item: StickerItem) {
+    await apiDelete(`/api/admin/stickers/${item.id}`)
+    toast.success("表情包已删除")
+    await loadStickers()
+  }
+
   return (
     <div className="mx-auto max-w-[1200px] px-6 py-10">
       <div className="mb-8">
@@ -243,12 +383,50 @@ export function AdminClient() {
         <div className="py-16 text-center text-sm text-[--color-text-muted]">加载中...</div>
       ) : data && (
         <div className="space-y-8">
+          {data.currentAdmin.role === "owner" && (
+            <section>
+              <div className="mb-3 flex items-center gap-2">
+                <ShieldCheck size={16} />
+                <h2 className="text-sm font-semibold">管理员权限配置</h2>
+              </div>
+              <div className="space-y-3 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
+                {adminPermissions.length === 0 ? (
+                  <p className="p-2 text-sm text-[--color-text-muted]">暂无普通管理员</p>
+                ) : adminPermissions.map((admin) => (
+                  <div key={admin.id} className="rounded-[--radius-md] border border-[--color-border] p-3">
+                    <div className="mb-3 min-w-0">
+                      <p className="truncate text-sm font-medium">{admin.displayName || admin.email}</p>
+                      <p className="truncate font-mono text-xs text-[--color-text-muted]">{admin.email}</p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      {ADMIN_PERMISSION_DEFS.map((permission) => (
+                        <label key={permission.key} className="flex cursor-pointer items-start gap-2 rounded-[--radius-sm] border border-[--color-border] p-2 text-xs hover:bg-[--color-bg-hover]">
+                          <input
+                            type="checkbox"
+                            checked={admin.permissions[permission.key]}
+                            onChange={(event) => updateAdminPermission(admin, permission.key, event.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <span className="min-w-0">
+                            <span className="block font-medium text-[--color-text-primary]">{permission.label}</span>
+                            <span className="mt-0.5 block text-[--color-text-muted]">{permission.description}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {hasPermission("approveRegistrations") && (
           <section>
             <div className="mb-3 flex items-center gap-2">
               <UserCheck size={16} />
               <h2 className="text-sm font-semibold">注册审核</h2>
             </div>
-            <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+            <div className="max-h-[320px] overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
               {data.requests.length === 0 ? (
                 <p className="p-4 text-sm text-[--color-text-muted]">暂无待审核申请</p>
               ) : data.requests.map((request) => (
@@ -263,13 +441,15 @@ export function AdminClient() {
               ))}
             </div>
           </section>
+          )}
 
+          {hasPermission("approvePasswordChanges") && (
           <section>
             <div className="mb-3 flex items-center gap-2">
               <KeyRound size={16} />
               <h2 className="text-sm font-semibold">密码修改审核</h2>
             </div>
-            <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+            <div className="max-h-[320px] overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
               {data.passwordRequests.length === 0 ? (
                 <p className="p-4 text-sm text-[--color-text-muted]">暂无待审核密码申请</p>
               ) : data.passwordRequests.map((request) => (
@@ -284,7 +464,99 @@ export function AdminClient() {
               ))}
             </div>
           </section>
+          )}
 
+          {hasPermission("manageAnnouncements") && (
+            <section>
+              <div className="mb-3 flex items-center gap-2">
+                <ShieldCheck size={16} />
+                <h2 className="text-sm font-semibold">公告管理</h2>
+              </div>
+              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+                <textarea
+                  value={announcementDraft}
+                  onChange={(event) => setAnnouncementDraft(event.target.value)}
+                  maxLength={500}
+                  placeholder="输入公告内容，最新公告会覆盖首页当前展示"
+                  className="min-h-24 w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-primary] p-2 text-sm outline-none focus:border-[--color-accent]"
+                />
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="font-mono text-xs text-[--color-text-muted]">{announcementDraft.length}/500</span>
+                  <Button size="sm" onClick={publishAnnouncement} disabled={announcementSaving || !announcementDraft.trim()}>
+                    {announcementSaving ? "发布中..." : "发布公告"}
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-3 max-h-[420px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
+                {announcements.length === 0 ? (
+                  <p className="p-4 text-sm text-[--color-text-muted]">暂无历史公告</p>
+                ) : announcements.map((item) => (
+                  <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <p className="font-mono text-xs text-[--color-text-muted]">{formatTime(item.createdAt)} / {item.fromWorldChannel ? "世界频道" : "管理员"}</p>
+                      <button type="button" onClick={() => deleteAnnouncement(item)} className="text-[--color-text-muted] hover:text-[--color-danger]" title="删除公告">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <p className="whitespace-pre-wrap break-words text-sm">{item.content}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {hasPermission("manageAnnouncements") && (
+            <section>
+              <div className="mb-3 flex items-center gap-2">
+                <ShieldCheck size={16} />
+                <h2 className="text-sm font-semibold">世界频道广播历史</h2>
+              </div>
+              <div className="max-h-[420px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
+                {broadcasts.length === 0 ? (
+                  <p className="p-4 text-sm text-[--color-text-muted]">暂无广播历史</p>
+                ) : broadcasts.map((item) => (
+                  <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <p className="font-mono text-xs text-[--color-text-muted]">{formatTime(item.createdAt)} / {item.author.displayName || item.author.email}</p>
+                      <button type="button" onClick={() => deleteBroadcast(item)} className="text-[--color-text-muted] hover:text-[--color-danger]" title="删除广播">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <p className="whitespace-pre-wrap break-words text-sm">{item.content}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {hasPermission("manageStickers") && (
+            <section>
+              <div className="mb-3 flex items-center gap-2">
+                <ImageIcon size={16} />
+                <h2 className="text-sm font-semibold">公用表情包库</h2>
+              </div>
+              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-[--radius-sm] border border-[--color-border] px-3 py-2 text-sm hover:bg-[--color-bg-hover]">
+                  <Upload size={14} />
+                  {stickerUploading ? "上传中..." : "批量上传公用表情包"}
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={uploadPublicStickers} disabled={stickerUploading} />
+                </label>
+                <div className="mt-4 grid max-h-[360px] grid-cols-4 gap-3 overflow-y-auto pr-1 sm:grid-cols-8">
+                  {stickers.map((item) => (
+                    <div key={item.id} className="group relative flex aspect-square items-center justify-center overflow-hidden rounded border border-[--color-border] bg-white">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.url} alt={item.name || item.originalName} className="max-h-full max-w-full object-contain" />
+                      <button type="button" onClick={() => deletePublicSticker(item)} className="absolute right-1 top-1 hidden rounded bg-white p-1 text-[--color-danger] shadow group-hover:block" title="删除">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {hasPermission("manageUsers") && (
           <section>
             <div className="mb-3 flex items-center gap-2">
               <UserCog size={16} />
@@ -296,11 +568,11 @@ export function AdminClient() {
                   <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
                     <thead>
                       <tr>
-                        <th className="w-[290px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户</th>
-                        <th className="w-[150px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">权限</th>
-                        <th className="w-[190px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">最近登录</th>
-                        <th className="w-[150px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">删除条件</th>
-                        {data.canManageUsers && <th className="w-[80px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5" />}
+                        <th className="glass-nav-bg w-[290px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户</th>
+                        <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">权限</th>
+                        <th className="glass-nav-bg w-[190px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">最近登录</th>
+                        <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">删除条件</th>
+                        {data.canManageUsers && <th className="glass-nav-bg w-[80px] border-b-2 border-[--color-border-strong] px-4 py-2.5" />}
                       </tr>
                     </thead>
                   </table>
@@ -365,14 +637,16 @@ export function AdminClient() {
               </div>
             </div>
           </section>
+          )}
 
+          {hasPermission("viewActivityLogs") && (
           <section>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <ShieldCheck size={16} />
                 <h2 className="text-sm font-semibold">最近登录和操作行为</h2>
               </div>
-              {data.canManageUsers && (
+              {hasPermission("refreshGeoLocations") && (
                 <Button size="sm" variant="outline" onClick={refreshGeoLocations} disabled={geoRefreshing}>
                   <RotateCcw size={14} /> {geoRefreshing ? "更新中..." : "更新 IP 地理位置"}
                 </Button>
@@ -392,12 +666,12 @@ export function AdminClient() {
                     <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
                       <thead className="sticky top-0 z-10">
                         <tr>
-                          <th className="w-[160px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">时间</th>
-                          <th className="w-[170px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">行为</th>
-                          <th className="w-[300px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户与详情</th>
-                          <th className="w-[180px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">IP 地址</th>
-                          <th className="w-[160px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">地理位置</th>
-                          <th className="w-[140px] border-b-2 border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">设备信息</th>
+                          <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">时间</th>
+                          <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">行为</th>
+                          <th className="glass-nav-bg w-[300px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户与详情</th>
+                          <th className="glass-nav-bg w-[180px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">IP 地址</th>
+                          <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">地理位置</th>
+                          <th className="glass-nav-bg w-[140px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">设备信息</th>
                         </tr>
                       </thead>
                         <tbody>
@@ -421,16 +695,17 @@ export function AdminClient() {
               )}
             </div>
           </section>
+          )}
 
-          {data.canManageUsers && (
+          {hasPermission("manageUpdateLogs") && (
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <GitCommitHorizontal size={16} />
                 <h2 className="text-sm font-semibold">更新日志展示管理</h2>
               </div>
-              <div className="space-y-3">
+              <div className="max-h-[520px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
                 {data.updates.length === 0 ? (
-                  <p className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4 text-sm text-[--color-text-muted]">暂无 Git 更新记录</p>
+                  <p className="p-4 text-sm text-[--color-text-muted]">暂无 Git 更新记录</p>
                 ) : data.updates.map((item) => (
                   <div key={item.hash} className={`rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4 ${item.hidden ? "opacity-55" : ""}`}>
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

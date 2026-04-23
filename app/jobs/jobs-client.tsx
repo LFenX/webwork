@@ -119,14 +119,18 @@ export function JobsClient() {
     }
   }, [filterStatus, search])
 
+  const refreshStats = useCallback(async () => {
+    const statsData = await apiFetch<Stats>(`/api/jobs/stats?_t=${Date.now()}`)
+    setStats(statsData)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     async function load() {
       setLoading(true)
       try {
-        const statsData = await apiFetch<Stats>(`/api/jobs/stats?_t=${Date.now()}`)
+        await refreshStats()
         if (cancelled) return
-        setStats(statsData)
         await loadJobs(null, false)
       } catch {
         if (!cancelled) toast.error("加载失败")
@@ -136,7 +140,7 @@ export function JobsClient() {
     }
     load()
     return () => { cancelled = true }
-  }, [loadJobs, refreshKey])
+  }, [loadJobs, refreshKey, refreshStats])
 
   function triggerRefresh() { setRefreshKey(k => k + 1) }
 
@@ -203,8 +207,23 @@ export function JobsClient() {
   }
 
   async function handleStatusChange(id: string, status: string) {
-    await apiPatch(`/api/jobs/${id}`, { status })
-    triggerRefresh()
+    const previousJobs = jobs
+    const previousDetail = detailJob
+    setJobs((current) => current.map((job) => (job.id === id ? { ...job, status } : job)))
+    setDetailJob((current) => (current?.id === id ? { ...current, status } : current))
+    try {
+      const updated = await apiPatch<Job>(`/api/jobs/${id}`, { status })
+      setJobs((current) => {
+        const next = current.map((job) => (job.id === id ? { ...job, ...updated, _count: job._count } : job))
+        return filterStatus !== "全部" && status !== filterStatus ? next.filter((job) => job.id !== id) : next
+      })
+      setDetailJob((current) => (current?.id === id ? { ...current, ...updated, _count: current._count } : current))
+      void refreshStats()
+    } catch {
+      setJobs(previousJobs)
+      setDetailJob(previousDetail)
+      toast.error("状态更新失败")
+    }
   }
 
   const statusDist = useMemo(() => stats?.statusDist.map((d) => ({

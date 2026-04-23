@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "node:crypto"
 import { prisma } from "@/lib/db"
-import { recordActivity, requireAdmin } from "@/lib/admin"
+import { recordActivity, requireAdminPermission } from "@/lib/admin"
 
 export const dynamic = "force-dynamic"
 
@@ -10,7 +10,7 @@ const NO_STORE = { "Cache-Control": "no-store" }
 export async function GET(req: NextRequest) {
   let admin
   try {
-    admin = await requireAdmin()
+    admin = await requireAdminPermission("approveRegistrations")
   } catch {
     return NextResponse.json({ error: "无权限" }, { status: 403, headers: NO_STORE })
   }

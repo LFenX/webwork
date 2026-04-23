@@ -12,8 +12,27 @@ export type ChatMessagePayload = {
   senderId: string
   receiverId: string
   text: string
+  stickerId?: string | null
+  stickerEmoji?: string | null
+  sticker?: {
+    id: string
+    scope: string
+    name: string
+    originalName: string
+    mimeType: string
+    size: number
+    isAnimated: boolean
+    url?: string
+  } | null
   readAt: string | null
   createdAt: string
+  sender?: {
+    id: string
+    email: string
+    displayName: string
+    avatarText: string
+    avatarUrl: string | null
+  }
   attachments: {
     id: string
     originalName: string
@@ -55,8 +74,27 @@ type MessageWithAttachments = {
   senderId: string
   receiverId: string
   text: string
+  stickerId?: string | null
+  stickerEmoji?: string | null
+  sticker?: {
+    id: string
+    scope: string
+    name: string
+    originalName: string
+    mimeType: string
+    size: number
+    isAnimated: boolean
+    url?: string
+  } | null
   readAt: Date | null
   createdAt: Date
+  sender?: {
+    id: string
+    email: string
+    displayName: string
+    avatarText: string
+    avatarUrl: string | null
+  }
   attachments: {
     id: string
     originalName: string
@@ -71,8 +109,12 @@ export function serializeMessage(message: MessageWithAttachments): ChatMessagePa
     senderId: message.senderId,
     receiverId: message.receiverId,
     text: message.text,
+    stickerId: message.stickerId,
+    stickerEmoji: message.stickerEmoji,
+    sticker: message.sticker ? { ...message.sticker, url: `/api/stickers/${message.sticker.id}/file` } : null,
     readAt: message.readAt?.toISOString() ?? null,
     createdAt: message.createdAt.toISOString(),
+    sender: message.sender,
     attachments: message.attachments.map((attachment) => ({
       id: attachment.id,
       originalName: attachment.originalName,
@@ -102,11 +144,12 @@ export function makeStoredFilename(originalName: string) {
 }
 
 export async function getUsedUploadBytes(userId: string) {
-  const [publicUploads, chatUploads] = await Promise.all([
+  const [publicUploads, chatUploads, channelUploads] = await Promise.all([
     prisma.upload.aggregate({ where: { userId }, _sum: { size: true } }),
     prisma.chatAttachment.aggregate({ where: { uploaderId: userId }, _sum: { size: true } }),
+    prisma.channelAttachment.aggregate({ where: { uploaderId: userId }, _sum: { size: true } }),
   ])
-  return (publicUploads._sum.size ?? 0) + (chatUploads._sum.size ?? 0)
+  return (publicUploads._sum.size ?? 0) + (chatUploads._sum.size ?? 0) + (channelUploads._sum.size ?? 0)
 }
 
 export async function canStoreChatBytes(userId: string, size: number) {

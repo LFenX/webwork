@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { canManageUsers, requireAdmin } from "@/lib/admin"
+import { requireAdminPermission } from "@/lib/admin"
 import { lookupPublicGeoLocation } from "@/lib/request-meta"
 
 export const dynamic = "force-dynamic"
@@ -15,10 +15,7 @@ function needsGeoRefresh(value: string) {
 
 export async function POST() {
   try {
-    const admin = await requireAdmin()
-    if (!canManageUsers(admin.role)) {
-      return NextResponse.json({ error: "无权限" }, { status: 403, headers: NO_STORE })
-    }
+    await requireAdminPermission("refreshGeoLocations")
 
     const activities = await prisma.userActivity.findMany({
       where: {

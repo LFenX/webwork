@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/db"
-import { canManageUsers, requireAdmin } from "@/lib/admin"
+import { requireAdminPermission } from "@/lib/admin"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
 
 async function requireOwner() {
-  const admin = await requireAdmin()
-  if (!canManageUsers(admin.role)) throw new Error("FORBIDDEN")
-  return admin
+  return requireAdminPermission("manageUpdateLogs")
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ hash: string }> }) {

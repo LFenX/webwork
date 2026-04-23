@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { requireAdmin } from "@/lib/admin"
+import { requireAdminPermission } from "@/lib/admin"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -16,7 +16,7 @@ function readPage(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAdmin()
+    await requireAdminPermission("viewActivityLogs")
     const { limit, offset } = readPage(req)
     const rows = await prisma.userActivity.findMany({
       orderBy: { createdAt: "desc" },

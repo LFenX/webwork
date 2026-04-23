@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { getSession } from "@/lib/session"
 import { commentSchema } from "@/lib/validators"
 import { getAccessLevel } from "@/lib/permissions"
+import { canUseSticker } from "@/lib/stickers"
 
 export const dynamic = "force-dynamic"
 
@@ -36,13 +37,20 @@ export async function GET(
   const comments = await prisma.comment.findMany({
     where: { postId: id },
     orderBy: { createdAt: "asc" },
-    include: { author: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } } },
+    include: {
+      author: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
+      sticker: { select: { id: true, scope: true, name: true, originalName: true, mimeType: true, size: true, isAnimated: true } },
+    },
   })
 
   return NextResponse.json(
     comments.map((comment) => ({
       id: comment.id,
       content: comment.content,
+      parentId: comment.parentId,
+      stickerId: comment.stickerId,
+      stickerEmoji: comment.stickerEmoji,
+      sticker: comment.sticker ? { ...comment.sticker, url: `/api/stickers/${comment.sticker.id}/file` } : null,
       createdAt: comment.createdAt.toISOString(),
       author: comment.author,
     })),
@@ -67,20 +75,47 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.flatten().formErrors[0] ?? "评论不能为空" }, { status: 400, headers: NO_STORE })
   }
 
+  const parentId = parsed.data.parentId ?? null
+  const stickerId = parsed.data.stickerId ?? null
+  const stickerEmoji = parsed.data.stickerEmoji ?? null
+  if (!parsed.data.content && !stickerId && !stickerEmoji) {
+    return NextResponse.json({ error: "评论不能为空" }, { status: 400, headers: NO_STORE })
+  }
+  if (stickerId && !(await canUseSticker(session.userId, stickerId))) {
+    return NextResponse.json({ error: "表情包不存在" }, { status: 400, headers: NO_STORE })
+  }
+  if (parentId) {
+    const parent = await prisma.comment.findFirst({
+      where: { id: parentId, postId: id },
+      select: { id: true },
+    })
+    if (!parent) return NextResponse.json({ error: "回复的评论不存在" }, { status: 400, headers: NO_STORE })
+  }
+
   const comment = await prisma.comment.create({
     data: {
       id: crypto.randomUUID(),
       postId: id,
       authorId: session.userId,
+      parentId,
       content: parsed.data.content,
+      stickerId,
+      stickerEmoji,
     },
-    include: { author: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } } },
+    include: {
+      author: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
+      sticker: { select: { id: true, scope: true, name: true, originalName: true, mimeType: true, size: true, isAnimated: true } },
+    },
   })
 
   return NextResponse.json(
     {
       id: comment.id,
       content: comment.content,
+      parentId: comment.parentId,
+      stickerId: comment.stickerId,
+      stickerEmoji: comment.stickerEmoji,
+      sticker: comment.sticker ? { ...comment.sticker, url: `/api/stickers/${comment.sticker.id}/file` } : null,
       createdAt: comment.createdAt.toISOString(),
       author: comment.author,
     },

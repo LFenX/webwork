@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { getSession } from "@/lib/session"
+import { publishRealtime } from "@/lib/realtime-events"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -41,6 +42,8 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
+  const note = typeof body?.note === "string" ? body.note.trim().slice(0, 120) : ""
+  if (!note) return NextResponse.json({ error: "请填写好友申请备注" }, { status: 400, headers: NO_STORE })
   if (!email) return NextResponse.json({ error: "请输入邮箱" }, { status: 400, headers: NO_STORE })
 
   if (email === session.email.toLowerCase()) {
@@ -76,7 +79,7 @@ export async function POST(req: NextRequest) {
     await prisma.$transaction([
       prisma.friendRequest.update({
         where: { id: reverseReq.id },
-        data: { status: "accepted", respondedAt: now },
+        data: { status: "accepted", respondedAt: now, note },
       }),
       prisma.friendship.upsert({
         where: { userAId_userBId: { userAId: a, userBId: b } },
@@ -84,14 +87,16 @@ export async function POST(req: NextRequest) {
         create: { userAId: a, userBId: b },
       }),
     ])
+    publishRealtime([session.userId, target.id], { type: "friend-request:accepted", data: { requestId: reverseReq.id, userIds: [session.userId, target.id] } })
     return NextResponse.json({ message: "对方已向你发出请求，已自动成为好友" }, { headers: NO_STORE })
   }
 
   const request = await prisma.friendRequest.upsert({
     where: { fromUserId_toUserId: { fromUserId: session.userId, toUserId: target.id } },
-    update: { status: "pending", respondedAt: null, createdAt: new Date() },
-    create: { fromUserId: session.userId, toUserId: target.id },
+    update: { status: "pending", respondedAt: null, createdAt: new Date(), note },
+    create: { fromUserId: session.userId, toUserId: target.id, note },
   })
+  publishRealtime(target.id, { type: "friend-request:created", data: { id: request.id, fromUserId: session.userId, toUserId: target.id } })
 
   return NextResponse.json(request, { status: 201, headers: NO_STORE })
 }

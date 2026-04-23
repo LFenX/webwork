@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { OWNER_EMAIL, canManageUsers, recordActivity, requireAdmin } from "@/lib/admin"
+import { OWNER_EMAIL, recordActivity, requireAdminPermission } from "@/lib/admin"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -10,10 +10,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await requireAdmin()
-    if (!canManageUsers(admin.role)) {
-      return NextResponse.json({ error: "普通管理员不能管理成员权限" }, { status: 403, headers: NO_STORE })
-    }
+    const admin = await requireAdminPermission("manageUsers")
 
     const { id } = await params
     const body = await req.json().catch(() => null)
@@ -29,6 +26,9 @@ export async function PATCH(
       SET role = ${role}
       WHERE id = ${id}
     `
+    if (role !== "admin") {
+      await prisma.adminPermission.deleteMany({ where: { userId: id } })
+    }
     const user = { id, email: target.email, displayName: target.displayName, role }
     await recordActivity(admin.id, "update_user_role", `设置 ${user.email} 为 ${role}`, req)
     return NextResponse.json(user, { headers: NO_STORE })

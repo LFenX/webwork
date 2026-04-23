@@ -322,6 +322,73 @@ a:hover {
 ::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
 
+.glass-nav-bg {
+  background-color: color-mix(in srgb, var(--color-bg-primary) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.wechat-bubble {
+  position: relative;
+  border-radius: 6px;
+  border: 0;
+  box-shadow: none;
+}
+
+.wechat-bubble::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+}
+
+.wechat-bubble-left {
+  background: #f1f1f1;
+}
+
+.wechat-bubble-left::after {
+  left: -5px;
+  border-right: 6px solid #f1f1f1;
+}
+
+.wechat-bubble-right {
+  background: #dbeafe;
+  color: #16324f;
+}
+
+.wechat-bubble-right::after {
+  right: -5px;
+  border-left: 6px solid #dbeafe;
+}
+
+.wechat-composer {
+  background: #f7f7f7;
+  border-top: 1px solid #dedede;
+}
+
+.wechat-composer-panel {
+  min-height: 154px;
+  border: 1px solid #dedede;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.wechat-composer-input {
+  min-height: 88px;
+  background: transparent;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+
+@keyframes announcement-marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
 /* ─── Tiptap WYSIWYG editor content ────────────────────────────────────────── */
 .tiptap-content .ProseMirror {
   outline: none;

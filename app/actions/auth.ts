@@ -3,6 +3,7 @@
 import bcrypt from "bcryptjs"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
+import { recordActivity } from "@/lib/admin"
 import { deleteSession, getSessionCookiePayload, markSessionLoggedOut, startUserSession } from "@/lib/session"
 import { registerSchema, loginSchema } from "@/lib/validators"
 
@@ -29,7 +30,8 @@ export async function register(prev: AuthState, formData: FormData): Promise<Aut
     data: { email, passwordHash, displayName },
   })
 
-  await startUserSession({ userId: user.id, email: user.email })
+  const session = await startUserSession({ userId: user.id, email: user.email })
+  await recordActivity(user.id, "login", "登录", undefined, session.sessionId)
   redirect("/")
 }
 
@@ -47,7 +49,8 @@ export async function login(prev: AuthState, formData: FormData): Promise<AuthSt
   const ok = await bcrypt.compare(password, user.passwordHash)
   if (!ok) return { error: "邮箱或密码不正确" }
 
-  await startUserSession({ userId: user.id, email: user.email })
+  const session = await startUserSession({ userId: user.id, email: user.email })
+  await recordActivity(user.id, "login", "登录", undefined, session.sessionId)
   redirect("/")
 }
 

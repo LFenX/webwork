@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
     where: { id: normalizedUser.id },
     data: { lastLoginAt: new Date() },
   })
-  await recordActivity(normalizedUser.id, "login", "登录", req)
-  await startUserSession({ userId: normalizedUser.id, email: normalizedUser.email, req })
+  const session = await startUserSession({ userId: normalizedUser.id, email: normalizedUser.email, req })
+  await recordActivity(normalizedUser.id, "login", "登录", req, session.sessionId)
 
   return NextResponse.json({ ok: true }, { headers: NO_STORE })
 }

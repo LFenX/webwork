@@ -89,6 +89,25 @@ async function getJobActivityData(userId: string, enabled: boolean) {
   }, {})
 }
 
+async function getChatActivityData(userId: string, enabled: boolean) {
+  if (!enabled) return { directCount: 0, channelCount: 0, weeklyActive: 0, heatmap: {} as Record<string, number> }
+  const [directSent, directReceived, channelMessages] = await Promise.all([
+    prisma.chatMessage.findMany({ where: { senderId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
+    prisma.chatMessage.findMany({ where: { receiverId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
+    prisma.channelMessage.findMany({ where: { senderId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
+  ])
+  const heatmap = [...directSent, ...directReceived, ...channelMessages].reduce<Record<string, number>>((data, message) => {
+    const key = formatDateKey(message.createdAt)
+    data[key] = (data[key] ?? 0) + 1
+    return data
+  }, {})
+  const nowTime = Date.now()
+  const weeklyActive = Object.entries(heatmap)
+    .filter(([key]) => nowTime - new Date(key).getTime() < 7 * 86400000)
+    .reduce((sum, [, value]) => sum + value, 0)
+  return { directCount: directSent.length + directReceived.length, channelCount: channelMessages.length, weeklyActive, heatmap }
+}
+
 async function getWritingStats(userId: string, enabledTypes: string[], visibilities: string[], dailyEnabled: boolean) {
   const types = dailyEnabled ? [...enabledTypes, "daily"] : enabledTypes
   if (types.length === 0) return { totalWords: 0, streak: 0, thisMonth: 0, total: 0, topTags: [] as { tag: string; count: number }[] }
@@ -182,6 +201,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
     recentJobs,
     articleActivityData,
     jobActivityData,
+    chatActivity,
     writingStats,
     articleGroups,
     recentDaily,
@@ -191,6 +211,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
     getRecentJobs(ownerId, jobsEnabled),
     getArticleActivityData(ownerId, enabledArticleTypes, visibilities, dailyEnabled),
     getJobActivityData(ownerId, jobsEnabled),
+    getChatActivityData(ownerId, showHomeContent),
     getWritingStats(ownerId, enabledArticleTypes, visibilities, dailyEnabled),
     Promise.all(
       ARTICLE_MODULES.map(async (module) =>
@@ -205,7 +226,13 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
       orderBy: { createdAt: "desc" },
       include: { author: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } } },
     }).then((messages) =>
-      messages.map((message) => ({ id: message.id, content: message.content, createdAt: message.createdAt.toISOString(), author: message.author }))
+      messages.map((message) => ({
+        id: message.id,
+        content: message.content,
+        parentId: message.parentId,
+        createdAt: message.createdAt.toISOString(),
+        author: message.author,
+      }))
     ),
   ])
 
@@ -292,6 +319,20 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
           <section className="mb-10 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
             <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周文章热力图</p>
             <ActivityHeatmap data={articleActivityData} />
+          </section>
+
+          <section className="mb-10">
+            <SectionTitle title="聊天活跃度" />
+            <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <StatsCard title="单聊参与" value={chatActivity.directCount} sub="次" />
+              <StatsCard title="群聊发言" value={chatActivity.channelCount} sub="次" />
+              <StatsCard title="总互动" value={chatActivity.directCount + chatActivity.channelCount} sub="次" />
+              <StatsCard title="本周活跃" value={chatActivity.weeklyActive} sub="次" />
+            </div>
+            <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+              <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周聊天热力图</p>
+              <ActivityHeatmap data={chatActivity.heatmap} />
+            </div>
           </section>
 
           <section className="mb-10">

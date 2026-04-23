@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { OWNER_EMAIL, canManageUsers, recordActivity, requireAdmin } from "@/lib/admin"
+import { OWNER_EMAIL, recordActivity, requireAdminPermission } from "@/lib/admin"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -10,10 +10,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await requireAdmin()
-    if (!canManageUsers(admin.role)) {
-      return NextResponse.json({ error: "普通管理员不能删除用户" }, { status: 403, headers: NO_STORE })
-    }
+    const admin = await requireAdminPermission("manageUsers")
 
     const { id } = await params
     if (id === admin.id) {

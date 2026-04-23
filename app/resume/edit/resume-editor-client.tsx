@@ -11,9 +11,11 @@ import { Label } from "@/components/ui/label"
 import { MarkdownEditor } from "@/components/markdown-editor"
 import { MarkdownContent } from "@/components/markdown-content"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 import { formatChinaDateTime } from "@/lib/time"
 
 interface ResumeEditorClientProps {
+  userId: string
   initialContent: string
   initialMode: string
   initialPdfPath: string | null
@@ -28,7 +30,9 @@ type ResumeVersion = {
   createdAt: string
 }
 
-export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath }: ResumeEditorClientProps) {
+const DRAFT_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
+export function ResumeEditorClient({ userId, initialContent, initialMode, initialPdfPath }: ResumeEditorClientProps) {
   const router = useRouter()
   const [mode, setMode] = useState<"markdown" | "pdf">(initialMode as "markdown" | "pdf")
   const [content, setContent] = useState(initialContent)
@@ -39,6 +43,8 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
   const [uploading, setUploading] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const draftKey = userStorageKey(userId, "resume-draft", "markdown")
+  const draftReady = useRef(false)
 
   useEffect(() => {
     fetch("/api/resume/versions", { cache: "no-store" })
@@ -46,6 +52,46 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
       .then((items: ResumeVersion[]) => setVersions(items))
       .catch(() => setVersions([]))
   }, [])
+
+  useEffect(() => {
+    const draft = readUserStorage<{ content: string }>({
+      kind: "local",
+      key: draftKey,
+      userId,
+      ttlMs: DRAFT_TTL_MS,
+    })
+    if (draft?.content && draft.content !== initialContent) {
+      if (window.confirm("Restore the unsaved local resume draft?")) {
+        window.setTimeout(() => {
+          setContent(draft.content)
+          toast.success("Local resume draft restored")
+        }, 0)
+      }
+    }
+    draftReady.current = true
+  }, [draftKey, initialContent, userId])
+
+  useEffect(() => {
+    if (!draftReady.current || mode !== "markdown") return
+    if (content === initialContent) {
+      removeUserStorage("local", draftKey)
+      return
+    }
+    writeUserStorage({ kind: "local", key: draftKey, userId, value: { content } })
+  }, [content, draftKey, initialContent, mode, userId])
+
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!draftReady.current) return
+      const draft = readUserStorage<{ content: string }>({ kind: "local", key: draftKey, userId, ttlMs: DRAFT_TTL_MS })
+      if (!draft) return
+      event.preventDefault()
+      event.returnValue = ""
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [draftKey, userId])
 
   async function handleSaveMarkdown() {
     setSaving(true)
@@ -57,6 +103,7 @@ export function ResumeEditorClient({ initialContent, initialMode, initialPdfPath
         cache: "no-store",
       })
       if (!res.ok) throw new Error()
+      removeUserStorage("local", draftKey)
       toast.success("简历已保存")
       router.push("/resume")
     } catch {

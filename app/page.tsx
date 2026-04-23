@@ -4,15 +4,19 @@ import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { requireAuth } from "@/lib/auth"
 import { getModuleVisibility } from "@/lib/permissions"
+import { getAnnouncementFeed } from "@/lib/announcement-feed"
 import { ActivityHeatmap } from "@/components/activity-heatmap"
+import { AnnouncementChannelBar } from "@/components/announcement-channel-bar"
 import { FunnelChart } from "@/components/funnel-chart"
 import { GuestbookSection } from "@/components/guestbook-section"
+import { HomeLayoutBoard } from "@/components/home-layout-board"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 import { StatsCard } from "@/components/stats-card"
 import { StatusBadge } from "@/components/status-badge"
 import { UserAvatar } from "@/components/user-avatar"
 import { VisitStatsPanel } from "@/components/visit-stats-panel"
 import { formatChinaDate, formatDateKey } from "@/lib/time"
+import { normalizeHomeLayout } from "@/lib/home-layout"
 import { countWords } from "@/lib/text-stats"
 
 export const dynamic = "force-dynamic"
@@ -88,6 +92,29 @@ async function getJobActivityData(userId: string) {
   }, {})
 }
 
+async function getChatActivityData(userId: string) {
+  const [directSent, directReceived, channelMessages] = await Promise.all([
+    prisma.chatMessage.findMany({ where: { senderId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
+    prisma.chatMessage.findMany({ where: { receiverId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
+    prisma.channelMessage.findMany({ where: { senderId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
+  ])
+  const heatmap = [...directSent, ...directReceived, ...channelMessages].reduce<Record<string, number>>((data, message) => {
+    const key = formatDateKey(message.createdAt)
+    data[key] = (data[key] ?? 0) + 1
+    return data
+  }, {})
+  const nowTime = Date.now()
+  const weeklyActive = Object.entries(heatmap)
+    .filter(([key]) => nowTime - new Date(key).getTime() < 7 * 86400000)
+    .reduce((sum, [, value]) => sum + value, 0)
+  return {
+    directCount: directSent.length + directReceived.length,
+    channelCount: channelMessages.length,
+    weeklyActive,
+    heatmap,
+  }
+}
+
 async function getWritingStats(userId: string) {
   const posts = await prisma.post.findMany({
     where: { userId, type: { in: [...ARTICLE_TYPES, "daily"] } },
@@ -151,10 +178,13 @@ export default async function HomePage() {
     recentJobs,
     articleActivityData,
     jobActivityData,
+    chatActivity,
     writingStats,
     profile,
     guestbookMessages,
+    announcements,
     homeVisibility,
+    homeLayout,
     articleGroups,
     recentDaily,
   ] = await Promise.all([
@@ -162,6 +192,7 @@ export default async function HomePage() {
     getRecentJobs(userId),
     getArticleActivityData(userId),
     getJobActivityData(userId),
+    getChatActivityData(userId),
     getWritingStats(userId),
     getProfile(userId),
     prisma.guestbookMessage.findMany({
@@ -169,9 +200,17 @@ export default async function HomePage() {
       orderBy: { createdAt: "desc" },
       include: { author: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } } },
     }).then((messages) =>
-      messages.map((message) => ({ id: message.id, content: message.content, createdAt: message.createdAt.toISOString(), author: message.author }))
+      messages.map((message) => ({
+        id: message.id,
+        content: message.content,
+        parentId: message.parentId,
+        createdAt: message.createdAt.toISOString(),
+        author: message.author,
+      }))
     ),
+    getAnnouncementFeed(userId, 50),
     getModuleVisibility(userId, "home"),
+    prisma.homeLayout.findUnique({ where: { userId }, select: { config: true } }).then((row) => normalizeHomeLayout(row?.config)),
     Promise.all(ARTICLE_TYPES.map(async (type) => (await getPosts(type, userId)).map((post) => ({ ...post, typeLabel: ARTICLE_LABEL[type] })))),
     getPosts("daily", userId),
   ])
@@ -183,9 +222,169 @@ export default async function HomePage() {
     { label: "进入面试", value: stats.hasInterview, color: "#0969DA" },
     { label: "拿到 Offer", value: stats.offers, color: "#3A7D5C" },
   ]
+  const homeWidgets = [
+    {
+      id: "writingStats" as const,
+      content: (
+        <section>
+          <SectionTitle title="写作统计" />
+          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatsCard title="累计文章" value={writingStats.total} sub="篇" />
+            <StatsCard title="总字数" value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
+            <StatsCard title="连续写作" value={writingStats.streak} sub="天" trend={writingStats.streak > 0 ? "up" : "neutral"} />
+            <StatsCard title="本月新增" value={writingStats.thisMonth} sub="篇" />
+          </div>
+          {writingStats.topTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {writingStats.topTags.map(({ tag, count }) => (
+                <span key={tag} className="inline-flex items-center gap-1 rounded border border-[--color-border] bg-[--color-bg-hover] px-2 py-0.5 text-xs text-[--color-text-secondary]">
+                  {tag}
+                  <span className="font-mono text-[--color-text-muted]">{count}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+      ),
+    },
+    {
+      id: "recentPosts" as const,
+      content: (
+        <div className="grid min-w-0 gap-8 md:grid-cols-2">
+          <section className="min-w-0">
+            <SectionTitle title="最近文章" href="/blog" />
+            <div className="min-w-0 overflow-hidden">
+              {allPosts.length === 0 ? (
+                <p className="text-sm text-[--color-text-muted]">还没有文章</p>
+              ) : (
+                allPosts.map((post) => (
+                  <Link key={`${post.type}-${post.slug}`} href={`/${post.type}/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
+                    <div className="flex min-w-0 items-start gap-2 border-b border-[--color-border] py-2.5 sm:gap-3">
+                      <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
+                        {post.summary && <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">{post.summary}</p>}
+                      </div>
+                      <span className="max-w-[3rem] shrink-0 truncate text-xs text-[--color-text-muted]">{post.typeLabel}</span>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </section>
+          <section className="min-w-0">
+            <SectionTitle title="最近日常" href="/daily" />
+            <div className="min-w-0 overflow-hidden">
+              {recentDaily.length === 0 ? (
+                <p className="text-sm text-[--color-text-muted]">还没有日常记录</p>
+              ) : (
+                recentDaily.slice(0, 5).map((post) => (
+                  <Link key={post.slug} href={`/daily/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
+                    <div className="flex min-w-0 items-start gap-2 border-b border-[--color-border] py-2.5 sm:gap-3">
+                      <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
+                        {post.summary && <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">{post.summary}</p>}
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      ),
+    },
+    {
+      id: "writingHeatmap" as const,
+      content: (
+        <section className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+          <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周文章热力图</p>
+          <ActivityHeatmap data={articleActivityData} />
+        </section>
+      ),
+    },
+    {
+      id: "chatActivity" as const,
+      content: (
+        <section>
+          <SectionTitle title="聊天活跃度" />
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatsCard title="单聊参与" value={chatActivity.directCount} sub="次" />
+            <StatsCard title="群聊发言" value={chatActivity.channelCount} sub="次" />
+            <StatsCard title="总互动" value={chatActivity.directCount + chatActivity.channelCount} sub="次" />
+            <StatsCard title="本周活跃" value={chatActivity.weeklyActive} sub="次" />
+          </div>
+          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+            <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周聊天热力图</p>
+            <ActivityHeatmap data={chatActivity.heatmap} />
+          </div>
+        </section>
+      ),
+    },
+    {
+      id: "jobFunnel" as const,
+      content: (
+        <section>
+          <SectionTitle title="求职漏斗" href="/jobs" />
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3">
+              <StatsCard title="累计投递" value={stats.total} sub="家公司" />
+              <StatsCard title="回复率" value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
+              <StatsCard title="面试机会" value={stats.hasInterview} sub="次" />
+              <StatsCard title="Offer 数" value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
+            </div>
+            {stats.total > 0 && (
+              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+                <p className="mb-3 text-xs text-[--color-text-muted]">投递转化漏斗</p>
+                <FunnelChart steps={funnelSteps} />
+              </div>
+            )}
+          </div>
+        </section>
+      ),
+    },
+    {
+      id: "recentJobs" as const,
+      content: (
+        <section>
+          <SectionTitle title="最近求职动态" href="/jobs" />
+          {recentJobs.length === 0 ? (
+            <p className="text-sm text-[--color-text-muted]">暂无求职动态</p>
+          ) : (
+            <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+              {recentJobs.map((job, index) => (
+                <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${index < recentJobs.length - 1 ? "border-b border-[--color-border]" : ""}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{job.company}</p>
+                    <p className="truncate text-xs text-[--color-text-secondary] sm:text-sm">{job.position}</p>
+                  </div>
+                  <StatusBadge status={job.status} type="job" />
+                  <span className="hidden shrink-0 font-mono text-xs text-[--color-text-muted] sm:inline">{formatChinaDate(job.appliedAt)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      ),
+    },
+    {
+      id: "jobHeatmap" as const,
+      content: (
+        <section className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+          <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周求职投递热力图</p>
+          <ActivityHeatmap data={jobActivityData} />
+        </section>
+      ),
+    },
+    { id: "visitStats" as const, content: <VisitStatsPanel userId={userId} /> },
+    { id: "guestbook" as const, content: <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={false} /> },
+  ]
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10">
+    <div className="mx-auto max-w-[1200px] px-6 pb-10 pt-4">
+      <AnnouncementChannelBar initialAnnouncements={announcements} userId={userId} />
+
       {profile && (
         <section className="mb-6 flex items-center gap-4 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] px-4 py-4">
           <UserAvatar size="md" name={profile.displayName} email={profile.email} avatarText={profile.avatarText} avatarUrl={profile.avatarUrl} />
@@ -199,6 +398,14 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+      <HomeLayoutBoard
+        widgets={homeWidgets}
+        initialLayout={homeLayout}
+        editable
+        toolbar={<ModuleVisibilitySelect module="home" initialVisibility={homeVisibility} />}
+      />
+
+      <div className="hidden">
       <div className="mb-8 flex justify-end">
         <ModuleVisibilitySelect module="home" initialVisibility={homeVisibility} />
       </div>
@@ -221,6 +428,20 @@ export default async function HomePage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="mb-10">
+        <SectionTitle title="聊天活跃度" />
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatsCard title="单聊参与" value={chatActivity.directCount} sub="次" />
+          <StatsCard title="群聊发言" value={chatActivity.channelCount} sub="次" />
+          <StatsCard title="总互动" value={chatActivity.directCount + chatActivity.channelCount} sub="次" />
+          <StatsCard title="本周活跃" value={chatActivity.weeklyActive} sub="次" />
+        </div>
+        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+          <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周聊天热力图</p>
+          <ActivityHeatmap data={chatActivity.heatmap} />
+        </div>
       </section>
 
       <div className="mb-10 grid min-w-0 gap-8 md:grid-cols-2">
@@ -317,6 +538,7 @@ export default async function HomePage() {
       <VisitStatsPanel userId={userId} />
 
       <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={false} />
+      </div>
     </div>
   )
 }

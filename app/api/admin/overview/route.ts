@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { canManageUsers, requireAdmin } from "@/lib/admin"
+import { hasAdminPermission, requireAdmin } from "@/lib/admin"
 import { getEditableUpdateLog } from "@/lib/update-log"
 
 export const dynamic = "force-dynamic"
@@ -10,12 +10,12 @@ export async function GET() {
   try {
     const admin = await requireAdmin()
     const [requests, passwordRequests, updates] = await Promise.all([
-      prisma.registrationRequest.findMany({
+      hasAdminPermission(admin, "approveRegistrations") ? prisma.registrationRequest.findMany({
         where: { status: "pending" },
         orderBy: { createdAt: "desc" },
         select: { id: true, email: true, displayName: true, createdAt: true, status: true },
-      }),
-      prisma.passwordChangeRequest.findMany({
+      }) : [],
+      hasAdminPermission(admin, "approvePasswordChanges") ? prisma.passwordChangeRequest.findMany({
         where: { status: "pending" },
         orderBy: { requestedAt: "desc" },
         select: {
@@ -24,14 +24,15 @@ export async function GET() {
           requestedAt: true,
           user: { select: { id: true, email: true, displayName: true } },
         },
-      }),
-      getEditableUpdateLog(),
+      }) : [],
+      hasAdminPermission(admin, "manageUpdateLogs") ? getEditableUpdateLog() : [],
     ])
 
     return NextResponse.json(
       {
         currentAdmin: admin,
-        canManageUsers: canManageUsers(admin.role),
+        canManageUsers: hasAdminPermission(admin, "manageUsers"),
+        permissions: admin.permissions,
         requests,
         passwordRequests,
         updates,
