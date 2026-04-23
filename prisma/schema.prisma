@@ -96,6 +96,7 @@ model UserSession {
   lastActiveAt       DateTime @default(now())
   lastForegroundAt   DateTime @default(now())
   lastResumeActivityAt DateTime?
+  lastOfflineActivityAt DateTime?
   loggedOutAt        DateTime?
   logoutReason       String   @default("")
   expiresAt          DateTime

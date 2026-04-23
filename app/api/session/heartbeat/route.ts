@@ -28,6 +28,7 @@ export async function POST(req: Request) {
       lastActiveAt: true,
       lastForegroundAt: true,
       lastResumeActivityAt: true,
+      lastOfflineActivityAt: true,
       replacedByLocation: true,
       replacedByDevice: true,
     },
@@ -64,6 +65,10 @@ export async function POST(req: Request) {
     Boolean(body?.foreground) &&
     now.getTime() - session.lastForegroundAt.getTime() >= FOREGROUND_OFFLINE_AFTER_MS &&
     (!session.lastResumeActivityAt || now.getTime() - session.lastResumeActivityAt.getTime() >= 60_000)
+  const shouldRecordOffline =
+    body?.foreground === false &&
+    now.getTime() - session.lastForegroundAt.getTime() >= FOREGROUND_OFFLINE_AFTER_MS &&
+    (!session.lastOfflineActivityAt || session.lastOfflineActivityAt.getTime() < session.lastForegroundAt.getTime())
   const data: { lastSeenAt: Date; lastForegroundAt?: Date; lastActiveAt?: Date; lastResumeActivityAt?: Date } = { lastSeenAt: now }
   if (body?.foreground) data.lastForegroundAt = now
   if (body?.touch) data.lastActiveAt = now
@@ -75,6 +80,13 @@ export async function POST(req: Request) {
       data,
       select: { lastSeenAt: true, lastActiveAt: true, lastForegroundAt: true },
     })
+    if (shouldRecordOffline) {
+      await prisma.userSession.update({
+        where: { sessionId: payload.sessionId },
+        data: { lastOfflineActivityAt: now },
+      }).catch(() => null)
+      await recordActivity(session.userId, "logout", "离开 Web App 或关闭页面", req, session.sessionId)
+    }
     if (shouldRecordResume) {
       await recordActivity(session.userId, "resume_online", "重新回到 Web App 并刷新在线状态", req, session.sessionId)
     }

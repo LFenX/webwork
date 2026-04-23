@@ -110,6 +110,13 @@ function daysSince(value: string | null) {
   return Math.floor((Date.now() - new Date(value).getTime()) / 86400000)
 }
 
+function formatActivityAction(action: string) {
+  if (action === "login") return "登录"
+  if (action === "logout") return "下线"
+  if (action === "resume_online") return "回到 Web App"
+  return action
+}
+
 function isNearBottom(event: UIEvent<HTMLDivElement>) {
   const target = event.currentTarget
   return target.scrollTop + target.clientHeight >= target.scrollHeight - 120
@@ -678,7 +685,7 @@ export function AdminClient() {
                           {activities.map((activity) => (
                             <tr key={activity.id}>
                               <td className="w-[160px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(activity.createdAt)}</td>
-                              <td className="w-[170px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-secondary]">{activity.action}</td>
+                              <td className="w-[170px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-secondary]">{formatActivityAction(activity.action)}</td>
                               <td className="w-[300px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
                                 {(activity.user?.displayName || activity.user?.email || "系统")}：{activity.detail}
                               </td>

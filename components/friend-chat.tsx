@@ -63,6 +63,7 @@ const IMAGE_MAX_EDGE = 1600
 const IMAGE_QUALITY = 0.82
 const TIME_GAP_MS = 5 * 60 * 1000
 const INPUT_DRAFT_TTL_MS = 24 * 60 * 60 * 1000
+const PRESENCE_REFRESH_MS = 60_000
 
 export function presenceLabel(status?: ChatFriend["presenceStatus"]) {
   if (status === "online") return "在线"
@@ -263,6 +264,27 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
     }, 0)
     return () => window.clearTimeout(timer)
   }, [friendId, inputDraftKey, loadMessages, userId])
+
+  useEffect(() => {
+    if (!friendId) return
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return
+      void loadMessages()
+    }
+    const interval = window.setInterval(refresh, PRESENCE_REFRESH_MS)
+    const onFocus = () => refresh()
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh()
+    }
+
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+    }
+  }, [friendId, loadMessages])
 
   useEffect(() => {
     if (!inputDraftKey || !userId) return

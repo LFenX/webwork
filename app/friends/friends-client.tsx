@@ -27,6 +27,7 @@ interface FriendRequest {
 
 type ViewMode = "friends" | "chat"
 const FRIEND_CACHE_TTL_MS = 90 * 1000
+const FRIEND_PRESENCE_REFRESH_MS = 60_000
 
 type FriendData = {
   friends: Friend[]
@@ -158,6 +159,29 @@ export function FriendsClient({ userId }: { userId: string }) {
     const timer = window.setTimeout(() => void loadAll(), 0)
     return () => window.clearTimeout(timer)
   }, [loadAll])
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return
+      removeUserStorage("session", friendCacheKey)
+      void loadAll()
+    }
+    const interval = window.setInterval(refresh, FRIEND_PRESENCE_REFRESH_MS)
+    const onFocus = () => refresh()
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh()
+    }
+
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    window.addEventListener("chat-unread-refresh", refresh)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+      window.removeEventListener("chat-unread-refresh", refresh)
+    }
+  }, [friendCacheKey, loadAll])
 
   function switchView(next: ViewMode) {
     setView(next)
