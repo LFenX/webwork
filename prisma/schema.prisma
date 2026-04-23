@@ -62,6 +62,16 @@ model User {
 
   guestbookOwned   GuestbookMessage[] @relation("guestbookOwner")
   guestbookWritten GuestbookMessage[] @relation("guestbookAuthor")
+  aiConversations AIConversation[]
+  aiMessages      AIMessage[]
+  aiProviderConfig AIUserProviderConfig?
+  aiAccessRequests AIAccessRequest[]
+  aiUsageGrant     AIUsageGrant?
+  aiToolCallLogs   AIToolCallLog[]
+  aiAuditLogsOwned AIAuditLog[] @relation("aiAuditActor")
+  reviewedAiAccessRequests AIAccessRequest[] @relation("aiAccessReviewer")
+  grantedAiUsageGrants     AIUsageGrant[]   @relation("aiGrantCreator")
+  updatedAiUsageGrants     AIUsageGrant[]   @relation("aiGrantUpdater")
 }
 
 model UserActivity {
@@ -122,6 +132,7 @@ model AdminPermission {
   manageStickers         Boolean  @default(false)
   manageUpdateLogs       Boolean  @default(false)
   refreshGeoLocations    Boolean  @default(false)
+  manageAI               Boolean  @default(false)
   updatedById            String?
   updatedBy              User?    @relation("adminPermissionUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
   createdAt              DateTime @default(now())
@@ -583,4 +594,136 @@ model Upload {
 
   @@index([userId])
   @@index([postId])
+}
+
+model AIConversation {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String      @default("New conversation")
+  lastMessageAt DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+  messages      AIMessage[]
+  toolCallLogs  AIToolCallLog[]
+
+  @@index([userId, updatedAt])
+  @@index([userId, deletedAt, lastMessageAt])
+}
+
+model AIMessage {
+  id                String         @id @default(cuid())
+  conversationId    String
+  conversation      AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role              String
+  contentMarkdown   String         @default("")
+  status            String         @default("completed")
+  reasoningSummary  String         @default("")
+  toolTraceSummary  String         @default("")
+  modelName         String         @default("")
+  providerSource    String         @default("none")
+  createdAt         DateTime       @default(now())
+  toolCallLogs      AIToolCallLog[]
+
+  @@index([conversationId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model AIUserProviderConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerType    String   @default("openai-compatible")
+  providerLabel   String   @default("")
+  baseUrl         String   @default("")
+  apiKeyEncrypted String   @default("")
+  apiKeyMask      String   @default("")
+  model           String   @default("")
+  temperature     Float    @default(0.7)
+  streamEnabled   Boolean  @default(true)
+  isEnabled       Boolean  @default(true)
+  lastTestedAt    DateTime?
+  lastTestStatus  String   @default("unknown")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AIAccessRequest {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       String   @default("pending")
+  message      String   @default("")
+  reviewedById String?
+  reviewedBy   User?    @relation("aiAccessReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewNote   String   @default("")
+  createdAt    DateTime @default(now())
+  reviewedAt   DateTime?
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([reviewedById, reviewedAt])
+}
+
+model AIUsageGrant {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status          String   @default("active")
+  providerLabel   String   @default("")
+  baseUrl         String   @default("")
+  apiKeyEncrypted String   @default("")
+  apiKeyMask      String   @default("")
+  model           String   @default("")
+  temperature     Float    @default(0.7)
+  streamEnabled   Boolean  @default(true)
+  grantedById     String
+  grantedBy       User     @relation("aiGrantCreator", fields: [grantedById], references: [id], onDelete: Restrict)
+  updatedById     String?
+  updatedBy       User?    @relation("aiGrantUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  revokedAt       DateTime?
+
+  @@index([status, updatedAt])
+  @@index([grantedById, createdAt])
+  @@index([updatedById, updatedAt])
+}
+
+model AIToolCallLog {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messageId      String
+  message        AIMessage      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toolName       String
+  toolInputJson  Json
+  toolResultJson Json?
+  status         String         @default("completed")
+  startedAt      DateTime       @default(now())
+  finishedAt     DateTime?
+
+  @@index([conversationId, startedAt])
+  @@index([messageId, startedAt])
+  @@index([userId, startedAt])
+}
+
+model AIAuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actor       User?    @relation("aiAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  targetUserId String?
+  action      String
+  detail      String   @default("")
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([action, createdAt])
 }

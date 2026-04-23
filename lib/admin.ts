@@ -33,6 +33,11 @@ export function canManageUsers(adminOrRole: string | AdminUser) {
   return hasAdminPermission(adminOrRole, "manageUsers")
 }
 
+export function canManageAI(adminOrRole: string | AdminUser) {
+  if (typeof adminOrRole === "string") return adminOrRole === "owner"
+  return hasAdminPermission(adminOrRole, "manageAI")
+}
+
 function permissionsForRole(role: string, stored?: Partial<AdminPermissionMap> | null): AdminPermissionMap {
   if (role === "owner") return OWNER_ADMIN_PERMISSIONS
   if (role !== "admin") return EMPTY_ADMIN_PERMISSIONS
@@ -95,10 +100,12 @@ export async function getUserAdminInfo(userId: string): Promise<AdminUser | null
     manageStickers: boolean | null
     manageUpdateLogs: boolean | null
     refreshGeoLocations: boolean | null
+    manageAI: boolean | null
   }>>`
     SELECT u.id, u.email, u."displayName", u.role,
       p."approveRegistrations", p."approvePasswordChanges", p."viewActivityLogs", p."manageUsers",
-      p."manageAnnouncements", p."manageStickers", p."manageUpdateLogs", p."refreshGeoLocations"
+      p."manageAnnouncements", p."manageStickers", p."manageUpdateLogs", p."refreshGeoLocations",
+      p."manageAI"
     FROM "User" u
     LEFT JOIN "AdminPermission" p ON p."userId" = u.id
     WHERE u.id = ${userId}
@@ -120,6 +127,7 @@ export async function getUserAdminInfo(userId: string): Promise<AdminUser | null
       manageStickers: row.manageStickers ?? undefined,
       manageUpdateLogs: row.manageUpdateLogs ?? undefined,
       refreshGeoLocations: row.refreshGeoLocations ?? undefined,
+      manageAI: row.manageAI ?? undefined,
     }),
   }
 }

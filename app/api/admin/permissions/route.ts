@@ -26,10 +26,12 @@ export async function GET() {
       manageStickers: boolean | null
       manageUpdateLogs: boolean | null
       refreshGeoLocations: boolean | null
+      manageAI: boolean | null
     }>>`
       SELECT u.id, u.email, u."displayName", u.role,
         p."approveRegistrations", p."approvePasswordChanges", p."viewActivityLogs", p."manageUsers",
-        p."manageAnnouncements", p."manageStickers", p."manageUpdateLogs", p."refreshGeoLocations"
+        p."manageAnnouncements", p."manageStickers", p."manageUpdateLogs", p."refreshGeoLocations",
+        p."manageAI"
       FROM "User" u
       LEFT JOIN "AdminPermission" p ON p."userId" = u.id
       WHERE u.role = 'admin'

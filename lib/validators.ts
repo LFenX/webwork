@@ -168,9 +168,60 @@ export const uploadQuerySchema = z.object({
   postId: z.string().cuid().optional(),
 })
 
+export const aiConversationCreateSchema = z.object({
+  title: z.string().trim().min(1).max(120).optional(),
+})
+
+export const aiConversationUpdateSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+})
+
+export const aiProviderConfigSchema = z.object({
+  providerLabel: z.string().trim().min(1).max(80),
+  baseUrl: z.string().trim().url().max(500),
+  apiKey: z.string().trim().min(1).max(500),
+  model: z.string().trim().min(1).max(120),
+  temperature: z.number().min(0).max(2).optional().default(0.7),
+  streamEnabled: z.boolean().optional().default(true),
+  isEnabled: z.boolean().optional().default(true),
+})
+
+export const aiProviderConfigUpdateSchema = aiProviderConfigSchema.partial()
+
+export const aiAccessRequestSchema = z.object({
+  message: z.string().trim().min(1).max(500),
+})
+
+export const aiGrantSchema = z.object({
+  providerLabel: z.string().trim().min(1).max(80),
+  baseUrl: z.string().trim().url().max(500),
+  apiKey: z.string().trim().min(1).max(500),
+  model: z.string().trim().min(1).max(120),
+  temperature: z.number().min(0).max(2).optional().default(0.7),
+  streamEnabled: z.boolean().optional().default(true),
+  status: z.enum(["active", "paused"]).optional().default("active"),
+})
+
+export const aiRequestReviewSchema = z.object({
+  reviewNote: z.string().trim().max(500).optional().default(""),
+})
+
+export const aiStreamSchema = z.object({
+  conversationId: z.string().cuid().optional(),
+  prompt: z.string().trim().min(1).max(10000),
+})
+
 export type CreateJobInput = z.infer<typeof createJobSchema>
 export type UpdateJobInput = z.infer<typeof updateJobSchema>
 export type CreateInterviewInput = z.infer<typeof createInterviewSchema>
 export type UpdateInterviewInput = z.infer<typeof updateInterviewSchema>
 export type CreatePostInput = z.infer<typeof createPostSchema>
 export type UpdatePostInput = z.infer<typeof updatePostSchema>
+export type AIConversationCreateInput = z.infer<typeof aiConversationCreateSchema>
+export type AIConversationUpdateInput = z.infer<typeof aiConversationUpdateSchema>
+export type AIProviderConfigInput = z.infer<typeof aiProviderConfigSchema>
+export type AIProviderConfigUpdateInput = z.infer<typeof aiProviderConfigUpdateSchema>
+export type AIAccessRequestInput = z.infer<typeof aiAccessRequestSchema>
+export type AIGrantInput = z.infer<typeof aiGrantSchema>
+export type AIRequestReviewInput = z.infer<typeof aiRequestReviewSchema>
+export type AIStreamInput = z.infer<typeof aiStreamSchema>

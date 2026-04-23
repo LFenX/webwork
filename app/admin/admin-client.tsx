@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiDelete, apiFetch, apiPatch, apiPost } from "@/lib/api-client"
 import { ADMIN_PERMISSION_DEFS, type AdminPermissionKey, type AdminPermissionMap } from "@/lib/admin-permissions"
 import { formatChinaDateTime } from "@/lib/time"
+import { AdminAIPanel } from "@/components/admin/admin-ai-panel"
 
 type RegistrationRequest = {
   id: string
@@ -460,6 +461,8 @@ export function AdminClient() {
         <div className="py-16 text-center text-sm text-[--color-text-muted]">加载中...</div>
       ) : data && (
         <div className="space-y-8">
+          <AdminAIPanel enabled={hasPermission("manageAI")} />
+
           {data.currentAdmin.role === "owner" && (
             <section>
               <div className="mb-3 flex items-center gap-2">

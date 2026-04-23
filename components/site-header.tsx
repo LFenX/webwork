@@ -23,6 +23,7 @@ interface SiteHeaderProps {
     notes: string
     jobs: string
     interviews: string
+    ai: string
     friends: string
     admin: string
     login: string
@@ -61,6 +62,7 @@ export function SiteHeader({
     { href: "/notes", label: navDict.notes },
     { href: "/jobs", label: navDict.jobs },
     { href: "/interviews", label: navDict.interviews },
+    { href: "/ai", label: navDict.ai },
   ]
 
   useEffect(() => {

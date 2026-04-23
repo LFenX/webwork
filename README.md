@@ -4,6 +4,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 This app uses PostgreSQL through Prisma. Create a dedicated local database such as
 `webappwork_dev`, then copy `.env.example` to `.env` and set `DATABASE_URL`.
+If you plan to use the AI Assistant module, also set `AI_SECRET_KEY`.
 Do not hard-code the PostgreSQL password in source files.
 
 ```bash
@@ -36,7 +37,8 @@ bun dev
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 See `docs/postgres-migration.md` for the migration audit, validation checklist,
-risk register, and rollback notes.
+risk register, and rollback notes. See `docs/ai-assistant.md` for the AI module
+setup, permission boundary, and validation checklist.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
