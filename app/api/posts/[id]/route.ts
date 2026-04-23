@@ -4,6 +4,7 @@ import path from "node:path"
 import { prisma } from "@/lib/db"
 import { updatePostSchema } from "@/lib/validators"
 import { revalidatePath } from "next/cache"
+import { publishUserPageChanged } from "@/lib/realtime-events"
 import { getSession } from "@/lib/session"
 
 export const runtime = "nodejs"
@@ -64,6 +65,7 @@ export async function PATCH(
   revalidatePath(`/${post.type}/${post.slug}`)
   revalidatePath("/")
   revalidatePath("/", "layout")
+  await publishUserPageChanged(session.userId, `post:${post.type}`)
   return NextResponse.json(
     { ...post, tags: JSON.parse(post.tags || "[]"), date: post.date.toISOString() },
     { headers: NO_STORE }
@@ -88,5 +90,6 @@ export async function DELETE(
   }
   revalidatePath(`/${post.type}`)
   revalidatePath("/")
+  await publishUserPageChanged(session.userId, `post:${post.type}`)
   return NextResponse.json({ ok: true }, { headers: NO_STORE })
 }

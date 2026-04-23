@@ -117,6 +117,19 @@ function formatActivityAction(action: string) {
   return action
 }
 
+function activityActionClass(action: string) {
+  switch (action) {
+    case "login":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
+    case "logout":
+      return "border-rose-200 bg-rose-50 text-rose-700"
+    case "resume_online":
+      return "border-sky-200 bg-sky-50 text-sky-700"
+    default:
+      return "border-amber-200 bg-amber-50 text-amber-700"
+  }
+}
+
 function isNearBottom(event: UIEvent<HTMLDivElement>) {
   const target = event.currentTarget
   return target.scrollTop + target.clientHeight >= target.scrollHeight - 120
@@ -137,6 +150,7 @@ export function AdminClient() {
   const [activitiesHasMore, setActivitiesHasMore] = useState(false)
   const [usersLoading, setUsersLoading] = useState(false)
   const [activitiesLoading, setActivitiesLoading] = useState(false)
+  const [activitiesRefreshedAt, setActivitiesRefreshedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
   const [updateDrafts, setUpdateDrafts] = useState<Record<string, string>>({})
@@ -160,8 +174,8 @@ export function AdminClient() {
     }
   }
 
-  async function loadActivities(cursor: string | null, append: boolean) {
-    setActivitiesLoading(true)
+  async function loadActivities(cursor: string | null, append: boolean, silent = false) {
+    if (!silent) setActivitiesLoading(true)
     try {
       const params = new URLSearchParams({ limit: "50" })
       if (cursor) params.set("cursor", cursor)
@@ -169,8 +183,9 @@ export function AdminClient() {
       setActivities((current) => append ? [...current, ...page.items] : page.items)
       setActivitiesCursor(page.nextCursor)
       setActivitiesHasMore(page.hasMore)
+      if (!append) setActivitiesRefreshedAt(new Date().toISOString())
     } finally {
-      setActivitiesLoading(false)
+      if (!silent) setActivitiesLoading(false)
     }
   }
 
@@ -220,6 +235,33 @@ export function AdminClient() {
       cancelled = true
     }
   }, [refreshKey])
+
+  useEffect(() => {
+    if (!data?.permissions?.viewActivityLogs) return
+
+    const refreshLogs = () => {
+      if (document.visibilityState !== "visible") return
+      if (activitiesLoading) return
+      void loadActivities(null, false, true)
+    }
+    const onRealtimeRefresh = () => refreshLogs()
+
+    const interval = window.setInterval(refreshLogs, 30_000)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshLogs()
+    }
+    const onFocus = () => refreshLogs()
+
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    window.addEventListener("focus", onFocus)
+    window.addEventListener("admin-activities-refresh", onRealtimeRefresh)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+      window.removeEventListener("focus", onFocus)
+      window.removeEventListener("admin-activities-refresh", onRealtimeRefresh)
+    }
+  }, [activitiesLoading, data?.permissions?.viewActivityLogs])
 
   const stats = useMemo(() => ({
     users: users.length,
@@ -652,12 +694,20 @@ export function AdminClient() {
               <div className="flex items-center gap-2">
                 <ShieldCheck size={16} />
                 <h2 className="text-sm font-semibold">最近登录和操作行为</h2>
+                <span className="text-xs text-[--color-text-muted]">
+                  最近自动刷新：{activitiesRefreshedAt ? formatTime(activitiesRefreshedAt) : "尚未刷新"}
+                </span>
               </div>
-              {hasPermission("refreshGeoLocations") && (
-                <Button size="sm" variant="outline" onClick={refreshGeoLocations} disabled={geoRefreshing}>
-                  <RotateCcw size={14} /> {geoRefreshing ? "更新中..." : "更新 IP 地理位置"}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => void loadActivities(null, false)} disabled={activitiesLoading}>
+                  <RotateCcw size={14} /> {activitiesLoading ? "刷新中..." : "刷新日志"}
                 </Button>
-              )}
+                {hasPermission("refreshGeoLocations") && (
+                  <Button size="sm" variant="outline" onClick={refreshGeoLocations} disabled={geoRefreshing}>
+                    <RotateCcw size={14} /> {geoRefreshing ? "更新中..." : "更新 IP 地理位置"}
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
               {activities.length === 0 ? (
@@ -685,7 +735,7 @@ export function AdminClient() {
                           {activities.map((activity) => (
                             <tr key={activity.id}>
                               <td className="w-[160px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(activity.createdAt)}</td>
-                              <td className="w-[170px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-secondary]">{formatActivityAction(activity.action)}</td>
+                              <td className="w-[170px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs"><span className={`inline-flex min-w-[72px] items-center justify-center rounded-full border px-2.5 py-1 font-mono ${activityActionClass(activity.action)}`}>{formatActivityAction(activity.action)}</span></td>
                               <td className="w-[300px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
                                 {(activity.user?.displayName || activity.user?.email || "系统")}：{activity.detail}
                               </td>

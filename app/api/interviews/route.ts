@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { publishUserPageChanged } from "@/lib/realtime-events"
 import { createInterviewSchema } from "@/lib/validators"
 import { getSession } from "@/lib/session"
 
@@ -35,5 +36,6 @@ export async function POST(req: NextRequest) {
   const record = await prisma.interviewRecord.create({
     data: { ...rest, userId: session.userId, scheduledAt: new Date(scheduledAt) },
   })
+  await publishUserPageChanged(session.userId, "interviews")
   return NextResponse.json(record, { status: 201, headers: NO_STORE })
 }

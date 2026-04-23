@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { publishUserPageChanged } from "@/lib/realtime-events"
 import { updateJobSchema } from "@/lib/validators"
 import { getSession } from "@/lib/session"
 
@@ -42,6 +43,7 @@ export async function PATCH(
   if (appliedAt) data.appliedAt = new Date(appliedAt)
 
   const job = await prisma.jobApplication.update({ where: { id }, data })
+  await publishUserPageChanged(session.userId, "jobs")
   return NextResponse.json(job, { headers: NO_STORE })
 }
 
@@ -57,5 +59,6 @@ export async function DELETE(
   if (!existing) return NextResponse.json({ error: "未找到" }, { status: 404, headers: NO_STORE })
 
   await prisma.jobApplication.delete({ where: { id } })
+  await publishUserPageChanged(session.userId, "jobs")
   return NextResponse.json({ ok: true }, { headers: NO_STORE })
 }

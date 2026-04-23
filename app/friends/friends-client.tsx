@@ -175,11 +175,13 @@ export function FriendsClient({ userId }: { userId: string }) {
     window.addEventListener("focus", onFocus)
     document.addEventListener("visibilitychange", onVisibilityChange)
     window.addEventListener("chat-unread-refresh", refresh)
+    window.addEventListener("presence-refresh", refresh)
     return () => {
       window.clearInterval(interval)
       window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisibilityChange)
       window.removeEventListener("chat-unread-refresh", refresh)
+      window.removeEventListener("presence-refresh", refresh)
     }
   }, [friendCacheKey, loadAll])
 

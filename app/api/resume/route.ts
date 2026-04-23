@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { resumeSchema } from "@/lib/validators"
 import { revalidatePath } from "next/cache"
+import { publishUserPageChanged } from "@/lib/realtime-events"
 import { getSession } from "@/lib/session"
 
 export const dynamic = "force-dynamic"
@@ -44,5 +45,6 @@ export async function PUT(req: NextRequest) {
   })
   revalidatePath("/resume")
   revalidatePath("/resume/edit")
+  await publishUserPageChanged(session.userId, "resume")
   return NextResponse.json(resume, { headers: NO_STORE })
 }

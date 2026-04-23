@@ -4,6 +4,7 @@ import crypto from "node:crypto"
 import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { prisma } from "@/lib/db"
+import { publishUserPageChanged } from "@/lib/realtime-events"
 import { createSession, getSession } from "@/lib/session"
 import { siteSettingsSchema } from "@/lib/validators"
 import { recordActivity } from "@/lib/admin"
@@ -100,6 +101,7 @@ export async function PUT(req: NextRequest) {
   }
 
   await recordActivity(session.userId, "update_profile", "更新用户信息", req)
+  await publishUserPageChanged(session.userId, "profile")
   revalidatePath("/")
   revalidatePath("/", "layout")
   return NextResponse.json(settings, { headers: NO_STORE })

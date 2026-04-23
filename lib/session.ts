@@ -4,12 +4,28 @@ import { SignJWT, jwtVerify } from "jose"
 import { cookies } from "next/headers"
 import { prisma } from "@/lib/db"
 import { getRequestMeta } from "@/lib/request-meta"
+import { publishPresenceChanged } from "@/lib/realtime-events"
 
 const COOKIE_NAME = "session"
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 export const AWAY_AFTER_MS = 30 * 60 * 1000
 export const FOREGROUND_OFFLINE_AFTER_MS = 5 * 60 * 1000
 export const EXPIRE_AFTER_MS = 12 * 60 * 60 * 1000
+const STALE_SESSION_SWEEP_INTERVAL_MS = 30_000
+const BACKGROUND_SESSION_SWEEP_INTERVAL_MS = 60_000
+
+let lastStaleSessionSweepAt = 0
+let backgroundSessionSweepStarted = false
+
+function hasOfflineActivityForCurrentForeground(session: {
+  lastForegroundAt: Date
+  lastOfflineActivityAt?: Date | null
+  loggedOutAt?: Date | null
+}) {
+  if (session.loggedOutAt) return true
+  if (!session.lastOfflineActivityAt) return false
+  return session.lastOfflineActivityAt.getTime() >= session.lastForegroundAt.getTime()
+}
 
 function getKey() {
   const secret = process.env.SESSION_SECRET
@@ -57,6 +73,7 @@ export async function getSessionCookiePayload(): Promise<SessionPayload | null> 
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
+  await sweepStaleSessions()
   const payload = await getSessionCookiePayload()
   if (!payload) return null
 
@@ -89,7 +106,13 @@ export async function startUserSession({
   const meta = await getRequestMeta(req)
   const replacedSessions = await prisma.userSession.findMany({
     where: { userId, status: "active" },
-    select: { userId: true, sessionId: true, loggedOutAt: true },
+    select: {
+      userId: true,
+      sessionId: true,
+      loggedOutAt: true,
+      lastForegroundAt: true,
+      lastOfflineActivityAt: true,
+    },
   })
 
   await prisma.$transaction([
@@ -120,7 +143,7 @@ export async function startUserSession({
   ])
 
   const replacedActivityRows = replacedSessions
-    .filter((session) => !session.loggedOutAt)
+    .filter((session) => !hasOfflineActivityForCurrentForeground(session))
     .map((session) => ({
       userId: session.userId,
       sessionId: session.sessionId,
@@ -133,11 +156,93 @@ export async function startUserSession({
     }))
   if (replacedActivityRows.length > 0) {
     await prisma.userActivity.createMany({ data: replacedActivityRows }).catch(() => null)
+    await Promise.all(
+      replacedActivityRows.map((activity) =>
+        publishPresenceChanged({
+          userId: activity.userId,
+          sessionId: activity.sessionId,
+          action: "logout",
+          detail: activity.detail,
+        })
+      )
+    )
   }
 
   const payload = { userId, email, sessionId }
   await createSession(payload)
   return payload
+}
+
+export async function sweepStaleSessions(force = false): Promise<void> {
+  const nowMs = Date.now()
+  if (!force && nowMs - lastStaleSessionSweepAt < STALE_SESSION_SWEEP_INTERVAL_MS) return
+  lastStaleSessionSweepAt = nowMs
+
+  const now = new Date(nowMs)
+  const staleSessions = await prisma.userSession.findMany({
+    where: {
+      status: "active",
+      lastForegroundAt: { lt: new Date(nowMs - FOREGROUND_OFFLINE_AFTER_MS) },
+    },
+    select: {
+      userId: true,
+      sessionId: true,
+      lastForegroundAt: true,
+      lastOfflineActivityAt: true,
+      ipAddress: true,
+      geoLocation: true,
+      deviceInfo: true,
+    },
+  }).catch(() => [])
+  const sessionsToLog = staleSessions.filter((session) =>
+    !session.lastOfflineActivityAt || session.lastOfflineActivityAt.getTime() < session.lastForegroundAt.getTime()
+  )
+  if (sessionsToLog.length === 0) return
+
+  await prisma.$transaction([
+    ...sessionsToLog.map((session) =>
+      prisma.userSession.update({
+        where: { sessionId: session.sessionId },
+        data: { lastOfflineActivityAt: now },
+      })
+    ),
+    prisma.userActivity.createMany({
+      data: sessionsToLog.map((session) => ({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        action: "logout",
+        detail: "下线方式未知",
+        ipAddress: session.ipAddress,
+        geoLocation: session.geoLocation,
+        deviceInfo: session.deviceInfo,
+        createdAt: now,
+      })),
+    }),
+  ]).catch(() => null)
+  await Promise.all(
+    sessionsToLog.map((session) =>
+      publishPresenceChanged({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        action: "logout",
+        detail: "下线方式未知",
+      })
+    )
+  )
+}
+
+export function startSessionSweepScheduler() {
+  if (backgroundSessionSweepStarted) return
+  backgroundSessionSweepStarted = true
+
+  void sweepStaleSessions(true)
+  const timer = setInterval(() => {
+    void sweepStaleSessions(true)
+  }, BACKGROUND_SESSION_SWEEP_INTERVAL_MS)
+
+  if (typeof timer === "object" && timer && "unref" in timer && typeof timer.unref === "function") {
+    timer.unref()
+  }
 }
 
 export async function closeUserSession(
@@ -149,7 +254,13 @@ export async function closeUserSession(
 ): Promise<void> {
   const existing = await prisma.userSession.findUnique({
     where: { sessionId },
-    select: { userId: true, sessionId: true, loggedOutAt: true },
+    select: {
+      userId: true,
+      sessionId: true,
+      loggedOutAt: true,
+      lastForegroundAt: true,
+      lastOfflineActivityAt: true,
+    },
   })
   if (!existing) return
 
@@ -164,7 +275,7 @@ export async function closeUserSession(
     },
   }).catch(() => null)
 
-  if (!existing.loggedOutAt) {
+  if (!hasOfflineActivityForCurrentForeground(existing)) {
     await prisma.userActivity.create({
       data: {
         userId: existing.userId,
@@ -177,6 +288,12 @@ export async function closeUserSession(
         createdAt: now,
       },
     }).catch(() => null)
+    await publishPresenceChanged({
+      userId: existing.userId,
+      sessionId: existing.sessionId,
+      action: "logout",
+      detail,
+    })
   }
 }
 

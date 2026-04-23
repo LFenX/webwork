@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { publishUserPageChanged } from "@/lib/realtime-events"
 import { createJobSchema } from "@/lib/validators"
 import { getSession } from "@/lib/session"
 
@@ -78,5 +79,6 @@ export async function POST(req: NextRequest) {
   const job = await prisma.jobApplication.create({
     data: { ...rest, userId: session.userId, appliedAt: new Date(appliedAt) },
   })
+  await publishUserPageChanged(session.userId, "jobs")
   return NextResponse.json(job, { status: 201, headers: NO_STORE })
 }

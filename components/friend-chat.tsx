@@ -271,6 +271,10 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
       if (document.visibilityState !== "visible") return
       void loadMessages()
     }
+    const onPresenceRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string }>).detail
+      if (!detail?.userId || detail.userId === friendId) refresh()
+    }
     const interval = window.setInterval(refresh, PRESENCE_REFRESH_MS)
     const onFocus = () => refresh()
     const onVisibilityChange = () => {
@@ -279,10 +283,12 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
 
     window.addEventListener("focus", onFocus)
     document.addEventListener("visibilitychange", onVisibilityChange)
+    window.addEventListener("presence-refresh", onPresenceRefresh)
     return () => {
       window.clearInterval(interval)
       window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisibilityChange)
+      window.removeEventListener("presence-refresh", onPresenceRefresh)
     }
   }, [friendId, loadMessages])
 

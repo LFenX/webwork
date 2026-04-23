@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache"
 import { unlink } from "fs/promises"
 import path from "path"
 import { prisma } from "@/lib/db"
+import { publishUserPageChanged } from "@/lib/realtime-events"
 import { getSession } from "@/lib/session"
 
 export const dynamic = "force-dynamic"
@@ -29,6 +30,7 @@ export async function PATCH(_: NextRequest, { params }: Params) {
   })
   revalidatePath("/resume")
   revalidatePath("/resume/edit")
+  await publishUserPageChanged(session.userId, "resume")
   return NextResponse.json({ ok: true, version, resume }, { headers: NO_STORE })
 }
 
@@ -56,5 +58,6 @@ export async function DELETE(_: NextRequest, { params }: Params) {
   }
   revalidatePath("/resume")
   revalidatePath("/resume/edit")
+  await publishUserPageChanged(session.userId, "resume")
   return NextResponse.json({ ok: true }, { headers: NO_STORE })
 }

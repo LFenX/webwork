@@ -10,6 +10,7 @@ import {
   type AdminPermissionMap,
   normalizeAdminPermissions,
 } from "@/lib/admin-permissions"
+import { publishAdminActivityChanged, publishPresenceChanged } from "@/lib/realtime-events"
 
 export const OWNER_EMAIL = "fli.gda@foxmail.com"
 export { ADMIN_PERMISSION_DEFS }
@@ -135,4 +136,9 @@ export async function recordActivity(userId: string | null, action: string, deta
       ...(userId ? { user: { connect: { id: userId } } } : {}),
     },
   })
+  if (userId && (action === "login" || action === "logout" || action === "resume_online")) {
+    await publishPresenceChanged({ userId, action, detail, sessionId: sessionId ?? null })
+    return
+  }
+  await publishAdminActivityChanged({ userId, action, detail, sessionId: sessionId ?? null })
 }

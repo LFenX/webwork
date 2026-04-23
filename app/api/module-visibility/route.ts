@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "node:crypto"
 import { prisma } from "@/lib/db"
+import { publishUserPageChanged } from "@/lib/realtime-events"
 import { getSession } from "@/lib/session"
 import { moduleVisibilitySchema } from "@/lib/validators"
 
@@ -28,6 +29,8 @@ export async function PATCH(req: NextRequest) {
       visibility: parsed.data.visibility,
     },
   })
+
+  await publishUserPageChanged(session.userId, `module-visibility:${parsed.data.module}`)
 
   return NextResponse.json(setting, { headers: NO_STORE })
 }

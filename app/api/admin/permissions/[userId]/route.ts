@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { recordActivity, requireAdmin } from "@/lib/admin"
 import { ADMIN_PERMISSION_DEFS, normalizeAdminPermissions } from "@/lib/admin-permissions"
+import { publishAdminPermissionsChanged } from "@/lib/realtime-events"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -31,6 +32,7 @@ export async function PATCH(
     })
 
     await recordActivity(admin.id, "update_admin_permissions", `更新 ${target.email} 的管理员权限`, req)
+    await publishAdminPermissionsChanged(target.id)
     return NextResponse.json({
       id: target.id,
       email: target.email,

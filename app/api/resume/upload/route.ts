@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { publishUserPageChanged } from "@/lib/realtime-events"
 import { getSession } from "@/lib/session"
 import path from "path"
 import { mkdir, writeFile } from "fs/promises"
@@ -52,5 +53,6 @@ export async function POST(req: NextRequest) {
 
   revalidatePath("/resume")
   revalidatePath("/resume/edit")
+  await publishUserPageChanged(session.userId, "resume")
   return NextResponse.json({ ok: true, version, resume }, { headers: NO_STORE })
 }
