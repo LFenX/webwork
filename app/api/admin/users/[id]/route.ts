@@ -21,8 +21,8 @@ export async function DELETE(
     }
 
     const rows = await prisma.$queryRaw<Array<{ email: string; lastLoginAt: Date | null }>>`
-      SELECT email, lastLoginAt
-      FROM User
+      SELECT email, "lastLoginAt"
+      FROM "User"
       WHERE id = ${id}
       LIMIT 1
     `

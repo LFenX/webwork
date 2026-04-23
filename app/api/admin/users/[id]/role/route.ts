@@ -25,7 +25,7 @@ export async function PATCH(
     }
 
     await prisma.$executeRaw`
-      UPDATE User
+      UPDATE "User"
       SET role = ${role}
       WHERE id = ${id}
     `

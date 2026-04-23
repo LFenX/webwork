@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
@@ -14,16 +13,6 @@ import { getCreatorProfile } from "@/lib/profile"
 
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-})
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-})
 
 const DEFAULT_SETTINGS = { ownerName: "My Space", heroTagline: "" }
 
@@ -59,7 +48,7 @@ export default async function RootLayout({
   return (
     <html
       lang="zh-CN"
-      className={`${geistSans.variable} ${geistMono.variable} h-full`}
+      className="h-full"
     >
       <body className="min-h-full flex flex-col antialiased">
         <SiteHeader

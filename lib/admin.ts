@@ -22,8 +22,8 @@ export function canManageUsers(role: string) {
 
 export async function getUserAdminInfo(userId: string): Promise<AdminUser | null> {
   const rows = await prisma.$queryRaw<AdminUser[]>`
-    SELECT id, email, displayName, role
-    FROM User
+    SELECT id, email, "displayName", role
+    FROM "User"
     WHERE id = ${userId}
     LIMIT 1
   `
@@ -34,7 +34,7 @@ export async function normalizeUserRole(user: { id: string; email: string; displ
   const role = user.email.toLowerCase() === OWNER_EMAIL ? "owner" : user.role || "user"
   if (role !== user.role) {
     await prisma.$executeRaw`
-      UPDATE User
+      UPDATE "User"
       SET role = ${role}
       WHERE id = ${user.id}
     `

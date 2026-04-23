@@ -1,6 +1,7 @@
 /**
- * Manual multi-user migration script.
- * Run once: npx tsx scripts/migrate-multiuser.ts
+ * Legacy SQLite-only multi-user migration script.
+ * Do not run this on PostgreSQL. It is kept only for auditing old SQLite data.
+ * Run once against legacy SQLite only: npx tsx scripts/migrate-multiuser.ts
  *
  * Creates User / FriendRequest / Friendship tables and migrates all existing
  * data to be owned by a bootstrap admin user (email from ADMIN_EMAIL env var).

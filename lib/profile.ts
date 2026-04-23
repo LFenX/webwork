@@ -13,8 +13,8 @@ export type CreatorProfile = {
 
 export async function getCreatorProfile(userId: string): Promise<CreatorProfile | null> {
   const rows = await prisma.$queryRaw<CreatorProfile[]>`
-    SELECT id, email, displayName, bio, avatarText, avatarUrl, location
-    FROM User
+    SELECT id, email, "displayName", bio, "avatarText", "avatarUrl", location
+    FROM "User"
     WHERE id = ${userId}
     LIMIT 1
   `

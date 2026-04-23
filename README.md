@@ -2,7 +2,26 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+This app uses PostgreSQL through Prisma. Create a dedicated local database such as
+`webappwork_dev`, then copy `.env.example` to `.env` and set `DATABASE_URL`.
+Do not hard-code the PostgreSQL password in source files.
+
+```bash
+npm install
+npm run db:generate
+npm run db:migrate
+```
+
+To migrate existing local SQLite data from `dev.db` into PostgreSQL:
+
+```bash
+npm run db:migrate:sqlite-to-postgres
+```
+
+The migration script refuses to import into a non-empty PostgreSQL database unless
+you pass `--truncate`, which should only be used after taking a backup.
+
+Then run the development server:
 
 ```bash
 npm run dev
@@ -15,6 +34,9 @@ bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+See `docs/postgres-migration.md` for the migration audit, validation checklist,
+risk register, and rollback notes.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

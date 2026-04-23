@@ -1,0 +1,15 @@
+
+> webappwork-tmp@0.1.0 dev
+> next dev --hostname 127.0.0.1 --port 3007
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://127.0.0.1:3007
+- Network:       http://127.0.0.1:3007
+- Environments: .env
+✓ Ready in 468ms
+- Experiments (use with caution):
+  · serverActions
+
+ GET /login 200 in 403ms (next.js: 122ms, application-code: 281ms)
+ POST /api/auth/login 200 in 337ms (next.js: 92ms, application-code: 245ms)
+ GET /api/settings 200 in 97ms (next.js: 31ms, application-code: 67ms)

@@ -19,7 +19,10 @@ export async function GET(req: NextRequest) {
   const where: Record<string, unknown> = { userId: session.userId }
   if (type && POST_TYPES.includes(type as never)) where.type = type
   if (q) {
-    where.OR = [{ title: { contains: q } }, { summary: { contains: q } }]
+    where.OR = [
+      { title: { contains: q, mode: "insensitive" } },
+      { summary: { contains: q, mode: "insensitive" } },
+    ]
   }
 
   const posts = await prisma.post.findMany({

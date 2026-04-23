@@ -37,8 +37,8 @@ export async function GET() {
       create: { userId: session.userId },
     }),
     prisma.$queryRaw<Array<{ email: string; displayName: string; bio: string; avatarText: string; avatarUrl: string | null; location: string }>>`
-      SELECT email, displayName, bio, avatarText, avatarUrl, location
-      FROM User
+      SELECT email, "displayName", bio, "avatarText", "avatarUrl", location
+      FROM "User"
       WHERE id = ${session.userId}
       LIMIT 1
     `.then((rows) => rows[0] ?? null),
@@ -83,11 +83,11 @@ export async function PUT(req: NextRequest) {
   const nextBio = bio ?? null
   const nextEmail = email ?? null
   await prisma.$executeRaw`
-    UPDATE User
+    UPDATE "User"
     SET
-      displayName = COALESCE(${nextDisplayName}, displayName),
-      avatarText = COALESCE(${nextAvatarText}, avatarText),
-      avatarUrl = COALESCE(${nextAvatarUrl}, avatarUrl),
+      "displayName" = COALESCE(${nextDisplayName}, "displayName"),
+      "avatarText" = COALESCE(${nextAvatarText}, "avatarText"),
+      "avatarUrl" = COALESCE(${nextAvatarUrl}, "avatarUrl"),
       location = COALESCE(${nextLocation}, location),
       bio = COALESCE(${nextBio}, bio),
       email = COALESCE(${nextEmail}, email)

@@ -121,8 +121,8 @@ async function getWritingStats(userId: string) {
 
 async function getProfile(userId: string) {
   const rows = await prisma.$queryRaw<Array<{ displayName: string; email: string; bio: string; avatarText: string; avatarUrl: string | null; location: string }>>`
-    SELECT displayName, email, bio, avatarText, avatarUrl, location
-    FROM User
+    SELECT "displayName", email, bio, "avatarText", "avatarUrl", location
+    FROM "User"
     WHERE id = ${userId}
     LIMIT 1
   `

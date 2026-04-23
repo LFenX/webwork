@@ -1,7 +1,13 @@
-import { PrismaLibSql } from "@prisma/adapter-libsql"
+import "dotenv/config"
+import { PrismaPg } from "@prisma/adapter-pg"
 import { PrismaClient } from "../app/generated/prisma/client"
 
-const adapter = new PrismaLibSql({ url: "file:./dev.db" })
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) {
+  throw new Error("DATABASE_URL env var is required for PostgreSQL")
+}
+
+const adapter = new PrismaPg({ connectionString })
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = new PrismaClient({ adapter } as any)
 
@@ -9,7 +15,7 @@ async function main() {
   // Seed requires an existing user — find the first user or skip
   const user = await prisma.user.findFirst()
   if (!user) {
-    console.log("No users found. Run migrate-multiuser script first.")
+    console.log("No users found. Create a user or run the SQLite to PostgreSQL migration first.")
     return
   }
   const userId = user.id

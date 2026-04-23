@@ -1,8 +1,8 @@
-import { PrismaLibSql } from "@prisma/adapter-libsql"
+import { PrismaPg } from "@prisma/adapter-pg"
 import { PrismaClient } from "@/app/generated/prisma/client"
 
-// Version key — bump this whenever schema changes to invalidate the HMR-cached instance
-const SCHEMA_VERSION = "v13-friend-chat"
+// Version key - bump this whenever schema changes to invalidate the HMR-cached instance.
+const SCHEMA_VERSION = "v14-postgres"
 
 const g = globalThis as unknown as {
   prisma?: InstanceType<typeof PrismaClient>
@@ -10,7 +10,11 @@ const g = globalThis as unknown as {
 }
 
 function createPrisma() {
-  const adapter = new PrismaLibSql({ url: "file:./dev.db" })
+  const connectionString = process.env.DATABASE_URL
+  if (!connectionString) {
+    throw new Error("DATABASE_URL env var is required for PostgreSQL")
+  }
+  const adapter = new PrismaPg({ connectionString })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new PrismaClient({ adapter } as any)
 }
