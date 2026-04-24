@@ -69,7 +69,7 @@ export async function GET(
   const limit = Math.min(Math.max(Number(req.nextUrl.searchParams.get("limit") ?? 100), 1), 100)
   const before = parseMessageCursor(req.nextUrl.searchParams.get("cursor"))
 
-  const messages = await prisma.channelMessage.findMany({
+  const fetchedMessages = await prisma.channelMessage.findMany({
     where: {
       channelId,
       ...(before ? {
@@ -80,14 +80,16 @@ export async function GET(
       } : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: limit,
+    take: limit + 1,
     include: messageInclude,
   })
+  const hasMore = fetchedMessages.length > limit
+  const messages = hasMore ? fetchedMessages.slice(0, limit) : fetchedMessages
 
   return NextResponse.json({
     channel,
     items: messages.reverse().map(serializeChannelMessage),
-    nextCursor: messages.length === limit ? makeMessageCursor(messages[messages.length - 1]) : null,
+    nextCursor: hasMore ? makeMessageCursor(messages[messages.length - 1]) : null,
   }, { headers: NO_STORE })
 }
 

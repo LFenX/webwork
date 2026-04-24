@@ -33,6 +33,7 @@ export async function GET() {
           model: userConfig.model,
           temperature: userConfig.temperature,
           streamEnabled: userConfig.streamEnabled,
+          capabilities: status.config?.capabilities ?? null,
           isEnabled: userConfig.isEnabled,
           apiKeyMask: userConfig.apiKeyMask,
           lastTestStatus: userConfig.lastTestStatus,

@@ -54,21 +54,10 @@ export async function POST(req: NextRequest) {
           conversationId: conversation.id,
           assistantMessageId: assistantMessage.id,
           runId: run.id,
-          prompt:
-            parsed.data.attachments.length > 0
-              ? [
-                  parsed.data.prompt,
-                  "",
-                  "Attached image context:",
-                  ...parsed.data.attachments.map((attachment, index) => {
-                    const kind = attachment.mimeType.startsWith("image/") ? "image" : "file"
-                    return `${index + 1}. ${kind}: ${attachment.originalName} (${attachment.url})`
-                  }),
-                ].join("\n")
-              : parsed.data.prompt,
-          onToken: async (chunk) => {
-            write("chunk", { content: chunk })
-          },
+          prompt: parsed.data.prompt,
+          attachments: parsed.data.attachments,
+          modelOverride: parsed.data.modelOverride,
+          onToken: async () => {},
           onEvent: async (event, payload) => {
             write(event, payload)
           },

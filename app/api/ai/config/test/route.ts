@@ -14,9 +14,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400, headers: NO_STORE })
   }
   try {
-    await testAIProviderConnection(parsed.data)
+    const capabilities = await testAIProviderConnection(parsed.data)
     await markAIUserConfigTest(session.userId, "passed")
-    return NextResponse.json({ success: true }, { headers: NO_STORE })
+    return NextResponse.json({ success: true, capabilities }, { headers: NO_STORE })
   } catch (error) {
     await markAIUserConfigTest(session.userId, "failed")
     return NextResponse.json({ error: error instanceof Error ? error.message : "Connection failed" }, { status: 400, headers: NO_STORE })

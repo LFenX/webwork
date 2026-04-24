@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
+import { withProviderCapabilities } from "@/lib/ai/provider"
 import { getAIUserConfig, removeAIUserConfig, upsertAIUserConfig } from "@/lib/ai/service"
 import { aiProviderConfigSchema, aiProviderConfigUpdateSchema } from "@/lib/validators"
 
@@ -11,7 +12,7 @@ export async function GET() {
   const config = await getAIUserConfig(session.userId)
   return NextResponse.json({
     config: config
-      ? {
+      ? withProviderCapabilities({
           providerLabel: config.providerLabel,
           baseUrl: config.baseUrl,
           model: config.model,
@@ -21,7 +22,7 @@ export async function GET() {
           apiKeyMask: config.apiKeyMask,
           lastTestStatus: config.lastTestStatus,
           lastTestedAt: config.lastTestedAt?.toISOString() ?? null,
-        }
+        })
       : null,
   }, { headers: NO_STORE })
 }
@@ -36,7 +37,7 @@ export async function PUT(req: NextRequest) {
     }
     const config = await upsertAIUserConfig(session.userId, parsed.data)
     return NextResponse.json({
-      config: {
+      config: withProviderCapabilities({
         id: config.id,
         providerLabel: config.providerLabel,
         baseUrl: config.baseUrl,
@@ -45,7 +46,7 @@ export async function PUT(req: NextRequest) {
         streamEnabled: config.streamEnabled,
         isEnabled: config.isEnabled,
         apiKeyMask: config.apiKeyMask,
-      },
+      }),
     }, { headers: NO_STORE })
   } catch (error) {
     return NextResponse.json(
@@ -65,7 +66,7 @@ export async function PATCH(req: NextRequest) {
     }
     const config = await upsertAIUserConfig(session.userId, parsed.data)
     return NextResponse.json({
-      config: {
+      config: withProviderCapabilities({
         id: config.id,
         providerLabel: config.providerLabel,
         baseUrl: config.baseUrl,
@@ -74,7 +75,7 @@ export async function PATCH(req: NextRequest) {
         streamEnabled: config.streamEnabled,
         isEnabled: config.isEnabled,
         apiKeyMask: config.apiKeyMask,
-      },
+      }),
     }, { headers: NO_STORE })
   } catch (error) {
     return NextResponse.json(

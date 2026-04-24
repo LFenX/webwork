@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { type ClipboardEvent as ReactClipboardEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type ClipboardEvent as ReactClipboardEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { File as FileIcon, Loader2, Megaphone, Menu, MessageCircle, Paperclip, Plus, RefreshCcw, Send, UserPlus, X } from "lucide-react"
 import { toast } from "sonner"
 import { ComposerReplyPreview, MessageActionSurface, MessageReplyReference, type MessageActionItem } from "@/components/chat-message-actions"
@@ -90,12 +90,32 @@ type ChannelMessage = {
 const WORLD_CHANNEL_ID = "world"
 const INPUT_DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 const TIME_GAP_MS = 5 * 60 * 1000
+const INITIAL_HISTORY_BATCH_SIZE = 40
+const OLDER_HISTORY_BATCH_SIZE = 10
+const BOTTOM_STICKY_THRESHOLD = 96
 const noopWorldAnnouncement = () => {}
 
 function formatBytes(size: number) {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`
   return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+function isNearBottom(element: HTMLElement | null) {
+  if (!element) return true
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= BOTTOM_STICKY_THRESHOLD
+}
+
+function makeChannelMessageCursor(message: Pick<ChannelMessage, "id" | "createdAt"> | null | undefined) {
+  if (!message) return null
+  return `${new Date(message.createdAt).toISOString()}|${message.id}`
+}
+
+function isEarlierChannelMessage(a: ChannelMessage | undefined, b: ChannelMessage | undefined) {
+  if (!a || !b) return false
+  const timeDiff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  if (timeDiff !== 0) return timeDiff < 0
+  return a.id < b.id
 }
 
 function formatChatTime(value: string) {
@@ -401,6 +421,11 @@ export function GroupChatClient({
   const lastMessageIdRef = useRef<string | null>(null)
   const messagesRef = useRef<ChannelMessage[]>([])
   const nextCursorRef = useRef<string | null>(null)
+  const shouldStickToBottomRef = useRef(true)
+  const loadOlderInFlightRef = useRef(false)
+  const loadOlderSequenceRef = useRef(0)
+  const suppressAutoLoadOlderUntilRef = useRef(0)
+  const revealPrependedHistoryRef = useRef(false)
   const selected = channels.find((channel) => channel.id === selectedId) ?? channels[0]
   const isWorld = selected?.id === WORLD_CHANNEL_ID
   const friendIds = useMemo(() => new Set(friends.map((friend) => friend.id)), [friends])
@@ -436,24 +461,55 @@ export function GroupChatClient({
     if (appendOlder) setLoadingOlder(true)
     else setLoading(true)
     try {
-      const params = new URLSearchParams({ limit: "50", _t: String(Date.now()) })
-      if (options?.cursor) params.set("cursor", options.cursor)
-      const res = await fetch(`/api/channels/${channelId}/messages?${params.toString()}`, { cache: "no-store" })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error ?? "加载消息失败")
-      const items = Array.isArray(data.items) ? data.items as ChannelMessage[] : []
-      const incomingNextCursor = typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null
-      const loadedServerCount = messagesRef.current.filter((item) => !item.localStatus).length
-      const hasExpandedHistory = !appendOlder && loadedServerCount > items.length
-      setNextCursor(appendOlder ? incomingNextCursor : (hasExpandedHistory ? nextCursorRef.current : incomingNextCursor))
+      let items: ChannelMessage[] = []
+      let incomingNextCursor: string | null = null
+
       if (appendOlder) {
+        let cursorToUse = options?.cursor ?? null
+        let attempts = 0
+        while (cursorToUse && attempts < 8) {
+          const params = new URLSearchParams({ limit: String(OLDER_HISTORY_BATCH_SIZE), _t: String(Date.now()) })
+          params.set("cursor", cursorToUse)
+          const res = await fetch(`/api/channels/${channelId}/messages?${params.toString()}`, { cache: "no-store" })
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) throw new Error(data.error ?? "加载消息失败")
+          const fetchedItems = Array.isArray(data.items) ? data.items as ChannelMessage[] : []
+          const fetchedNextCursor = typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null
+          const existingIds = new Set(messagesRef.current.map((item) => item.id))
+          const nonDuplicateItems = fetchedItems.filter((item) => !existingIds.has(item.id))
+          items = fetchedItems
+          incomingNextCursor = fetchedNextCursor
+          if (nonDuplicateItems.length > 0 || !fetchedNextCursor) break
+          cursorToUse = fetchedNextCursor
+          attempts += 1
+        }
+      } else {
+        const params = new URLSearchParams({ limit: String(INITIAL_HISTORY_BATCH_SIZE), _t: String(Date.now()) })
+        if (options?.cursor) params.set("cursor", options.cursor)
+        const res = await fetch(`/api/channels/${channelId}/messages?${params.toString()}`, { cache: "no-store" })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error ?? "加载消息失败")
+        items = Array.isArray(data.items) ? data.items as ChannelMessage[] : []
+        incomingNextCursor = typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null
+      }
+      if (appendOlder) {
+        const prependedIds: string[] = []
         setMessages((current) => {
           const existingIds = new Set(current.map((item) => item.id))
           const olderItems = items.filter((item) => !existingIds.has(item.id))
+          prependedIds.push(...olderItems.map((item) => item.id))
           return [...olderItems, ...current]
         })
-        return
+        setNextCursor(incomingNextCursor)
+        return { prependedIds }
       }
+      const currentServerMessages = messagesRef.current.filter((item) => !item.localStatus)
+      const currentOldest = currentServerMessages[0]
+      const incomingOldest = items[0]
+      const shouldPreserveExpandedHistory =
+        currentServerMessages.length > items.length ||
+        isEarlierChannelMessage(currentOldest, incomingOldest)
+      setNextCursor(shouldPreserveExpandedHistory ? nextCursorRef.current : incomingNextCursor)
       const restoredDrafts = await listChatOutboxItems(userId, "channel", channelId)
       const draftMessages = restoredDrafts.map((item) => outboxToChannelMessage(item, currentUser))
       setMessages((current) => mergeChannelMessages(current.filter((item) => item.localStatus !== "failed"), [...items, ...draftMessages]))
@@ -466,9 +522,12 @@ export function GroupChatClient({
   }, [currentUser, userId])
 
   const loadOlderMessages = useCallback(async () => {
-    if (!selectedId || !nextCursor || loading || loadingOlder) return
-    await loadMessages(selectedId, { cursor: nextCursor, appendOlder: true })
-  }, [loadMessages, loading, loadingOlder, nextCursor, selectedId])
+    if (!selectedId || loading || loadingOlder) return
+    const oldestLoadedServerMessage = messagesRef.current.find((message) => !message.localStatus) ?? null
+    const cursor = makeChannelMessageCursor(oldestLoadedServerMessage) ?? nextCursorRef.current
+    if (!cursor) return
+    return await loadMessages(selectedId, { cursor, appendOlder: true })
+  }, [loadMessages, loading, loadingOlder, selectedId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -529,11 +588,22 @@ export function GroupChatClient({
       lastMessageIdRef.current = currentLastMessageId
       return
     }
-    if (lastMessageIdRef.current !== currentLastMessageId) {
+    const lastMessageChanged = lastMessageIdRef.current !== currentLastMessageId
+    const latestMessage = messages[messages.length - 1]
+    const latestMessageIsMine = latestMessage ? latestMessage.senderId === (currentUserId || userId) : false
+    if (lastMessageChanged && (lastMessageIdRef.current === null || shouldStickToBottomRef.current || latestMessageIsMine)) {
       endRef.current?.scrollIntoView({ block: "end" })
     }
     lastMessageIdRef.current = currentLastMessageId
-  }, [messages, selectedId])
+  }, [currentUserId, messages, selectedId, userId])
+
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    if (!revealPrependedHistoryRef.current) return
+    revealPrependedHistoryRef.current = false
+    container.scrollTop = 0
+  }, [messages])
 
   async function sendMessage(stickerOverride?: StickerPick | null) {
     const activeSticker = stickerOverride ?? sticker
@@ -664,29 +734,33 @@ export function GroupChatClient({
   }
 
   const handleLoadOlderMessages = useCallback(async () => {
-    if (loadingOlder) return
-    const container = scrollContainerRef.current
-    const previousHeight = container?.scrollHeight ?? 0
-    const previousTop = container?.scrollTop ?? 0
-    await loadOlderMessages()
-    window.requestAnimationFrame(() => {
-      if (!container) return
-      container.scrollTop = Math.max(0, container.scrollHeight - previousHeight + previousTop)
-    })
+    if (loadingOlder || loadOlderInFlightRef.current) return
+    loadOlderInFlightRef.current = true
+    const requestSequence = ++loadOlderSequenceRef.current
+    try {
+      const result = await loadOlderMessages()
+      if (loadOlderSequenceRef.current !== requestSequence) return
+      const prependedIds = result && "prependedIds" in result ? result.prependedIds ?? [] : []
+      if (prependedIds.length > 0) {
+        revealPrependedHistoryRef.current = true
+      }
+      suppressAutoLoadOlderUntilRef.current = Date.now() + 500
+    } finally {
+      loadOlderInFlightRef.current = false
+    }
   }, [loadingOlder, loadOlderMessages])
 
   useEffect(() => {
     const container = scrollContainerRef.current
-    if (!container || !nextCursor || loading || loadingOlder) return
+    if (!container) return
 
     const onScroll = () => {
-      if (container.scrollTop > 80) return
-      void handleLoadOlderMessages()
+      shouldStickToBottomRef.current = isNearBottom(container)
     }
 
     container.addEventListener("scroll", onScroll, { passive: true })
     return () => container.removeEventListener("scroll", onScroll)
-  }, [handleLoadOlderMessages, loading, loadingOlder, messages.length, nextCursor])
+  }, [])
 
   const handleComposerPaste = useCallback((event: ReactClipboardEvent<HTMLTextAreaElement>) => {
     const pastedFiles = getClipboardImageFiles(event.clipboardData)
@@ -790,7 +864,7 @@ export function GroupChatClient({
                 </div>
               )}
                   {messages.map((message, index) => (
-                <div key={message.id}>
+                <div key={message.id} data-message-id={message.id}>
                   {shouldShowTime(messages[index - 1], message) && (
                     <p className="my-4 text-center font-mono text-xs text-[--color-text-muted]">{formatChatTime(message.createdAt)}</p>
                   )}

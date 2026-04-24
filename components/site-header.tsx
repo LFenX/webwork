@@ -114,7 +114,10 @@ export function SiteHeader({
   }
 
   return (
-    <header data-locale={locale} className="fixed inset-x-0 top-0 z-40 border-b border-[--color-border] bg-[--color-bg-primary]/95 backdrop-blur-sm">
+    <header
+      data-locale={locale}
+      className="fixed inset-x-0 top-0 z-40 border-b border-[--color-border] bg-[--color-bg-primary]/95 backdrop-blur-sm"
+    >
       <div className="mx-auto flex h-12 max-w-[1200px] items-center gap-6 px-6">
         <Link
           href="/"

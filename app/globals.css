@@ -146,6 +146,18 @@ body {
     font-size: 16px !important;
   }
 
+  .wechat-composer {
+    padding-bottom: max(0.75rem, calc(env(safe-area-inset-bottom) + 0.25rem));
+  }
+
+  .wechat-composer-panel {
+    min-height: 0;
+  }
+
+  .wechat-composer-input {
+    min-height: 72px;
+  }
+
   .mobile-dialog-content {
     left: 1rem !important;
     right: 1rem !important;

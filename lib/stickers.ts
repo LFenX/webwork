@@ -1,6 +1,7 @@
 import path from "node:path"
 import { randomBytes } from "node:crypto"
 import { prisma } from "@/lib/db"
+import { getAccessLevel } from "@/lib/permissions"
 
 export const STICKER_MAX_SIZE = 5 * 1024 * 1024
 export const STICKER_SCOPES = ["custom", "public"] as const
@@ -100,18 +101,39 @@ export async function canAccessStickerAsset(userId: string, stickerId: string) {
     prisma.comment.findFirst({
       where: {
         stickerId,
-        OR: [{ authorId: userId }, { post: { userId } }],
+        OR: [
+          { authorId: userId },
+          { post: { userId } },
+          {
+            post: {
+              visibility: "friends",
+              userId: {
+                not: userId,
+              },
+            },
+          },
+        ],
       },
-      select: { id: true },
+      select: { id: true, post: { select: { userId: true } } },
     }),
     prisma.guestbookMessage.findFirst({
       where: {
         stickerId,
         OR: [{ authorId: userId }, { ownerId: userId }],
       },
-      select: { id: true },
+      select: { id: true, ownerId: true },
     }),
   ])
 
-  return Boolean(chatUsage || channelUsage || commentUsage || guestbookUsage)
+  if (chatUsage || channelUsage) return true
+  if (commentUsage?.post.userId) {
+    const level = await getAccessLevel(userId, commentUsage.post.userId)
+    if (level === "self" || level === "friend") return true
+  }
+  if (guestbookUsage?.ownerId) {
+    const level = await getAccessLevel(userId, guestbookUsage.ownerId)
+    if (level === "self" || level === "friend") return true
+  }
+
+  return false
 }

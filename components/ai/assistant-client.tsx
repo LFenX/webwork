@@ -1,22 +1,39 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
+  ArrowUp,
+  CheckCircle2,
+  ChevronDown,
   Copy,
   Loader2,
   MessageSquarePlus,
   PencilLine,
+  Plus,
   Settings2,
   Sparkles,
+  TriangleAlert,
   Trash2,
-  Wand2,
+  Wrench,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
 import { AISettingsSheet } from "@/components/ai/ai-settings-sheet"
 import { MarkdownContent } from "@/components/markdown-content"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  AI_MODEL_PRESETS_UPDATED_EVENT,
+  loadModelCatalog,
+  saveModelCatalog,
+} from "@/lib/ai/model-presets"
+
+type AIProviderCapabilities = {
+  streamText: boolean
+  toolCalling: boolean
+  visionInput: boolean
+  reasoningStream: boolean
+}
 
 type ConversationItem = {
   id: string
@@ -25,6 +42,15 @@ type ConversationItem = {
   updatedAt: string
   lastMessageAt: string
   messageCount: number
+}
+
+type AttachmentItem = {
+  id: string
+  uploadId: string | null
+  url: string
+  originalName: string
+  mimeType: string
+  size: number
 }
 
 type StepPreview = {
@@ -36,6 +62,9 @@ type StepPreview = {
   finishedAt: string | null
   summary: string
   errorMessage: string
+  inputPreview?: unknown
+  outputPreview?: unknown
+  providerMetadata?: Record<string, unknown> | null
 }
 
 type RunDetail = {
@@ -53,12 +82,12 @@ type RunDetail = {
   createdAt: string
   updatedAt: string
   finishedAt: string | null
-  steps: Array<StepPreview & { inputPreview: unknown; outputPreview: unknown }>
+  steps: StepPreview[]
 }
 
 type MessageItem = {
   id: string
-  role: string
+  role: "user" | "assistant"
   contentMarkdown: string
   status: string
   reasoningSummary: string
@@ -71,14 +100,7 @@ type MessageItem = {
   runStatus: string | null
   delegatedTargetUserId: string | null
   stepsPreview: StepPreview[]
-  attachments: Array<{
-    id: string
-    uploadId: string | null
-    url: string
-    originalName: string
-    mimeType: string
-    size: number
-  }>
+  attachments: AttachmentItem[]
 }
 
 type AIStatusResponse = {
@@ -93,6 +115,7 @@ type AIStatusResponse = {
       model: string
       temperature: number
       streamEnabled: boolean
+      capabilities?: AIProviderCapabilities | null
     } | null
     configState: {
       storageReady: boolean
@@ -117,6 +140,7 @@ type AIStatusResponse = {
     model: string
     temperature: number
     streamEnabled: boolean
+    capabilities?: AIProviderCapabilities | null
     isEnabled: boolean
     apiKeyMask: string
     lastTestStatus: string
@@ -127,8 +151,7 @@ type AIStatusResponse = {
 const SUGGESTIONS = [
   "总结我最近一周的求职进展",
   "帮我看看最近和谁聊天最多",
-  "整理一下我最近的好友和登录情况",
-  "如果我是管理员，帮我代查某个用户最近登录记录",
+  "帮我汇总最近三天的重要动态",
 ]
 
 function reasonLabel(reason: string) {
@@ -147,6 +170,8 @@ function reasonLabel(reason: string) {
       return "管理员授权已撤销"
     case "configure-personal-api":
       return "请先配置个人 API"
+    case "request-access":
+      return "请先申请访问权限"
     default:
       return "暂时不可用"
   }
@@ -198,57 +223,314 @@ function statusChip(status: string) {
   return "border-emerald-200 bg-emerald-50 text-emerald-700"
 }
 
-function Timeline({
-  steps,
-  expanded,
-}: {
-  steps: Array<StepPreview | (StepPreview & { inputPreview?: unknown; outputPreview?: unknown })>
-  expanded: boolean
-}) {
-  if (steps.length === 0) return null
+function capabilityTone(supported: boolean) {
+  return supported
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    : "border-slate-200 bg-slate-100 text-slate-500"
+}
 
-  return (
-    <div className="rounded-[26px] border border-black/8 bg-black/[0.02] p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-[--color-text-primary]">执行时间线</p>
-        <span className="text-xs text-[--color-text-muted]">{steps.length} 个阶段</span>
+function stepKindLabel(type: string) {
+  switch (type) {
+    case "reasoning":
+      return "思考"
+    case "tool_call":
+      return "工具调用"
+    case "assistant_output":
+      return "最终回答"
+    case "warning":
+      return "能力提示"
+    default:
+      return "过程"
+  }
+}
+
+function stepLeadIcon(type: string, status: string) {
+  if (type === "tool_call") return <Wrench size={15} />
+  if (type === "warning") return <TriangleAlert size={15} />
+  if (status === "completed") return <CheckCircle2 size={15} />
+  return <Sparkles size={15} />
+}
+
+function toReadableLines(value: string) {
+  return value
+    .replace(/\\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+function extractReasoningNarrative(step: StepPreview) {
+  if (step.type !== "reasoning") return []
+  const output = step.outputPreview
+  if (output && typeof output === "object" && "reasoning" in output) {
+    return toReadableLines(String((output as { reasoning?: unknown }).reasoning ?? ""))
+  }
+  return toReadableLines(step.summary)
+}
+
+function formatValueInline(value: unknown): string {
+  if (value == null) return "未提供"
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value)
+  if (Array.isArray(value)) return value.map((item) => formatValueInline(item)).join("、")
+  return compactJson(value)
+}
+
+function isStructuredToolResult(value: unknown): value is {
+  ok: boolean
+  access: string
+  summary: string
+  data: unknown
+  reason?: string
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  return "ok" in value && "access" in value && "summary" in value && "data" in value
+}
+
+function buildToolNarrative(step: StepPreview) {
+  if (step.type !== "tool_call") return []
+
+  const sections: Array<{ title: string; body: string }> = []
+  const input = step.inputPreview && typeof step.inputPreview === "object" ? (step.inputPreview as Record<string, unknown>) : null
+  const output = step.outputPreview && typeof step.outputPreview === "object" ? (step.outputPreview as Record<string, unknown>) : null
+  const toolName = typeof input?.toolName === "string" ? input.toolName : step.title
+
+  sections.push({
+    title: "这一步在做什么",
+    body: `系统调用了 ${toolName}，目的是 ${step.summary || "补充当前回答所需的数据"}`,
+  })
+
+  const args = input?.arguments
+  if (args && typeof args === "object" && !Array.isArray(args) && Object.keys(args).length > 0) {
+    sections.push({
+      title: "本次传入的信息",
+      body: Object.entries(args)
+        .map(([key, value]) => `${key}：${formatValueInline(value)}`)
+        .join("；"),
+    })
+  }
+
+  if (output?.result !== undefined) {
+    if (isStructuredToolResult(output.result)) {
+      sections.push({
+        title: "这一步得到了什么",
+        body: output.result.summary,
+      })
+
+      if (output.result.reason) {
+        sections.push({
+          title: "为什么是这个结果",
+          body: output.result.reason,
+        })
+      }
+
+      if (output.result.data && typeof output.result.data === "object") {
+        sections.push({
+          title: "返回的数据摘要",
+          body: compactJson(output.result.data),
+        })
+      }
+
+      return sections
+    }
+
+    sections.push({
+      title: "工具返回了什么",
+      body: typeof output.result === "string" ? output.result : compactJson(output.result),
+    })
+  } else if (step.errorMessage) {
+    sections.push({
+      title: "为什么失败了",
+      body: step.errorMessage,
+    })
+  }
+
+  return sections
+}
+
+function renderStepDetail(step: StepPreview) {
+  if (step.type === "reasoning") {
+    const lines = extractReasoningNarrative(step)
+    if (lines.length === 0) return null
+    return (
+      <div className="space-y-3 py-1">
+        {lines.map((line, index) => (
+          <p key={`${step.id}-reasoning-${index}`} className="text-sm leading-7 text-[--color-text-secondary]">
+            {line}
+          </p>
+        ))}
       </div>
+    )
+  }
 
-      <div className="space-y-3">
-        {steps.map((step, index) => (
-          <div key={step.id} className="rounded-2xl border border-black/6 bg-white/80 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-[--color-text-muted]">#{index + 1}</span>
-              <span className="text-sm font-medium text-[--color-text-primary]">{step.title}</span>
-              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] ${statusChip(step.status)}`}>
-                {step.status}
-              </span>
-              <span className="ml-auto text-xs text-[--color-text-muted]">{formatMessageTime(step.startedAt)}</span>
+  if (step.type === "tool_call") {
+    const sections = buildToolNarrative(step)
+    if (sections.length === 0) return null
+    return (
+      <div className="space-y-3 py-1">
+        {sections.map((section, index) => (
+          <div key={`${step.id}-tool-${index}`}>
+            <p className="text-xs font-medium text-[--color-text-primary]">{section.title}</p>
+            <div className="mt-1 whitespace-pre-wrap break-words text-sm leading-7 text-[--color-text-secondary]">
+              {section.body}
             </div>
-            <p className="mt-2 text-sm leading-7 text-[--color-text-secondary]">{step.summary}</p>
-            {step.errorMessage ? (
-              <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">{step.errorMessage}</p>
-            ) : null}
-            {expanded && ("inputPreview" in step || "outputPreview" in step) ? (
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                {"inputPreview" in step && compactJson(step.inputPreview) ? (
-                  <div className="rounded-xl bg-black/[0.03] p-3">
-                    <p className="mb-2 text-xs font-medium text-[--color-text-primary]">输入摘要</p>
-                    <pre className="whitespace-pre-wrap break-words text-xs text-[--color-text-secondary]">{compactJson(step.inputPreview)}</pre>
-                  </div>
-                ) : null}
-                {"outputPreview" in step && compactJson(step.outputPreview) ? (
-                  <div className="rounded-xl bg-black/[0.03] p-3">
-                    <p className="mb-2 text-xs font-medium text-[--color-text-primary]">结果摘要</p>
-                    <pre className="whitespace-pre-wrap break-words text-xs text-[--color-text-secondary]">{compactJson(step.outputPreview)}</pre>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         ))}
       </div>
-    </div>
+    )
+  }
+
+  if (step.type === "warning") {
+    return <p className="py-1 text-sm leading-7 text-amber-800">{step.summary}</p>
+  }
+
+  if (step.type === "assistant_output") {
+    return <p className="py-1 text-sm leading-7 text-[--color-text-secondary]">正文已经显示在下方，这里只保留阶段记录。</p>
+  }
+
+  const fallback = compactJson(step.outputPreview) || compactJson(step.inputPreview)
+  if (!fallback) return null
+
+  return (
+    <pre className="overflow-x-auto whitespace-pre-wrap break-words py-1 text-xs leading-6 text-[--color-text-secondary]">
+      {fallback}
+    </pre>
+  )
+}
+
+function TraceBlock({ step }: { step: StepPreview }) {
+  const detail = renderStepDetail(step)
+  return (
+    <details className="group rounded-2xl">
+      <summary className="flex cursor-pointer list-none items-start gap-3 py-3 marker:hidden">
+        <span className={`mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full ${statusChip(step.status)}`}>
+          {stepLeadIcon(step.type, step.status)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs uppercase tracking-[0.16em] text-[--color-text-muted]">{stepKindLabel(step.type)}</span>
+            <span className="text-sm font-medium text-[--color-text-primary]">{step.title}</span>
+            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] ${statusChip(step.status)}`}>
+              {step.status}
+            </span>
+          </div>
+          {step.summary ? <p className="mt-1 line-clamp-2 text-sm text-[--color-text-secondary]">{step.summary}</p> : null}
+        </div>
+        <span className="text-xs text-[--color-text-muted]">{formatMessageTime(step.startedAt)}</span>
+        <ChevronDown size={16} className="shrink-0 text-[--color-text-muted] transition-transform group-open:rotate-180" />
+      </summary>
+
+      {detail ? <div className="ml-11 border-l border-[--color-border] pl-5">{detail}</div> : null}
+    </details>
+  )
+}
+
+function TraceSection({ title, steps, defaultOpen = false }: { title: string; steps: StepPreview[]; defaultOpen?: boolean }) {
+  if (steps.length === 0) return null
+
+  return (
+    <details open={defaultOpen} className="group rounded-2xl">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-3 marker:hidden">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-[--color-text-primary]">{title}</span>
+          <span className="rounded-full bg-[--color-bg-hover] px-2.5 py-1 text-[11px] text-[--color-text-muted]">
+            {steps.length} 个阶段
+          </span>
+        </div>
+        <ChevronDown size={16} className="shrink-0 text-[--color-text-muted] transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="space-y-1">
+        {steps.map((step) => (
+          <TraceBlock key={step.id} step={step} />
+        ))}
+      </div>
+    </details>
+  )
+}
+
+function AssistantMessageCard({ message, run }: { message: MessageItem; run?: RunDetail }) {
+  const steps = run?.steps?.length ? run.steps : message.stepsPreview
+  const warnings = steps.filter((step) => step.type === "warning")
+  const reasoningSteps = steps.filter((step) => step.type === "reasoning")
+  const toolSteps = steps.filter((step) => step.type === "tool_call")
+  const modelName = run?.finalModel || message.modelName
+
+  return (
+    <article className="mr-auto w-full max-w-[1180px]">
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-sm font-semibold text-[--color-text-primary]">AI 助手</span>
+        <span className="text-xs text-[--color-text-muted]">{formatMessageTime(message.createdAt)}</span>
+        {modelName ? (
+          <span className="rounded-full bg-[--color-bg-hover] px-2.5 py-1 text-[11px] text-[--color-text-muted]">{modelName}</span>
+        ) : null}
+        {message.runMode ? (
+          <span className="rounded-full bg-[--color-bg-hover] px-2.5 py-1 text-[11px] text-[--color-text-muted]">{modeLabel(message.runMode)}</span>
+        ) : null}
+        {message.contentMarkdown ? (
+          <button
+            type="button"
+            className="ml-auto inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs text-[--color-text-muted] transition-colors hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+            onClick={async () => {
+              await navigator.clipboard.writeText(message.contentMarkdown)
+              toast.success("已复制回答")
+            }}
+          >
+            <Copy size={13} />
+            复制
+          </button>
+        ) : null}
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${statusChip(message.runStatus ?? message.status)}`}>
+            {message.runStatus ?? message.status}
+          </span>
+          <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+            {reasoningSteps.length > 0 ? `${reasoningSteps.length} 个思考阶段` : "无显式思考阶段"}
+          </span>
+          <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+            {toolSteps.length > 0 ? `${toolSteps.length} 次工具调用` : "未调用工具"}
+          </span>
+        </div>
+
+        {warnings.length > 0 ? (
+          <div className="space-y-2">
+            {warnings.map((step) => (
+              <div key={step.id} className="rounded-[14px] bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-800">
+                {step.summary}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {(reasoningSteps.length > 0 || toolSteps.length > 0) ? (
+          <details className="group rounded-2xl bg-[--color-bg-hover]/60 px-4 py-2">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-2 marker:hidden">
+              <div>
+                <p className="text-sm font-medium text-[--color-text-primary]">查看执行过程</p>
+                <p className="text-xs text-[--color-text-muted]">回答完成后默认收起，需要时再展开思考或工具调用。</p>
+              </div>
+              <ChevronDown size={16} className="shrink-0 text-[--color-text-muted] transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="space-y-1 pt-1">
+              <TraceSection title="思考过程" steps={reasoningSteps} defaultOpen={message.status === "streaming"} />
+              <TraceSection title="工具调用过程" steps={toolSteps} />
+            </div>
+          </details>
+        ) : null}
+
+        {message.contentMarkdown ? (
+          <div className="ai-response">
+            <MarkdownContent source={message.contentMarkdown} />
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 rounded-full bg-[--color-bg-hover] px-4 py-2 text-sm text-[--color-text-muted]">
+            <Loader2 size={14} className="animate-spin" />
+            正在思考并生成回答...
+          </div>
+        )}
+      </div>
+    </article>
   )
 }
 
@@ -259,79 +541,76 @@ export function AIAssistantClient() {
   const [runsByMessageId, setRunsByMessageId] = useState<Record<string, RunDetail>>({})
   const [statusPayload, setStatusPayload] = useState<AIStatusResponse | null>(null)
   const [prompt, setPrompt] = useState("")
-  const [attachments, setAttachments] = useState<Array<{
-    id: string
-    uploadId: string | null
-    url: string
-    originalName: string
-    mimeType: string
-    size: number
-  }>>([])
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([])
   const [requestMessage, setRequestMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [selectedModel, setSelectedModel] = useState("")
+  const [mobilePanel, setMobilePanel] = useState<"conversations" | "controls" | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
-  const [viewMode, setViewMode] = useState<"compact" | "developer">("compact")
   const messageSeedRef = useRef(0)
   const endRef = useRef<HTMLDivElement | null>(null)
   const attachmentInputRef = useRef<HTMLInputElement | null>(null)
+  const desktopPromptInputRef = useRef<HTMLTextAreaElement | null>(null)
+  const mobilePromptInputRef = useRef<HTMLTextAreaElement | null>(null)
 
-  const loadRun = useCallback(async (messageId: string) => {
+  async function loadRun(messageId: string) {
     const res = await fetch(`/api/ai/runs/${messageId}?includeSteps=true`, { cache: "no-store" })
     if (!res.ok) return
     const data = await res.json().catch(() => null)
     if (data?.run) {
       setRunsByMessageId((current) => ({ ...current, [messageId]: data.run }))
     }
-  }, [])
+  }
 
-  const loadStatus = useCallback(async () => {
+  async function loadStatus() {
     const res = await fetch("/api/ai/status", { cache: "no-store" })
     const data = await res.json().catch(() => null)
     if (!res.ok) throw new Error(data?.error ?? "加载 AI 状态失败")
     setStatusPayload(data)
-  }, [])
+  }
 
-  const loadConversations = useCallback(
-    async (preferredId?: string | null) => {
-      const res = await fetch("/api/ai/conversations", { cache: "no-store" })
-      const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "加载会话失败")
-      const items: ConversationItem[] = Array.isArray(data?.items) ? data.items : []
-      setConversations(items)
-      const preferredExists = preferredId ? items.some((item) => item.id === preferredId) : false
-      const currentExists = activeConversationId ? items.some((item) => item.id === activeConversationId) : false
-      const nextActiveId: string | null =
-        preferredExists ? (preferredId ?? null) :
-        currentExists ? (activeConversationId ?? null) :
-        items[0]?.id ?? null
-      setActiveConversationId(nextActiveId)
-      return nextActiveId
-    },
-    [activeConversationId]
-  )
+  async function loadConversations(preferredId?: string | null) {
+    const res = await fetch("/api/ai/conversations", { cache: "no-store" })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) throw new Error(data?.error ?? "加载会话失败")
+    const items: ConversationItem[] = Array.isArray(data?.items) ? data.items : []
+    setConversations(items)
 
-  const loadMessages = useCallback(async (conversationId: string | null) => {
+    const preferredExists = preferredId ? items.some((item) => item.id === preferredId) : false
+    const currentExists = activeConversationId ? items.some((item) => item.id === activeConversationId) : false
+    const nextActiveId =
+      preferredExists ? (preferredId ?? null) :
+      currentExists ? activeConversationId :
+      items[0]?.id ?? null
+
+    setActiveConversationId(nextActiveId)
+    return nextActiveId
+  }
+
+  async function loadMessages(conversationId: string | null) {
     if (!conversationId) {
       setMessages([])
       setRunsByMessageId({})
       return
     }
 
-    const res = await fetch(`/api/ai/conversations/${conversationId}/messages`, {
-      cache: "no-store",
-    })
+    const res = await fetch(`/api/ai/conversations/${conversationId}/messages`, { cache: "no-store" })
     const data = await res.json().catch(() => null)
     if (!res.ok) throw new Error(data?.error ?? "加载消息失败")
-    const items = Array.isArray(data?.items) ? data.items : []
-    setMessages(items)
-    const assistantWithRuns = items.filter((item: MessageItem) => item.role === "assistant" && item.runId)
-    await Promise.all(assistantWithRuns.map((item: MessageItem) => loadRun(item.id)))
-  }, [loadRun])
 
-  const bootstrap = useCallback(async () => {
+    const items: MessageItem[] = Array.isArray(data?.items) ? data.items : []
+    setMessages(items)
+
+    const assistants = items.filter((item) => item.role === "assistant" && item.runId)
+    await Promise.all(assistants.map((item) => loadRun(item.id)))
+  }
+
+  async function bootstrap() {
     setLoading(true)
     try {
       await loadStatus()
@@ -342,17 +621,31 @@ export function AIAssistantClient() {
     } finally {
       setLoading(false)
     }
-  }, [loadConversations, loadMessages, loadStatus])
+  }
 
   useEffect(() => {
-    Promise.resolve().then(() => {
-      void bootstrap()
-    })
-  }, [bootstrap])
+    void bootstrap()
+    // bootstrap is intentionally run once on mount for the AI workspace shell.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
   }, [messages, sending])
+
+  useEffect(() => {
+    const resizeTextarea = (node: HTMLTextAreaElement | null, maxHeight: number) => {
+      if (!node) return
+      node.style.height = "0px"
+      const nextHeight = Math.min(Math.max(node.scrollHeight, 42), maxHeight)
+      node.style.height = `${nextHeight}px`
+      node.style.overflowY = node.scrollHeight > maxHeight ? "auto" : "hidden"
+    }
+
+    const mobileMaxHeight = typeof window !== "undefined" ? Math.floor(window.innerHeight * 0.5) : 320
+    resizeTextarea(desktopPromptInputRef.current, 240)
+    resizeTextarea(mobilePromptInputRef.current, mobileMaxHeight)
+  }, [prompt])
 
   async function createConversation() {
     try {
@@ -363,9 +656,10 @@ export function AIAssistantClient() {
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.error ?? "创建会话失败")
-      await loadConversations(data.id)
+      await loadConversations(data?.id ?? null)
       setMessages([])
       setRunsByMessageId({})
+      setMobilePanel(null)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "创建会话失败")
     }
@@ -393,9 +687,9 @@ export function AIAssistantClient() {
       const res = await fetch(`/api/ai/conversations/${id}`, { method: "DELETE" })
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.error ?? "删除会话失败")
-      const next = conversations.find((item) => item.id !== id)?.id ?? null
-      await loadConversations(next)
-      await loadMessages(next)
+      const nextId = conversations.find((item) => item.id !== id)?.id ?? null
+      await loadConversations(nextId)
+      await loadMessages(nextId)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "删除会话失败")
     }
@@ -422,14 +716,9 @@ export function AIAssistantClient() {
   async function uploadAttachment(file: File) {
     const form = new FormData()
     form.set("file", file)
-    const response = await fetch("/api/upload", {
-      method: "POST",
-      body: form,
-    })
+    const response = await fetch("/api/upload", { method: "POST", body: form })
     const data = await response.json().catch(() => null)
-    if (!response.ok) {
-      throw new Error(data?.error ?? "Attachment upload failed")
-    }
+    if (!response.ok) throw new Error(data?.error ?? "图片上传失败")
     return {
       id: data?.id ?? crypto.randomUUID(),
       uploadId: data?.id ?? null,
@@ -439,6 +728,54 @@ export function AIAssistantClient() {
       size: file.size,
     }
   }
+
+  function patchAssistantMessage(messageId: string, updater: (item: MessageItem) => MessageItem) {
+    setMessages((current) => current.map((item) => item.id === messageId ? updater(item) : item))
+  }
+
+  function upsertStep(messageId: string, step: StepPreview) {
+    patchAssistantMessage(messageId, (item) => {
+      const exists = item.stepsPreview.some((current) => current.id === step.id)
+      return {
+        ...item,
+        stepsPreview: exists
+          ? item.stepsPreview.map((current) => current.id === step.id ? { ...current, ...step } : current)
+          : [...item.stepsPreview, step],
+      }
+    })
+  }
+
+  const providerLabel = statusPayload?.status.config?.providerLabel ?? statusPayload?.userConfig?.providerLabel ?? ""
+  const configuredModelName = statusPayload?.status.config?.model ?? statusPayload?.userConfig?.model ?? ""
+  const activeBaseUrl = statusPayload?.status.config?.baseUrl ?? statusPayload?.userConfig?.baseUrl ?? ""
+  const activeModelName = selectedModel || configuredModelName
+  const capabilities = statusPayload?.status.config?.capabilities ?? statusPayload?.userConfig?.capabilities ?? null
+
+  useEffect(() => {
+    const syncModelCatalog = () => {
+      const catalog = loadModelCatalog(providerLabel, activeBaseUrl, configuredModelName)
+      setAvailableModels(catalog.models)
+      setSelectedModel(catalog.selectedModel || configuredModelName)
+    }
+
+    syncModelCatalog()
+
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || (providerLabel && activeBaseUrl && event.key.includes("ai-model-presets:"))) {
+        syncModelCatalog()
+      }
+    }
+    const onCatalogUpdated = () => {
+      syncModelCatalog()
+    }
+
+    window.addEventListener("storage", onStorage)
+    window.addEventListener(AI_MODEL_PRESETS_UPDATED_EVENT, onCatalogUpdated)
+    return () => {
+      window.removeEventListener("storage", onStorage)
+      window.removeEventListener(AI_MODEL_PRESETS_UPDATED_EVENT, onCatalogUpdated)
+    }
+  }, [activeBaseUrl, configuredModelName, providerLabel])
 
   async function sendPrompt(nextPrompt?: string) {
     const text = (nextPrompt ?? prompt).trim()
@@ -453,8 +790,9 @@ export function AIAssistantClient() {
     messageSeedRef.current += 1
     const optimisticUserId = `local-user-${messageSeedRef.current}`
     messageSeedRef.current += 1
-    const optimisticAssistantId = `local-assistant-${messageSeedRef.current}`
+    let currentAssistantId = `local-assistant-${messageSeedRef.current}`
     const nowIso = new Date().toISOString()
+    const outgoingAttachments = attachments
 
     setMessages((current) => [
       ...current,
@@ -473,16 +811,16 @@ export function AIAssistantClient() {
         runStatus: null,
         delegatedTargetUserId: null,
         stepsPreview: [],
-        attachments,
+        attachments: outgoingAttachments,
       },
       {
-        id: optimisticAssistantId,
+        id: currentAssistantId,
         role: "assistant",
         contentMarkdown: "",
         status: "streaming",
-        reasoningSummary: "正在规划执行步骤。",
+        reasoningSummary: "",
         toolTraceSummary: "",
-        modelName: statusPayload.status.config?.model || "",
+        modelName: activeModelName,
         providerSource: statusPayload.status.source,
         createdAt: nowIso,
         runId: null,
@@ -493,6 +831,7 @@ export function AIAssistantClient() {
         attachments: [],
       },
     ])
+
     setPrompt("")
     setAttachments([])
 
@@ -503,7 +842,8 @@ export function AIAssistantClient() {
         body: JSON.stringify({
           conversationId: activeConversationId ?? undefined,
           prompt: text,
-          attachments,
+          attachments: outgoingAttachments,
+          modelOverride: activeModelName || undefined,
         }),
       })
 
@@ -517,244 +857,264 @@ export function AIAssistantClient() {
       let buffer = ""
       let resolvedConversationId = activeConversationId
 
-      const patchMessage = (updater: (item: MessageItem) => MessageItem) => {
-        setMessages((current) => current.map((item) => item.id === optimisticAssistantId ? updater(item) : item))
-      }
-
       while (true) {
         const { value, done } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
-        const events = buffer.split("\n\n")
-        buffer = events.pop() ?? ""
+        const blocks = buffer.split("\n\n")
+        buffer = blocks.pop() ?? ""
 
-        for (const eventBlock of events) {
+        for (const block of blocks) {
           const eventName =
-            eventBlock
+            block
               .split("\n")
               .find((line) => line.startsWith("event: "))
               ?.slice(7) ?? "message"
-          const dataLine = eventBlock
-            .split("\n")
-            .find((line) => line.startsWith("data: "))
-            ?.slice(6)
-          const payload = dataLine ? JSON.parse(dataLine) : null
+          const rawData =
+            block
+              .split("\n")
+              .find((line) => line.startsWith("data: "))
+              ?.slice(6) ?? "null"
+          const payload = JSON.parse(rawData)
 
           if (eventName === "conversation") {
             resolvedConversationId = payload?.conversationId ?? resolvedConversationId
-            patchMessage((item) => ({
+            currentAssistantId = payload?.assistantMessageId ?? currentAssistantId
+            patchAssistantMessage(currentAssistantId, (item) => ({
               ...item,
+              id: payload?.assistantMessageId ?? item.id,
               runId: payload?.runId ?? item.runId,
             }))
             if (resolvedConversationId) setActiveConversationId(resolvedConversationId)
+            continue
           }
 
-          if (["run_started", "plan_created", "tool_started", "tool_completed", "tool_failed", "verification_started", "verification_completed", "final_started"].includes(eventName)) {
-            patchMessage((item) => {
-              const stepId = payload?.stepId ?? `event-${eventName}-${item.stepsPreview.length}`
-              const nextStep: StepPreview = {
-                id: stepId,
-                type: eventName,
-                title: payload?.title ?? eventName,
-                status: payload?.status ?? (eventName.endsWith("completed") ? "completed" : "running"),
-                startedAt: new Date().toISOString(),
-                finishedAt: payload?.status === "completed" ? new Date().toISOString() : null,
-                summary: payload?.summary ?? "",
-                errorMessage: payload?.errorMessage ?? "",
-              }
-              const exists = item.stepsPreview.find((step) => step.id === stepId)
-              const stepsPreview = exists
-                ? item.stepsPreview.map((step) => step.id === stepId ? { ...step, ...nextStep } : step)
-                : [...item.stepsPreview, nextStep]
-
-              return {
-                ...item,
-                reasoningSummary: payload?.summary ?? item.reasoningSummary,
-                toolTraceSummary: ["tool_started", "tool_completed", "tool_failed"].includes(eventName)
-                  ? stepsPreview
-                      .filter((step) => step.type.startsWith("tool"))
-                      .map((step) => `${step.title}：${step.status}`)
-                      .join("\n")
-                  : item.toolTraceSummary,
-                runMode: payload?.mode ?? item.runMode,
-                delegatedTargetUserId: payload?.delegatedTargetUserId ?? item.delegatedTargetUserId,
-                stepsPreview,
-              }
+          if (eventName === "reasoning_started" || eventName === "tool_call_started" || eventName === "assistant_started" || eventName === "capability_warning") {
+            upsertStep(currentAssistantId, {
+              id: payload?.stepId ?? crypto.randomUUID(),
+              type:
+                payload?.type ??
+                (eventName.startsWith("reasoning") ? "reasoning" :
+                eventName.startsWith("tool_call") ? "tool_call" :
+                eventName === "capability_warning" ? "warning" : "assistant_output"),
+              title: payload?.title ?? "执行阶段",
+              status: payload?.status ?? "running",
+              startedAt: payload?.startedAt ?? new Date().toISOString(),
+              finishedAt: payload?.finishedAt ?? null,
+              summary: payload?.summary ?? "",
+              errorMessage: payload?.errorMessage ?? "",
+              inputPreview: payload?.inputPreview,
+              outputPreview: payload?.outputPreview,
+              providerMetadata: payload?.providerMetadata ?? null,
             })
+            continue
           }
 
-          if (eventName === "chunk") {
-            patchMessage((item) => ({
+          if (eventName === "reasoning_delta") {
+            patchAssistantMessage(currentAssistantId, (item) => ({
               ...item,
-              contentMarkdown: `${item.contentMarkdown}${payload?.content ?? ""}`,
+              reasoningSummary: `${item.reasoningSummary}${payload?.delta ?? ""}`.trim(),
             }))
+            continue
+          }
+
+          if (eventName === "assistant_delta") {
+            patchAssistantMessage(currentAssistantId, (item) => ({
+              ...item,
+              contentMarkdown: `${item.contentMarkdown}${payload?.delta ?? ""}`,
+            }))
+            continue
+          }
+
+          if (eventName === "tool_call_completed" || eventName === "tool_call_failed" || eventName === "reasoning_completed" || eventName === "assistant_completed") {
+            upsertStep(currentAssistantId, {
+              id: payload?.stepId ?? crypto.randomUUID(),
+              type: payload?.type ?? "tool_call",
+              title: payload?.title ?? "执行阶段",
+              status: payload?.status ?? (eventName.endsWith("failed") ? "failed" : "completed"),
+              startedAt: payload?.startedAt ?? new Date().toISOString(),
+              finishedAt: payload?.finishedAt ?? new Date().toISOString(),
+              summary: payload?.summary ?? "",
+              errorMessage: payload?.errorMessage ?? "",
+              inputPreview: payload?.inputPreview,
+              outputPreview: payload?.outputPreview,
+              providerMetadata: payload?.providerMetadata ?? null,
+            })
+            continue
           }
 
           if (eventName === "run_completed") {
-            await loadConversations(payload?.conversationId ?? resolvedConversationId)
-            await loadMessages(payload?.conversationId ?? resolvedConversationId ?? null)
+            patchAssistantMessage(currentAssistantId, (item) => ({
+              ...item,
+              id: payload?.assistantMessageId ?? item.id,
+              status: "completed",
+              runStatus: "completed",
+              runId: payload?.runId ?? item.runId,
+              modelName: payload?.model ?? item.modelName,
+            }))
+            continue
           }
 
           if (eventName === "run_failed") {
-            throw new Error(payload?.message ?? "流式响应失败")
+            patchAssistantMessage(currentAssistantId, (item) => ({
+              ...item,
+              status: "failed",
+              runStatus: "failed",
+              contentMarkdown: item.contentMarkdown || (payload?.message ?? "生成失败，请稍后重试。"),
+            }))
           }
         }
       }
+
+      await loadConversations(resolvedConversationId)
+      if (resolvedConversationId) await loadMessages(resolvedConversationId)
     } catch (error) {
+      patchAssistantMessage(currentAssistantId, (item) => ({
+        ...item,
+        status: "failed",
+        runStatus: "failed",
+        contentMarkdown: error instanceof Error ? error.message : "发送失败",
+      }))
       toast.error(error instanceof Error ? error.message : "发送失败")
-      await bootstrap()
     } finally {
       setSending(false)
     }
   }
 
+  const canUseAI = statusPayload?.status.canUseAI ?? false
   const activeConversation = useMemo(
     () => conversations.find((item) => item.id === activeConversationId) ?? null,
-    [activeConversationId, conversations]
+    [activeConversationId, conversations],
   )
-
-  const canUseAI = statusPayload?.status.canUseAI ?? false
-  const modelName = statusPayload?.status.config?.model
-  const providerLabel = statusPayload?.status.config?.providerLabel
 
   return (
     <>
-      <div className="grid min-h-[calc(100vh-10rem)] gap-5 xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="overflow-hidden rounded-[30px] border border-black/6 bg-white/80 shadow-[0_24px_80px_rgba(15,23,42,0.06)] backdrop-blur">
-          <div className="border-b border-black/6 px-5 py-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-[--color-text-primary]">会话</p>
-                <p className="mt-1 text-xs text-[--color-text-muted]">{conversations.length} 个已保存对话</p>
-              </div>
-              <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void createConversation()}>
-                <MessageSquarePlus size={14} />
-                新建
-              </Button>
+      <div className="grid h-full min-h-0 grid-cols-1 gap-0 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-6">
+        <aside className="hidden min-h-0 rounded-[28px] bg-[color:var(--color-bg-surface)] p-4 shadow-[0_16px_34px_rgba(34,27,20,0.05)] lg:flex lg:flex-col">
+          <div className="flex items-center justify-between gap-3 px-1 pb-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-[--color-text-muted]">Conversations</p>
+              <p className="mt-1 text-lg font-semibold text-[--color-text-primary]">AI 助手</p>
             </div>
+            <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void createConversation()}>
+              <MessageSquarePlus size={14} />
+              新建
+            </Button>
           </div>
 
-          <div className="flex gap-3 overflow-x-auto p-3 xl:block xl:h-[calc(100vh-18rem)] xl:overflow-y-auto xl:overflow-x-hidden">
-            {conversations.length === 0 ? (
-              <div className="rounded-[24px] border border-dashed border-black/10 bg-black/[0.025] p-5 text-sm leading-7 text-[--color-text-secondary]">
-                还没有会话。先在右侧输入一个问题，系统会自动创建并保存对话。
-              </div>
-            ) : (
-              conversations.map((item) => {
-                const active = item.id === activeConversationId
-                return (
-                  <div
-                    key={item.id}
-                    className={`min-w-[240px] rounded-[24px] border p-4 transition-all xl:mb-3 xl:min-w-0 ${
-                      active
-                        ? "border-black/10 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]"
-                        : "border-black/6 bg-white/70"
-                    }`}
-                  >
-                    {renamingId === item.id ? (
-                      <div className="space-y-3">
-                        <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} className="rounded-2xl border-black/10 shadow-none" />
-                        <div className="flex gap-2">
-                          <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void renameConversation(item.id)}>保存</Button>
-                          <Button size="sm" variant="outline" className="rounded-full border-black/10 px-4 shadow-none" onClick={() => setRenamingId(null)}>取消</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="block w-full text-left"
-                          onClick={() => {
-                            setActiveConversationId(item.id)
-                            void loadMessages(item.id)
-                          }}
-                        >
-                          <p className="line-clamp-2 text-sm font-semibold leading-6 text-[--color-text-primary]">{item.title}</p>
-                          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[--color-text-muted]">
-                            <span>{formatConversationTime(item.lastMessageAt)}</span>
-                            <span>{item.messageCount} 条</span>
-                          </div>
-                        </button>
-                        <div className="mt-4 flex items-center gap-2">
-                          <button
-                            type="button"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[--color-text-muted] transition-colors hover:bg-black/[0.045] hover:text-[--color-text-primary]"
-                            onClick={() => {
-                              setRenamingId(item.id)
-                              setRenameValue(item.title)
-                            }}
-                            aria-label="重命名会话"
-                          >
-                            <PencilLine size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[--color-text-muted] transition-colors hover:bg-red-50 hover:text-[--color-danger]"
-                            onClick={() => void deleteConversation(item.id)}
-                            aria-label="删除会话"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </>
-                    )}
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            {conversations.map((conversation) => (
+              <div
+                key={conversation.id}
+                className={`rounded-[20px] px-4 py-3 transition-colors ${activeConversationId === conversation.id ? "bg-[--color-bg-hover]" : "bg-transparent hover:bg-[--color-bg-hover]"}`}
+              >
+                {renamingId === conversation.id ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      rows={2}
+                      value={renameValue}
+                      onChange={(event) => setRenameValue(event.target.value)}
+                      className="min-h-[72px] resize-none rounded-[16px] border-[--color-border] bg-[color:var(--color-bg-surface)] px-3 py-2 shadow-none"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void renameConversation(conversation.id)}>
+                        保存
+                      </Button>
+                      <Button size="sm" variant="outline" className="rounded-full px-4 shadow-none" onClick={() => setRenamingId(null)}>
+                        取消
+                      </Button>
+                    </div>
                   </div>
-                )
-              })
-            )}
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => {
+                      void loadMessages(conversation.id)
+                      setActiveConversationId(conversation.id)
+                    }}
+                  >
+                    <p className="line-clamp-2 text-sm font-medium leading-6 text-[--color-text-primary]">{conversation.title}</p>
+                    <p className="mt-1 text-xs text-[--color-text-muted]">
+                      {formatConversationTime(conversation.lastMessageAt)} · {conversation.messageCount} 条消息
+                    </p>
+                  </button>
+                )}
+
+                {renamingId !== conversation.id ? (
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[--color-text-muted] transition-colors hover:bg-[color:var(--color-bg-surface)] hover:text-[--color-text-primary]"
+                      onClick={() => {
+                        setRenamingId(conversation.id)
+                        setRenameValue(conversation.title)
+                      }}
+                    >
+                      <PencilLine size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[--color-text-muted] transition-colors hover:bg-[color:var(--color-bg-surface)] hover:text-red-600"
+                      onClick={() => void deleteConversation(conversation.id)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
           </div>
         </aside>
 
-        <section className="relative flex min-h-0 flex-col overflow-hidden rounded-[34px] border border-black/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(250,251,252,0.96)_100%)] shadow-[0_30px_120px_rgba(15,23,42,0.08)]">
-          <div className="border-b border-black/6 px-5 py-5 sm:px-7">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="min-w-0">
-                  <div className="min-w-0">
-                    <p className="truncate text-base font-semibold text-[--color-text-primary]">{activeConversation?.title || "AI 助手"}</p>
-                    <p className="mt-1 text-sm text-[--color-text-secondary]">
-                      {statusPayload ? `${reasonLabel(statusPayload.status.reason)} / ${sourceLabel(statusPayload.status.source)}` : "正在加载状态..."}
-                    </p>
-                  </div>
-                </div>
-              </div>
+        <section className="relative flex min-h-0 flex-col overflow-hidden rounded-none bg-transparent md:rounded-[28px] md:bg-[color:var(--color-bg-surface)] md:shadow-[0_16px_34px_rgba(34,27,20,0.05)]">
+          <div className="border-b border-[--color-border] px-4 py-4 md:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                className="inline-flex h-10 items-center gap-2 rounded-full border border-[--color-border] bg-[color:var(--color-bg-surface)] px-4 text-sm text-[--color-text-primary]"
+                onClick={() => setMobilePanel("conversations")}
+              >
+                会话
+              </button>
+              <p className="truncate text-base font-semibold text-[--color-text-primary]">{activeConversation?.title || "AI 助手"}</p>
+              <button
+                type="button"
+                className="inline-flex h-10 items-center gap-2 rounded-full border border-[--color-border] bg-[color:var(--color-bg-surface)] px-4 text-sm text-[--color-text-primary]"
+                onClick={() => setMobilePanel("controls")}
+              >
+                更多
+              </button>
+            </div>
+          </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex rounded-full border border-black/8 bg-black/[0.03] p-1 text-xs">
-                  <button
-                    type="button"
-                    className={`rounded-full px-3 py-1 ${viewMode === "compact" ? "bg-white text-[--color-text-primary]" : "text-[--color-text-muted]"}`}
-                    onClick={() => setViewMode("compact")}
-                  >
-                    简洁
-                  </button>
-                  <button
-                    type="button"
-                    className={`rounded-full px-3 py-1 ${viewMode === "developer" ? "bg-white text-[--color-text-primary]" : "text-[--color-text-muted]"}`}
-                    onClick={() => setViewMode("developer")}
-                  >
-                    全过程
-                  </button>
-                </div>
-                {providerLabel ? (
-                  <span className="inline-flex rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 text-xs text-[--color-text-secondary]">
-                    {providerLabel}
-                  </span>
-                ) : null}
-                {modelName ? (
-                  <span className="inline-flex rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 text-xs text-[--color-text-secondary]">
-                    {modelName}
-                  </span>
-                ) : null}
-                <Button size="sm" variant="outline" className="rounded-full border-black/10 bg-white px-4 shadow-none" onClick={() => attachmentInputRef.current?.click()}>
-                  Attach image
-                </Button>
-                <Button size="sm" variant="outline" className="rounded-full border-black/10 bg-white px-4 shadow-none" onClick={() => setSettingsOpen(true)}>
+          <div className="hidden border-b border-[--color-border] px-8 py-4 md:block">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 max-w-3xl [&>h2]:hidden [&>p:last-child]:hidden">
+                <p className="truncate text-sm leading-7 text-[--color-text-secondary]">Agent Runtime: stream output, tool traces, and image understanding stay in one conversation view.</p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[--color-text-primary]">更接近 Codex 的执行视图</h2>
+                <p className="mt-3 max-w-3xl text-base leading-8 text-[--color-text-secondary]">
+                  支持流式正文、工具调用轨迹、多图输入和 provider 能力降级提示。
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {providerLabel ? <span className="rounded-full border border-[--color-border] px-4 py-2 text-sm text-[--color-text-primary]">{providerLabel}</span> : null}
+                {activeModelName ? <span className="rounded-full border border-[--color-border] px-4 py-2 text-sm text-[--color-text-primary]">{activeModelName}</span> : null}
+                <Button variant="outline" className="rounded-full border-[--color-border] bg-[color:var(--color-bg-surface)] px-4 shadow-none hover:bg-[--color-bg-hover]" onClick={() => setSettingsOpen(true)}>
                   <Settings2 size={14} />
                   设置
                 </Button>
               </div>
             </div>
+
+            {capabilities ? (
+              <div className="mt-4 hidden flex-wrap items-center gap-2">
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.streamText)}`}>流式</span>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.toolCalling)}`}>工具调用</span>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.visionInput)}`}>图片理解</span>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.reasoningStream)}`}>思考流</span>
+              </div>
+            ) : null}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -764,12 +1124,12 @@ export function AIAssistantClient() {
                 正在加载 AI 助手...
               </div>
             ) : (
-              <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-8 px-4 py-7 sm:px-6 lg:px-8 sm:py-8">
+              <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 md:gap-8 md:py-7">
                 {!canUseAI ? (
-                  <div className="rounded-[30px] border border-amber-200 bg-[linear-gradient(180deg,#fffdf6_0%,#fff8e8_100%)] p-6 shadow-[0_18px_40px_rgba(217,119,6,0.08)]">
+                  <div className="rounded-[20px] border border-[color:color-mix(in_srgb,var(--color-warning)_24%,white)] bg-[linear-gradient(180deg,#fffdf7_0%,#fbf5ea_100%)] p-6 shadow-[0_16px_36px_rgba(184,144,45,0.08)]">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
-                        <Wand2 size={18} />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[--color-warning-bg] text-[--color-warning]">
+                        <Sparkles size={18} />
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-[--color-text-primary]">当前还不能直接提问</p>
@@ -778,7 +1138,7 @@ export function AIAssistantClient() {
                     </div>
 
                     {statusPayload?.accessRequest ? (
-                      <div className="mt-5 rounded-[24px] border border-amber-200/80 bg-white/70 px-4 py-4 text-sm leading-7 text-[--color-text-secondary]">
+                      <div className="mt-5 rounded-[16px] border border-[color:color-mix(in_srgb,var(--color-warning)_24%,white)] bg-[color:var(--color-bg-surface)] px-4 py-4 text-sm leading-7 text-[--color-text-secondary]">
                         <p className="font-medium text-[--color-text-primary]">最近一次申请：{statusPayload.accessRequest.status}</p>
                         <p className="mt-2">{statusPayload.accessRequest.message}</p>
                         {statusPayload.accessRequest.reviewNote ? (
@@ -792,42 +1152,46 @@ export function AIAssistantClient() {
                         value={requestMessage}
                         onChange={(event) => setRequestMessage(event.target.value)}
                         rows={3}
-                        placeholder="向管理员说明你的使用场景。"
-                        className="rounded-[24px] border-amber-200 bg-white/80 px-4 py-3 shadow-none"
+                        placeholder="简单说明你的使用场景。"
+                        className="rounded-[16px] border-[color:color-mix(in_srgb,var(--color-warning)_24%,white)] bg-[color:var(--color-bg-surface)] px-4 py-3 shadow-none"
                       />
                       <div className="flex gap-2 sm:flex-col">
-                        <Button className="rounded-full px-5 shadow-none" onClick={() => void submitAccessRequest()}>提交申请</Button>
-                        <Button variant="outline" className="rounded-full border-black/10 bg-white px-5 shadow-none" onClick={() => setSettingsOpen(true)}>配置 API</Button>
+                        <Button className="rounded-full px-5 shadow-none" onClick={() => void submitAccessRequest()}>
+                          提交申请
+                        </Button>
+                        <Button variant="outline" className="rounded-full border-[--color-border] bg-[color:var(--color-bg-surface)] px-5 shadow-none hover:bg-[--color-bg-hover]" onClick={() => setSettingsOpen(true)}>
+                          配置 API
+                        </Button>
                       </div>
                     </div>
                   </div>
                 ) : null}
 
                 {messages.length === 0 ? (
-                  <div className="flex flex-col gap-8 py-6">
+                  <div className="flex flex-col gap-6 py-4">
                     <div className="max-w-4xl">
                       <p className="text-sm font-medium uppercase tracking-[0.22em] text-[--color-text-muted]">New Conversation</p>
-                      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-[--color-text-primary] sm:text-4xl">把 AI 回复从固定摘要升级成真正的执行过程</h2>
+                      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-[--color-text-primary] sm:text-4xl">让 AI 助手更自然地接入你的站内工作流</h2>
                       <p className="mt-4 max-w-2xl text-base leading-8 text-[--color-text-secondary]">
-                        这里会保留会话记录、权限控制、工具轨迹和最终结论。默认更简洁，切到“全过程”后会看到完整时间线。
+                        这里会保留会话记录，并按你的权限读取可访问的数据。新的执行视图会把思考、工具调用和最终回答分开呈现。
                       </p>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-3 md:grid-cols-3">
                       {SUGGESTIONS.map((item) => (
                         <button
                           key={item}
                           type="button"
                           onClick={() => void sendPrompt(item)}
-                          className="group rounded-[26px] border border-black/8 bg-white/75 px-5 py-5 text-left shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-black/12 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                          className="group rounded-[18px] bg-[color:var(--color-bg-surface)] px-4 py-4 text-left transition-all hover:-translate-y-0.5 hover:bg-[--color-bg-hover]"
                         >
                           <div className="flex items-start gap-3">
-                            <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-black/[0.04] text-[--color-text-primary]">
+                            <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-[12px] bg-[color:color-mix(in_srgb,var(--color-accent)_12%,white)] text-[--color-accent]">
                               <Sparkles size={16} />
                             </div>
                             <div>
                               <p className="text-sm font-medium leading-7 text-[--color-text-primary]">{item}</p>
-                              <p className="mt-2 text-xs text-[--color-text-muted] group-hover:text-[--color-text-secondary]">点击后直接发送</p>
+                              <p className="mt-1 text-xs text-[--color-text-muted] group-hover:text-[--color-text-secondary]">点击直接发送</p>
                             </div>
                           </div>
                         </button>
@@ -836,94 +1200,34 @@ export function AIAssistantClient() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-8 pb-4">
-                    {messages.map((message) => {
-                      const assistant = message.role === "assistant"
-                      const run = runsByMessageId[message.id]
-                      const displaySteps = viewMode === "developer" ? run?.steps ?? message.stepsPreview : message.stepsPreview
-
-                      return (
-                        <article key={message.id} className={`${assistant ? "mr-auto w-full max-w-[1180px]" : "ml-auto max-w-[88%] lg:max-w-[76%]"}`}>
-                          {assistant ? (
-                            <div className="w-full">
-                              <div className="min-w-0">
-                                <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-                                  <span className="text-sm font-semibold text-[--color-text-primary]">AI 助手</span>
-                                  <span className="text-xs text-[--color-text-muted]">{formatMessageTime(message.createdAt)}</span>
-                                  {message.modelName ? (
-                                    <span className="rounded-full bg-black/[0.035] px-2.5 py-1 text-[11px] text-[--color-text-muted]">{message.modelName}</span>
-                                  ) : null}
-                                  {message.runMode ? (
-                                    <span className="rounded-full bg-black/[0.035] px-2.5 py-1 text-[11px] text-[--color-text-muted]">{modeLabel(message.runMode)}</span>
-                                  ) : null}
-                                  {message.contentMarkdown ? (
-                                    <button
-                                      type="button"
-                                      className="ml-auto inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs text-[--color-text-muted] transition-colors hover:bg-black/[0.045] hover:text-[--color-text-primary]"
-                                      onClick={async () => {
-                                        await navigator.clipboard.writeText(message.contentMarkdown)
-                                        toast.success("已复制回答")
-                                      }}
-                                    >
-                                      <Copy size={13} />
-                                      复制
-                                    </button>
-                                  ) : null}
-                                </div>
-
-                                <div className="mb-4 flex flex-wrap items-center gap-2">
-                                  {message.stepsPreview.slice(0, 3).map((step) => (
-                                    <span key={step.id} className={`inline-flex rounded-full border px-3 py-1 text-xs ${statusChip(step.status)}`}>
-                                      {step.title}
-                                    </span>
-                                  ))}
-                                  {message.delegatedTargetUserId ? (
-                                    <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-700">
-                                      目标用户：{message.delegatedTargetUserId}
-                                    </span>
-                                  ) : null}
-                                </div>
-
-                                {displaySteps.length > 0 ? <Timeline steps={displaySteps} expanded={viewMode === "developer"} /> : null}
-
-                                {message.contentMarkdown ? (
-                                  <div className="ai-response mt-4 rounded-[30px] bg-white/88 px-1 py-1 shadow-[0_12px_50px_rgba(15,23,42,0.03)]">
-                                    <div className="rounded-[28px] px-5 py-4 sm:px-6 sm:py-5">
-                                      <MarkdownContent source={message.contentMarkdown} />
-                                    </div>
-                                  </div>
-                                ) : message.status === "streaming" ? (
-                                  <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-4 py-2 text-sm text-[--color-text-muted]">
-                                    <Loader2 size={14} className="animate-spin" />
-                                    正在执行...
-                                  </div>
-                                ) : null}
+                    {messages.map((message) =>
+                      message.role === "assistant" ? (
+                        <AssistantMessageCard key={message.id} message={message} run={runsByMessageId[message.id]} />
+                      ) : (
+                        <article key={message.id} className="ml-auto max-w-[88%] lg:max-w-[76%]">
+                          <div className="rounded-[18px] bg-[linear-gradient(180deg,#fbf5ef_0%,#f7efe7_100%)] px-5 py-4 text-[15px] leading-8 text-[--color-text-primary] shadow-[0_10px_24px_rgba(201,100,66,0.08)]">
+                            <div className="mb-1 text-xs text-[--color-text-muted]">{formatMessageTime(message.createdAt)}</div>
+                            {message.attachments.length > 0 ? (
+                              <div className="mb-3 flex flex-wrap gap-3">
+                                {message.attachments.map((attachment) => (
+                                  <a
+                                    key={attachment.id}
+                                    href={attachment.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="block overflow-hidden rounded-[14px] bg-[color:var(--color-bg-surface)]"
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={attachment.url} alt="" className="h-36 w-36 object-cover" />
+                                  </a>
+                                ))}
                               </div>
-                            </div>
-                          ) : (
-                            <div className="rounded-[30px] bg-[#f2f4f7] px-5 py-4 text-[15px] leading-8 text-[--color-text-primary] shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
-                              <div className="mb-1 text-xs text-[--color-text-muted]">{formatMessageTime(message.createdAt)}</div>
-                              {message.attachments.length > 0 ? (
-                                <div className="mb-3 flex flex-wrap gap-3">
-                                  {message.attachments.map((attachment) => (
-                                    attachment.mimeType.startsWith("image/") ? (
-                                      <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl border border-black/8 bg-white">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img src={attachment.url} alt={attachment.originalName} className="h-36 w-36 object-cover" />
-                                      </a>
-                                    ) : (
-                                      <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="rounded-2xl border border-black/8 bg-white px-3 py-2 text-xs text-[--color-text-secondary] hover:no-underline">
-                                        {attachment.originalName}
-                                      </a>
-                                    )
-                                  ))}
-                                </div>
-                              ) : null}
-                              <div className="whitespace-pre-wrap break-words">{message.contentMarkdown}</div>
-                            </div>
-                          )}
+                            ) : null}
+                            <div className="whitespace-pre-wrap break-words">{message.contentMarkdown}</div>
+                          </div>
                         </article>
-                      )
-                    })}
+                      ),
+                    )}
                     <div ref={endRef} />
                   </div>
                 )}
@@ -931,68 +1235,283 @@ export function AIAssistantClient() {
             )}
           </div>
 
-          <div className="border-t border-black/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.74)_0%,rgba(255,255,255,0.96)_36%)] px-4 pb-4 pt-4 backdrop-blur sm:px-7 sm:pb-7">
+          <div className="bg-[linear-gradient(180deg,rgba(250,247,240,0)_0%,rgba(255,255,255,0.88)_28%)] px-4 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] pt-3 backdrop-blur sm:px-7 sm:pb-6 sm:pt-4">
             <div className="mx-auto w-full max-w-[1480px]">
-              <div className="rounded-[32px] border border-black/8 bg-white/90 p-3 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
-                <input
-                  ref={attachmentInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (event) => {
-                    const file = event.target.files?.[0]
-                    event.currentTarget.value = ""
-                    if (!file) return
-                    try {
-                      const uploaded = await uploadAttachment(file)
-                      setAttachments([uploaded])
-                    } catch (error) {
-                      toast.error(error instanceof Error ? error.message : "Attachment upload failed")
-                    }
-                  }}
-                />
-                <div className="flex flex-wrap items-center gap-2 px-2 pb-3 pt-1">
-                  <span className="inline-flex rounded-full bg-black/[0.04] px-3 py-1 text-xs text-[--color-text-secondary]">{sourceLabel(statusPayload?.status.source ?? "none")}</span>
-                  {modelName ? (
-                    <span className="inline-flex rounded-full bg-black/[0.04] px-3 py-1 text-xs text-[--color-text-secondary]">{modelName}</span>
-                  ) : null}
-                  <span className="text-xs text-[--color-text-muted]">先校验权限，再规划步骤，然后调用受控工具和 provider</span>
-                </div>
+              <input
+                ref={attachmentInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={async (event) => {
+                  const files = Array.from(event.target.files ?? [])
+                  event.currentTarget.value = ""
+                  if (files.length === 0) return
+                  try {
+                    const uploaded = await Promise.all(files.map((file) => uploadAttachment(file)))
+                    setAttachments((current) => [...current, ...uploaded])
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "图片上传失败")
+                  }
+                }}
+              />
 
-                {attachments.length > 0 ? (
-                  <div className="px-2 pb-3">
-                    <div className="inline-flex items-center gap-3 rounded-2xl border border-black/8 bg-black/[0.03] px-3 py-2">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={attachments[0].url} alt={attachments[0].originalName} className="h-12 w-12 rounded-xl object-cover" />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-[--color-text-primary]">{attachments[0].originalName}</p>
-                        <p className="text-xs text-[--color-text-muted]">Image attached for this prompt</p>
+              <div className="hidden flex-wrap items-center gap-2 px-1 pb-3 md:flex">
+                <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+                  {sourceLabel(statusPayload?.status.source ?? "none")}
+                </span>
+                {providerLabel ? (
+                  <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+                    {providerLabel}
+                  </span>
+                ) : null}
+                {activeModelName ? (
+                  <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+                    {activeModelName}
+                  </span>
+                ) : null}
+              </div>
+
+              {attachments.length > 0 ? (
+                <div className="pb-3">
+                  <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {attachments.map((attachment, index) => (
+                      <div
+                        key={attachment.id}
+                        className="group relative flex h-[104px] w-[104px] shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#eef2ff] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={attachment.url} alt="" className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                          className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black text-white shadow-sm transition-transform hover:scale-105"
+                          aria-label="移除图片"
+                        >
+                          <X size={14} />
+                        </button>
                       </div>
-                      <button type="button" onClick={() => setAttachments([])} className="text-xs text-[--color-text-muted] hover:text-[--color-danger]">
-                        Remove
-                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {modelMenuOpen ? (
+                <div className="mb-3 hidden md:flex md:justify-end">
+                  <div className="w-[320px] rounded-[22px] border border-[--color-border] bg-[color:var(--color-bg-surface)] p-3 shadow-[0_18px_36px_rgba(34,27,20,0.1)]">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm font-medium text-[--color-text-primary]">Model switch</p>
+                        <p className="mt-1 text-xs leading-6 text-[--color-text-muted]">
+                          Switch the current model for this provider without reopening the whole settings form.
+                        </p>
+                      </div>
+                      <div className="max-h-64 space-y-2 overflow-y-auto">
+                        {availableModels.length > 0 ? (
+                          availableModels.map((model) => (
+                            <button
+                              key={model}
+                              type="button"
+                              onClick={() => {
+                                setSelectedModel(model)
+                                saveModelCatalog(providerLabel, activeBaseUrl, availableModels, model)
+                                setModelMenuOpen(false)
+                              }}
+                              className={`flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition-colors ${
+                                activeModelName === model
+                                  ? "bg-[--color-bg-hover] text-[--color-text-primary]"
+                                  : "text-[--color-text-secondary] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+                              }`}
+                            >
+                              <span className="truncate">{model}</span>
+                              {activeModelName === model ? <CheckCircle2 size={14} className="shrink-0" /> : null}
+                            </button>
+                          ))
+                        ) : (
+                          <p className="rounded-2xl bg-[--color-bg-hover] px-3 py-3 text-sm text-[--color-text-muted]">
+                            Add more models in settings first, then they will appear here for quick switching.
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="w-full rounded-full border-[--color-border] bg-[color:var(--color-bg-surface)] shadow-none hover:bg-[--color-bg-hover]"
+                        onClick={() => {
+                          setModelMenuOpen(false)
+                          setSettingsOpen(true)
+                        }}
+                      >
+                        <Settings2 size={14} />
+                        Manage model list
+                      </Button>
                     </div>
                   </div>
-                ) : null}
+                </div>
+              ) : null}
 
-                <Textarea
-                  value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  rows={4}
-                  placeholder="输入你的问题，比如总结最近聊天、查看登录会话、搜索消息或管理员代查。"
-                  className="min-h-[120px] resize-none rounded-[26px] border-0 bg-transparent px-4 py-3 text-[15px] leading-8 shadow-none focus-visible:ring-0"
-                />
+              <div className="hidden items-end gap-3 md:flex">
+                <button
+                  type="button"
+                  onClick={() => attachmentInputRef.current?.click()}
+                  className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-bg-surface)] text-[--color-text-primary] shadow-[0_16px_34px_rgba(34,27,20,0.08)] transition-transform hover:-translate-y-0.5"
+                  aria-label="上传图片"
+                >
+                  <Plus size={28} strokeWidth={2.1} />
+                </button>
 
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 px-2 pb-1">
-                  <p className="text-xs leading-6 text-[--color-text-muted]">默认以简洁模式展示，切到“全过程”可查看完整执行时间线。</p>
-                  <Button onClick={() => void sendPrompt()} disabled={sending || (!prompt.trim() && attachments.length === 0)} className="h-11 rounded-full px-5 shadow-none">
-                    {sending ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-                    {sending ? "生成中..." : "发送"}
-                  </Button>
+                <div className="flex min-h-16 flex-1 items-end gap-3 rounded-full bg-[color:var(--color-bg-surface)] px-6 py-3 shadow-[0_18px_36px_rgba(34,27,20,0.08)]">
+                  <Textarea
+                    ref={desktopPromptInputRef}
+                    value={prompt}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    rows={1}
+                    placeholder="输入你的问题，例如总结近况、查看聊天、搜索消息，或结合多张图片进行分析。"
+                    className="min-h-[42px] max-h-[36vh] flex-1 resize-none overflow-hidden !rounded-none !border-0 !bg-transparent px-0 py-[3px] text-[18px] leading-8 !shadow-none outline-none ring-0 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setModelMenuOpen((current) => !current)}
+                    className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm text-[--color-text-secondary] transition-colors hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+                  >
+                    进阶
+                    <ChevronDown size={16} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void sendPrompt()}
+                    disabled={sending || (!prompt.trim() && attachments.length === 0)}
+                    className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-black/40"
+                    aria-label={sending ? "生成中" : "发送消息"}
+                  >
+                    {sending ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={22} strokeWidth={2.4} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-end gap-3 md:hidden">
+                <button
+                  type="button"
+                  onClick={() => attachmentInputRef.current?.click()}
+                  className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-bg-surface)] text-[--color-text-primary] shadow-[0_18px_36px_rgba(34,27,20,0.08)]"
+                  aria-label="上传图片"
+                >
+                  <Plus size={30} strokeWidth={2.1} />
+                </button>
+
+                <div className="flex min-h-16 flex-1 items-end gap-3 rounded-[28px] bg-[color:var(--color-bg-surface)] px-5 py-3 shadow-[0_18px_36px_rgba(34,27,20,0.08)]">
+                  <Textarea
+                    ref={mobilePromptInputRef}
+                    value={prompt}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    rows={1}
+                    placeholder="输入问题"
+                    className="min-h-[42px] max-h-[50vh] flex-1 resize-none overflow-hidden !rounded-none !border-0 !bg-transparent px-0 py-[3px] text-[16px] leading-8 !shadow-none outline-none ring-0 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => void sendPrompt()}
+                    disabled={sending || (!prompt.trim() && attachments.length === 0)}
+                    className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white disabled:cursor-not-allowed disabled:bg-black/40"
+                    aria-label={sending ? "生成中" : "发送消息"}
+                  >
+                    {sending ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={22} strokeWidth={2.4} />}
+                  </button>
                 </div>
               </div>
             </div>
           </div>
+
+          {mobilePanel ? (
+            <div className="absolute inset-0 z-20 flex flex-col bg-[color:var(--color-bg-surface)] md:hidden">
+              <div className="flex items-center justify-between border-b border-[--color-border] px-4 py-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-[--color-text-muted]">
+                    {mobilePanel === "conversations" ? "Conversations" : "Controls"}
+                  </p>
+                  <p className="text-base font-semibold text-[--color-text-primary]">
+                    {mobilePanel === "conversations" ? "切换会话" : "聊天设置"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[--color-border] text-[--color-text-secondary]"
+                  onClick={() => setMobilePanel(null)}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {mobilePanel === "conversations" ? (
+                <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <p className="text-sm text-[--color-text-secondary]">手机端把会话列表收进这里，聊天主界面保持更干净。</p>
+                    <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void createConversation()}>
+                      <MessageSquarePlus size={14} />
+                      新建
+                    </Button>
+                  </div>
+                  <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+                    {conversations.map((conversation) => (
+                      <button
+                        key={conversation.id}
+                        type="button"
+                        className={`w-full rounded-[18px] px-4 py-3 text-left transition-colors ${activeConversationId === conversation.id ? "bg-[--color-bg-hover]" : "bg-[color:var(--color-bg-surface)]"}`}
+                        onClick={() => {
+                          void loadMessages(conversation.id).then(() => {
+                            setActiveConversationId(conversation.id)
+                            setMobilePanel(null)
+                          })
+                        }}
+                      >
+                        <p className="line-clamp-2 text-sm font-medium leading-6 text-[--color-text-primary]">{conversation.title}</p>
+                        <p className="mt-1 text-xs text-[--color-text-muted]">
+                          {formatConversationTime(conversation.lastMessageAt)} · {conversation.messageCount} 条消息
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+                  <div className="rounded-[18px] bg-[--color-bg-hover] p-4">
+                    <p className="text-xs text-[--color-text-muted]">当前来源</p>
+                    <p className="mt-2 text-sm font-medium text-[--color-text-primary]">
+                      {statusPayload ? `${reasonLabel(statusPayload.status.reason)} / ${sourceLabel(statusPayload.status.source)}` : "正在加载..."}
+                    </p>
+                    {providerLabel ? (
+                      <p className="mt-2 text-xs leading-6 text-[--color-text-secondary]">
+                        {providerLabel} · {activeModelName || "未选择模型"}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {capabilities ? (
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.streamText)}`}>流式</span>
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.toolCalling)}`}>工具调用</span>
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.visionInput)}`}>图片理解</span>
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.reasoningStream)}`}>思考流</span>
+                    </div>
+                  ) : null}
+
+                  <Button
+                    variant="outline"
+                    className="h-11 justify-center rounded-full border-[--color-border] bg-[color:var(--color-bg-surface)] shadow-none"
+                    onClick={() => {
+                      setMobilePanel(null)
+                      setSettingsOpen(true)
+                    }}
+                  >
+                    <Settings2 size={15} />
+                    打开 AI 设置
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : null}
         </section>
       </div>
 

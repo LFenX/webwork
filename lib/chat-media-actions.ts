@@ -43,8 +43,18 @@ export async function copyImageToClipboard(url: string) {
 }
 
 export async function saveStickerToCustomLibrary(stickerId: string, userId?: string) {
+  const result = await saveStickersToCustomLibrary([stickerId], userId)
+  return { deduped: result.dedupedCount > 0 }
+}
+
+export async function saveStickersToCustomLibrary(stickerIds: string[], userId?: string) {
+  const uniqueIds = [...new Set(stickerIds.filter(Boolean))]
+  if (uniqueIds.length === 0) {
+    return { addedCount: 0, dedupedCount: 0 }
+  }
   const form = new FormData()
-  form.set("sourceStickerId", stickerId)
+  form.set("action", "save-to-custom")
+  uniqueIds.forEach((id) => form.append("sourceStickerIds", id))
   const response = await fetch("/api/stickers", { method: "POST", body: form })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
@@ -56,5 +66,33 @@ export async function saveStickerToCustomLibrary(stickerId: string, userId?: str
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("stickers-updated"))
   }
-  return data as { deduped?: boolean }
+  return {
+    addedCount: Number(data.addedCount ?? 0),
+    dedupedCount: Number(data.dedupedCount ?? 0),
+  }
+}
+
+export async function contributeStickersToCommunity(stickerIds: string[], userId?: string) {
+  const uniqueIds = [...new Set(stickerIds.filter(Boolean))]
+  if (uniqueIds.length === 0) {
+    return { addedCount: 0, dedupedCount: 0 }
+  }
+  const form = new FormData()
+  form.set("action", "contribute-to-public")
+  uniqueIds.forEach((id) => form.append("contributeStickerIds", id))
+  const response = await fetch("/api/stickers", { method: "POST", body: form })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(data.error ?? "Failed to contribute stickers.")
+  }
+  if (userId) {
+    removeUserStorage("local", userStorageKey(userId, "stickers-cache", "picker"))
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("stickers-updated"))
+  }
+  return {
+    addedCount: Number(data.addedCount ?? 0),
+    dedupedCount: Number(data.dedupedCount ?? 0),
+  }
 }

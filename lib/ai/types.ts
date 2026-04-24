@@ -1,5 +1,12 @@
 export type AIProviderSource = "user" | "grant" | "none"
 
+export type AIProviderCapabilities = {
+  streamText: boolean
+  toolCalling: boolean
+  visionInput: boolean
+  reasoningStream: boolean
+}
+
 export type AIAvailabilityReason =
   | "ready"
   | "server-secret-missing"
@@ -16,6 +23,7 @@ export type AISafeProviderConfig = {
   model: string
   temperature: number
   streamEnabled: boolean
+  capabilities: AIProviderCapabilities
 }
 
 export type AIResolvedProviderConfig = AISafeProviderConfig & {
@@ -50,16 +58,10 @@ export type AIConversationListItem = {
 export type AIRunMode = "self" | "admin-delegated" | "visible-user"
 
 export type AIRunStepType =
-  | "run_started"
-  | "plan_created"
-  | "tool_started"
-  | "tool_completed"
-  | "tool_failed"
-  | "verification_started"
-  | "verification_completed"
-  | "final_started"
-  | "run_completed"
-  | "run_failed"
+  | "reasoning"
+  | "tool_call"
+  | "assistant_output"
+  | "warning"
 
 export type AIRunStepStatus = "running" | "completed" | "failed"
 
@@ -73,6 +75,7 @@ export type AIRunStepItem = {
   summary: string
   inputPreview: unknown
   outputPreview: unknown
+  providerMetadata?: Record<string, unknown> | null
   errorMessage: string
 }
 
@@ -117,9 +120,23 @@ export type AIToolDescriptor = {
   inputSchemaSummary: string
   sensitivity: AIToolSensitivity
   auditLabel: string
+  whenToUse?: string
+  whenNotToUse?: string
+  argumentHints?: string[]
+  returns?: string
 }
 
 export type AIToolResultStatus = "completed" | "failed"
+
+export type AIToolAccessResult = "granted" | "forbidden" | "not_found" | "partial"
+
+export type AIToolStructuredResult<TData = unknown> = {
+  ok: boolean
+  access: AIToolAccessResult
+  summary: string
+  data: TData | null
+  reason?: string
+}
 
 export type AIToolExecutionRecord = {
   name: string

@@ -1,6 +1,7 @@
 import "server-only"
 import { Prisma } from "@/app/generated/prisma/client"
 import { decryptSecret, encryptSecret, hasAISecretKey, maskApiKey } from "@/lib/ai/crypto"
+import { probeProviderCapabilities, withProviderCapabilities } from "@/lib/ai/provider"
 import { prisma } from "@/lib/db"
 import { AI_TOOL_DESCRIPTORS } from "@/lib/ai/tools/registry"
 import type {
@@ -34,13 +35,13 @@ function toSafeConfig(value: {
   temperature: number
   streamEnabled: boolean
 }): AISafeProviderConfig {
-  return {
+  return withProviderCapabilities({
     providerLabel: value.providerLabel,
     baseUrl: value.baseUrl,
     model: value.model,
     temperature: value.temperature,
     streamEnabled: value.streamEnabled,
-  }
+  })
 }
 
 function normalizeBaseUrl(baseUrl: string) {
@@ -85,6 +86,11 @@ function toRunStepItem(step: {
   outputPreview: Prisma.JsonValue | null
   errorMessage: string
 }): AIRunStepItem {
+  const providerMetadata =
+    step.outputPreview && typeof step.outputPreview === "object" && !Array.isArray(step.outputPreview) && "providerMetadata" in step.outputPreview
+      ? ((step.outputPreview as { providerMetadata?: Record<string, unknown> | null }).providerMetadata ?? null)
+      : null
+
   return {
     id: step.id,
     type: step.type as AIRunStepType,
@@ -95,6 +101,7 @@ function toRunStepItem(step: {
     summary: step.summary,
     inputPreview: step.inputPreview,
     outputPreview: step.outputPreview,
+    providerMetadata,
     errorMessage: step.errorMessage,
   }
 }
@@ -193,15 +200,16 @@ export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnaps
   }
 }
 
-export async function getEffectiveProviderConfig(userId: string): Promise<AIResolvedProviderConfig | null> {
+export async function getEffectiveProviderConfig(userId: string, modelOverride?: string): Promise<AIResolvedProviderConfig | null> {
   const status = await getAIStatusSnapshot(userId)
   if (!status.canUseAI || !status.config) return null
+  const resolvedModel = modelOverride?.trim() || status.config.model
 
   if (status.source === "user") {
     const config = await prisma.aIUserProviderConfig.findUnique({ where: { userId } })
     if (!config?.apiKeyEncrypted) return null
     return {
-      ...toSafeConfig(config),
+      ...toSafeConfig({ ...config, model: resolvedModel }),
       source: "user",
       apiKey: decryptSecret(config.apiKeyEncrypted),
     }
@@ -210,7 +218,7 @@ export async function getEffectiveProviderConfig(userId: string): Promise<AIReso
   const grant = await prisma.aIUsageGrant.findUnique({ where: { userId } })
   if (!grant?.apiKeyEncrypted || grant.status !== "active") return null
   return {
-    ...toSafeConfig(grant),
+    ...toSafeConfig({ ...grant, model: resolvedModel }),
     source: "grant",
     apiKey: decryptSecret(grant.apiKeyEncrypted),
   }
@@ -431,20 +439,14 @@ export async function markAIUserConfigTest(userId: string, status: "passed" | "f
 }
 
 export async function testAIProviderConnection(input: AIProviderConfigInput) {
-  const url = `${normalizeBaseUrl(input.baseUrl)}/models`
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${input.apiKey.trim()}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
+  return probeProviderCapabilities({
+    providerLabel: input.providerLabel,
+    baseUrl: normalizeBaseUrl(input.baseUrl),
+    apiKey: input.apiKey.trim(),
+    model: input.model.trim(),
+    temperature: input.temperature ?? 0.7,
+    streamEnabled: input.streamEnabled ?? true,
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => "")
-    throw new Error(text || `Provider test failed with status ${response.status}`)
-  }
-  return true
 }
 
 export async function getMyAIAccessRequest(userId: string) {

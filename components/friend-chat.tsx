@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { type ClipboardEvent as ReactClipboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type ClipboardEvent as ReactClipboardEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   AlertCircle,
@@ -203,8 +203,9 @@ function getLabels(): ComposerLabels {
 }
 
 const TIME_GAP_MS = 5 * 60 * 1000
-const HISTORY_BATCH_SIZE = 100
-const HISTORY_AUTO_TARGET = 240
+const INITIAL_HISTORY_BATCH_SIZE = 40
+const OLDER_HISTORY_BATCH_SIZE = 10
+const BOTTOM_STICKY_THRESHOLD = 96
 
 export function presenceLabel(status?: ChatFriend["presenceStatus"]) {
   const labels = getLabels()
@@ -250,6 +251,23 @@ function formatBytes(size: number) {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`
   return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+function isNearBottom(element: HTMLElement | null) {
+  if (!element) return true
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= BOTTOM_STICKY_THRESHOLD
+}
+
+function makeClientMessageCursor(message: Pick<ChatMessage, "id" | "createdAt"> | null | undefined) {
+  if (!message) return null
+  return `${new Date(message.createdAt).toISOString()}|${message.id}`
+}
+
+function isEarlierMessage(a: ChatMessage | undefined, b: ChatMessage | undefined) {
+  if (!a || !b) return false
+  const timeDiff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  if (timeDiff !== 0) return timeDiff < 0
+  return a.id < b.id
 }
 
 async function compressImageIfNeeded(file: File) {
@@ -392,25 +410,67 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
     if (appendOlder) setLoadingOlder(true)
     else setLoading(true)
     try {
-      const params = new URLSearchParams({
-        limit: String(HISTORY_BATCH_SIZE),
-        _t: String(Date.now()),
-      })
-      if (cursor) params.set("cursor", cursor)
-      const res = await fetch(`/api/chats/${friendId}/messages?${params.toString()}`, { cache: "no-store" })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error ?? "Failed to load chat")
-      const items = Array.isArray(data.items) ? (data.items as ChatMessage[]) : []
-      const incomingNextCursor = typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null
-      setLoadedFriend((data.friend as ChatFriend | null) ?? null)
-      setNextCursor(incomingNextCursor)
+      let items: ChatMessage[] = []
+      let incomingNextCursor: string | null = null
+      let loadedFriendPayload: ChatFriend | null = null
+
       if (appendOlder) {
+        let cursorToUse = cursor ?? null
+        let attempts = 0
+        while (cursorToUse && attempts < 8) {
+          const params = new URLSearchParams({
+            limit: String(OLDER_HISTORY_BATCH_SIZE),
+            _t: String(Date.now()),
+          })
+          params.set("cursor", cursorToUse)
+          const res = await fetch(`/api/chats/${friendId}/messages?${params.toString()}`, { cache: "no-store" })
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) throw new Error(data.error ?? "Failed to load chat")
+          const fetchedItems = Array.isArray(data.items) ? (data.items as ChatMessage[]) : []
+          const fetchedNextCursor = typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null
+          const existingIds = new Set(messagesRef.current.map((item) => item.id))
+          const nonDuplicateItems = fetchedItems.filter((item) => !existingIds.has(item.id))
+          loadedFriendPayload = (data.friend as ChatFriend | null) ?? loadedFriendPayload
+          items = fetchedItems
+          incomingNextCursor = fetchedNextCursor
+          if (nonDuplicateItems.length > 0 || !fetchedNextCursor) break
+          cursorToUse = fetchedNextCursor
+          attempts += 1
+        }
+      } else {
+        const params = new URLSearchParams({
+          limit: String(INITIAL_HISTORY_BATCH_SIZE),
+          _t: String(Date.now()),
+        })
+        if (cursor) params.set("cursor", cursor)
+        const res = await fetch(`/api/chats/${friendId}/messages?${params.toString()}`, { cache: "no-store" })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error ?? "Failed to load chat")
+        items = Array.isArray(data.items) ? (data.items as ChatMessage[]) : []
+        incomingNextCursor = typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null
+        loadedFriendPayload = (data.friend as ChatFriend | null) ?? null
+      }
+
+      setLoadedFriend(loadedFriendPayload)
+      if (appendOlder) {
+        const prependedIds: string[] = []
         setMessages((current) => {
           const existingIds = new Set(current.map((item) => item.id))
           const olderItems = items.filter((item) => !existingIds.has(item.id))
+          prependedIds.push(...olderItems.map((item) => item.id))
           return [...olderItems, ...current]
         })
+        setNextCursor(incomingNextCursor)
+        return { prependedIds }
       } else {
+        const currentServerMessages = messagesRef.current.filter((item) => !item.localStatus)
+        const currentOldest = currentServerMessages[0]
+        const incomingOldest = items[0]
+        const shouldPreserveExpandedHistory =
+          currentServerMessages.length > items.length ||
+          isEarlierMessage(currentOldest, incomingOldest)
+
+        setNextCursor(shouldPreserveExpandedHistory ? nextCursorRef.current : incomingNextCursor)
         setMessages((current) => mergeChatMessages(current.filter((item) => item.localStatus), items))
       }
       onSummaryChange?.()
@@ -424,19 +484,11 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
   }, [friendId, onSummaryChange])
 
   const loadOlderMessages = useCallback(async () => {
-    if (!nextCursorRef.current || loading || loadingOlder) return
-    const targetCount = messagesRef.current.filter((item) => !item.localStatus).length + HISTORY_AUTO_TARGET
-    let cursor = nextCursorRef.current
-    let loops = 0
-    let keepGoing = true
-    while (cursor && keepGoing && loops < 4) {
-      loops += 1
-      const previousCount = messagesRef.current.length
-      await loadMessages({ cursor, appendOlder: true })
-      cursor = nextCursorRef.current
-      const currentCount = messagesRef.current.length
-      keepGoing = currentCount < targetCount && currentCount > previousCount
-    }
+    if (loading || loadingOlder) return
+    const oldestLoadedServerMessage = messagesRef.current.find((message) => !message.localStatus) ?? null
+    const cursor = makeClientMessageCursor(oldestLoadedServerMessage) ?? nextCursorRef.current
+    if (!cursor) return
+    return await loadMessages({ cursor, appendOlder: true })
   }, [loadMessages, loading, loadingOlder])
 
   useEffect(() => {
@@ -752,7 +804,7 @@ export function ChatPanel({
   onStickerPick?: (sticker: StickerPick) => void
   onReplyChange?: (reply: ReplyPreview | null) => void
   onSend: () => void
-  onLoadOlder?: () => Promise<void> | void
+  onLoadOlder?: () => Promise<{ prependedIds?: string[] } | void> | { prependedIds?: string[] } | void
   onReload: () => void
   onRetryMessage?: (messageId: string) => void
   onDiscardMessage?: (messageId: string) => void
@@ -765,6 +817,11 @@ export function ChatPanel({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const lastMessageIdRef = useRef<string | null>(null)
+  const shouldStickToBottomRef = useRef(true)
+  const loadOlderInFlightRef = useRef(false)
+  const loadOlderSequenceRef = useRef(0)
+  const suppressAutoLoadOlderUntilRef = useRef(0)
+  const revealPrependedHistoryRef = useRef(false)
   const [failedMessage, setFailedMessage] = useState<ChatMessage | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [previewImage, setPreviewImage] = useState<ChatAttachment | null>(null)
@@ -784,36 +841,51 @@ export function ChatPanel({
       lastMessageIdRef.current = currentLastMessageId
       return
     }
-    if (lastMessageIdRef.current !== currentLastMessageId) {
+    const lastMessageChanged = lastMessageIdRef.current !== currentLastMessageId
+    const latestMessage = messages[messages.length - 1]
+    const latestMessageIsMine = latestMessage ? latestMessage.senderId !== friend.id : false
+    if (lastMessageChanged && (lastMessageIdRef.current === null || shouldStickToBottomRef.current || latestMessageIsMine)) {
       endRef.current?.scrollIntoView({ block: "end" })
     }
     lastMessageIdRef.current = currentLastMessageId
   }, [friend?.id, messages])
 
-  const handleLoadOlder = useCallback(async () => {
-    if (!onLoadOlder || loadingOlder) return
+  useLayoutEffect(() => {
     const container = scrollContainerRef.current
-    const previousHeight = container?.scrollHeight ?? 0
-    const previousTop = container?.scrollTop ?? 0
-    await onLoadOlder()
-    window.requestAnimationFrame(() => {
-      if (!container) return
-      container.scrollTop = Math.max(0, container.scrollHeight - previousHeight + previousTop)
-    })
+    if (!container) return
+    if (!revealPrependedHistoryRef.current) return
+    revealPrependedHistoryRef.current = false
+    container.scrollTop = 0
+  }, [messages])
+
+  const handleLoadOlder = useCallback(async () => {
+    if (!onLoadOlder || loadingOlder || loadOlderInFlightRef.current) return
+    loadOlderInFlightRef.current = true
+    const requestSequence = ++loadOlderSequenceRef.current
+    try {
+      const result = await onLoadOlder()
+      if (loadOlderSequenceRef.current !== requestSequence) return
+      const prependedIds = result && "prependedIds" in result ? result.prependedIds ?? [] : []
+      if (prependedIds.length > 0) {
+        revealPrependedHistoryRef.current = true
+      }
+      suppressAutoLoadOlderUntilRef.current = Date.now() + 500
+    } finally {
+      loadOlderInFlightRef.current = false
+    }
   }, [loadingOlder, onLoadOlder])
 
   useEffect(() => {
     const container = scrollContainerRef.current
-    if (!container || !hasOlder || loading || loadingOlder) return
+    if (!container) return
 
     const onScroll = () => {
-      if (container.scrollTop > 80) return
-      void handleLoadOlder()
+      shouldStickToBottomRef.current = isNearBottom(container)
     }
 
     container.addEventListener("scroll", onScroll, { passive: true })
     return () => container.removeEventListener("scroll", onScroll)
-  }, [handleLoadOlder, hasOlder, loading, loadingOlder])
+  }, [])
 
   const handleComposerPaste = useCallback((event: ReactClipboardEvent<HTMLTextAreaElement>) => {
     const pastedFiles = getClipboardImageFiles(event.clipboardData)
@@ -990,7 +1062,7 @@ export function ChatPanel({
               )
 
               return (
-                <div key={message.id}>
+                <div key={message.id} data-message-id={message.id}>
                   {shouldShowTime(previous, message) && (
                     <p className="my-4 text-center font-mono text-xs text-[--color-text-muted]">{formatTime(message.createdAt)}</p>
                   )}
@@ -1053,7 +1125,6 @@ export function ChatPanel({
             value={text}
             onChange={(event) => onTextChange(event.target.value)}
             onPaste={handleComposerPaste}
-            onFocus={() => window.setTimeout(() => endRef.current?.scrollIntoView({ block: "end" }), 80)}
             placeholder={labels.typeMessage}
             rows={3}
             className="wechat-composer-input max-h-32 flex-1 resize-none px-3 py-3 text-sm text-[--color-text-primary]"

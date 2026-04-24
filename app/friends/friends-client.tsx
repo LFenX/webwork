@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { Check, Clock, MessageCircle, UserMinus, UserPlus, Users, X } from "lucide-react"
@@ -29,6 +29,10 @@ interface FriendRequest {
 type ViewMode = "friends" | "chat"
 const FRIEND_CACHE_TTL_MS = 90 * 1000
 const FRIEND_PRESENCE_REFRESH_MS = 60_000
+const DESKTOP_CHAT_HEIGHT_STORAGE_KEY = "friends-desktop-chat-height"
+const DESKTOP_CHAT_MIN_HEIGHT = 500
+const DESKTOP_CHAT_MAX_HEIGHT = 980
+const DESKTOP_CHAT_VIEWPORT_GAP = 90
 
 type FriendData = {
   friends: Friend[]
@@ -129,6 +133,11 @@ function formatChatTime(value?: string | null) {
   if (diffDays <= 0) return time
   if (diffDays < 7) return `${date.toLocaleDateString(locale, { weekday: "short" })} ${time}`
   return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")} ${time}`
+}
+
+function clampDesktopChatHeight(value: number, viewportHeight: number) {
+  const viewportCap = Math.max(DESKTOP_CHAT_MIN_HEIGHT, Math.min(DESKTOP_CHAT_MAX_HEIGHT, viewportHeight - DESKTOP_CHAT_VIEWPORT_GAP))
+  return Math.min(Math.max(value, DESKTOP_CHAT_MIN_HEIGHT), viewportCap)
 }
 
 function AvatarWithUnread({ friend, unreadCount }: { friend: Friend; unreadCount: number }) {
@@ -618,8 +627,71 @@ function ChatWorkspace({
   currentUser: ChatFriend
   labels: ReturnType<typeof getLabels>
 }) {
+  const [desktopChatHeight, setDesktopChatHeight] = useState<number | null>(null)
+  const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(null)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const readPreferredHeight = () => {
+      const saved = window.localStorage.getItem(DESKTOP_CHAT_HEIGHT_STORAGE_KEY)
+      const parsed = saved ? Number.parseInt(saved, 10) : Number.NaN
+      const fallback = window.innerHeight - 260
+      const nextHeight = clampDesktopChatHeight(Number.isFinite(parsed) ? parsed : fallback, window.innerHeight)
+      setDesktopChatHeight(nextHeight)
+    }
+
+    readPreferredHeight()
+
+    const handleResize = () => {
+      setDesktopChatHeight((current) => {
+        const fallback = window.innerHeight - 260
+        const nextHeight = clampDesktopChatHeight(current ?? fallback, window.innerHeight)
+        window.localStorage.setItem(DESKTOP_CHAT_HEIGHT_STORAGE_KEY, String(nextHeight))
+        return nextHeight
+      })
+    }
+
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || desktopChatHeight == null) return
+    window.localStorage.setItem(DESKTOP_CHAT_HEIGHT_STORAGE_KEY, String(desktopChatHeight))
+  }, [desktopChatHeight])
+
+  const handleResizeStart = useCallback((clientY: number) => {
+    if (typeof window === "undefined") return
+    dragStateRef.current = {
+      startY: clientY,
+      startHeight: desktopChatHeight ?? clampDesktopChatHeight(window.innerHeight - 260, window.innerHeight),
+    }
+    document.body.style.userSelect = "none"
+    document.body.style.cursor = "ns-resize"
+
+    const handlePointerMove = (moveEvent: MouseEvent) => {
+      const dragState = dragStateRef.current
+      if (!dragState) return
+      const deltaY = moveEvent.clientY - dragState.startY
+      const nextHeight = clampDesktopChatHeight(dragState.startHeight + deltaY, window.innerHeight)
+      setDesktopChatHeight(nextHeight)
+    }
+
+    const finishResize = () => {
+      dragStateRef.current = null
+      document.body.style.removeProperty("user-select")
+      document.body.style.removeProperty("cursor")
+      window.removeEventListener("mousemove", handlePointerMove)
+      window.removeEventListener("mouseup", finishResize)
+    }
+
+    window.addEventListener("mousemove", handlePointerMove)
+    window.addEventListener("mouseup", finishResize)
+  }, [desktopChatHeight])
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
+    <div className="grid gap-6 lg:items-start lg:grid-cols-[340px_minmax(0,1fr)]">
       <section className="min-w-0">
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-[--color-text-secondary]">
           <MessageCircle size={14} /> {labels.chat}
@@ -641,29 +713,53 @@ function ChatWorkspace({
         )}
       </section>
 
-      <div className="hidden lg:block">
-        <ChatPanel
-          friend={selectedFriend}
-          currentUser={currentUser}
-          messages={chat.messages}
-          loading={chat.loading}
-          sending={chat.sending}
-          text={chat.text}
-          files={chat.files}
-          sticker={chat.sticker}
-          replyTo={chat.replyTo}
-          onTextChange={chat.setText}
-          onFilesChange={chat.setFiles}
-          onStickerChange={chat.setSticker}
-          onStickerPick={chat.pickSticker}
-          onReplyChange={chat.setReplyTo}
-          onSend={chat.sendMessage}
-          onReload={chat.loadMessages}
-          onRetryMessage={chat.retryMessage}
-          onDiscardMessage={chat.discardMessage}
-          userId={userId}
-          className="h-[calc(var(--app-viewport-height)-13rem)] min-h-[560px]"
-        />
+      <div className="hidden lg:-mt-[5.75rem] lg:block lg:self-start">
+        <div
+          className="flex flex-col"
+          style={{
+            height: desktopChatHeight != null ? `${desktopChatHeight}px` : undefined,
+            minHeight: `${DESKTOP_CHAT_MIN_HEIGHT}px`,
+            maxHeight: `min(${DESKTOP_CHAT_MAX_HEIGHT}px, calc(var(--app-viewport-height) - ${DESKTOP_CHAT_VIEWPORT_GAP}px))`,
+          }}
+        >
+          <ChatPanel
+            friend={selectedFriend}
+            currentUser={currentUser}
+            messages={chat.messages}
+            loading={chat.loading}
+            sending={chat.sending}
+            hasOlder={chat.hasOlder}
+            loadingOlder={chat.loadingOlder}
+            text={chat.text}
+            files={chat.files}
+            sticker={chat.sticker}
+            replyTo={chat.replyTo}
+            onTextChange={chat.setText}
+            onFilesChange={chat.setFiles}
+            onStickerChange={chat.setSticker}
+            onStickerPick={chat.pickSticker}
+            onReplyChange={chat.setReplyTo}
+            onSend={chat.sendMessage}
+            onLoadOlder={chat.loadOlderMessages}
+            onReload={chat.loadMessages}
+            onRetryMessage={chat.retryMessage}
+            onDiscardMessage={chat.discardMessage}
+            userId={userId}
+            className="min-h-0 flex-1"
+          />
+          <button
+            type="button"
+            aria-label="Resize chat panel"
+            onMouseDown={(event) => handleResizeStart(event.clientY)}
+            className="mt-2 flex h-8 cursor-ns-resize select-none items-center justify-center rounded-full border border-[--color-border] bg-[--color-bg-surface] text-[--color-text-muted] transition-colors hover:border-[--color-text-muted] hover:text-[--color-text-primary]"
+          >
+            <span className="flex items-center gap-2 text-[11px] font-medium">
+              <span aria-hidden="true">↑</span>
+              <span className="h-1 w-16 rounded-full bg-current/40" />
+              <span aria-hidden="true">↓</span>
+            </span>
+          </button>
+        </div>
       </div>
 
       <p className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4 text-sm text-[--color-text-muted] lg:hidden">

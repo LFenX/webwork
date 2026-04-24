@@ -65,7 +65,7 @@ export async function GET(
   const limit = Math.min(Math.max(Number(req.nextUrl.searchParams.get("limit") ?? 100), 1), 100)
   const before = parseMessageCursor(req.nextUrl.searchParams.get("cursor"))
 
-  const messages = await prisma.chatMessage.findMany({
+  const fetchedMessages = await prisma.chatMessage.findMany({
     where: {
       OR: [
         { senderId: session.userId, receiverId: friendId },
@@ -83,9 +83,11 @@ export async function GET(
       } : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: limit,
+    take: limit + 1,
     include: messageInclude,
   })
+  const hasMore = fetchedMessages.length > limit
+  const messages = hasMore ? fetchedMessages.slice(0, limit) : fetchedMessages
 
   const unread = await prisma.chatMessage.findMany({
     where: { senderId: friendId, receiverId: session.userId, readAt: null },
@@ -111,7 +113,7 @@ export async function GET(
   return NextResponse.json({
     friend,
     items: messages.reverse().map(serializeMessage),
-    nextCursor: messages.length === limit ? makeMessageCursor(messages[messages.length - 1]) : null,
+    nextCursor: hasMore ? makeMessageCursor(messages[messages.length - 1]) : null,
   }, { headers: NO_STORE })
 }
 

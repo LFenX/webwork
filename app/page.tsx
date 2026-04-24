@@ -197,12 +197,18 @@ export default async function HomePage() {
     prisma.guestbookMessage.findMany({
       where: { ownerId: userId },
       orderBy: { createdAt: "desc" },
-      include: { author: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } } },
+      include: {
+        author: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+        sticker: { select: { id: true, name: true, originalName: true, isAnimated: true } },
+      },
     }).then((messages) =>
       messages.map((message) => ({
         id: message.id,
         content: message.content,
         parentId: message.parentId,
+        stickerId: message.stickerId,
+        stickerEmoji: message.stickerEmoji,
+        sticker: message.sticker ? { ...message.sticker, url: `/api/stickers/${message.sticker.id}/file` } : null,
         createdAt: message.createdAt.toISOString(),
         author: message.author,
       }))

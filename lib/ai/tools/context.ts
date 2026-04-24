@@ -22,6 +22,10 @@ export type AIToolDefinition<TInput extends Record<string, unknown> | void = voi
   inputSchemaSummary: string
   sensitivity: AIToolSensitivity
   auditLabel: string
+  whenToUse?: string
+  whenNotToUse?: string
+  argumentHints?: string[]
+  returns?: string
   execute: (ctx: AIToolContext & (TInput extends void ? Record<string, never> : TInput)) => Promise<unknown>
 }
 
@@ -61,11 +65,11 @@ export function assertAIToolAccess(actor: AIToolActor, scope: AIToolAccessScope,
     return
   }
 
-  if (!targetUserId) throw new Error("AI_TOOL_TARGET_REQUIRED")
-  if (targetUserId === actor.userId) return
-
   const admin = actor.admin
   if (!admin) throw new Error("AI_TOOL_ADMIN_REQUIRED")
+
+  if (!targetUserId) return
+  if (targetUserId === actor.userId) return
 
   if (hasAdminPermission(admin, "viewActivityLogs") || hasAdminPermission(admin, "manageUsers") || hasAdminPermission(admin, "manageAI")) {
     return

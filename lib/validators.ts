@@ -199,7 +199,8 @@ export const aiAttachmentSchema = z.object({
 export const aiStreamSchema = z.object({
   conversationId: z.string().cuid().optional(),
   prompt: z.string().trim().min(1).max(10000),
-  attachments: z.array(aiAttachmentSchema).max(1).optional().default([]),
+  attachments: z.array(aiAttachmentSchema).max(6).optional().default([]),
+  modelOverride: z.string().trim().min(1).max(120).optional(),
 })
 
 export const aiRunsQuerySchema = z.object({

@@ -1,5 +1,8 @@
 import "server-only"
+import { getPresenceMap } from "@/lib/presence"
+import { getAccessLevel, canViewModule, visibleTo, type AccessLevel, type ModuleKey } from "@/lib/permissions"
 import { prisma } from "@/lib/db"
+import type { AIToolStructuredResult } from "@/lib/ai/types"
 
 export async function resolveUserReference(reference: string | null | undefined) {
   const value = reference?.trim()
@@ -50,4 +53,139 @@ export function summarizeGeoLocation(value: string) {
   const parts = value.split("/").map((part) => part.trim()).filter(Boolean)
   if (parts.length <= 2) return parts.join(" / ")
   return parts.slice(0, 2).join(" / ")
+}
+
+export function toolGranted<TData>(summary: string, data: TData): AIToolStructuredResult<TData> {
+  return {
+    ok: true,
+    access: "granted",
+    summary,
+    data,
+  }
+}
+
+export function toolPartial<TData>(summary: string, data: TData, reason?: string): AIToolStructuredResult<TData> {
+  return {
+    ok: true,
+    access: "partial",
+    summary,
+    data,
+    ...(reason ? { reason } : {}),
+  }
+}
+
+export function toolForbidden(summary: string, reason: string, data: Record<string, unknown> | null = null): AIToolStructuredResult<Record<string, unknown>> {
+  return {
+    ok: false,
+    access: "forbidden",
+    summary,
+    data,
+    reason,
+  }
+}
+
+export function toolNotFound(summary: string, reason: string, data: Record<string, unknown> | null = null): AIToolStructuredResult<Record<string, unknown>> {
+  return {
+    ok: false,
+    access: "not_found",
+    summary,
+    data,
+    reason,
+  }
+}
+
+export function isStructuredToolResult(value: unknown): value is AIToolStructuredResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  return "ok" in value && "access" in value && "summary" in value && "data" in value
+}
+
+export async function getFriendProfileSnapshot(ownerUserId: string, friendId: string) {
+  const friendship = await prisma.friendship.findFirst({
+    where: {
+      OR: [
+        { userAId: ownerUserId, userBId: friendId },
+        { userAId: friendId, userBId: ownerUserId },
+      ],
+    },
+    include: {
+      userA: {
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          bio: true,
+          avatarText: true,
+          avatarUrl: true,
+          location: true,
+        },
+      },
+      userB: {
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          bio: true,
+          avatarText: true,
+          avatarUrl: true,
+          location: true,
+        },
+      },
+    },
+  })
+
+  if (!friendship) return null
+
+  const friend = friendship.userAId === ownerUserId ? friendship.userB : friendship.userA
+  const [presenceMap, latestMessage] = await Promise.all([
+    getPresenceMap([friend.id]),
+    prisma.chatMessage.findFirst({
+      where: {
+        OR: [
+          { senderId: ownerUserId, receiverId: friend.id },
+          { senderId: friend.id, receiverId: ownerUserId },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
+  ])
+
+  return {
+    id: friend.id,
+    email: friend.email,
+    displayName: friend.displayName,
+    bio: friend.bio,
+    avatarText: friend.avatarText,
+    avatarUrl: friend.avatarUrl,
+    location: friend.location,
+    friendedAt: friendship.createdAt.toISOString(),
+    lastInteractionAt: latestMessage?.createdAt.toISOString() ?? null,
+    presenceStatus: presenceMap.get(friend.id) ?? "offline",
+  }
+}
+
+export async function getVisibleUserAccess(viewerId: string, ownerId: string, module?: ModuleKey) {
+  const level = await getAccessLevel(viewerId, ownerId)
+  const moduleVisible = module ? await canViewModule(ownerId, module, level) : level !== "none"
+
+  return {
+    ownerId,
+    viewerId,
+    level,
+    module: module ?? null,
+    moduleVisible,
+    visibilities: visibleTo(level),
+  }
+}
+
+export function explainVisibilityDenial(level: AccessLevel, module?: ModuleKey) {
+  if (level === "none") {
+    return module
+      ? `当前用户和目标用户不是好友，无法访问其 ${module} 模块。`
+      : "当前用户和目标用户之间不存在可见关系。"
+  }
+
+  return module
+    ? `目标用户没有向当前用户开放 ${module} 模块。`
+    : "当前请求的内容对当前用户不可见。"
 }
