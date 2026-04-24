@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
 import { runAIRuntime } from "@/lib/ai/runtime"
-import { createAIConversationWithMessages, failAssistantMessage, finalizeAssistantMessage, getAIStatusSnapshot } from "@/lib/ai/service"
+import {
+  createAIConversationWithMessages,
+  failAssistantMessage,
+  finalizeAIRun,
+  finalizeAssistantMessage,
+  getAIStatusSnapshot,
+} from "@/lib/ai/service"
 import { aiStreamSchema } from "@/lib/validators"
 
 export const runtime = "nodejs"
@@ -21,11 +27,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "AI access is not available", status }, { status: 403 })
   }
 
-  const { conversation, assistantMessage } = await createAIConversationWithMessages({
+  const { conversation, assistantMessage, run } = await createAIConversationWithMessages({
     userId: session.userId,
     conversationId: parsed.data.conversationId,
     prompt: parsed.data.prompt,
     status,
+    attachments: parsed.data.attachments,
   })
 
   const encoder = new TextEncoder()
@@ -39,41 +46,57 @@ export async function POST(req: NextRequest) {
         write("conversation", {
           conversationId: conversation.id,
           assistantMessageId: assistantMessage.id,
-        })
-        write("reasoning", {
-          summary: "正在分析问题，并按权限规则匹配需要读取的工具。",
+          runId: run.id,
         })
 
-        let latestToolSummary = "尚未执行工具。"
         const runtimeResult = await runAIRuntime({
           userId: session.userId,
           conversationId: conversation.id,
           assistantMessageId: assistantMessage.id,
-          prompt: parsed.data.prompt,
+          runId: run.id,
+          prompt:
+            parsed.data.attachments.length > 0
+              ? [
+                  parsed.data.prompt,
+                  "",
+                  "Attached image context:",
+                  ...parsed.data.attachments.map((attachment, index) => {
+                    const kind = attachment.mimeType.startsWith("image/") ? "image" : "file"
+                    return `${index + 1}. ${kind}: ${attachment.originalName} (${attachment.url})`
+                  }),
+                ].join("\n")
+              : parsed.data.prompt,
           onToken: async (chunk) => {
             write("chunk", { content: chunk })
           },
+          onEvent: async (event, payload) => {
+            write(event, payload)
+          },
         })
-
-        latestToolSummary = runtimeResult.toolTraceSummary
-        write("tool", { summary: latestToolSummary })
 
         await finalizeAssistantMessage({
           assistantMessageId: assistantMessage.id,
           contentMarkdown: runtimeResult.contentMarkdown,
           reasoningSummary: runtimeResult.reasoningSummary,
-          toolTraceSummary: latestToolSummary,
+          toolTraceSummary: runtimeResult.toolTraceSummary,
           modelName: runtimeResult.modelName,
         })
 
-        write("done", {
+        write("run_completed", {
           conversationId: conversation.id,
           assistantMessageId: assistantMessage.id,
+          runId: run.id,
         })
         controller.close()
       } catch (error) {
         await failAssistantMessage(assistantMessage.id, "生成失败，请稍后重试。")
-        write("error", {
+        await finalizeAIRun({
+          runId: run.id,
+          status: "failed",
+          summary: error instanceof Error ? error.message : "Stream failed",
+        }).catch(() => null)
+        write("run_failed", {
+          runId: run.id,
           message: error instanceof Error ? error.message : "Stream failed",
         })
         controller.close()

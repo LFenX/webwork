@@ -16,6 +16,7 @@ export default async function SettingsPasswordPage() {
       <PasswordSettingsPanel
         labels={{
           passwordInput: dict.settings.passwordInput,
+          passwordConfirm: dict.settings.passwordConfirm,
           passwordSubmit: dict.settings.passwordSubmit,
           passwordStatus: dict.settings.passwordStatus,
           passwordRequested: dict.settings.passwordRequested,
@@ -24,6 +25,9 @@ export default async function SettingsPasswordPage() {
           passwordApproved: dict.settings.passwordApproved,
           passwordPending: dict.settings.passwordPending,
           passwordRejected: dict.settings.passwordRejected,
+          passwordMismatch: dict.settings.passwordMismatch,
+          showPassword: dict.settings.showPassword,
+          hidePassword: dict.settings.hidePassword,
         }}
       />
     </SettingsShell>

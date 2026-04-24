@@ -14,6 +14,7 @@ export async function GET() {
   ])
   return NextResponse.json({
     status,
+    storageReady: status.configState.storageReady,
     accessRequest: request
       ? {
           id: request.id,

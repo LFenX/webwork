@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { UserAvatar } from "@/components/user-avatar"
 import { clearChatOutboxForUser } from "@/lib/chat-outbox"
 import { clearUserLocalState } from "@/lib/client-storage"
+import { getActiveChatContext, subscribeActiveChatContext } from "@/lib/active-chat"
 import type { AppLocale } from "@/lib/i18n"
 
 interface SiteHeaderProps {
@@ -78,7 +79,10 @@ export function SiteHeader({
     if (!session) return
     let cancelled = false
     async function refreshUnread() {
-      const res = await fetch(`/api/chats/summary?_t=${Date.now()}`, { cache: "no-store" }).catch(() => null)
+      const activeContext = getActiveChatContext()
+      const params = new URLSearchParams({ _t: String(Date.now()) })
+      if (activeContext?.kind === "direct") params.set("activeFriendId", activeContext.id)
+      const res = await fetch(`/api/chats/summary?${params.toString()}`, { cache: "no-store" }).catch(() => null)
       if (!res?.ok) return
       const data = await res.json().catch(() => null)
       if (cancelled) return
@@ -87,9 +91,13 @@ export function SiteHeader({
     }
     void refreshUnread()
     window.addEventListener("chat-unread-refresh", refreshUnread)
+    const unsubscribe = subscribeActiveChatContext(() => {
+      void refreshUnread()
+    })
     return () => {
       cancelled = true
       window.removeEventListener("chat-unread-refresh", refreshUnread)
+      unsubscribe()
     }
   }, [session])
 

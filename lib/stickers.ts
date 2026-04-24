@@ -6,12 +6,12 @@ export const STICKER_MAX_SIZE = 5 * 1024 * 1024
 export const STICKER_SCOPES = ["custom", "public"] as const
 
 export const DEFAULT_STICKERS = [
-  "😀", "😅", "😍", "😳", "😎", "😭", "😴", "😂",
-  "😡", "😤", "😋", "😁", "🤔", "☹️", "🥺", "😫",
-  "😊", "😮", "🙄", "😵", "😬", "😷", "😱", "🤣",
-  "😌", "😏", "🥲", "🫠", "😼", "🤨", "😚", "🤩",
-  "👍", "👎", "👏", "✌️", "🙏", "💪", "❤️", "💔",
-  "🎉", "🍻", "☕", "🌹", "🔥", "✨", "💯", "💤",
+  "😀", "😄", "😉", "😍", "😎", "😭", "😡", "🥳",
+  "🤔", "😴", "🙌", "👏", "👍", "☕", "🌈", "🔥",
+  "🎉", "💯", "🙏", "😅", "🤝", "❤️", "😁", "😆",
+  "😋", "😌", "😮", "🫶", "😇", "🤖", "😏", "😬",
+  "💪", "👀", "🫡", "✅", "🙈", "🎯", "❌", "💥",
+  "🎁", "🎵", "☀️", "🌙", "✨", "✔️", "📣", "💌",
 ]
 
 export type StickerPayload = {
@@ -67,4 +67,51 @@ export async function canUseSticker(userId: string, stickerId: string) {
     select: { id: true },
   })
   return Boolean(sticker)
+}
+
+export async function canAccessStickerAsset(userId: string, stickerId: string) {
+  const sticker = await prisma.stickerAsset.findUnique({
+    where: { id: stickerId },
+    select: { id: true, scope: true, ownerId: true },
+  })
+  if (!sticker) return false
+  if (sticker.scope === "public" || sticker.ownerId === userId) return true
+
+  const [chatUsage, channelUsage, commentUsage, guestbookUsage] = await Promise.all([
+    prisma.chatMessage.findFirst({
+      where: {
+        stickerId,
+        OR: [{ senderId: userId }, { receiverId: userId }],
+      },
+      select: { id: true },
+    }),
+    prisma.channelMessage.findFirst({
+      where: {
+        stickerId,
+        channel: {
+          OR: [
+            { type: "world" },
+            { members: { some: { userId } } },
+          ],
+        },
+      },
+      select: { id: true },
+    }),
+    prisma.comment.findFirst({
+      where: {
+        stickerId,
+        OR: [{ authorId: userId }, { post: { userId } }],
+      },
+      select: { id: true },
+    }),
+    prisma.guestbookMessage.findFirst({
+      where: {
+        stickerId,
+        OR: [{ authorId: userId }, { ownerId: userId }],
+      },
+      select: { id: true },
+    }),
+  ])
+
+  return Boolean(chatUsage || channelUsage || commentUsage || guestbookUsage)
 }

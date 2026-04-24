@@ -1,18 +1,25 @@
 import "server-only"
 import { Prisma } from "@/app/generated/prisma/client"
-import { decryptSecret, encryptSecret, maskApiKey } from "@/lib/ai/crypto"
+import { decryptSecret, encryptSecret, hasAISecretKey, maskApiKey } from "@/lib/ai/crypto"
 import { prisma } from "@/lib/db"
 import { AI_TOOL_DESCRIPTORS } from "@/lib/ai/tools/registry"
 import type {
   AIConversationHistoryEntry,
   AIConversationListItem,
   AIMessageItem,
+  AIMessageStepPreview,
   AIResolvedProviderConfig,
+  AIRunDetail,
+  AIRunMode,
+  AIRunStepItem,
+  AIRunStepStatus,
+  AIRunStepType,
   AISafeProviderConfig,
   AIStatusSnapshot,
 } from "@/lib/ai/types"
 import type {
   AIAccessRequestInput,
+  AIAttachmentInput,
   AIConversationCreateInput,
   AIConversationUpdateInput,
   AIGrantInput,
@@ -40,6 +47,58 @@ function normalizeBaseUrl(baseUrl: string) {
   return baseUrl.trim().replace(/\/+$/, "")
 }
 
+function toJsonValue(value: unknown) {
+  return (value as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull
+}
+
+function toStepPreview(step: {
+  id: string
+  type: string
+  title: string
+  status: string
+  startedAt: Date
+  finishedAt: Date | null
+  summary: string
+  errorMessage: string
+}): AIMessageStepPreview {
+  return {
+    id: step.id,
+    type: step.type as AIMessageStepPreview["type"],
+    title: step.title,
+    status: step.status as AIMessageStepPreview["status"],
+    startedAt: step.startedAt.toISOString(),
+    finishedAt: step.finishedAt?.toISOString() ?? null,
+    summary: step.summary,
+    errorMessage: step.errorMessage,
+  }
+}
+
+function toRunStepItem(step: {
+  id: string
+  type: string
+  title: string
+  status: string
+  startedAt: Date
+  finishedAt: Date | null
+  summary: string
+  inputPreview: Prisma.JsonValue | null
+  outputPreview: Prisma.JsonValue | null
+  errorMessage: string
+}): AIRunStepItem {
+  return {
+    id: step.id,
+    type: step.type as AIRunStepType,
+    title: step.title,
+    status: step.status as AIRunStepStatus,
+    startedAt: step.startedAt.toISOString(),
+    finishedAt: step.finishedAt?.toISOString() ?? null,
+    summary: step.summary,
+    inputPreview: step.inputPreview,
+    outputPreview: step.outputPreview,
+    errorMessage: step.errorMessage,
+  }
+}
+
 function buildConversationTitle(prompt: string) {
   return prompt.trim().replace(/\s+/g, " ").slice(0, 60) || "新会话"
 }
@@ -58,6 +117,25 @@ export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnaps
     }),
   ])
 
+  const storageReady = hasAISecretKey()
+
+  if (!storageReady) {
+    return {
+      canUseAI: false,
+      source: "none",
+      reason: "server-secret-missing",
+      config: null,
+      configState: {
+        storageReady,
+        hasUserConfig: Boolean(userConfig),
+        userConfigEnabled: Boolean(userConfig?.isEnabled),
+        hasGrant: Boolean(grant),
+        grantStatus: grant?.status ?? null,
+        accessRequestStatus: latestRequest?.status ?? null,
+      },
+    }
+  }
+
   if (userConfig && userConfig.isEnabled && userConfig.apiKeyEncrypted) {
     return {
       canUseAI: true,
@@ -65,6 +143,7 @@ export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnaps
       reason: "ready",
       config: toSafeConfig(userConfig),
       configState: {
+        storageReady,
         hasUserConfig: true,
         userConfigEnabled: true,
         hasGrant: Boolean(grant),
@@ -81,6 +160,7 @@ export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnaps
       reason: "ready",
       config: toSafeConfig(grant),
       configState: {
+        storageReady,
         hasUserConfig: Boolean(userConfig),
         userConfigEnabled: Boolean(userConfig?.isEnabled),
         hasGrant: true,
@@ -103,6 +183,7 @@ export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnaps
     reason,
     config: null,
     configState: {
+      storageReady,
       hasUserConfig: Boolean(userConfig),
       userConfigEnabled: Boolean(userConfig?.isEnabled),
       hasGrant: Boolean(grant),
@@ -205,6 +286,40 @@ export async function listAIConversationMessages(userId: string, conversationId:
   const items = await prisma.aIMessage.findMany({
     where: { userId, conversationId },
     orderBy: { createdAt: "asc" },
+    include: {
+      attachments: {
+        select: {
+          id: true,
+          uploadId: true,
+          url: true,
+          originalName: true,
+          mimeType: true,
+          size: true,
+        },
+      },
+      runRecord: {
+        select: {
+          id: true,
+          mode: true,
+          status: true,
+          delegatedTargetUserId: true,
+          steps: {
+            orderBy: [{ startedAt: "asc" }, { orderIndex: "asc" }],
+            take: 4,
+            select: {
+              id: true,
+              type: true,
+              title: true,
+              status: true,
+              startedAt: true,
+              finishedAt: true,
+              summary: true,
+              errorMessage: true,
+            },
+          },
+        },
+      },
+    },
   })
 
   return items.map((item) => ({
@@ -217,6 +332,19 @@ export async function listAIConversationMessages(userId: string, conversationId:
     modelName: item.modelName,
     providerSource: item.providerSource as AIMessageItem["providerSource"],
     createdAt: item.createdAt.toISOString(),
+    runId: item.runRecord?.id ?? null,
+    runMode: (item.runRecord?.mode as AIRunMode | null) ?? null,
+    runStatus: item.runRecord?.status ?? null,
+    delegatedTargetUserId: item.runRecord?.delegatedTargetUserId ?? null,
+    stepsPreview: item.runRecord?.steps.map(toStepPreview) ?? [],
+    attachments: item.attachments.map((attachment) => ({
+      id: attachment.id,
+      uploadId: attachment.uploadId,
+      url: attachment.url,
+      originalName: attachment.originalName,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+    })),
   }))
 }
 
@@ -526,22 +654,169 @@ export async function getAdminAIOverview() {
   }
 }
 
+export async function createAIRun(params: {
+  conversationId: string
+  messageId: string
+  userId: string
+  prompt: string
+  mode?: AIRunMode
+  delegatedTargetUserId?: string | null
+  plannerModel?: string
+}) {
+  const run = await prisma.aIRun.create({
+    data: {
+      conversationId: params.conversationId,
+      messageId: params.messageId,
+      userId: params.userId,
+      prompt: params.prompt,
+      mode: params.mode ?? "self",
+      delegatedTargetUserId: params.delegatedTargetUserId ?? undefined,
+      plannerModel: params.plannerModel ?? "heuristic-planner",
+      status: "running",
+    },
+  })
+
+  return run
+}
+
+export async function createAIRunStep(params: {
+  runId: string
+  messageId: string
+  userId: string
+  type: AIRunStepType
+  title: string
+  summary?: string
+  inputPreview?: unknown
+  outputPreview?: unknown
+  orderIndex?: number
+}) {
+  return prisma.aIRunStep.create({
+    data: {
+      runId: params.runId,
+      messageId: params.messageId,
+      userId: params.userId,
+      type: params.type,
+      title: params.title,
+      summary: params.summary ?? "",
+      inputPreview: toJsonValue(params.inputPreview),
+      outputPreview: toJsonValue(params.outputPreview),
+      orderIndex: params.orderIndex ?? 0,
+      status: "running",
+    },
+  })
+}
+
+export async function completeAIRunStep(
+  stepId: string,
+  params: {
+    status: AIRunStepStatus
+    summary?: string
+    outputPreview?: unknown
+    errorMessage?: string
+  }
+) {
+  return prisma.aIRunStep.update({
+    where: { id: stepId },
+    data: {
+      status: params.status,
+      summary: params.summary,
+      outputPreview: params.outputPreview === undefined ? undefined : toJsonValue(params.outputPreview),
+      errorMessage: params.errorMessage ?? undefined,
+      finishedAt: new Date(),
+    },
+  })
+}
+
+export async function finalizeAIRun(params: {
+  runId: string
+  status: "completed" | "failed"
+  summary: string
+  finalModel?: string
+}) {
+  return prisma.aIRun.update({
+    where: { id: params.runId },
+    data: {
+      status: params.status,
+      summary: params.summary,
+      finalModel: params.finalModel ?? undefined,
+      finishedAt: new Date(),
+    },
+  })
+}
+
+export async function getAIRunByMessageId(userId: string, messageId: string, includeSteps = true): Promise<AIRunDetail | null> {
+  const run = includeSteps
+    ? await prisma.aIRun.findFirst({
+        where: { userId, messageId },
+        include: {
+          steps: {
+            orderBy: [{ startedAt: "asc" }, { orderIndex: "asc" }],
+          },
+        },
+      })
+    : await prisma.aIRun.findFirst({
+        where: { userId, messageId },
+      })
+
+  if (!run) return null
+
+  const steps =
+    includeSteps && "steps" in run
+      ? (run.steps as Array<{
+          id: string
+          type: string
+          title: string
+          status: string
+          startedAt: Date
+          finishedAt: Date | null
+          summary: string
+          inputPreview: Prisma.JsonValue | null
+          outputPreview: Prisma.JsonValue | null
+          errorMessage: string
+        }>).map(toRunStepItem)
+      : []
+
+  return {
+    id: run.id,
+    messageId: run.messageId,
+    conversationId: run.conversationId,
+    userId: run.userId,
+    prompt: run.prompt,
+    mode: run.mode as AIRunMode,
+    delegatedTargetUserId: run.delegatedTargetUserId ?? null,
+    plannerModel: run.plannerModel,
+    finalModel: run.finalModel,
+    status: run.status,
+    summary: run.summary,
+    createdAt: run.createdAt.toISOString(),
+    updatedAt: run.updatedAt.toISOString(),
+    finishedAt: run.finishedAt?.toISOString() ?? null,
+    steps,
+  }
+}
+
 export async function createAIConversationWithMessages({
   userId,
   conversationId,
   prompt,
   status,
+  attachments = [],
 }: {
   userId: string
   conversationId?: string
   prompt: string
   status: AIStatusSnapshot
+  attachments?: AIAttachmentInput[]
 }) {
-  const conversation = conversationId
-    ? await getAIConversationOrThrow(userId, conversationId)
-    : await createAIConversation(userId, { title: buildConversationTitle(prompt) })
+  let conversation = conversationId
+    ? await getAIConversationOrThrow(userId, conversationId).catch(() => null)
+    : null
 
-  if (conversationId) {
+  if (!conversation) {
+    conversation = await createAIConversation(userId, { title: buildConversationTitle(prompt) })
+  }
+
+  if (conversationId && conversation.id === conversationId) {
     await updateAIConversationTitleIfNeeded(userId, conversationId, prompt)
   }
 
@@ -553,6 +828,18 @@ export async function createAIConversationWithMessages({
       contentMarkdown: prompt,
       status: "completed",
       providerSource: status.source,
+      attachments: attachments.length
+        ? {
+            create: attachments.map((attachment) => ({
+              userId,
+              uploadId: attachment.uploadId ?? null,
+              originalName: attachment.originalName,
+              mimeType: attachment.mimeType,
+              size: attachment.size,
+              url: attachment.url,
+            })),
+          }
+        : undefined,
     },
   })
 
@@ -569,12 +856,19 @@ export async function createAIConversationWithMessages({
     },
   })
 
+  const run = await createAIRun({
+    conversationId: conversation.id,
+    messageId: assistantMessage.id,
+    userId,
+    prompt,
+  })
+
   await prisma.aIConversation.update({
     where: { id: conversation.id },
     data: { lastMessageAt: new Date() },
   })
 
-  return { conversation, userMessage, assistantMessage }
+  return { conversation, userMessage, assistantMessage, run }
 }
 
 export async function finalizeAssistantMessage({
@@ -623,14 +917,14 @@ export async function createAIToolCallLog({
   messageId: string
   userId: string
   toolName: string
-  toolInputJson?: Prisma.InputJsonValue
+  toolInputJson?: unknown
 }) {
   const data: Prisma.AIToolCallLogUncheckedCreateInput = {
     conversationId,
     messageId,
     userId,
     toolName,
-    toolInputJson: toolInputJson ?? Prisma.JsonNull,
+    toolInputJson: toJsonValue(toolInputJson),
     status: "running",
   }
 

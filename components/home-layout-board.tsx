@@ -1,6 +1,6 @@
 "use client"
 
-import { ReactNode, useMemo, useState } from "react"
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { GripVertical, LayoutGrid, Minus, Plus, RotateCcw, Save, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -22,9 +22,18 @@ export function HomeLayoutBoard({
   const [editing, setEditing] = useState(false)
   const [layout, setLayout] = useState(initialLayout)
   const [dragging, setDragging] = useState<HomeWidgetId | null>(null)
+  const longPressTimerRef = useRef<number | null>(null)
   const widgetMap = useMemo(() => new Map(widgets.map((widget) => [widget.id, widget.content])), [widgets])
   const visible = layout.filter((item) => widgetMap.has(item.id) && (!item.hidden || editing)).sort((a, b) => a.y - b.y)
   const hidden = layout.filter((item) => item.hidden)
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current !== null) {
+        window.clearTimeout(longPressTimerRef.current)
+      }
+    }
+  }, [])
 
   function update(id: HomeWidgetId, patch: Partial<HomeWidgetLayout>) {
     setLayout((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)))
@@ -41,6 +50,13 @@ export function HomeLayoutBoard({
       rest.splice(index < 0 ? rest.length : index, 0, dragged)
       return rest.map((item, y) => ({ ...item, y }))
     })
+  }
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
   }
 
   async function save() {
@@ -101,11 +117,30 @@ export function HomeLayoutBoard({
             key={item.id}
             draggable={editing}
             onDragStart={() => setDragging(item.id)}
+            onDragEnd={() => setDragging(null)}
             onDragOver={(event) => {
               if (editing) event.preventDefault()
             }}
             onDrop={() => moveBefore(item.id)}
-            className={editing ? "relative rounded-[--radius-lg] outline outline-1 outline-dashed outline-[--color-accent]" : ""}
+            onPointerDown={(event) => {
+              if (!editing || event.pointerType !== "touch") return
+              clearLongPressTimer()
+              longPressTimerRef.current = window.setTimeout(() => {
+                setDragging(item.id)
+                toast.success("Long press activated. Move over another card to reorder.")
+              }, 320)
+            }}
+            onPointerEnter={() => {
+              if (editing && dragging) moveBefore(item.id)
+            }}
+            onPointerUp={() => {
+              clearLongPressTimer()
+              if (dragging === item.id) {
+                setDragging(null)
+              }
+            }}
+            onPointerCancel={clearLongPressTimer}
+            className={editing ? `relative rounded-[--radius-lg] outline outline-1 outline-dashed ${dragging === item.id ? "outline-[--color-link] bg-[--color-bg-hover]" : "outline-[--color-accent]"}` : ""}
             style={{ gridColumn: `span ${Math.min(12, Math.max(1, item.w))} / span ${Math.min(12, Math.max(1, item.w))}`, minHeight: editing ? `${Math.max(1, item.h) * 72}px` : undefined }}
           >
             {editing && (

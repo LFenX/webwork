@@ -25,6 +25,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ user
       updatedAt: grant.updatedAt.toISOString(),
     }, { headers: NO_STORE })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Forbidden" }, { status: 403, headers: NO_STORE })
+    const message = error instanceof Error ? error.message : "Forbidden"
+    const status = message.includes("AI_SECRET_KEY") ? 503 : 403
+    return NextResponse.json({ error: message }, { status, headers: NO_STORE })
   }
 }

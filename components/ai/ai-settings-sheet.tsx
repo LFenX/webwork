@@ -61,6 +61,7 @@ function AISettingsSheetBody({
   onSaved,
 }: {
   status: {
+    storageReady?: boolean
     userConfig: {
       providerLabel: string
       baseUrl: string
@@ -79,6 +80,7 @@ function AISettingsSheetBody({
   const [form, setForm] = useState<ConfigPayload>(() => buildForm(status?.userConfig ?? null))
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const storageReady = status?.storageReady ?? true
 
   async function handleSave() {
     setSaving(true)
@@ -165,6 +167,12 @@ function AISettingsSheetBody({
         </SheetDescription>
       </SheetHeader>
       <div className="mt-6 space-y-5">
+        {!storageReady ? (
+          <div className="rounded-[--radius-lg] border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            服务器未配置 <code>AI_SECRET_KEY</code>，当前无法安全保存或更新 AI 凭证。请先在项目根目录的 <code>.env</code> 中添加该变量，并重启开发服务器。
+          </div>
+        ) : null}
+
         <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
           <p className="text-xs text-[--color-text-muted]">当前掩码</p>
           <p className="mt-1 text-sm text-[--color-text-primary]">{status?.userConfig?.apiKeyMask || "尚未配置"}</p>
@@ -215,10 +223,10 @@ function AISettingsSheetBody({
           <Button type="button" variant="outline" onClick={handleTest} disabled={testing}>
             <TestTube2 size={14} /> {testing ? "测试中..." : "测试连接"}
           </Button>
-          <Button type="button" onClick={handleSave} disabled={saving}>
+          <Button type="button" onClick={handleSave} disabled={saving || !storageReady}>
             <Save size={14} /> {saving ? "保存中..." : "保存配置"}
           </Button>
-          <Button type="button" variant="outline" onClick={handleDelete} disabled={saving}>
+          <Button type="button" variant="outline" onClick={handleDelete} disabled={saving || !storageReady}>
             <Trash2 size={14} /> 删除配置
           </Button>
         </div>
@@ -246,6 +254,7 @@ export function AISettingsSheet({
   open: boolean
   onOpenChange: (open: boolean) => void
   status: {
+    storageReady?: boolean
     userConfig: {
       providerLabel: string
       baseUrl: string

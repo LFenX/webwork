@@ -1,14 +1,26 @@
 "use client"
 
 import { ChangeEvent, UIEvent, useEffect, useMemo, useState } from "react"
-import { GitCommitHorizontal, Image as ImageIcon, KeyRound, RotateCcw, Save, ShieldCheck, Trash2, Upload, UserCheck, UserCog } from "lucide-react"
+import {
+  GitCommitHorizontal,
+  Image as ImageIcon,
+  KeyRound,
+  RotateCcw,
+  Save,
+  ShieldCheck,
+  Trash2,
+  Upload,
+  UserCheck,
+  UserCog,
+} from "lucide-react"
 import { toast } from "sonner"
+import { AdminAIPanel } from "@/components/admin/admin-ai-panel"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiDelete, apiFetch, apiPatch, apiPost } from "@/lib/api-client"
 import { ADMIN_PERMISSION_DEFS, type AdminPermissionKey, type AdminPermissionMap } from "@/lib/admin-permissions"
 import { formatChinaDateTime } from "@/lib/time"
-import { AdminAIPanel } from "@/components/admin/admin-ai-panel"
 
 type RegistrationRequest = {
   id: string
@@ -102,19 +114,19 @@ type PageResult<T> = {
 }
 
 function formatTime(value: string | null) {
-  if (!value) return "从未登录"
+  if (!value) return "Never logged in"
   return formatChinaDateTime(value)
 }
 
 function daysSince(value: string | null) {
   if (!value) return null
-  return Math.floor((Date.now() - new Date(value).getTime()) / 86400000)
+  return Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000)
 }
 
 function formatActivityAction(action: string) {
-  if (action === "login") return "登录"
-  if (action === "logout") return "下线"
-  if (action === "resume_online") return "回到 Web App"
+  if (action === "login") return "Login"
+  if (action === "logout") return "Logout"
+  if (action === "resume_online") return "Back to app"
   return action
 }
 
@@ -158,7 +170,8 @@ export function AdminClient() {
   const [geoRefreshing, setGeoRefreshing] = useState(false)
   const [announcementSaving, setAnnouncementSaving] = useState(false)
   const [stickerUploading, setStickerUploading] = useState(false)
-  const [ownerTransferTargetId, setOwnerTransferTargetId] = useState<string>("")
+  const [ownerTransferTargetId, setOwnerTransferTargetId] = useState("")
+  const [selectedAdminPermissionId, setSelectedAdminPermissionId] = useState<string | null>(null)
 
   const hasPermission = (permission: AdminPermissionKey) => data?.permissions?.[permission] ?? false
 
@@ -168,7 +181,7 @@ export function AdminClient() {
       const params = new URLSearchParams({ limit: "50" })
       if (cursor) params.set("cursor", cursor)
       const page = await apiFetch<PageResult<UserItem>>(`/api/admin/users?${params.toString()}`)
-      setUsers((current) => append ? [...current, ...page.items] : page.items)
+      setUsers((current) => (append ? [...current, ...page.items] : page.items))
       setUsersCursor(page.nextCursor)
       setUsersHasMore(page.hasMore)
     } finally {
@@ -182,7 +195,7 @@ export function AdminClient() {
       const params = new URLSearchParams({ limit: "50" })
       if (cursor) params.set("cursor", cursor)
       const page = await apiFetch<PageResult<Activity>>(`/api/admin/activities?${params.toString()}`)
-      setActivities((current) => append ? [...current, ...page.items] : page.items)
+      setActivities((current) => (append ? [...current, ...page.items] : page.items))
       setActivitiesCursor(page.nextCursor)
       setActivitiesHasMore(page.hasMore)
       if (!append) setActivitiesRefreshedAt(new Date().toISOString())
@@ -192,23 +205,23 @@ export function AdminClient() {
   }
 
   async function loadAnnouncements() {
-    const data = await apiFetch<{ items: AnnouncementItem[] }>("/api/announcements?history=1&limit=100")
-    setAnnouncements(Array.isArray(data.items) ? data.items : [])
+    const response = await apiFetch<{ items: AnnouncementItem[] }>("/api/announcements?history=1&limit=100")
+    setAnnouncements(Array.isArray(response.items) ? response.items : [])
   }
 
   async function loadBroadcasts() {
-    const data = await apiFetch<{ items: BroadcastItem[] }>("/api/world-broadcasts?limit=100")
-    setBroadcasts(Array.isArray(data.items) ? data.items : [])
+    const response = await apiFetch<{ items: BroadcastItem[] }>("/api/world-broadcasts?limit=100")
+    setBroadcasts(Array.isArray(response.items) ? response.items : [])
   }
 
   async function loadStickers() {
-    const data = await apiFetch<{ items: StickerItem[] }>("/api/admin/stickers")
-    setStickers(Array.isArray(data.items) ? data.items : [])
+    const response = await apiFetch<{ items: StickerItem[] }>("/api/admin/stickers")
+    setStickers(Array.isArray(response.items) ? response.items : [])
   }
 
   async function loadAdminPermissions() {
-    const data = await apiFetch<{ items: AdminPermissionItem[] }>("/api/admin/permissions")
-    setAdminPermissions(Array.isArray(data.items) ? data.items : [])
+    const response = await apiFetch<{ items: AdminPermissionItem[] }>("/api/admin/permissions")
+    setAdminPermissions(Array.isArray(response.items) ? response.items : [])
   }
 
   useEffect(() => {
@@ -227,12 +240,14 @@ export function AdminClient() {
           overview.currentAdmin.role === "owner" ? loadAdminPermissions() : Promise.resolve(setAdminPermissions([])),
         ])
       } catch (error) {
-        if (!cancelled) toast.error(error instanceof Error ? error.message : "加载失败")
+        if (!cancelled) {
+          toast.error(error instanceof Error ? error.message : "Failed to load admin overview")
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
-    load()
+    void load()
     return () => {
       cancelled = true
     }
@@ -246,13 +261,13 @@ export function AdminClient() {
       if (activitiesLoading) return
       void loadActivities(null, false, true)
     }
-    const onRealtimeRefresh = () => refreshLogs()
 
     const interval = window.setInterval(refreshLogs, 30_000)
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") refreshLogs()
     }
     const onFocus = () => refreshLogs()
+    const onRealtimeRefresh = () => refreshLogs()
 
     document.addEventListener("visibilitychange", onVisibilityChange)
     window.addEventListener("focus", onFocus)
@@ -265,70 +280,78 @@ export function AdminClient() {
     }
   }, [activitiesLoading, data?.permissions?.viewActivityLogs])
 
-  const stats = useMemo(() => ({
-    users: users.length,
-    admins: users.filter((user) => user.role === "admin" || user.role === "owner").length,
-    pending: (data?.requests.length ?? 0) + (data?.passwordRequests.length ?? 0),
-  }), [data, users])
+  const stats = useMemo(
+    () => ({
+      users: users.length,
+      admins: users.filter((user) => user.role === "admin" || user.role === "owner").length,
+      pending: (data?.requests.length ?? 0) + (data?.passwordRequests.length ?? 0),
+    }),
+    [data, users]
+  )
 
   const ownerTransferCandidates = users.filter((user) => user.id !== data?.currentAdmin.id && user.role !== "owner")
-  const effectiveOwnerTransferTargetId =
-    ownerTransferCandidates.some((user) => user.id === ownerTransferTargetId)
-      ? ownerTransferTargetId
-      : (ownerTransferCandidates[0]?.id ?? "")
+  const effectiveOwnerTransferTargetId = ownerTransferCandidates.some((user) => user.id === ownerTransferTargetId)
+    ? ownerTransferTargetId
+    : (ownerTransferCandidates[0]?.id ?? "")
   const selectedOwnerTransferUser =
     ownerTransferCandidates.find((user) => user.id === effectiveOwnerTransferTargetId) ?? null
+  const selectedAdminPermission =
+    adminPermissions.find((item) => item.id === selectedAdminPermissionId) ?? null
 
   async function approve(id: string) {
     await apiPost(`/api/admin/registrations/${id}/approve`, {})
-    toast.success("已同意注册申请")
+    toast.success("Registration approved")
     setRefreshKey((key) => key + 1)
   }
 
   async function approvePassword(id: string) {
     await apiPost(`/api/admin/password-requests/${id}/approve`, {})
-    toast.success("已同意密码修改申请")
+    toast.success("Password change approved")
     setRefreshKey((key) => key + 1)
   }
 
   async function updateRole(id: string, role: string) {
     await apiPatch(`/api/admin/users/${id}/role`, { role })
-    toast.success("成员权限已更新")
+    toast.success("User role updated")
     setRefreshKey((key) => key + 1)
   }
 
   async function transferOwner(user: UserItem) {
-    if (!confirm(`确认将终极管理员身份转让给 ${user.email} 吗？转让后你会变为普通管理员，但保留全部管理员权限。`)) return
+    if (!confirm(`Transfer ownership to ${user.email}? You will remain an admin with full admin permissions.`)) {
+      return
+    }
     try {
       await apiPost(`/api/admin/users/${user.id}/transfer-owner`, {})
-      toast.success("终极管理员身份已完成转让")
+      toast.success("Ownership transferred")
       setRefreshKey((key) => key + 1)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "转让失败")
+      toast.error(error instanceof Error ? error.message : "Failed to transfer ownership")
     }
   }
 
   async function updateAdminPermission(admin: AdminPermissionItem, key: AdminPermissionKey, value: boolean) {
     const permissions = { ...admin.permissions, [key]: value }
-    setAdminPermissions((items) => items.map((item) => item.id === admin.id ? { ...item, permissions } : item))
+    setAdminPermissions((items) => items.map((item) => (item.id === admin.id ? { ...item, permissions } : item)))
     try {
       const updated = await apiPatch<AdminPermissionItem>(`/api/admin/permissions/${admin.id}`, { permissions })
-      setAdminPermissions((items) => items.map((item) => item.id === admin.id ? { ...item, permissions: updated.permissions } : item))
-      toast.success("管理员权限已更新")
+      setAdminPermissions((items) =>
+        items.map((item) => (item.id === admin.id ? { ...item, permissions: updated.permissions } : item))
+      )
+      toast.success("Admin permissions updated")
     } catch (error) {
-      setAdminPermissions((items) => items.map((item) => item.id === admin.id ? admin : item))
-      toast.error(error instanceof Error ? error.message : "权限更新失败")
+      setAdminPermissions((items) => items.map((item) => (item.id === admin.id ? admin : item)))
+      toast.error(error instanceof Error ? error.message : "Failed to update permissions")
     }
   }
 
   async function deleteUser(user: UserItem) {
-    if (!confirm(`确认删除 ${user.email}？只有 30 天未登录用户才能删除。`)) return
+    if (!confirm(`Delete ${user.email}? Only users inactive for at least 30 days can be deleted.`)) return
     try {
       await apiDelete(`/api/admin/users/${user.id}`)
-      toast.success("用户已删除")
+      toast.success("User deleted")
       setRefreshKey((key) => key + 1)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "删除失败")
+      toast.error(error instanceof Error ? error.message : "Failed to delete user")
     }
   }
 
@@ -340,23 +363,24 @@ export function AdminClient() {
     if (inactiveDays < 30) return `${30 - inactiveDays} days remaining`
     return null
   }
+
   async function saveUpdateLog(item: UpdateLogItem) {
     const customMessage = updateDrafts[item.hash] ?? item.customMessage ?? item.originalMessage
     await apiPatch(`/api/admin/updates/${item.hash}`, { customMessage, useOriginal: false, hidden: false })
-    toast.success("更新日志已改为展示修改内容")
+    toast.success("Update log display saved")
     setRefreshKey((key) => key + 1)
   }
 
   async function resetUpdateLog(item: UpdateLogItem) {
     await apiPatch(`/api/admin/updates/${item.hash}`, { useOriginal: true, hidden: false })
-    toast.success("已恢复展示原始 commit 备注")
+    toast.success("Original commit note restored")
     setRefreshKey((key) => key + 1)
   }
 
   async function hideUpdateLog(item: UpdateLogItem) {
-    if (!confirm(`确认从展示列表删除这条更新？\n${item.message}`)) return
+    if (!confirm(`Hide this update from the public changelog?\n${item.message}`)) return
     await apiDelete(`/api/admin/updates/${item.hash}`)
-    toast.success("这条更新已从公开更新日志隐藏")
+    toast.success("Update hidden from changelog")
     setRefreshKey((key) => key + 1)
   }
 
@@ -367,10 +391,10 @@ export function AdminClient() {
         "/api/admin/activities/refresh-geo",
         {}
       )
-      toast.success(`已更新 ${result.updated} 条地理位置，失败 ${result.failed} 条`)
+      toast.success(`Geo lookup updated ${result.updated} records, ${result.failed} failed`)
       await loadActivities(null, false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "更新 IP 地理位置失败")
+      toast.error(error instanceof Error ? error.message : "Failed to refresh geo locations")
     } finally {
       setGeoRefreshing(false)
     }
@@ -382,31 +406,31 @@ export function AdminClient() {
     setAnnouncementSaving(true)
     try {
       await apiPost("/api/announcements", { content })
-      toast.success("公告已发布")
+      toast.success("Announcement published")
       setAnnouncementDraft("")
       await loadAnnouncements()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "发布公告失败")
+      toast.error(error instanceof Error ? error.message : "Failed to publish announcement")
     } finally {
       setAnnouncementSaving(false)
     }
   }
 
   async function deleteAnnouncement(item: AnnouncementItem) {
-    if (!confirm(`确认删除这条公告？\n${item.content}`)) return
+    if (!confirm(`Delete this announcement?\n${item.content}`)) return
     try {
       await apiDelete(`/api/announcements/${item.id}`)
-      toast.success("公告已删除")
+      toast.success("Announcement deleted")
       await loadAnnouncements()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "删除公告失败")
+      toast.error(error instanceof Error ? error.message : "Failed to delete announcement")
     }
   }
 
   async function deleteBroadcast(item: BroadcastItem) {
-    if (!confirm(`确认删除这条世界频道广播？\n${item.content}`)) return
+    if (!confirm(`Delete this broadcast?\n${item.content}`)) return
     await apiDelete(`/api/world-broadcasts/${item.id}`)
-    toast.success("广播历史已删除")
+    toast.success("Broadcast deleted")
     await loadBroadcasts()
   }
 
@@ -418,12 +442,12 @@ export function AdminClient() {
     try {
       const form = new FormData()
       files.forEach((file) => form.append("files", file))
-      const res = await fetch("/api/admin/stickers", { method: "POST", body: form })
-      if (!res.ok) throw new Error("上传失败")
-      toast.success("公用表情包已上传")
+      const response = await fetch("/api/admin/stickers", { method: "POST", body: form })
+      if (!response.ok) throw new Error("Upload failed")
+      toast.success("Public stickers uploaded")
       await loadStickers()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "上传失败")
+      toast.error(error instanceof Error ? error.message : "Upload failed")
     } finally {
       setStickerUploading(false)
     }
@@ -431,53 +455,63 @@ export function AdminClient() {
 
   async function deletePublicSticker(item: StickerItem) {
     await apiDelete(`/api/admin/stickers/${item.id}`)
-    toast.success("表情包已删除")
+    toast.success("Sticker deleted")
     await loadStickers()
   }
 
   return (
     <div className="mx-auto max-w-[1200px] px-6 py-10">
       <div className="mb-8">
-        <h1 className="mb-1 text-xl font-semibold">管理员控制台</h1>
-        <p className="text-sm text-[--color-text-muted]">审核注册、管理成员权限，并查看近期登录和操作行为。</p>
+        <h1 className="mb-1 text-xl font-semibold">Admin Console</h1>
+        <p className="text-sm text-[--color-text-muted]">
+          Review access requests, manage members, and inspect recent operations.
+        </p>
       </div>
 
-      <div className="mb-8 grid grid-cols-3 gap-3">
+      <div className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-2 text-xs text-[--color-text-muted]">待审核</p>
+          <p className="mb-2 text-xs text-[--color-text-muted]">Pending approvals</p>
           <p className="text-2xl font-semibold">{stats.pending}</p>
         </div>
         <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-2 text-xs text-[--color-text-muted]">已加载成员</p>
-          <p className="text-2xl font-semibold">{stats.users}{usersHasMore ? "+" : ""}</p>
+          <p className="mb-2 text-xs text-[--color-text-muted]">Loaded users</p>
+          <p className="text-2xl font-semibold">
+            {stats.users}
+            {usersHasMore ? "+" : ""}
+          </p>
         </div>
         <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-2 text-xs text-[--color-text-muted]">已加载管理员</p>
+          <p className="mb-2 text-xs text-[--color-text-muted]">Admins</p>
           <p className="text-2xl font-semibold">{stats.admins}</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="py-16 text-center text-sm text-[--color-text-muted]">加载中...</div>
-      ) : data && (
+        <div className="py-16 text-center text-sm text-[--color-text-muted]">Loading...</div>
+      ) : data ? (
         <div className="space-y-8">
           <AdminAIPanel enabled={hasPermission("manageAI")} />
 
-          {data.currentAdmin.role === "owner" && (
+          {data.currentAdmin.role === "owner" ? (
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck size={16} />
-                <h2 className="text-sm font-semibold">管理员权限配置</h2>
+                <h2 className="text-sm font-semibold">Admin permissions</h2>
               </div>
-              <div className="mb-3 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
-                <p className="text-sm font-medium">终极管理员转让</p>
+
+              <div className="mb-3 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+                <p className="text-sm font-medium">Transfer ownership</p>
                 <p className="mt-1 text-xs text-[--color-text-muted]">
-                  转让后，当前终极管理员会降级为普通管理员，但自动保留全部管理员权限。
+                  Choose another admin or member to become the owner. You will keep admin access after the transfer.
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <Select value={effectiveOwnerTransferTargetId} onValueChange={setOwnerTransferTargetId} disabled={ownerTransferCandidates.length === 0}>
+                  <Select
+                    value={effectiveOwnerTransferTargetId}
+                    onValueChange={setOwnerTransferTargetId}
+                    disabled={ownerTransferCandidates.length === 0}
+                  >
                     <SelectTrigger className="h-9 w-[280px] text-xs">
-                      <SelectValue placeholder="选择新的终极管理员" />
+                      <SelectValue placeholder="Select the new owner" />
                     </SelectTrigger>
                     <SelectContent>
                       {ownerTransferCandidates.map((user) => (
@@ -493,160 +527,184 @@ export function AdminClient() {
                     onClick={() => selectedOwnerTransferUser && transferOwner(selectedOwnerTransferUser)}
                     disabled={!selectedOwnerTransferUser}
                   >
-                    转让终极管理员
+                    Transfer owner
                   </Button>
                 </div>
               </div>
-              <div className="space-y-3 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
+
+              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
                 {adminPermissions.length === 0 ? (
-                  <p className="p-2 text-sm text-[--color-text-muted]">暂无普通管理员</p>
-                ) : adminPermissions.map((admin) => (
-                  <div key={admin.id} className="rounded-[--radius-md] border border-[--color-border] p-3">
-                    <div className="mb-3 min-w-0">
-                      <p className="truncate text-sm font-medium">{admin.displayName || admin.email}</p>
-                      <p className="truncate font-mono text-xs text-[--color-text-muted]">{admin.email}</p>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                      {ADMIN_PERMISSION_DEFS.map((permission) => (
-                        <label key={permission.key} className="flex cursor-pointer items-start gap-2 rounded-[--radius-sm] border border-[--color-border] p-2 text-xs hover:bg-[--color-bg-hover]">
-                          <input
-                            type="checkbox"
-                            checked={admin.permissions[permission.key]}
-                            onChange={(event) => updateAdminPermission(admin, permission.key, event.target.checked)}
-                            className="mt-0.5"
-                          />
-                          <span className="min-w-0">
-                            <span className="block font-medium text-[--color-text-primary]">{permission.label}</span>
-                            <span className="mt-0.5 block text-[--color-text-muted]">{permission.description}</span>
-                          </span>
-                        </label>
+                  <p className="text-sm text-[--color-text-muted]">No extra admins available.</p>
+                ) : (
+                  <>
+                    <p className="mb-3 text-sm font-medium">Choose an admin to edit permissions</p>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {adminPermissions.map((admin) => (
+                        <button
+                          key={admin.id}
+                          type="button"
+                          onClick={() => setSelectedAdminPermissionId(admin.id)}
+                          className="rounded-[--radius-md] border border-[--color-border] p-4 text-left transition hover:border-[--color-border-strong] hover:bg-[--color-bg-hover]"
+                        >
+                          <p className="truncate text-sm font-medium">{admin.displayName || admin.email}</p>
+                          <p className="mt-1 truncate font-mono text-xs text-[--color-text-muted]">{admin.email}</p>
+                          <p className="mt-3 text-xs text-[--color-text-muted]">
+                            {ADMIN_PERMISSION_DEFS.filter((permission) => admin.permissions[permission.key]).length} permissions enabled
+                          </p>
+                        </button>
                       ))}
                     </div>
-                  </div>
-                ))}
+                  </>
+                )}
               </div>
             </section>
-          )}
+          ) : null}
 
-          {hasPermission("approveRegistrations") && (
-          <section>
-            <div className="mb-3 flex items-center gap-2">
-              <UserCheck size={16} />
-              <h2 className="text-sm font-semibold">注册审核</h2>
-            </div>
-            <div className="max-h-[320px] overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-              {data.requests.length === 0 ? (
-                <p className="p-4 text-sm text-[--color-text-muted]">暂无待审核申请</p>
-              ) : data.requests.map((request) => (
-                <div key={request.id} className="flex items-center gap-4 border-b border-[--color-border] px-4 py-3 last:border-b-0">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{request.displayName}</p>
-                    <p className="break-all font-mono text-xs text-[--color-text-muted]">{request.email}</p>
-                  </div>
-                  <span className="text-xs text-[--color-text-muted]">{formatTime(request.createdAt)}</span>
-                  <Button size="sm" onClick={() => approve(request.id)}>同意注册</Button>
-                </div>
-              ))}
-            </div>
-          </section>
-          )}
+          {hasPermission("approveRegistrations") ? (
+            <section>
+              <div className="mb-3 flex items-center gap-2">
+                <UserCheck size={16} />
+                <h2 className="text-sm font-semibold">Registration approvals</h2>
+              </div>
+              <div className="max-h-[320px] overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+                {data.requests.length === 0 ? (
+                  <p className="p-4 text-sm text-[--color-text-muted]">No pending registration requests.</p>
+                ) : (
+                  data.requests.map((request) => (
+                    <div key={request.id} className="flex items-center gap-4 border-b border-[--color-border] px-4 py-3 last:border-b-0">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{request.displayName}</p>
+                        <p className="break-all font-mono text-xs text-[--color-text-muted]">{request.email}</p>
+                      </div>
+                      <span className="text-xs text-[--color-text-muted]">{formatTime(request.createdAt)}</span>
+                      <Button size="sm" onClick={() => approve(request.id)}>
+                        Approve
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          ) : null}
 
-          {hasPermission("approvePasswordChanges") && (
-          <section>
-            <div className="mb-3 flex items-center gap-2">
-              <KeyRound size={16} />
-              <h2 className="text-sm font-semibold">密码修改审核</h2>
-            </div>
-            <div className="max-h-[320px] overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-              {data.passwordRequests.length === 0 ? (
-                <p className="p-4 text-sm text-[--color-text-muted]">暂无待审核密码申请</p>
-              ) : data.passwordRequests.map((request) => (
-                <div key={request.id} className="flex items-center gap-4 border-b border-[--color-border] px-4 py-3 last:border-b-0">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{request.user.displayName || request.user.email}</p>
-                    <p className="break-all font-mono text-xs text-[--color-text-muted]">{request.user.email}</p>
-                  </div>
-                  <span className="text-xs text-[--color-text-muted]">{formatTime(request.requestedAt)}</span>
-                  <Button size="sm" onClick={() => approvePassword(request.id)}>同意修改</Button>
-                </div>
-              ))}
-            </div>
-          </section>
-          )}
+          {hasPermission("approvePasswordChanges") ? (
+            <section>
+              <div className="mb-3 flex items-center gap-2">
+                <KeyRound size={16} />
+                <h2 className="text-sm font-semibold">Password change approvals</h2>
+              </div>
+              <div className="max-h-[320px] overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+                {data.passwordRequests.length === 0 ? (
+                  <p className="p-4 text-sm text-[--color-text-muted]">No pending password change requests.</p>
+                ) : (
+                  data.passwordRequests.map((request) => (
+                    <div key={request.id} className="flex items-center gap-4 border-b border-[--color-border] px-4 py-3 last:border-b-0">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{request.user.displayName || request.user.email}</p>
+                        <p className="break-all font-mono text-xs text-[--color-text-muted]">{request.user.email}</p>
+                      </div>
+                      <span className="text-xs text-[--color-text-muted]">{formatTime(request.requestedAt)}</span>
+                      <Button size="sm" onClick={() => approvePassword(request.id)}>
+                        Approve
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          ) : null}
 
-          {hasPermission("manageAnnouncements") && (
+          {hasPermission("manageAnnouncements") ? (
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck size={16} />
-                <h2 className="text-sm font-semibold">公告管理</h2>
+                <h2 className="text-sm font-semibold">Announcements</h2>
               </div>
               <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
                 <textarea
                   value={announcementDraft}
                   onChange={(event) => setAnnouncementDraft(event.target.value)}
                   maxLength={500}
-                  placeholder="输入公告内容，最新公告会覆盖首页当前展示"
+                  placeholder="Write the announcement text shown on the site home page."
                   className="min-h-24 w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-primary] p-2 text-sm outline-none focus:border-[--color-accent]"
                 />
                 <div className="mt-3 flex items-center justify-between">
                   <span className="font-mono text-xs text-[--color-text-muted]">{announcementDraft.length}/500</span>
                   <Button size="sm" onClick={publishAnnouncement} disabled={announcementSaving || !announcementDraft.trim()}>
-                    {announcementSaving ? "发布中..." : "发布公告"}
+                    {announcementSaving ? "Publishing..." : "Publish announcement"}
                   </Button>
                 </div>
               </div>
               <div className="mt-3 max-h-[420px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
                 {announcements.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">暂无历史公告</p>
-                ) : announcements.map((item) => (
-                  <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                    <div className="mb-2 flex items-start justify-between gap-3">
-                      <p className="font-mono text-xs text-[--color-text-muted]">{formatTime(item.createdAt)} / {item.fromWorldChannel ? "世界频道" : "管理员"}</p>
-                      <button type="button" onClick={() => deleteAnnouncement(item)} className="text-[--color-text-muted] hover:text-[--color-danger]" title="删除公告">
-                        <Trash2 size={14} />
-                      </button>
+                  <p className="p-4 text-sm text-[--color-text-muted]">No announcement history yet.</p>
+                ) : (
+                  announcements.map((item) => (
+                    <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+                      <div className="mb-2 flex items-start justify-between gap-3">
+                        <p className="font-mono text-xs text-[--color-text-muted]">
+                          {formatTime(item.createdAt)} / {item.fromWorldChannel ? "World channel" : "Admin"}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => deleteAnnouncement(item)}
+                          className="text-[--color-text-muted] hover:text-[--color-danger]"
+                          title="Delete announcement"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <p className="whitespace-pre-wrap break-words text-sm">{item.content}</p>
                     </div>
-                    <p className="whitespace-pre-wrap break-words text-sm">{item.content}</p>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </section>
-          )}
+          ) : null}
 
-          {hasPermission("manageAnnouncements") && (
+          {hasPermission("manageAnnouncements") ? (
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck size={16} />
-                <h2 className="text-sm font-semibold">世界频道广播历史</h2>
+                <h2 className="text-sm font-semibold">World channel broadcasts</h2>
               </div>
               <div className="max-h-[420px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
                 {broadcasts.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">暂无广播历史</p>
-                ) : broadcasts.map((item) => (
-                  <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                    <div className="mb-2 flex items-start justify-between gap-3">
-                      <p className="font-mono text-xs text-[--color-text-muted]">{formatTime(item.createdAt)} / {item.author.displayName || item.author.email}</p>
-                      <button type="button" onClick={() => deleteBroadcast(item)} className="text-[--color-text-muted] hover:text-[--color-danger]" title="删除广播">
-                        <Trash2 size={14} />
-                      </button>
+                  <p className="p-4 text-sm text-[--color-text-muted]">No broadcast history yet.</p>
+                ) : (
+                  broadcasts.map((item) => (
+                    <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+                      <div className="mb-2 flex items-start justify-between gap-3">
+                        <p className="font-mono text-xs text-[--color-text-muted]">
+                          {formatTime(item.createdAt)} / {item.author.displayName || item.author.email}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => deleteBroadcast(item)}
+                          className="text-[--color-text-muted] hover:text-[--color-danger]"
+                          title="Delete broadcast"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <p className="whitespace-pre-wrap break-words text-sm">{item.content}</p>
                     </div>
-                    <p className="whitespace-pre-wrap break-words text-sm">{item.content}</p>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </section>
-          )}
+          ) : null}
 
-          {hasPermission("manageStickers") && (
+          {hasPermission("manageStickers") ? (
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <ImageIcon size={16} />
-                <h2 className="text-sm font-semibold">公用表情包库</h2>
+                <h2 className="text-sm font-semibold">Public sticker library</h2>
               </div>
               <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-[--radius-sm] border border-[--color-border] px-3 py-2 text-sm hover:bg-[--color-bg-hover]">
                   <Upload size={14} />
-                  {stickerUploading ? "上传中..." : "批量上传公用表情包"}
+                  {stickerUploading ? "Uploading..." : "Upload public stickers"}
                   <input type="file" accept="image/*" multiple className="hidden" onChange={uploadPublicStickers} disabled={stickerUploading} />
                 </label>
                 <div className="mt-4 grid max-h-[360px] grid-cols-4 gap-3 overflow-y-auto pr-1 sm:grid-cols-8">
@@ -654,7 +712,12 @@ export function AdminClient() {
                     <div key={item.id} className="group relative flex aspect-square items-center justify-center overflow-hidden rounded border border-[--color-border] bg-white">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={item.url} alt={item.name || item.originalName} className="max-h-full max-w-full object-contain" />
-                      <button type="button" onClick={() => deletePublicSticker(item)} className="absolute right-1 top-1 hidden rounded bg-white p-1 text-[--color-danger] shadow group-hover:block" title="删除">
+                      <button
+                        type="button"
+                        onClick={() => deletePublicSticker(item)}
+                        className="absolute right-1 top-1 hidden rounded bg-white p-1 text-[--color-danger] shadow group-hover:block"
+                        title="Delete sticker"
+                      >
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -662,206 +725,272 @@ export function AdminClient() {
                 </div>
               </div>
             </section>
-          )}
+          ) : null}
 
-          {hasPermission("manageUsers") && (
-          <section>
-            <div className="mb-3 flex items-center gap-2">
-              <UserCog size={16} />
-              <h2 className="text-sm font-semibold">User Management</h2>
-            </div>
-            <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-              <div
-                className="max-h-[470px] overflow-auto bg-[--color-bg-surface]"
-                onScroll={(event) => {
-                  if (isNearBottom(event) && usersHasMore && !usersLoading) void loadUsers(usersCursor, true)
-                }}
-              >
-                <div className="min-w-[950px]">
-                  <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
-                    <thead className="sticky top-0 z-10">
-                      <tr>
-                        <th className="glass-nav-bg w-[290px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">User</th>
-                        <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Role</th>
-                        <th className="glass-nav-bg w-[190px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Last Login</th>
-                        <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Delete Rule</th>
-                        {data.canManageUsers && <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5" />}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.map((user) => {
-                        const inactiveDays = daysSince(user.lastLoginAt)
-                        const deleteBlockedReason = getDeleteBlockedReason(user, inactiveDays)
-                        const canEditRole =
-                          data.canManageUsers &&
-                          user.role !== "owner" &&
-                          (data.currentAdmin.role === "owner" || user.role !== "admin")
-                        const canTransferOwner =
-                          data.currentAdmin.role === "owner" &&
-                          user.id !== data.currentAdmin.id &&
-                          user.role !== "owner"
-
-                        return (
-                          <tr key={user.id}>
-                            <td className="w-[290px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
-                              <p className="truncate font-medium">{user.displayName || user.email}</p>
-                              <p className="truncate font-mono text-xs text-[--color-text-muted]">{user.email}</p>
-                            </td>
-                            <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
-                              {canEditRole ? (
-                                <Select value={user.role === "admin" ? "admin" : "user"} onValueChange={(role) => updateRole(user.id, role)}>
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="user">User</SelectItem>
-                                    <SelectItem value="admin">Admin</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-xs">
-                                  {user.role === "owner" && <ShieldCheck size={13} />}
-                                  {user.role === "owner" ? "Owner" : user.role === "admin" ? "Admin" : "User"}
-                                </span>
-                              )}
-                            </td>
-                            <td className="w-[190px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(user.lastLoginAt)}</td>
-                            <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                              {deleteBlockedReason ?? "Deletable"}
-                            </td>
-                            {data.canManageUsers && (
-                              <td className="w-[170px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
-                                <div className="flex items-center justify-end gap-2">
-                                  {canTransferOwner && (
-                                    <Button size="sm" variant="outline" onClick={() => transferOwner(user)} className="h-8 px-2 text-xs">
-                                      Transfer
-                                    </Button>
-                                  )}
-                                  <button
-                                    onClick={() => deleteUser(user)}
-                                    disabled={Boolean(deleteBlockedReason)}
-                                    className="p-1 text-[--color-text-muted] hover:text-[--color-danger] disabled:cursor-not-allowed disabled:opacity-40"
-                                    title={deleteBlockedReason ?? "Delete user"}
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                  {usersLoading && <p className="p-3 text-center text-xs text-[--color-text-muted]">Loading more users...</p>}
-                </div>
+          {hasPermission("manageUsers") ? (
+            <section>
+              <div className="mb-3 flex items-center gap-2">
+                <UserCog size={16} />
+                <h2 className="text-sm font-semibold">User management</h2>
               </div>
-            </div>
-          </section>
-          )}
-          {hasPermission("viewActivityLogs") && (
-          <section>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck size={16} />
-                <h2 className="text-sm font-semibold">最近登录和操作行为</h2>
-                <span className="text-xs text-[--color-text-muted]">
-                  最近自动刷新：{activitiesRefreshedAt ? formatTime(activitiesRefreshedAt) : "尚未刷新"}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => void loadActivities(null, false)} disabled={activitiesLoading}>
-                  <RotateCcw size={14} /> {activitiesLoading ? "刷新中..." : "刷新日志"}
-                </Button>
-                {hasPermission("refreshGeoLocations") && (
-                  <Button size="sm" variant="outline" onClick={refreshGeoLocations} disabled={geoRefreshing}>
-                    <RotateCcw size={14} /> {geoRefreshing ? "更新中..." : "更新 IP 地理位置"}
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-              {activities.length === 0 ? (
-                <p className="p-4 text-sm text-[--color-text-muted]">暂无行为记录</p>
-              ) : (
+              <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
                 <div
-                  className="max-h-[500px] overflow-auto bg-[--color-bg-surface]"
+                  className="max-h-[470px] overflow-auto bg-[--color-bg-surface]"
                   onScroll={(event) => {
-                    if (isNearBottom(event) && activitiesHasMore && !activitiesLoading) void loadActivities(activitiesCursor, true)
+                    if (isNearBottom(event) && usersHasMore && !usersLoading) void loadUsers(usersCursor, true)
                   }}
                 >
-                  <div className="min-w-[1080px]">
+                  <div className="min-w-[950px]">
                     <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
                       <thead className="sticky top-0 z-10">
                         <tr>
-                          <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">时间</th>
-                          <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">行为</th>
-                          <th className="glass-nav-bg w-[300px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">用户与详情</th>
-                          <th className="glass-nav-bg w-[180px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">IP 地址</th>
-                          <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">地理位置</th>
-                          <th className="glass-nav-bg w-[140px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">设备信息</th>
+                          <th className="glass-nav-bg w-[290px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">User</th>
+                          <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Role</th>
+                          <th className="glass-nav-bg w-[190px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Last login</th>
+                          <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Delete rule</th>
+                          {data.canManageUsers ? <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5" /> : null}
                         </tr>
                       </thead>
+                      <tbody>
+                        {users.map((user) => {
+                          const inactiveDays = daysSince(user.lastLoginAt)
+                          const deleteBlockedReason = getDeleteBlockedReason(user, inactiveDays)
+                          const canEditRole =
+                            data.canManageUsers &&
+                            user.role !== "owner" &&
+                            (data.currentAdmin.role === "owner" || user.role !== "admin")
+                          const canTransferOwner =
+                            data.currentAdmin.role === "owner" &&
+                            user.id !== data.currentAdmin.id &&
+                            user.role !== "owner"
+
+                          return (
+                            <tr key={user.id}>
+                              <td className="w-[290px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
+                                <p className="truncate font-medium">{user.displayName || user.email}</p>
+                                <p className="truncate font-mono text-xs text-[--color-text-muted]">{user.email}</p>
+                              </td>
+                              <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
+                                {canEditRole ? (
+                                  <Select value={user.role === "admin" ? "admin" : "user"} onValueChange={(role) => updateRole(user.id, role)}>
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="user">User</SelectItem>
+                                      <SelectItem value="admin">Admin</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-xs">
+                                    {user.role === "owner" ? <ShieldCheck size={13} /> : null}
+                                    {user.role === "owner" ? "Owner" : user.role === "admin" ? "Admin" : "User"}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="w-[190px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                                {formatTime(user.lastLoginAt)}
+                              </td>
+                              <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                                {deleteBlockedReason ?? "Deletable"}
+                              </td>
+                              {data.canManageUsers ? (
+                                <td className="w-[170px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
+                                  <div className="flex items-center justify-end gap-2">
+                                    {canTransferOwner ? (
+                                      <Button size="sm" variant="outline" onClick={() => transferOwner(user)} className="h-8 px-2 text-xs">
+                                        Transfer
+                                      </Button>
+                                    ) : null}
+                                    <button
+                                      onClick={() => deleteUser(user)}
+                                      disabled={Boolean(deleteBlockedReason)}
+                                      className="p-1 text-[--color-text-muted] hover:text-[--color-danger] disabled:cursor-not-allowed disabled:opacity-40"
+                                      title={deleteBlockedReason ?? "Delete user"}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </td>
+                              ) : null}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                    {usersLoading ? <p className="p-3 text-center text-xs text-[--color-text-muted]">Loading more users...</p> : null}
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {hasPermission("viewActivityLogs") ? (
+            <section>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={16} />
+                  <h2 className="text-sm font-semibold">Recent activity</h2>
+                  <span className="text-xs text-[--color-text-muted]">
+                    Last refresh: {activitiesRefreshedAt ? formatTime(activitiesRefreshedAt) : "Not refreshed yet"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => void loadActivities(null, false)} disabled={activitiesLoading}>
+                    <RotateCcw size={14} /> {activitiesLoading ? "Refreshing..." : "Refresh logs"}
+                  </Button>
+                  {hasPermission("refreshGeoLocations") ? (
+                    <Button size="sm" variant="outline" onClick={refreshGeoLocations} disabled={geoRefreshing}>
+                      <RotateCcw size={14} /> {geoRefreshing ? "Refreshing..." : "Refresh geo data"}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+                {activities.length === 0 ? (
+                  <p className="p-4 text-sm text-[--color-text-muted]">No activity records yet.</p>
+                ) : (
+                  <div
+                    className="max-h-[500px] overflow-auto bg-[--color-bg-surface]"
+                    onScroll={(event) => {
+                      if (isNearBottom(event) && activitiesHasMore && !activitiesLoading) void loadActivities(activitiesCursor, true)
+                    }}
+                  >
+                    <div className="min-w-[1080px]">
+                      <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+                        <thead className="sticky top-0 z-10">
+                          <tr>
+                            <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Time</th>
+                            <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Action</th>
+                            <th className="glass-nav-bg w-[300px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">User and detail</th>
+                            <th className="glass-nav-bg w-[180px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">IP address</th>
+                            <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Geo</th>
+                            <th className="glass-nav-bg w-[140px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Device</th>
+                          </tr>
+                        </thead>
                         <tbody>
                           {activities.map((activity) => (
                             <tr key={activity.id}>
-                              <td className="w-[160px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{formatTime(activity.createdAt)}</td>
-                              <td className="w-[170px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs"><span className={`inline-flex min-w-[72px] items-center justify-center rounded-full border px-2.5 py-1 font-mono ${activityActionClass(activity.action)}`}>{formatActivityAction(activity.action)}</span></td>
-                              <td className="w-[300px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {(activity.user?.displayName || activity.user?.email || "系统")}：{activity.detail}
+                              <td className="w-[160px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                                {formatTime(activity.createdAt)}
                               </td>
-                              <td className="w-[180px] break-all border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted]">{activity.ipAddress || "未知"}</td>
-                              <td className="w-[160px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{activity.geoLocation || "未知"}</td>
-                              <td className="w-[140px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">{activity.deviceInfo || "未知"}</td>
+                              <td className="w-[170px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs">
+                                <span className={`inline-flex min-w-[72px] items-center justify-center rounded-full border px-2.5 py-1 font-mono ${activityActionClass(activity.action)}`}>
+                                  {formatActivityAction(activity.action)}
+                                </span>
+                              </td>
+                              <td className="w-[300px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                                {(activity.user?.displayName || activity.user?.email || "System")}: {activity.detail}
+                              </td>
+                              <td className="w-[180px] break-all border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted]">
+                                {activity.ipAddress || "Unknown"}
+                              </td>
+                              <td className="w-[160px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                                {activity.geoLocation || "Unknown"}
+                              </td>
+                              <td className="w-[140px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                                {activity.deviceInfo || "Unknown"}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
-                      {activitiesLoading && <p className="p-3 text-center text-xs text-[--color-text-muted]">加载更多日志...</p>}
+                      {activitiesLoading ? <p className="p-3 text-center text-xs text-[--color-text-muted]">Loading more activity...</p> : null}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </section>
-          )}
+                )}
+              </div>
+            </section>
+          ) : null}
 
-          {hasPermission("manageUpdateLogs") && (
+          {hasPermission("manageUpdateLogs") ? (
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <GitCommitHorizontal size={16} />
-                <h2 className="text-sm font-semibold">更新日志展示管理</h2>
+                <h2 className="text-sm font-semibold">Public changelog display</h2>
               </div>
               <div className="max-h-[520px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
                 {data.updates.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">暂无 Git 更新记录</p>
-                ) : data.updates.map((item) => (
-                  <div key={item.hash} className={`rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4 ${item.hidden ? "opacity-55" : ""}`}>
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-mono text-xs text-[--color-text-muted]">{formatTime(item.date)} - {item.hash.slice(0, 12)}</p>
-                        <p className="mt-1 text-xs text-[--color-text-muted]">原始备注：{item.originalMessage}</p>
+                  <p className="p-4 text-sm text-[--color-text-muted]">No git update records yet.</p>
+                ) : (
+                  data.updates.map((item) => (
+                    <div key={item.hash} className={`rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4 ${item.hidden ? "opacity-55" : ""}`}>
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-mono text-xs text-[--color-text-muted]">
+                            {formatTime(item.date)} - {item.hash.slice(0, 12)}
+                          </p>
+                          <p className="mt-1 text-xs text-[--color-text-muted]">Original note: {item.originalMessage}</p>
+                        </div>
+                        <span className="text-xs text-[--color-text-muted]">
+                          {item.hidden ? "Hidden" : item.useOriginal ? "Showing original note" : "Showing custom note"}
+                        </span>
                       </div>
-                      <span className="text-xs text-[--color-text-muted]">
-                        {item.hidden ? "已隐藏" : item.useOriginal ? "展示原始内容" : "展示修改内容"}
-                      </span>
+                      <textarea
+                        value={updateDrafts[item.hash] ?? item.customMessage ?? item.originalMessage}
+                        onChange={(event) => setUpdateDrafts((drafts) => ({ ...drafts, [item.hash]: event.target.value }))}
+                        className="min-h-20 w-full rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-primary] p-2 text-sm outline-none focus:border-[--color-text-primary]"
+                      />
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => saveUpdateLog(item)}>
+                          <Save size={14} /> Save custom note
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => resetUpdateLog(item)}>
+                          <RotateCcw size={14} /> Restore original
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => hideUpdateLog(item)} className="text-[--color-danger]">
+                          <Trash2 size={14} /> Hide entry
+                        </Button>
+                      </div>
                     </div>
-                    <textarea
-                      value={updateDrafts[item.hash] ?? item.customMessage ?? item.originalMessage}
-                      onChange={(event) => setUpdateDrafts((drafts) => ({ ...drafts, [item.hash]: event.target.value }))}
-                      className="min-h-20 w-full rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-primary] p-2 text-sm outline-none focus:border-[--color-text-primary]"
-                    />
-                    <div className="mt-3 flex flex-wrap justify-end gap-2">
-                      <Button size="sm" variant="outline" onClick={() => saveUpdateLog(item)}><Save size={14} /> 保存修改展示</Button>
-                      <Button size="sm" variant="outline" onClick={() => resetUpdateLog(item)}><RotateCcw size={14} /> 展示原始内容</Button>
-                      <Button size="sm" variant="outline" onClick={() => hideUpdateLog(item)} className="text-[--color-danger]"><Trash2 size={14} /> 删除展示</Button>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </section>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
+
+      <Dialog open={Boolean(selectedAdminPermission)} onOpenChange={(open) => !open && setSelectedAdminPermissionId(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Admin permissions</DialogTitle>
+            <DialogDescription>
+              {selectedAdminPermission
+                ? `Editing permissions for ${selectedAdminPermission.displayName || selectedAdminPermission.email}.`
+                : "Choose which admin capabilities should be enabled."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAdminPermission ? (
+            <div className="grid max-h-[60vh] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
+              {ADMIN_PERMISSION_DEFS.map((permission) => (
+                <label
+                  key={permission.key}
+                  className="flex cursor-pointer items-start gap-3 rounded-[--radius-md] border border-[--color-border] p-3 hover:bg-[--color-bg-hover]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedAdminPermission.permissions[permission.key]}
+                    onChange={(event) => updateAdminPermission(selectedAdminPermission, permission.key, event.target.checked)}
+                    className="mt-1"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-[--color-text-primary]">{permission.label}</span>
+                    <span className="mt-1 block text-xs text-[--color-text-muted]">{permission.description}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedAdminPermissionId(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -33,6 +33,33 @@ export type ChatMessagePayload = {
     avatarText: string
     avatarUrl: string | null
   }
+  replyTo?: {
+    id: string
+    senderId: string
+    text: string
+    stickerEmoji?: string | null
+    sticker?: {
+      id: string
+      url: string
+      name?: string
+      originalName?: string
+      isAnimated?: boolean
+    } | null
+    attachments: {
+      id: string
+      originalName: string
+      mimeType: string
+      size: number
+      downloadUrl: string
+    }[]
+    sender?: {
+      id: string
+      email: string
+      displayName: string
+      avatarText: string
+      avatarUrl: string | null
+    }
+  } | null
   attachments: {
     id: string
     originalName: string
@@ -95,6 +122,35 @@ type MessageWithAttachments = {
     avatarText: string
     avatarUrl: string | null
   }
+  replyTo?: {
+    id: string
+    senderId: string
+    text: string
+    stickerEmoji?: string | null
+    sticker?: {
+      id: string
+      scope: string
+      name: string
+      originalName: string
+      mimeType: string
+      size: number
+      isAnimated: boolean
+      url?: string
+    } | null
+    sender?: {
+      id: string
+      email: string
+      displayName: string
+      avatarText: string
+      avatarUrl: string | null
+    }
+    attachments: {
+      id: string
+      originalName: string
+      mimeType: string
+      size: number
+    }[]
+  } | null
   attachments: {
     id: string
     originalName: string
@@ -115,6 +171,27 @@ export function serializeMessage(message: MessageWithAttachments): ChatMessagePa
     readAt: message.readAt?.toISOString() ?? null,
     createdAt: message.createdAt.toISOString(),
     sender: message.sender,
+    replyTo: message.replyTo ? {
+      id: message.replyTo.id,
+      senderId: message.replyTo.senderId,
+      text: message.replyTo.text,
+      stickerEmoji: message.replyTo.stickerEmoji,
+      sticker: message.replyTo.sticker ? {
+        id: message.replyTo.sticker.id,
+        url: `/api/stickers/${message.replyTo.sticker.id}/file`,
+        name: message.replyTo.sticker.name,
+        originalName: message.replyTo.sticker.originalName,
+        isAnimated: message.replyTo.sticker.isAnimated,
+      } : null,
+      sender: message.replyTo.sender,
+      attachments: message.replyTo.attachments.map((attachment) => ({
+        id: attachment.id,
+        originalName: attachment.originalName,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+        downloadUrl: `/api/chats/attachments/${attachment.id}/download`,
+      })),
+    } : null,
     attachments: message.attachments.map((attachment) => ({
       id: attachment.id,
       originalName: attachment.originalName,

@@ -1,75 +1,53 @@
 import { z } from "zod"
 
 export const registerSchema = z.object({
-  email: z.string().trim().toLowerCase().email("请输入有效的邮箱地址"),
-  password: z.string().min(8, "密码至少 8 位"),
-  displayName: z.string().trim().min(1, "昵称不能为空").max(50),
+  email: z.string().trim().toLowerCase().email("Please enter a valid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  displayName: z.string().trim().min(1, "Display name is required").max(50),
 })
 
 export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email("请输入有效的邮箱地址"),
-  password: z.string().min(1, "请输入密码"),
+  email: z.string().trim().toLowerCase().email("Please enter a valid email address"),
+  password: z.string().min(1, "Please enter your password"),
 })
 
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 
 export const createJobSchema = z.object({
-  company: z.string().min(1, "公司名称不能为空"),
-  position: z.string().min(1, "职位不能为空"),
-  channel: z.string().default("其他"),
+  company: z.string().min(1, "Company is required"),
+  position: z.string().min(1, "Position is required"),
+  channel: z.string().default("Other"),
   appliedAt: z.string().datetime().or(z.string().date()),
-  status: z.string().default("已投递"),
+  status: z.string().default("Applied"),
   notes: z.string().optional().nullable(),
   baseLocation: z.string().optional().nullable(),
   hrContact: z.string().optional().nullable(),
   link: z.string().optional().nullable(),
 })
 
-export const updateJobSchema = z.object({
-  company: z.string().min(1, "公司名称不能为空").optional(),
-  position: z.string().min(1, "职位不能为空").optional(),
-  channel: z.string().optional(),
-  appliedAt: z.string().datetime().or(z.string().date()).optional(),
-  status: z.string().optional(),
-  notes: z.string().optional().nullable(),
-  baseLocation: z.string().optional().nullable(),
-  hrContact: z.string().optional().nullable(),
-  link: z.string().optional().nullable(),
-})
+export const updateJobSchema = createJobSchema.partial()
 
 export const createInterviewSchema = z.object({
-  company: z.string().min(1, "公司名称不能为空"),
-  position: z.string().min(1, "职位不能为空"),
-  round: z.string().default("技术一面"),
-  format: z.string().default("视频"),
+  company: z.string().min(1, "Company is required"),
+  position: z.string().min(1, "Position is required"),
+  round: z.string().default("Technical Round 1"),
+  format: z.string().default("Video"),
   scheduledAt: z.string().datetime().or(z.string()),
   interviewers: z.string().optional().nullable(),
   questions: z.string().optional().nullable(),
   selfRating: z.number().int().min(1).max(5).optional().nullable(),
-  result: z.string().default("待定"),
+  result: z.string().default("Pending"),
   feedback: z.string().optional().nullable(),
   jobId: z.string().optional().nullable(),
 })
 
-export const updateInterviewSchema = z.object({
-  company: z.string().min(1, "公司名称不能为空").optional(),
-  position: z.string().min(1, "职位不能为空").optional(),
-  round: z.string().optional(),
-  format: z.string().optional(),
-  scheduledAt: z.string().datetime().or(z.string()).optional(),
-  interviewers: z.string().optional().nullable(),
-  questions: z.string().optional().nullable(),
-  selfRating: z.number().int().min(1).max(5).optional().nullable(),
-  result: z.string().optional(),
-  feedback: z.string().optional().nullable(),
-  jobId: z.string().optional().nullable(),
-})
+export const updateInterviewSchema = createInterviewSchema.partial()
 
 export const createPostSchema = z.object({
   type: z.enum(["blog", "daily", "reflections", "notes"]),
   slug: z.string().min(1),
-  title: z.string().min(1, "标题不能为空"),
+  title: z.string().min(1, "Title is required"),
   summary: z.string().optional().default(""),
   tags: z.array(z.string()).optional().default([]),
   content: z.string().default(""),
@@ -79,7 +57,7 @@ export const createPostSchema = z.object({
 })
 
 export const updatePostSchema = z.object({
-  title: z.string().min(1, "鏍囬涓嶈兘涓虹┖").optional(),
+  title: z.string().min(1, "Title is required").optional(),
   summary: z.string().optional(),
   tags: z.array(z.string()).optional(),
   content: z.string().optional(),
@@ -90,7 +68,7 @@ export const updatePostSchema = z.object({
 
 export const articleFolderSchema = z.object({
   type: z.enum(["blog", "daily", "reflections", "notes"]),
-  name: z.string().trim().min(1, "文件夹名称不能为空").max(60),
+  name: z.string().trim().min(1, "Folder name is required").max(60),
   description: z.string().trim().max(200).optional().default(""),
   coverImageUrl: z.string().trim().max(500).optional().default(""),
   coverPositionX: z.number().int().min(0).max(100).optional().default(50),
@@ -123,7 +101,11 @@ export const siteSettingsSchema = z.object({
 
 export const passwordChangeRequestSchema = z.object({
   email: z.string().trim().toLowerCase().email().optional(),
-  password: z.string().min(8, "密码至少 8 位"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string().min(8, "Password confirmation must be at least 8 characters"),
+}).refine((value) => value.password === value.confirmPassword, {
+  path: ["confirmPassword"],
+  message: "Passwords do not match",
 })
 
 export const moduleVisibilitySchema = z.object({
@@ -132,7 +114,7 @@ export const moduleVisibilitySchema = z.object({
 })
 
 export const commentSchema = z.object({
-  content: z.string().trim().max(1000, "评论不能超过 1000 字").default(""),
+  content: z.string().trim().max(1000, "Comment must be under 1000 characters").default(""),
   parentId: z.string().min(1).optional().nullable(),
   stickerId: z.string().min(1).optional().nullable(),
   stickerEmoji: z.string().trim().max(20).optional().nullable(),
@@ -140,23 +122,23 @@ export const commentSchema = z.object({
 
 export const guestbookMessageSchema = z.object({
   ownerId: z.string().min(1),
-  content: z.string().trim().max(500, "留言不能超过 500 字").default(""),
+  content: z.string().trim().max(500, "Message must be under 500 characters").default(""),
   parentId: z.string().min(1).optional().nullable(),
   stickerId: z.string().min(1).optional().nullable(),
   stickerEmoji: z.string().trim().max(20).optional().nullable(),
 })
 
 export const announcementSchema = z.object({
-  content: z.string().trim().min(1, "公告不能为空").max(500, "公告不能超过 500 字"),
+  content: z.string().trim().min(1, "Announcement is required").max(500, "Announcement must be under 500 characters"),
 })
 
 export const channelCreateSchema = z.object({
-  name: z.string().trim().min(1, "群组名称不能为空").max(60, "群组名称不能超过 60 字"),
+  name: z.string().trim().min(1, "Channel name is required").max(60, "Channel name must be under 60 characters"),
   memberIds: z.array(z.string().min(1)).default([]),
 })
 
 export const channelInviteSchema = z.object({
-  memberIds: z.array(z.string().min(1)).min(1, "请选择要邀请的好友"),
+  memberIds: z.array(z.string().min(1)).min(1, "Select at least one friend"),
 })
 
 export const channelManageSchema = z.object({
@@ -206,9 +188,22 @@ export const aiRequestReviewSchema = z.object({
   reviewNote: z.string().trim().max(500).optional().default(""),
 })
 
+export const aiAttachmentSchema = z.object({
+  uploadId: z.string().cuid().optional().nullable(),
+  url: z.string().trim().min(1).max(500),
+  originalName: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().min(1).max(120),
+  size: z.number().int().min(0).max(20 * 1024 * 1024),
+})
+
 export const aiStreamSchema = z.object({
   conversationId: z.string().cuid().optional(),
   prompt: z.string().trim().min(1).max(10000),
+  attachments: z.array(aiAttachmentSchema).max(1).optional().default([]),
+})
+
+export const aiRunsQuerySchema = z.object({
+  includeSteps: z.coerce.boolean().optional().default(true),
 })
 
 export type CreateJobInput = z.infer<typeof createJobSchema>
@@ -224,4 +219,6 @@ export type AIProviderConfigUpdateInput = z.infer<typeof aiProviderConfigUpdateS
 export type AIAccessRequestInput = z.infer<typeof aiAccessRequestSchema>
 export type AIGrantInput = z.infer<typeof aiGrantSchema>
 export type AIRequestReviewInput = z.infer<typeof aiRequestReviewSchema>
+export type AIAttachmentInput = z.infer<typeof aiAttachmentSchema>
 export type AIStreamInput = z.infer<typeof aiStreamSchema>
+export type AIRunsQueryInput = z.infer<typeof aiRunsQuerySchema>

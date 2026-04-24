@@ -17,6 +17,7 @@ export default async function SettingsPage() {
     { href: "/settings/password", title: dict.settings.password, description: dict.settings.passwordDesc },
     { href: "/settings/privacy", title: dict.settings.privacy, description: dict.settings.privacyDesc },
     { href: "/settings/language", title: dict.settings.language, description: dict.settings.languageDesc },
+    { href: "/settings/usage", title: dict.settings.usage, description: dict.settings.usageDesc },
   ]
 
   return (

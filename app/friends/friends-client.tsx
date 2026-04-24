@@ -36,17 +36,97 @@ type FriendData = {
   summaries: ChatSummary[]
 }
 
+function getLabels() {
+  const isEnglish = typeof document !== "undefined" && document.documentElement.lang.startsWith("en")
+  return isEnglish
+    ? {
+        loading: "Loading...",
+        loadFailed: "Failed to load friend data",
+        operationFailed: "Operation failed",
+        requestSent: "Friend request sent",
+        requestAccepted: "Request accepted",
+        requestRejected: "Request rejected",
+        requestCancelled: "Request cancelled",
+        unfriended: "Friend removed",
+        friends: "Friends",
+        chat: "Chat",
+        removeFriendTitle: "Remove friend?",
+        removeFriendBody: "This will remove your friendship with",
+        removeFriendHint: "Chat history will stay, but you will no longer be able to chat until you add each other again.",
+        cancel: "Cancel",
+        confirmRemove: "Remove friend",
+        addFriend: "Add friend",
+        emailPlaceholder: "Enter the other person's email",
+        notePlaceholder: "Friend request note",
+        sending: "Sending...",
+        sendRequest: "Send friend request",
+        receivedRequests: "Incoming requests",
+        sentRequests: "Sent requests",
+        myFriends: "My friends",
+        noFriends: "You do not have any friends yet. Use the form on the left to add one.",
+        online: "Online",
+        offline: "Away / Offline",
+        noOnlineFriends: "No friends are online right now.",
+        noOfflineFriends: "Everyone is online right now.",
+        noChatFriends: "You do not have any friends available for chat yet.",
+        mobileHint: "On mobile, tap a friend above to open the full chat page.",
+        openChat: "Chat",
+        unfriend: "Remove",
+        note: "Note",
+        accept: "Accept",
+        reject: "Reject",
+      }
+    : {
+        loading: "加载中...",
+        loadFailed: "加载好友数据失败",
+        operationFailed: "操作失败",
+        requestSent: "好友请求已发送",
+        requestAccepted: "已接受请求",
+        requestRejected: "已拒绝请求",
+        requestCancelled: "已取消请求",
+        unfriended: "已解除好友关系",
+        friends: "好友",
+        chat: "聊天",
+        removeFriendTitle: "确认解除好友？",
+        removeFriendBody: "这将解除你与",
+        removeFriendHint: "历史聊天记录会保留，但你们需要重新互加好友后才能继续聊天。",
+        cancel: "取消",
+        confirmRemove: "确认解除",
+        addFriend: "添加好友",
+        emailPlaceholder: "输入对方邮箱",
+        notePlaceholder: "好友申请备注",
+        sending: "发送中...",
+        sendRequest: "发送好友请求",
+        receivedRequests: "收到的好友请求",
+        sentRequests: "已发出的请求",
+        myFriends: "我的好友",
+        noFriends: "还没有好友，可以通过左侧表单添加。",
+        online: "在线",
+        offline: "离线 / 离开",
+        noOnlineFriends: "当前没有在线好友。",
+        noOfflineFriends: "当前所有好友都在线。",
+        noChatFriends: "还没有可以聊天的好友。",
+        mobileHint: "在手机上点击上方好友即可进入独立聊天页。",
+        openChat: "聊天",
+        unfriend: "解除",
+        note: "备注",
+        accept: "接受",
+        reject: "拒绝",
+      }
+}
+
 function formatChatTime(value?: string | null) {
   if (!value) return ""
+  const locale = typeof document !== "undefined" && document.documentElement.lang.startsWith("en") ? "en-US" : "zh-CN"
   const date = new Date(value)
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const startOfMessageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
   const diffDays = Math.floor((startOfToday.getTime() - startOfMessageDay.getTime()) / 86_400_000)
-  const time = date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false })
+  const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false })
 
   if (diffDays <= 0) return time
-  if (diffDays < 7) return `${date.toLocaleDateString("zh-CN", { weekday: "short" })} ${time}`
+  if (diffDays < 7) return `${date.toLocaleDateString(locale, { weekday: "short" })} ${time}`
   return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")} ${time}`
 }
 
@@ -61,11 +141,11 @@ function AvatarWithUnread({ friend, unreadCount }: { friend: Friend; unreadCount
         presenceStatus={friend.presenceStatus}
         size="sm"
       />
-      {unreadCount > 0 && (
+      {unreadCount > 0 ? (
         <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-[#fa5151] px-1 text-center text-[10px] font-semibold leading-4 text-white shadow-sm">
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
-      )}
+      ) : null}
     </span>
   )
 }
@@ -77,9 +157,10 @@ async function fetchFriendData(): Promise<FriendData> {
     fetch("/api/friend-requests?direction=sent", { cache: "no-store" }),
     fetch("/api/chats/summary", { cache: "no-store" }),
   ])
-  if (responses.some((res) => !res.ok)) throw new Error("Failed to load friends")
 
-  const [friends, received, sent, summary] = await Promise.all(responses.map((res) => res.json()))
+  if (responses.some((response) => !response.ok)) throw new Error("Failed to load friends")
+
+  const [friends, received, sent, summary] = await Promise.all(responses.map((response) => response.json()))
   return {
     friends: Array.isArray(friends) ? friends : [],
     received: Array.isArray(received) ? received : [],
@@ -89,6 +170,7 @@ async function fetchFriendData(): Promise<FriendData> {
 }
 
 export function FriendsClient({ userId }: { userId: string }) {
+  const labels = getLabels()
   const [view, setView] = useState<ViewMode>("friends")
   const [friends, setFriends] = useState<Friend[]>([])
   const [received, setReceived] = useState<FriendRequest[]>([])
@@ -110,13 +192,13 @@ export function FriendsClient({ userId }: { userId: string }) {
 
   const refreshSummary = useCallback(async () => {
     try {
-      const res = await fetch("/api/chats/summary", { cache: "no-store" })
-      if (!res.ok) return
-      const data = await res.json()
+      const response = await fetch("/api/chats/summary", { cache: "no-store" })
+      if (!response.ok) return
+      const data = await response.json()
       const items = Array.isArray(data.items) ? data.items : []
       setSummaries(Object.fromEntries(items.map((item: ChatSummary) => [item.friendId, item])))
     } catch {
-      // Summary is a badge/preview convenience; the conversation itself is authoritative.
+      // Summary is convenience-only. The chat thread itself is authoritative.
     }
   }, [])
 
@@ -140,6 +222,7 @@ export function FriendsClient({ userId }: { userId: string }) {
         })
         setLoading(false)
       }
+
       const data = await fetchFriendData()
       startTransition(() => {
         setFriends(data.friends)
@@ -149,11 +232,11 @@ export function FriendsClient({ userId }: { userId: string }) {
       })
       writeUserStorage({ kind: "session", key: friendCacheKey, userId, value: data })
     } catch {
-      toast.error("加载好友数据失败")
+      toast.error(labels.loadFailed)
     } finally {
       setLoading(false)
     }
-  }, [friendCacheKey, startTransition, userId])
+  }, [friendCacheKey, labels.loadFailed, startTransition, userId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadAll(), 0)
@@ -201,16 +284,16 @@ export function FriendsClient({ userId }: { userId: string }) {
     if (!email.trim() || !requestNote.trim()) return
     setRequestSending(true)
     try {
-      const res = await fetch("/api/friend-requests", {
+      const response = await fetch("/api/friend-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase(), note: requestNote.trim() }),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error ?? "发送失败")
+      const data = await response.json()
+      if (!response.ok) {
+        toast.error(data.error ?? labels.operationFailed)
       } else {
-        toast.success(data.message ?? "好友请求已发送")
+        toast.success(data.message ?? labels.requestSent)
         setEmail("")
         setRequestNote("")
         removeUserStorage("session", friendCacheKey)
@@ -222,45 +305,45 @@ export function FriendsClient({ userId }: { userId: string }) {
   }
 
   async function handleRespond(id: string, action: "accept" | "reject") {
-    const res = await fetch(`/api/friend-requests/${id}`, {
+    const response = await fetch(`/api/friend-requests/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
     })
-    if (res.ok) {
-      toast.success(action === "accept" ? "已接受" : "已拒绝")
+    if (response.ok) {
+      toast.success(action === "accept" ? labels.requestAccepted : labels.requestRejected)
       removeUserStorage("session", friendCacheKey)
       await loadAll()
     } else {
-      toast.error("操作失败")
+      toast.error(labels.operationFailed)
     }
   }
 
   async function handleCancel(id: string) {
-    const res = await fetch(`/api/friend-requests/${id}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("已取消")
+    const response = await fetch(`/api/friend-requests/${id}`, { method: "DELETE" })
+    if (response.ok) {
+      toast.success(labels.requestCancelled)
       removeUserStorage("session", friendCacheKey)
       await loadAll()
     } else {
-      toast.error("操作失败")
+      toast.error(labels.operationFailed)
     }
   }
 
   async function handleUnfriend(friendshipId: string) {
-    const res = await fetch(`/api/friend-requests/${friendshipId}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("已解除好友关系")
+    const response = await fetch(`/api/friend-requests/${friendshipId}`, { method: "DELETE" })
+    if (response.ok) {
+      toast.success(labels.unfriended)
       setUnfriendTarget(null)
       removeUserStorage("session", friendCacheKey)
       await loadAll()
     } else {
-      toast.error("操作失败")
+      toast.error(labels.operationFailed)
     }
   }
 
   if (loading) {
-    return <div className="py-10 text-center text-sm text-[--color-text-muted]">加载中...</div>
+    return <div className="py-10 text-center text-sm text-[--color-text-muted]">{labels.loading}</div>
   }
 
   return (
@@ -272,7 +355,7 @@ export function FriendsClient({ userId }: { userId: string }) {
           className={`flex flex-col items-center gap-1 text-sm transition-colors ${view === "friends" ? "text-[--color-link]" : "text-[--color-text-primary] hover:text-[--color-link]"}`}
         >
           <Users size={24} strokeWidth={1.8} />
-          <span>好友</span>
+          <span>{labels.friends}</span>
         </button>
         <button
           type="button"
@@ -280,7 +363,7 @@ export function FriendsClient({ userId }: { userId: string }) {
           className="flex flex-col items-center gap-1 text-sm text-[--color-link] transition-colors hover:text-[--color-accent]"
         >
           <MessageCircle size={24} strokeWidth={1.8} />
-          <span>聊天</span>
+          <span>{labels.chat}</span>
         </button>
       </div>
 
@@ -301,6 +384,7 @@ export function FriendsClient({ userId }: { userId: string }) {
           onCancel={handleCancel}
           onOpenChat={openDesktopChat}
           onUnfriend={setUnfriendTarget}
+          labels={labels}
         />
       ) : (
         <ChatWorkspace
@@ -311,21 +395,24 @@ export function FriendsClient({ userId }: { userId: string }) {
           onSelectFriend={setSelectedFriendId}
           chat={chat}
           userId={userId}
+          labels={labels}
         />
       )}
 
       <Dialog open={Boolean(unfriendTarget)} onOpenChange={(open) => !open && setUnfriendTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>确认解除好友？</DialogTitle>
+            <DialogTitle>{labels.removeFriendTitle}</DialogTitle>
             <DialogDescription>
-              将解除与 {unfriendTarget?.displayName || unfriendTarget?.email} 的好友关系。历史聊天记录会保留，但解除后不能继续聊天。
+              {labels.removeFriendBody} {unfriendTarget?.displayName || unfriendTarget?.email}。{labels.removeFriendHint}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUnfriendTarget(null)}>取消</Button>
+            <Button variant="outline" onClick={() => setUnfriendTarget(null)}>
+              {labels.cancel}
+            </Button>
             <Button variant="destructive" onClick={() => unfriendTarget && handleUnfriend(unfriendTarget.friendshipId)}>
-              确认解除
+              {labels.confirmRemove}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -350,6 +437,7 @@ function FriendsView({
   onCancel,
   onOpenChat,
   onUnfriend,
+  labels,
 }: {
   friends: Friend[]
   received: FriendRequest[]
@@ -366,13 +454,17 @@ function FriendsView({
   onCancel: (id: string) => void
   onOpenChat: (id: string) => void
   onUnfriend: (friend: Friend) => void
+  labels: ReturnType<typeof getLabels>
 }) {
+  const onlineFriends = friends.filter((friend) => friend.presenceStatus === "online")
+  const offlineFriends = friends.filter((friend) => friend.presenceStatus !== "online")
+
   return (
     <div className="grid gap-8 lg:grid-cols-[360px_minmax(0,1fr)]">
       <div className="space-y-8">
         <section>
           <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-[--color-text-secondary]">
-            <UserPlus size={14} /> 添加好友
+            <UserPlus size={14} /> {labels.addFriend}
           </h2>
           <form
             className="flex flex-col gap-2"
@@ -385,7 +477,7 @@ function FriendsView({
               type="email"
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
-              placeholder="输入对方邮箱"
+              placeholder={labels.emailPlaceholder}
               className="rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-input] px-3 py-1.5 text-sm focus:border-[--color-accent] focus:outline-none"
             />
             <textarea
@@ -393,39 +485,96 @@ function FriendsView({
               onChange={(event) => onRequestNoteChange(event.target.value)}
               maxLength={120}
               rows={2}
-              placeholder="好友申请备注"
+              placeholder={labels.notePlaceholder}
               className="resize-none rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-input] px-3 py-1.5 text-sm focus:border-[--color-accent] focus:outline-none"
             />
             <Button type="submit" disabled={requestSending || !email.trim() || !requestNote.trim()} className="h-9 gap-1.5">
               <UserPlus size={14} />
-              {requestSending ? "发送中..." : "发送好友请求"}
+              {requestSending ? labels.sending : labels.sendRequest}
             </Button>
           </form>
         </section>
-        {received.length > 0 && <RequestList title={`收到的好友请求 (${received.length})`} requests={received} onAccept={onAccept} onReject={onReject} />}
-        {sent.length > 0 && <SentList requests={sent} onCancel={onCancel} />}
+
+        {received.length > 0 ? (
+          <RequestList
+            title={`${labels.receivedRequests} (${received.length})`}
+            requests={received}
+            onAccept={onAccept}
+            onReject={onReject}
+            labels={labels}
+          />
+        ) : null}
+
+        {sent.length > 0 ? <SentList requests={sent} onCancel={onCancel} labels={labels} /> : null}
       </div>
 
       <section>
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-[--color-text-secondary]">
-          <Users size={14} /> 我的好友 ({friends.length})
+          <Users size={14} /> {labels.myFriends} ({friends.length})
         </h2>
         {friends.length === 0 ? (
-          <p className="text-sm text-[--color-text-muted]">还没有好友，通过左侧搜索框添加。</p>
+          <p className="text-sm text-[--color-text-muted]">{labels.noFriends}</p>
         ) : (
-          <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-            {friends.map((friend) => (
-              <FriendRow
-                key={friend.id}
-                friend={friend}
-                summary={summaries[friend.id]}
-                onOpenChat={onOpenChat}
-                onUnfriend={onUnfriend}
-              />
-            ))}
+          <div className="space-y-4">
+            <FriendGroup
+              title={labels.online}
+              emptyText={labels.noOnlineFriends}
+              friends={onlineFriends}
+              summaries={summaries}
+              onOpenChat={onOpenChat}
+              onUnfriend={onUnfriend}
+              labels={labels}
+            />
+            <FriendGroup
+              title={labels.offline}
+              emptyText={labels.noOfflineFriends}
+              friends={offlineFriends}
+              summaries={summaries}
+              onOpenChat={onOpenChat}
+              onUnfriend={onUnfriend}
+              labels={labels}
+            />
           </div>
         )}
       </section>
+    </div>
+  )
+}
+
+function FriendGroup({
+  title,
+  emptyText,
+  friends,
+  summaries,
+  onOpenChat,
+  onUnfriend,
+  labels,
+}: {
+  title: string
+  emptyText: string
+  friends: Friend[]
+  summaries: Record<string, ChatSummary>
+  onOpenChat: (id: string) => void
+  onUnfriend: (friend: Friend) => void
+  labels: ReturnType<typeof getLabels>
+}) {
+  return (
+    <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+      <div className="border-b border-[--color-border] px-3 py-2 text-xs font-semibold text-[--color-text-muted]">{title}</div>
+      {friends.length === 0 ? (
+        <p className="px-3 py-4 text-sm text-[--color-text-muted]">{emptyText}</p>
+      ) : (
+        friends.map((friend) => (
+          <FriendRow
+            key={friend.id}
+            friend={friend}
+            summary={summaries[friend.id]}
+            onOpenChat={onOpenChat}
+            onUnfriend={onUnfriend}
+            labels={labels}
+          />
+        ))
+      )}
     </div>
   )
 }
@@ -438,6 +587,7 @@ function ChatWorkspace({
   onSelectFriend,
   chat,
   userId,
+  labels,
 }: {
   friends: Friend[]
   summaries: Record<string, ChatSummary>
@@ -446,15 +596,16 @@ function ChatWorkspace({
   onSelectFriend: (id: string) => void
   chat: ReturnType<typeof useChatSession>
   userId: string
+  labels: ReturnType<typeof getLabels>
 }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
       <section className="min-w-0">
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-[--color-text-secondary]">
-          <MessageCircle size={14} /> 聊天
+          <MessageCircle size={14} /> {labels.chat}
         </h2>
         {friends.length === 0 ? (
-          <p className="text-sm text-[--color-text-muted]">还没有可以聊天的好友。</p>
+          <p className="text-sm text-[--color-text-muted]">{labels.noChatFriends}</p>
         ) : (
           <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
             {friends.map((friend) => (
@@ -469,6 +620,7 @@ function ChatWorkspace({
           </div>
         )}
       </section>
+
       <div className="hidden lg:block">
         <ChatPanel
           friend={selectedFriend}
@@ -479,11 +631,13 @@ function ChatWorkspace({
           files={chat.files}
           sticker={chat.sticker}
           sendOriginal={chat.sendOriginal}
+          replyTo={chat.replyTo}
           onTextChange={chat.setText}
           onFilesChange={chat.setFiles}
           onStickerChange={chat.setSticker}
           onStickerPick={chat.pickSticker}
           onSendOriginalChange={chat.setSendOriginal}
+          onReplyChange={chat.setReplyTo}
           onSend={chat.sendMessage}
           onReload={chat.loadMessages}
           onRetryMessage={chat.retryMessage}
@@ -492,8 +646,9 @@ function ChatWorkspace({
           className="h-[calc(var(--app-viewport-height)-13rem)] min-h-[560px]"
         />
       </div>
+
       <p className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4 text-sm text-[--color-text-muted] lg:hidden">
-        在手机上点击上方好友进入独立聊天页面。
+        {labels.mobileHint}
       </p>
     </div>
   )
@@ -504,11 +659,13 @@ function FriendRow({
   summary,
   onOpenChat,
   onUnfriend,
+  labels,
 }: {
   friend: Friend
   summary?: ChatSummary
   onOpenChat: (id: string) => void
   onUnfriend: (friend: Friend) => void
+  labels: ReturnType<typeof getLabels>
 }) {
   const unreadCount = summary?.unreadCount ?? 0
 
@@ -524,13 +681,13 @@ function FriendRow({
       </Link>
       <div className="flex shrink-0 items-center gap-2">
         <Link href={`/friends/chat/${friend.id}`} className="inline-flex h-8 items-center gap-1.5 px-1 text-xs font-medium text-[--color-link] hover:text-[--color-accent] hover:no-underline lg:hidden">
-          聊天
+          {labels.openChat}
         </Link>
         <button onClick={() => onOpenChat(friend.id)} className="hidden h-8 items-center gap-1.5 px-1 text-xs font-medium text-[--color-link] transition-colors hover:text-[--color-accent] lg:inline-flex">
-          聊天
+          {labels.openChat}
         </button>
         <button onClick={() => onUnfriend(friend)} className="inline-flex items-center gap-1 text-xs text-[--color-text-muted] transition-colors hover:text-red-500">
-          <UserMinus size={12} /> 解除
+          <UserMinus size={12} /> {labels.unfriend}
         </button>
       </div>
     </div>
@@ -556,7 +713,7 @@ function ConversationRow({
       <span className="min-w-0 flex-1">
         <span className="flex items-start justify-between gap-3">
           <span className="truncate text-sm font-medium">{friend.displayName || friend.email}</span>
-          {time && <span className="shrink-0 font-mono text-[11px] text-[--color-text-muted]">{time}</span>}
+          {time ? <span className="shrink-0 font-mono text-[11px] text-[--color-text-muted]">{time}</span> : null}
         </span>
         <span className="block truncate text-xs text-[--color-text-muted]">{messagePreview(summary)}</span>
       </span>
@@ -575,22 +732,32 @@ function ConversationRow({
   )
 }
 
-function SentList({ requests, onCancel }: { requests: FriendRequest[]; onCancel: (id: string) => void }) {
+function SentList({
+  requests,
+  onCancel,
+  labels,
+}: {
+  requests: FriendRequest[]
+  onCancel: (id: string) => void
+  labels: ReturnType<typeof getLabels>
+}) {
   return (
     <section>
       <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-[--color-text-secondary]">
-        <Clock size={14} /> 已发出的请求 ({requests.length})
+        <Clock size={14} /> {labels.sentRequests} ({requests.length})
       </h2>
       <div className="space-y-2">
-        {requests.map((req) => (
-          <div key={req.id} className="flex items-center justify-between border-b border-[--color-border] py-3">
+        {requests.map((request) => (
+          <div key={request.id} className="flex items-center justify-between border-b border-[--color-border] py-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{req.to.displayName || req.to.email}</p>
-              <p className="truncate text-xs text-[--color-text-muted]">{req.to.email}</p>
-              <p className="mt-1 line-clamp-2 text-xs text-[--color-text-secondary]">备注：{req.note}</p>
+              <p className="truncate text-sm font-medium">{request.to.displayName || request.to.email}</p>
+              <p className="truncate text-xs text-[--color-text-muted]">{request.to.email}</p>
+              <p className="mt-1 line-clamp-2 text-xs text-[--color-text-secondary]">
+                {labels.note}: {request.note}
+              </p>
             </div>
-            <button onClick={() => onCancel(req.id)} className="text-xs text-[--color-text-muted] transition-colors hover:text-[--color-text-primary]">
-              取消
+            <button onClick={() => onCancel(request.id)} className="text-xs text-[--color-text-muted] transition-colors hover:text-[--color-text-primary]">
+              {labels.cancel}
             </button>
           </div>
         ))}
@@ -604,11 +771,13 @@ function RequestList({
   requests,
   onAccept,
   onReject,
+  labels,
 }: {
   title: string
   requests: FriendRequest[]
   onAccept: (id: string) => void
   onReject: (id: string) => void
+  labels: ReturnType<typeof getLabels>
 }) {
   return (
     <section>
@@ -616,19 +785,21 @@ function RequestList({
         <Clock size={14} /> {title}
       </h2>
       <div className="space-y-2">
-        {requests.map((req) => (
-          <div key={req.id} className="flex items-center justify-between gap-3 border-b border-[--color-border] py-3">
+        {requests.map((request) => (
+          <div key={request.id} className="flex items-center justify-between gap-3 border-b border-[--color-border] py-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{req.from.displayName || req.from.email}</p>
-              <p className="truncate text-xs text-[--color-text-muted]">{req.from.email}</p>
-              <p className="mt-1 line-clamp-2 text-xs text-[--color-text-secondary]">备注：{req.note}</p>
+              <p className="truncate text-sm font-medium">{request.from.displayName || request.from.email}</p>
+              <p className="truncate text-xs text-[--color-text-muted]">{request.from.email}</p>
+              <p className="mt-1 line-clamp-2 text-xs text-[--color-text-secondary]">
+                {labels.note}: {request.note}
+              </p>
             </div>
             <div className="flex shrink-0 gap-2">
-              <button onClick={() => onAccept(req.id)} className="inline-flex items-center gap-1 rounded-[--radius-sm] bg-[#1A1A1A] px-3 py-1 text-xs text-white hover:bg-[#333333]">
-                <Check size={11} /> 接受
+              <button onClick={() => onAccept(request.id)} className="inline-flex items-center gap-1 rounded-[--radius-sm] bg-[#1A1A1A] px-3 py-1 text-xs text-white hover:bg-[#333333]">
+                <Check size={11} /> {labels.accept}
               </button>
-              <button onClick={() => onReject(req.id)} className="inline-flex items-center gap-1 rounded-[--radius-sm] border border-[--color-border] px-3 py-1 text-xs text-[--color-text-secondary] hover:bg-[--color-bg-hover]">
-                <X size={11} /> 拒绝
+              <button onClick={() => onReject(request.id)} className="inline-flex items-center gap-1 rounded-[--radius-sm] border border-[--color-border] px-3 py-1 text-xs text-[--color-text-secondary] hover:bg-[--color-bg-hover]">
+                <X size={11} /> {labels.reject}
               </button>
             </div>
           </div>

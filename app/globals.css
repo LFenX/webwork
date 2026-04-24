@@ -384,6 +384,38 @@ a:hover {
   box-shadow: none;
 }
 
+.ai-response .prose {
+  max-width: none;
+  font-size: 15px;
+  line-height: 1.95;
+}
+
+.ai-response .prose p,
+.ai-response .prose ul,
+.ai-response .prose ol,
+.ai-response .prose blockquote,
+.ai-response .prose pre,
+.ai-response .prose table,
+.ai-response .prose details {
+  margin-bottom: 1.1em;
+}
+
+.ai-response .prose h1,
+.ai-response .prose h2,
+.ai-response .prose h3,
+.ai-response .prose h4 {
+  margin-top: 1.4em;
+  margin-bottom: 0.55em;
+}
+
+.ai-response .prose h1:first-child,
+.ai-response .prose h2:first-child,
+.ai-response .prose h3:first-child,
+.ai-response .prose h4:first-child,
+.ai-response .prose p:first-child {
+  margin-top: 0;
+}
+
 @keyframes announcement-marquee {
   0% { transform: translateX(100%); }
   100% { transform: translateX(-100%); }

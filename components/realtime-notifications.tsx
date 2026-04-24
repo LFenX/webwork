@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { getActiveChatContext } from "@/lib/active-chat"
 
 type RealtimeEvent = {
   type: string
@@ -11,12 +12,13 @@ type RealtimeEvent = {
 }
 
 type ChatToastMessage = {
+  id?: string
   senderId?: string
   receiverId?: string
   text?: string
   sticker?: unknown
   stickerEmoji?: string | null
-  attachments?: unknown[]
+  attachments?: Array<{ mimeType?: string; originalName?: string }>
   sender?: { displayName?: string | null; email?: string | null }
 }
 
@@ -34,10 +36,14 @@ function asUserUpdate(value: unknown): RoutedUserUpdate | null {
 }
 
 function messagePreview(message: ChatToastMessage) {
-  if (typeof message?.text === "string" && message.text.trim()) return message.text.trim()
-  if (message?.sticker || message?.stickerEmoji) return "[表情]"
-  if (Array.isArray(message?.attachments) && message.attachments.length > 0) return "[文件]"
-  return "收到一条新消息"
+  if (typeof message.text === "string" && message.text.trim()) return message.text.trim()
+  if (message.sticker || message.stickerEmoji) return "[Sticker]"
+  if (Array.isArray(message.attachments) && message.attachments.length > 0) {
+    const first = message.attachments[0]
+    if (first?.mimeType?.startsWith("image/")) return "[Image]"
+    return first?.originalName || "[Attachment]"
+  }
+  return "You have a new message"
 }
 
 function isOwnWorkspacePath(pathname: string) {
@@ -90,32 +96,42 @@ export function RealtimeNotifications({ userId }: { userId: string }) {
 
       if (payload.type === "admin:permissions-changed") {
         const update = asUserUpdate(payload.data)
-        if (update?.userId === userId || pathname.startsWith("/admin")) {
-          router.refresh()
-        }
+        if (update?.userId === userId || pathname.startsWith("/admin")) router.refresh()
         return
       }
 
       if (payload.type === "site:user-updated") {
         const update = asUserUpdate(payload.data)
-        if (shouldRefreshUserPath(pathname, userId, update)) {
-          router.refresh()
-        }
+        if (shouldRefreshUserPath(pathname, userId, update)) router.refresh()
+        return
+      }
+
+      if (payload.type === "chat:read") {
+        window.dispatchEvent(new CustomEvent("chat-read", { detail: payload.data }))
+        window.dispatchEvent(new CustomEvent("chat-unread-refresh"))
         return
       }
 
       if (payload.type !== "chat:message") return
       const message = asChatMessage(payload.data)
       if (!message || message.receiverId !== userId || message.senderId === userId) return
+
+      const activeContext = getActiveChatContext()
+      if (activeContext?.kind === "direct" && activeContext.id === message.senderId) {
+        window.dispatchEvent(new CustomEvent("chat-unread-refresh"))
+        return
+      }
+
       window.dispatchEvent(new CustomEvent("chat-unread-refresh"))
+
       const chatPath = `/friends/chat/${message.senderId}`
       if (pathname === chatPath) return
 
-      const senderName = message.sender?.displayName || message.sender?.email || "好友"
-      toast(`来自 ${senderName} 的消息`, {
+      const senderName = message.sender?.displayName || message.sender?.email || "Friend"
+      toast(`New message from ${senderName}`, {
         description: messagePreview(message),
         action: {
-          label: "查看",
+          label: "Open",
           onClick: () => router.push(chatPath),
         },
       })

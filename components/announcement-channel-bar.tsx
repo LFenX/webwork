@@ -62,6 +62,14 @@ type ChannelMessage = {
   sticker?: { id: string; url: string; name?: string; originalName?: string; isAnimated?: boolean } | null
   createdAt: string
   attachments: ChannelAttachment[]
+  replyTo?: {
+    id: string
+    sender: Friend
+    text: string
+    stickerEmoji?: string | null
+    sticker?: { id: string; url: string; name?: string; originalName?: string } | null
+    attachments: ChannelAttachment[]
+  } | null
   localStatus?: "sending" | "failed"
 }
 
@@ -99,12 +107,14 @@ function uploadChannelMessage({
   files,
   sticker,
   publishToAnnouncement,
+  replyToId,
 }: {
   channelId: string
   text: string
   files: File[]
   sticker?: StickerPick | null
   publishToAnnouncement: boolean
+  replyToId?: string | null
 }) {
   return new Promise<ChannelMessage>((resolve, reject) => {
     const form = new FormData()
@@ -112,6 +122,7 @@ function uploadChannelMessage({
     if (sticker?.type === "asset") form.set("stickerId", sticker.id)
     if (sticker?.type === "emoji") form.set("stickerEmoji", sticker.emoji)
     form.set("publishToAnnouncement", publishToAnnouncement ? "true" : "false")
+    if (replyToId) form.set("replyToId", replyToId)
     files.forEach((file) => form.append("files", file))
 
     const request = new XMLHttpRequest()
@@ -144,8 +155,25 @@ function outboxToChannelMessage(item: ChatOutboxItem, currentUserId: string): Ch
       size: file.size,
       downloadUrl: URL.createObjectURL(file),
     })),
+    replyTo: null,
     localStatus: "failed",
   }
+}
+
+function compareChannelMessages(a: ChannelMessage, b: ChannelMessage) {
+  const timeDiff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  if (timeDiff !== 0) return timeDiff
+  return a.id.localeCompare(b.id)
+}
+
+function mergeChannelMessages(current: ChannelMessage[], incoming: ChannelMessage[]) {
+  const byId = new Map()
+  for (const message of current) byId.set(message.id, message)
+  for (const message of incoming) {
+    const existing = byId.get(message.id)
+    byId.set(message.id, existing ? { ...existing, ...message } : message)
+  }
+  return [...byId.values()].sort(compareChannelMessages)
 }
 
 export function AnnouncementChannelBar({
@@ -315,11 +343,14 @@ export function GroupChatClient({
   const [currentUserId, setCurrentUserId] = useState("")
   const [selectedId, setSelectedId] = useState(WORLD_CHANNEL_ID)
   const [messages, setMessages] = useState<ChannelMessage[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [text, setText] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [sticker, setSticker] = useState<StickerPick | null>(null)
+  const [replyTo, setReplyTo] = useState<ChannelMessage | null>(null)
   const [publishToAnnouncement, setPublishToAnnouncement] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
   const [sending, setSending] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -327,11 +358,23 @@ export function GroupChatClient({
   const [previewImage, setPreviewImage] = useState<ChannelAttachment | null>(null)
   const [channelMenuOpen, setChannelMenuOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
+  const lastMessageIdRef = useRef<string | null>(null)
+  const messagesRef = useRef<ChannelMessage[]>([])
+  const nextCursorRef = useRef<string | null>(null)
   const selected = channels.find((channel) => channel.id === selectedId) ?? channels[0]
   const isWorld = selected?.id === WORLD_CHANNEL_ID
   const friendIds = useMemo(() => new Set(friends.map((friend) => friend.id)), [friends])
   const inputDraftKey = selectedId ? userStorageKey(userId, "chat-input", `channel:${selectedId}`) : ""
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
+  useEffect(() => {
+    nextCursorRef.current = nextCursor
+  }, [nextCursor])
 
   const loadChannels = useCallback(async () => {
     const [channelRes, friendRes] = await Promise.all([
@@ -346,21 +389,44 @@ export function GroupChatClient({
     setFriends(Array.isArray(friendData) ? friendData : [])
   }, [])
 
-  const loadMessages = useCallback(async (channelId: string) => {
-    setLoading(true)
+  const loadMessages = useCallback(async (channelId: string, options?: { cursor?: string | null; appendOlder?: boolean }) => {
+    const appendOlder = options?.appendOlder ?? false
+    if (appendOlder) setLoadingOlder(true)
+    else setLoading(true)
     try {
-      const res = await fetch(`/api/channels/${channelId}/messages?limit=50&_t=${Date.now()}`, { cache: "no-store" })
+      const params = new URLSearchParams({ limit: "50", _t: String(Date.now()) })
+      if (options?.cursor) params.set("cursor", options.cursor)
+      const res = await fetch(`/api/channels/${channelId}/messages?${params.toString()}`, { cache: "no-store" })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? "加载消息失败")
+      const items = Array.isArray(data.items) ? data.items as ChannelMessage[] : []
+      const incomingNextCursor = typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null
+      const loadedServerCount = messagesRef.current.filter((item) => !item.localStatus).length
+      const hasExpandedHistory = !appendOlder && loadedServerCount > items.length
+      setNextCursor(appendOlder ? incomingNextCursor : (hasExpandedHistory ? nextCursorRef.current : incomingNextCursor))
+      if (appendOlder) {
+        setMessages((current) => {
+          const existingIds = new Set(current.map((item) => item.id))
+          const olderItems = items.filter((item) => !existingIds.has(item.id))
+          return [...olderItems, ...current]
+        })
+        return
+      }
       const restoredDrafts = await listChatOutboxItems(userId, "channel", channelId)
-      const items = Array.isArray(data.items) ? data.items : []
-      setMessages([...items, ...restoredDrafts.map((item) => outboxToChannelMessage(item, currentUserId || userId))])
+      const draftMessages = restoredDrafts.map((item) => outboxToChannelMessage(item, currentUserId || userId))
+      setMessages((current) => mergeChannelMessages(current.filter((item) => item.localStatus !== "failed"), [...items, ...draftMessages]))
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "加载消息失败")
     } finally {
-      setLoading(false)
+      if (appendOlder) setLoadingOlder(false)
+      else setLoading(false)
     }
   }, [currentUserId, userId])
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!selectedId || !nextCursor || loading || loadingOlder) return
+    await loadMessages(selectedId, { cursor: nextCursor, appendOlder: true })
+  }, [loadMessages, loading, loadingOlder, nextCursor, selectedId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -384,6 +450,8 @@ export function GroupChatClient({
       ? readUserStorage<{ text: string }>({ kind: "session", key: inputDraftKey, userId, ttlMs: INPUT_DRAFT_TTL_MS })?.text ?? ""
       : ""
     const timer = window.setTimeout(() => {
+      setMessages([])
+      setNextCursor(null)
       setText(savedText)
       void loadMessages(selectedId)
     }, 0)
@@ -414,8 +482,23 @@ export function GroupChatClient({
   }, [inputDraftKey, text, userId])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" })
-  }, [messages.length, selectedId])
+    if (!replyTo) return
+    if (!messages.some((message) => message.id === replyTo.id)) {
+      setReplyTo(null)
+    }
+  }, [messages, replyTo])
+
+  useEffect(() => {
+    const currentLastMessageId = messages[messages.length - 1]?.id ?? null
+    if (!selectedId) {
+      lastMessageIdRef.current = currentLastMessageId
+      return
+    }
+    if (lastMessageIdRef.current !== currentLastMessageId) {
+      endRef.current?.scrollIntoView({ block: "end" })
+    }
+    lastMessageIdRef.current = currentLastMessageId
+  }, [messages, selectedId])
 
   async function sendMessage(stickerOverride?: StickerPick | null) {
     const activeSticker = stickerOverride ?? sticker
@@ -442,6 +525,16 @@ export function GroupChatClient({
         size: file.size,
         downloadUrl: URL.createObjectURL(file),
       })),
+      replyTo: replyTo
+        ? {
+            id: replyTo.id,
+            sender: replyTo.sender,
+            text: replyTo.text,
+            stickerEmoji: replyTo.stickerEmoji ?? null,
+            sticker: replyTo.sticker ?? null,
+            attachments: replyTo.attachments,
+          }
+        : null,
       localStatus: "sending",
     }
     setMessages((current) => [...current, localMessage])
@@ -454,11 +547,19 @@ export function GroupChatClient({
     setSending(true)
     try {
       const shouldPublish = isWorld && publishToAnnouncement
-      const created = await uploadChannelMessage({ channelId: selected.id, text: draft, files: draftFiles, sticker: activeSticker, publishToAnnouncement: shouldPublish })
+      const created = await uploadChannelMessage({
+        channelId: selected.id,
+        text: draft,
+        files: draftFiles,
+        sticker: activeSticker,
+        publishToAnnouncement: shouldPublish,
+        replyToId: replyTo?.id ?? null,
+      })
       setMessages((current) => current.map((item) => item.id === localId ? created : item))
       await deleteChatOutboxItem(localId)
       if (shouldPublish && draft) onWorldAnnouncement()
       setPublishToAnnouncement(false)
+      setReplyTo(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : "发送失败"
       await saveChatOutboxItem({
@@ -512,6 +613,31 @@ export function GroupChatClient({
     await deleteChatOutboxItem(messageId)
     setMessages((current) => current.filter((message) => message.id !== messageId))
   }
+
+  const handleLoadOlderMessages = useCallback(async () => {
+    if (loadingOlder) return
+    const container = scrollContainerRef.current
+    const previousHeight = container?.scrollHeight ?? 0
+    const previousTop = container?.scrollTop ?? 0
+    await loadOlderMessages()
+    window.requestAnimationFrame(() => {
+      if (!container) return
+      container.scrollTop = Math.max(0, container.scrollHeight - previousHeight + previousTop)
+    })
+  }, [loadingOlder, loadOlderMessages])
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container || !nextCursor || loading || loadingOlder) return
+
+    const onScroll = () => {
+      if (container.scrollTop > 80) return
+      void handleLoadOlderMessages()
+    }
+
+    container.addEventListener("scroll", onScroll, { passive: true })
+    return () => container.removeEventListener("scroll", onScroll)
+  }, [handleLoadOlderMessages, loading, loadingOlder, messages.length, nextCursor])
 
   return (
     <div className="relative flex min-h-0 w-full max-w-full flex-1 overflow-hidden md:grid md:grid-cols-[260px_minmax(0,1fr)]">
@@ -586,14 +712,28 @@ export function GroupChatClient({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {loading ? (
             <p className="py-10 text-center text-sm text-[--color-text-muted]">加载消息中...</p>
           ) : messages.length === 0 ? (
             <p className="py-10 text-center text-sm text-[--color-text-muted]">还没有消息。</p>
           ) : (
             <div className="space-y-3">
-              {messages.map((message, index) => (
+              {(nextCursor || loadingOlder) && (
+                <div className="flex justify-center pb-1">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => void handleLoadOlderMessages()} disabled={loadingOlder} className="h-8 text-xs text-[--color-text-muted]">
+                    {loadingOlder ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" />
+                        鍔犺浇涓?..
+                      </>
+                    ) : (
+                      "鍔犺浇鏇存棭娑堟伅"
+                    )}
+                  </Button>
+                </div>
+              )}
+                  {messages.map((message, index) => (
                 <div key={message.id}>
                   {shouldShowTime(messages[index - 1], message) && (
                     <p className="my-4 text-center font-mono text-xs text-[--color-text-muted]">{formatChatTime(message.createdAt)}</p>
@@ -605,6 +745,7 @@ export function GroupChatClient({
                     onImagePreview={setPreviewImage}
                     onRetry={retryFailedMessage}
                     onDiscard={discardFailedMessage}
+                    onReply={setReplyTo}
                   />
                 </div>
               ))}
@@ -612,6 +753,24 @@ export function GroupChatClient({
             </div>
           )}
         </div>
+
+        {replyTo && (
+          <div className="border-t border-[--color-border] px-4 py-2">
+            <div className="flex items-start justify-between gap-3 rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-hover] px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-[--color-text-secondary]">
+                  Replying to {replyTo.sender.displayName || replyTo.sender.email}
+                </p>
+                <p className="truncate text-xs text-[--color-text-muted]">
+                  {replyTo.text || replyTo.stickerEmoji || (replyTo.sticker ? "[Sticker]" : replyTo.attachments[0]?.originalName || "[Attachment]")}
+                </p>
+              </div>
+              <button type="button" onClick={() => setReplyTo(null)} className="text-[--color-text-muted] hover:text-[--color-danger]">
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {files.length > 0 && (
           <div className="border-t border-[--color-border] px-4 py-2">
@@ -757,6 +916,7 @@ function ChannelMessageBubble({
   onImagePreview,
   onRetry,
   onDiscard,
+  onReply,
 }: {
   message: ChannelMessage
   mine: boolean
@@ -764,6 +924,7 @@ function ChannelMessageBubble({
   onImagePreview: (attachment: ChannelAttachment) => void
   onRetry: (messageId: string) => void
   onDiscard: (messageId: string) => void
+  onReply: (message: ChannelMessage) => void
 }) {
   const assetStickerOnly = !message.text && !message.stickerEmoji && Boolean(message.sticker) && message.attachments.length === 0
   const imageOnly = !message.text && !message.stickerEmoji && !message.sticker && message.attachments.length > 0 && message.attachments.every((attachment) => attachment.mimeType.startsWith("image/"))
@@ -777,6 +938,20 @@ function ChannelMessageBubble({
       <div className={`flex max-w-[78%] flex-col ${mine ? "items-end" : "items-start"}`}>
         <p className="mb-1 max-w-full truncate text-xs text-[--color-text-muted]">{message.sender.displayName || message.sender.email}</p>
         <div className={(assetStickerOnly || imageOnly) ? "" : `wechat-bubble px-3 py-2 text-[--color-text-primary] ${mine ? "wechat-bubble-right" : "wechat-bubble-left"}`}>
+          {message.replyTo && (
+            <button
+              type="button"
+              onClick={() => onReply(message.replyTo ? { ...message, ...message.replyTo, channelId: message.channelId, senderId: message.replyTo.sender.id, sender: message.replyTo.sender, createdAt: message.createdAt, localStatus: undefined } as ChannelMessage : message)}
+              className="mb-2 block w-full rounded-[--radius-sm] border border-[--color-border] bg-black/5 px-2 py-1 text-left hover:bg-black/10"
+            >
+              <p className="truncate text-[11px] font-medium text-[--color-text-secondary]">
+                {message.replyTo.sender.displayName || message.replyTo.sender.email}
+              </p>
+              <p className="truncate text-[11px] text-[--color-text-muted]">
+                {message.replyTo.text || message.replyTo.stickerEmoji || (message.replyTo.sticker ? "[Sticker]" : message.replyTo.attachments[0]?.originalName || "[Attachment]")}
+              </p>
+            </button>
+          )}
           {message.text && <p className="whitespace-pre-wrap break-words text-sm">{message.text}</p>}
           {message.stickerEmoji && <p className="text-5xl leading-none">{message.stickerEmoji}</p>}
           {message.sticker && (
@@ -800,6 +975,9 @@ function ChannelMessageBubble({
             </div>
           )}
         </div>
+        <button type="button" onClick={() => onReply(message)} className="mt-1 text-[11px] text-[--color-link] hover:underline">
+          Reply
+        </button>
       </div>
       {mine && (
         <button type="button" onClick={() => onUserClick(message.sender)} className="mt-5 shrink-0">

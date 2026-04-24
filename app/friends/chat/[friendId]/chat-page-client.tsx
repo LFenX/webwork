@@ -14,6 +14,8 @@ export function FriendChatPageClient({ userId, friendId }: { userId: string; fri
         messages={chat.messages}
         loading={chat.loading}
         sending={chat.sending}
+        hasOlder={chat.hasOlder}
+        loadingOlder={chat.loadingOlder}
         text={chat.text}
         files={chat.files}
         sticker={chat.sticker}
@@ -24,6 +26,7 @@ export function FriendChatPageClient({ userId, friendId }: { userId: string; fri
         onStickerPick={chat.pickSticker}
         onSendOriginalChange={chat.setSendOriginal}
         onSend={chat.sendMessage}
+        onLoadOlder={chat.loadOlderMessages}
         onReload={chat.loadMessages}
         onRetryMessage={chat.retryMessage}
         onDiscardMessage={chat.discardMessage}

@@ -64,6 +64,9 @@ model User {
   guestbookWritten GuestbookMessage[] @relation("guestbookAuthor")
   aiConversations AIConversation[]
   aiMessages      AIMessage[]
+  aiMessageAttachments AIMessageAttachment[]
+  aiRuns          AIRun[]
+  aiRunSteps      AIRunStep[]
   aiProviderConfig AIUserProviderConfig?
   aiAccessRequests AIAccessRequest[]
   aiUsageGrant     AIUsageGrant?
@@ -72,6 +75,7 @@ model User {
   reviewedAiAccessRequests AIAccessRequest[] @relation("aiAccessReviewer")
   grantedAiUsageGrants     AIUsageGrant[]   @relation("aiGrantCreator")
   updatedAiUsageGrants     AIUsageGrant[]   @relation("aiGrantUpdater")
+  delegatedAiRuns          AIRun[]          @relation("aiRunDelegatedTarget")
 }
 
 model UserActivity {
@@ -201,6 +205,9 @@ model ChatMessage {
   receiverId  String
   sender      User     @relation("chatSent", fields: [senderId], references: [id], onDelete: Cascade)
   receiver    User     @relation("chatReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+  replyToId   String?
+  replyTo     ChatMessage?  @relation("chatReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     ChatMessage[] @relation("chatReplies")
   text        String   @default("")
   stickerId   String?
   sticker     StickerAsset? @relation("chatSticker", fields: [stickerId], references: [id], onDelete: SetNull)
@@ -212,6 +219,7 @@ model ChatMessage {
   @@index([senderId, receiverId, createdAt])
   @@index([receiverId, senderId, createdAt])
   @@index([stickerId])
+  @@index([replyToId])
 }
 
 model ChatAttachment {
@@ -356,6 +364,9 @@ model ChannelMessage {
   senderId    String
   channel     ChatChannel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
   sender      User                @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyToId   String?
+  replyTo     ChannelMessage?     @relation("channelReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     ChannelMessage[]    @relation("channelReplies")
   text        String              @default("")
   stickerId   String?
   sticker     StickerAsset?       @relation("channelSticker", fields: [stickerId], references: [id], onDelete: SetNull)
@@ -366,6 +377,7 @@ model ChannelMessage {
   @@index([channelId, createdAt])
   @@index([senderId, createdAt])
   @@index([stickerId])
+  @@index([replyToId])
 }
 
 model ChannelAttachment {
@@ -591,6 +603,7 @@ model Upload {
   postId       String?
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiMessageAttachments AIMessageAttachment[]
 
   @@index([userId])
   @@index([postId])
@@ -607,6 +620,7 @@ model AIConversation {
   deletedAt     DateTime?
   messages      AIMessage[]
   toolCallLogs  AIToolCallLog[]
+  runs          AIRun[]
 
   @@index([userId, updatedAt])
   @@index([userId, deletedAt, lastMessageAt])
@@ -626,10 +640,32 @@ model AIMessage {
   modelName         String         @default("")
   providerSource    String         @default("none")
   createdAt         DateTime       @default(now())
+  runRecord         AIRun?         @relation("AIMessageRun")
   toolCallLogs      AIToolCallLog[]
+  runSteps          AIRunStep[]
+  attachments       AIMessageAttachment[]
 
   @@index([conversationId, createdAt])
   @@index([userId, createdAt])
+}
+
+model AIMessageAttachment {
+  id             String    @id @default(cuid())
+  messageId      String
+  message        AIMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  uploadId       String?
+  upload         Upload?   @relation(fields: [uploadId], references: [id], onDelete: SetNull)
+  originalName   String
+  mimeType       String
+  size           Int
+  url            String
+  createdAt      DateTime  @default(now())
+
+  @@index([messageId])
+  @@index([userId, createdAt])
+  @@index([uploadId])
 }
 
 model AIUserProviderConfig {
@@ -709,6 +745,56 @@ model AIToolCallLog {
   finishedAt     DateTime?
 
   @@index([conversationId, startedAt])
+  @@index([messageId, startedAt])
+  @@index([userId, startedAt])
+}
+
+model AIRun {
+  id                String      @id @default(cuid())
+  conversationId    String
+  conversation      AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messageId         String      @unique
+  message           AIMessage   @relation("AIMessageRun", fields: [messageId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt            String      @default("")
+  mode              String      @default("self")
+  delegatedTargetUserId String?
+  delegatedTargetUser User?     @relation("aiRunDelegatedTarget", fields: [delegatedTargetUserId], references: [id], onDelete: SetNull)
+  plannerModel      String      @default("")
+  finalModel        String      @default("")
+  status            String      @default("running")
+  summary           String      @default("")
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  finishedAt        DateTime?
+  steps             AIRunStep[]
+
+  @@index([conversationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([delegatedTargetUserId, createdAt])
+}
+
+model AIRunStep {
+  id             String   @id @default(cuid())
+  runId          String
+  run            AIRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  messageId      String
+  message        AIMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type           String
+  title          String
+  status         String   @default("running")
+  summary        String   @default("")
+  inputPreview   Json?
+  outputPreview  Json?
+  errorMessage   String   @default("")
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  orderIndex     Int      @default(0)
+
+  @@index([runId, startedAt])
   @@index([messageId, startedAt])
   @@index([userId, startedAt])
 }

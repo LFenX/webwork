@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react"
 import { Bot, PauseCircle, RefreshCcw, ShieldCheck, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -84,12 +84,12 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       ])
       const overviewData = await overviewRes.json().catch(() => null)
       const requestsData = await requestsRes.json().catch(() => null)
-      if (!overviewRes.ok) throw new Error(overviewData?.error ?? "加载 AI 管理概览失败")
-      if (!requestsRes.ok) throw new Error(requestsData?.error ?? "加载 AI 申请列表失败")
+      if (!overviewRes.ok) throw new Error(overviewData?.error ?? "Failed to load AI overview")
+      if (!requestsRes.ok) throw new Error(requestsData?.error ?? "Failed to load AI requests")
       setOverview(overviewData)
       setRequests(Array.isArray(requestsData?.items) ? requestsData.items : [])
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "加载 AI 管理面板失败")
+      toast.error(error instanceof Error ? error.message : "Failed to load AI admin panel")
     } finally {
       setLoading(false)
     }
@@ -97,12 +97,20 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
 
   useEffect(() => {
     if (!enabled) return
-    Promise.resolve().then(() => {
-      void load()
-    })
+    void load()
   }, [enabled, load])
 
   const pendingCount = useMemo(() => requests.filter((item) => item.status === "pending").length, [requests])
+  const selectableUsers = useMemo(() => {
+    const map = new Map<string, { id: string; label: string }>()
+    requests.forEach((item) => {
+      map.set(item.user.id, { id: item.user.id, label: item.user.displayName || item.user.email })
+    })
+    overview?.grants.forEach((grant) => {
+      map.set(grant.user.id, { id: grant.user.id, label: grant.user.displayName || grant.user.email })
+    })
+    return [...map.values()]
+  }, [overview?.grants, requests])
 
   async function reviewRequest(action: "approve" | "reject") {
     if (!reviewing) return
@@ -113,13 +121,13 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
         body: JSON.stringify({ reviewNote }),
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "处理申请失败")
-      toast.success(action === "approve" ? "已批准 AI 申请" : "已拒绝 AI 申请")
+      if (!res.ok) throw new Error(data?.error ?? "Failed to review the request")
+      toast.success(action === "approve" ? "AI request approved" : "AI request rejected")
       setReviewing(null)
       setReviewNote("")
       await load()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "处理申请失败")
+      toast.error(error instanceof Error ? error.message : "Failed to review the request")
     }
   }
 
@@ -139,13 +147,13 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
         }),
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "保存授权失败")
-      toast.success("系统 AI 授权已保存")
+      if (!res.ok) throw new Error(data?.error ?? "Failed to save the AI grant")
+      toast.success("AI grant saved")
       setGrantOpen(false)
       setGrantForm(DEFAULT_GRANT_FORM)
       await load()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "保存授权失败")
+      toast.error(error instanceof Error ? error.message : "Failed to save the AI grant")
     }
   }
 
@@ -153,11 +161,11 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
     try {
       const res = await fetch(`/api/admin/ai/grants/${userId}/${action}`, { method: "POST" })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "更新授权失败")
-      toast.success(action === "pause" ? "已暂停授权" : "已撤销授权")
+      if (!res.ok) throw new Error(data?.error ?? "Failed to update grant status")
+      toast.success(action === "pause" ? "Grant paused" : "Grant revoked")
       await load()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "更新授权失败")
+      toast.error(error instanceof Error ? error.message : "Failed to update grant status")
     }
   }
 
@@ -168,41 +176,30 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Bot size={16} />
-          <h2 className="text-sm font-semibold">AI 助手管理</h2>
+          <h2 className="text-sm font-semibold">AI Assistant</h2>
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
-            <RefreshCcw size={14} /> {loading ? "刷新中..." : "刷新"}
+            <RefreshCcw size={14} /> {loading ? "Refreshing..." : "Refresh"}
           </Button>
           <Button size="sm" onClick={() => setGrantOpen(true)}>
-            <ShieldCheck size={14} /> 新建授权
+            <ShieldCheck size={14} /> New Grant
           </Button>
         </div>
       </div>
 
       <div className="mb-4 grid gap-3 md:grid-cols-3">
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="text-xs text-[--color-text-muted]">待处理申请</p>
-          <p className="mt-2 text-2xl font-semibold text-[--color-text-primary]">{pendingCount}</p>
-        </div>
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="text-xs text-[--color-text-muted]">激活授权</p>
-          <p className="mt-2 text-2xl font-semibold text-[--color-text-primary]">
-            {overview?.grants.filter((item) => item.status === "active").length ?? 0}
-          </p>
-        </div>
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="text-xs text-[--color-text-muted]">已注册工具</p>
-          <p className="mt-2 text-2xl font-semibold text-[--color-text-primary]">{overview?.tools.length ?? 0}</p>
-        </div>
+        <MetricCard label="Pending Requests" value={pendingCount} />
+        <MetricCard label="Active Grants" value={overview?.grants.filter((item) => item.status === "active").length ?? 0} />
+        <MetricCard label="Registered Tools" value={overview?.tools.length ?? 0} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <h3 className="text-sm font-semibold text-[--color-text-primary]">AI 使用申请</h3>
+          <h3 className="text-sm font-semibold text-[--color-text-primary]">Access Requests</h3>
           <div className="mt-4 space-y-3">
             {requests.length === 0 ? (
-              <p className="text-sm text-[--color-text-muted]">暂无 AI 使用申请。</p>
+              <p className="text-sm text-[--color-text-muted]">No AI access requests.</p>
             ) : (
               requests.map((item) => (
                 <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-primary] p-3">
@@ -214,11 +211,11 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
                     <span className="rounded-full border border-[--color-border] px-2 py-1 text-xs text-[--color-text-secondary]">{item.status}</span>
                   </div>
                   <p className="mt-3 whitespace-pre-wrap text-sm text-[--color-text-secondary]">{item.message}</p>
-                  {item.reviewNote ? <p className="mt-2 text-xs text-[--color-text-muted]">审核备注：{item.reviewNote}</p> : null}
+                  {item.reviewNote ? <p className="mt-2 text-xs text-[--color-text-muted]">Review note: {item.reviewNote}</p> : null}
                   {item.status === "pending" ? (
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" onClick={() => { setReviewing(item); setReviewNote("") }}>
-                        审核
+                        Review
                       </Button>
                       <Button
                         size="sm"
@@ -228,7 +225,7 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
                           setGrantOpen(true)
                         }}
                       >
-                        配置授权
+                        Configure Grant
                       </Button>
                     </div>
                   ) : null}
@@ -240,8 +237,8 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
 
         <div className="space-y-4">
           <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-            <h3 className="text-sm font-semibold text-[--color-text-primary]">系统授权</h3>
-            <div className="mt-4 space-y-3">
+            <h3 className="text-sm font-semibold text-[--color-text-primary]">System Grants</h3>
+            <div className="mt-4 max-h-72 space-y-3 overflow-y-auto pr-1">
               {overview?.grants.length ? (
                 overview.grants.map((grant) => (
                   <div key={grant.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-primary] p-3">
@@ -253,68 +250,59 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
                       <span className="rounded-full border border-[--color-border] px-2 py-1 text-xs text-[--color-text-secondary]">{grant.status}</span>
                     </div>
                     <p className="mt-2 text-xs text-[--color-text-muted]">{grant.providerLabel} / {grant.baseUrl}</p>
-                    <p className="mt-1 text-xs text-[--color-text-muted]">最近更新：{new Date(grant.updatedAt).toLocaleString("zh-CN")}</p>
+                    <p className="mt-1 text-xs text-[--color-text-muted]">Updated: {new Date(grant.updatedAt).toLocaleString()}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" onClick={() => void changeGrantStatus(grant.userId, "pause")}>
-                        <PauseCircle size={14} /> 暂停
+                        <PauseCircle size={14} /> Pause
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => void changeGrantStatus(grant.userId, "revoke")}>
-                        <Trash2 size={14} /> 撤销
+                        <Trash2 size={14} /> Revoke
                       </Button>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-[--color-text-muted]">暂无系统授权。</p>
+                <p className="text-sm text-[--color-text-muted]">No system grants.</p>
               )}
             </div>
           </div>
 
-          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-            <h3 className="text-sm font-semibold text-[--color-text-primary]">最近审计动作</h3>
-            <div className="mt-3 space-y-2">
-              {overview?.recentAudits.length ? (
-                overview.recentAudits.map((audit) => (
-                  <div key={audit.id} className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary] px-3 py-2">
-                    <p className="text-sm font-medium text-[--color-text-primary]">{audit.action}</p>
-                    <p className="mt-1 text-xs text-[--color-text-secondary]">{audit.detail}</p>
-                    <p className="mt-1 text-xs text-[--color-text-muted]">
-                      {new Date(audit.createdAt).toLocaleString("zh-CN")}
-                      {audit.targetUserId ? ` / target: ${audit.targetUserId}` : ""}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-[--color-text-muted]">暂无审计记录。</p>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-            <h3 className="text-sm font-semibold text-[--color-text-primary]">已注册工具</h3>
-            <div className="mt-3 space-y-2">
-              {overview?.tools.map((tool) => (
-                <div key={tool.name} className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary] px-3 py-2">
-                  <p className="text-sm font-medium text-[--color-text-primary]">{tool.title}</p>
-                  <p className="text-xs text-[--color-text-muted]">{tool.name}</p>
-                  <p className="mt-1 text-xs text-[--color-text-secondary]">{tool.description}</p>
+          <ScrollableCard title="Recent Audit Actions">
+            {overview?.recentAudits.length ? (
+              overview.recentAudits.map((audit) => (
+                <div key={audit.id} className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary] px-3 py-2">
+                  <p className="text-sm font-medium text-[--color-text-primary]">{audit.action}</p>
+                  <p className="mt-1 text-xs text-[--color-text-secondary]">{audit.detail}</p>
+                  <p className="mt-1 text-xs text-[--color-text-muted]">{new Date(audit.createdAt).toLocaleString()}</p>
                 </div>
-              ))}
-            </div>
-          </div>
+              ))
+            ) : (
+              <p className="text-sm text-[--color-text-muted]">No audit entries yet.</p>
+            )}
+          </ScrollableCard>
+
+          <ScrollableCard title="Registered Tools">
+            {overview?.tools.map((tool) => (
+              <div key={tool.name} className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary] px-3 py-2">
+                <p className="text-sm font-medium text-[--color-text-primary]">{tool.title}</p>
+                <p className="text-xs text-[--color-text-muted]">{tool.name}</p>
+                <p className="mt-1 text-xs text-[--color-text-secondary]">{tool.description}</p>
+              </div>
+            ))}
+          </ScrollableCard>
         </div>
       </div>
 
       <Dialog open={Boolean(reviewing)} onOpenChange={(open) => !open && setReviewing(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>审核 AI 使用申请</DialogTitle>
-            <DialogDescription>批准后用户仍可继续使用自己的 API，系统授权可以单独配置。</DialogDescription>
+            <DialogTitle>Review AI Access Request</DialogTitle>
+            <DialogDescription>Approving a request does not remove the option to use a personal provider key.</DialogDescription>
           </DialogHeader>
-          <Textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} rows={4} placeholder="填写审核备注，可选" />
+          <Textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} rows={4} placeholder="Optional review note" />
           <DialogFooter>
-            <Button variant="outline" onClick={() => void reviewRequest("reject")}>拒绝</Button>
-            <Button onClick={() => void reviewRequest("approve")}>批准</Button>
+            <Button variant="outline" onClick={() => void reviewRequest("reject")}>Reject</Button>
+            <Button onClick={() => void reviewRequest("approve")}>Approve</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -322,41 +310,74 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       <Dialog open={grantOpen} onOpenChange={setGrantOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>配置系统授权</DialogTitle>
-            <DialogDescription>为指定用户配置可代用的 OpenAI-compatible provider。</DialogDescription>
+            <DialogTitle>Configure AI Grant</DialogTitle>
+            <DialogDescription>Choose the target admin first, then fill in the provider details.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="mb-1 block text-xs">目标用户 ID</Label>
-              <Input value={grantForm.userId} onChange={(event) => setGrantForm((current) => ({ ...current, userId: event.target.value }))} />
+              <Label className="mb-1 block text-xs">Target admin</Label>
+              <select
+                value={grantForm.userId}
+                onChange={(event) => setGrantForm((current) => ({ ...current, userId: event.target.value }))}
+                className="w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-surface] px-3 py-2 text-sm"
+              >
+                <option value="">Select one</option>
+                {selectableUsers.map((user) => (
+                  <option key={user.id} value={user.id}>{user.label}</option>
+                ))}
+              </select>
             </div>
-            <div>
-              <Label className="mb-1 block text-xs">Provider 名称</Label>
-              <Input value={grantForm.providerLabel} onChange={(event) => setGrantForm((current) => ({ ...current, providerLabel: event.target.value }))} />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs">Base URL</Label>
-              <Input value={grantForm.baseUrl} onChange={(event) => setGrantForm((current) => ({ ...current, baseUrl: event.target.value }))} />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs">API Key</Label>
-              <Input type="password" value={grantForm.apiKey} onChange={(event) => setGrantForm((current) => ({ ...current, apiKey: event.target.value }))} />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs">Model</Label>
-              <Input value={grantForm.model} onChange={(event) => setGrantForm((current) => ({ ...current, model: event.target.value }))} />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs">Temperature</Label>
-              <Input value={grantForm.temperature} onChange={(event) => setGrantForm((current) => ({ ...current, temperature: event.target.value }))} />
-            </div>
+            <Field label="Provider label" value={grantForm.providerLabel} onChange={(value) => setGrantForm((current) => ({ ...current, providerLabel: value }))} />
+            <Field label="Base URL" value={grantForm.baseUrl} onChange={(value) => setGrantForm((current) => ({ ...current, baseUrl: value }))} />
+            <Field label="API key" type="password" value={grantForm.apiKey} onChange={(value) => setGrantForm((current) => ({ ...current, apiKey: value }))} />
+            <Field label="Model" value={grantForm.model} onChange={(value) => setGrantForm((current) => ({ ...current, model: value }))} />
+            <Field label="Temperature" value={grantForm.temperature} onChange={(value) => setGrantForm((current) => ({ ...current, temperature: value }))} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setGrantOpen(false)}>取消</Button>
-            <Button onClick={() => void saveGrant()}>保存授权</Button>
+            <Button variant="outline" onClick={() => setGrantOpen(false)}>Cancel</Button>
+            <Button onClick={() => void saveGrant()} disabled={!grantForm.userId || !grantForm.baseUrl || !grantForm.apiKey || !grantForm.model}>
+              Save Grant
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </section>
+  )
+}
+
+function MetricCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+      <p className="text-xs text-[--color-text-muted]">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-[--color-text-primary]">{value}</p>
+    </div>
+  )
+}
+
+function ScrollableCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+      <h3 className="text-sm font-semibold text-[--color-text-primary]">{title}</h3>
+      <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">{children}</div>
+    </div>
+  )
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  type?: string
+}) {
+  return (
+    <div>
+      <Label className="mb-1 block text-xs">{label}</Label>
+      <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
   )
 }

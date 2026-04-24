@@ -2,15 +2,14 @@
 
 ## Scope
 
-This document covers the v1 AI Assistant foundation that was added to the app:
+This document describes the v2 AI assistant upgrade:
 
-- `/ai` entry in the main navigation
-- persistent conversations and messages
-- OpenAI-compatible personal provider settings
-- free-access requests and admin grants
-- controlled read-only business tools
-- reasoning summary and tool trace UI
-- audit and tool-call logs
+- `/ai` persistent conversations
+- personal provider settings and admin grants
+- white-listed server-only data tools
+- controlled admin-delegated lookup
+- streaming run timeline with compact and developer views
+- audit logs and tool-call logs
 
 ## Environment
 
@@ -20,18 +19,16 @@ Add the following to `.env`:
 AI_SECRET_KEY="replace-with-a-32-byte-random-secret"
 ```
 
-Notes:
-
-- `AI_SECRET_KEY` is used to encrypt personal and admin-managed API keys at rest.
-- Keep it stable across deploys. Rotating it without a re-encryption flow will invalidate stored keys.
+`AI_SECRET_KEY` encrypts personal and admin-managed provider credentials at rest.
 
 ## Database
 
-The database change set is stored in:
+Relevant migrations:
 
-`prisma/migrations/20260424123000_ai_assistant_foundation/migration.sql`
+- `prisma/migrations/20260424123000_ai_assistant_foundation/migration.sql`
+- `prisma/migrations/20260424150000_ai_assistant_v2_runs/migration.sql`
 
-Apply it with the normal Prisma flow:
+Apply with:
 
 ```bash
 npm run db:generate
@@ -40,70 +37,77 @@ npm run db:migrate
 
 ## Runtime Flow
 
-For each user message:
+For each user prompt:
 
 1. Verify login and AI availability.
-2. Resolve the effective provider source:
-   - enabled personal config
-   - otherwise active admin grant
-   - otherwise deny usage
-3. Persist the user message and a streaming assistant placeholder.
-4. Select controlled tools based on the prompt.
-5. Execute tools inside the server-only tool layer.
-6. Record every tool call in `AIToolCallLog`.
+2. Create the user message, assistant placeholder, and `AIRun`.
+3. Build a controlled execution plan.
+4. Execute server-only tools inside the allowed scope:
+   - `self`
+   - `admin-delegated`
+   - `visible-user`
+5. Persist tool calls in `AIToolCallLog`.
+6. Persist run phases in `AIRunStep`.
 7. Generate the final answer:
-   - first choice: configured OpenAI-compatible provider
+   - preferred: configured OpenAI-compatible provider
    - fallback: structured summary from tool results
-8. Persist the final assistant message with reasoning summary and tool trace summary.
+8. Persist the final assistant message and mark the run completed or failed.
 
 ## Permission Boundary
 
-The AI tool boundary is intentionally narrower than direct database access:
+The assistant still does not receive direct database access:
 
-- tools are server-only and whitelist-based
+- tools are white-listed and server-only
 - the model never builds SQL
-- cross-user page access reuses `getAccessLevel`, `canViewModule`, and `visibleTo`
-- admins can manage requests/grants, but do not automatically read user conversations
+- admin-delegated tools reuse existing admin permission boundaries
+- visible-user tools reuse existing page visibility rules
+- raw high-sensitivity data is minimized in tool output where possible
 
-## Included v1 Tools
+## Tool Coverage
 
-- `get_my_profile`
-- `get_my_settings`
-- `get_my_resume_overview`
-- `get_my_jobs_overview`
-- `get_my_interviews_overview`
-- `get_my_posts_overview`
-- `get_my_uploads_overview`
-- `get_my_friends_overview`
-- `get_my_chat_summary`
-- `get_visible_user_page_overview`
+Current v2 tool groups:
+
+- self profile / settings / resume / jobs / interviews / posts / uploads
+- self friends overview and detail
+- self chat summary / chat thread overview / chat search / thread messages
+- self sessions overview
+- self activity log
+- visible user page overview
+- admin user profile overview
+- admin user activity log
+- admin user sessions
+
+## UI Modes
+
+The assistant UI supports two presentation modes:
+
+- Compact: show the answer first with a few execution chips
+- Developer: show the full timeline with plan, tool steps, verification, and final generation
+
+Historical assistant messages can reload their run details from:
+
+- `GET /api/ai/runs/:messageId`
 
 ## Validation Checklist
-
-Use this checklist after applying the migration:
 
 1. `npm run db:generate`
 2. `npm run db:migrate`
 3. `npm run lint`
 4. `npm run build`
-5. Log in as a normal user and verify:
+5. Verify as a normal user:
    - `/ai` loads
-   - a conversation can be created
-   - messages persist after refresh
-   - settings can be saved and tested
-   - access-request submission works when no provider is available
-6. Log in as an admin with `manageAI` and verify:
-   - AI panel appears in `/admin`
-   - request approve/reject works
-   - grant save/pause/revoke works
-7. Verify safety behavior:
-   - revoked or paused grants stop AI access immediately
-   - cross-user overview only returns modules visible under existing page permissions
-   - tool traces reflect only executed tools
-   - provider failure falls back to structured summary instead of exposing raw errors as system state
+   - conversations persist
+   - compact and developer mode both render
+   - self chat / friend / session / activity prompts work
+6. Verify as an admin with relevant permissions:
+   - admin-delegated prompts return data only when permissions allow
+   - denied prompts do not leak target data
+7. Verify failure handling:
+   - provider failure still shows timeline and fallback answer
+   - completed runs reload from message history
 
 ## Known Follow-ups
 
-- tool selection is currently heuristic and should later move to a more explicit planner/tool-calling protocol
-- there is no key-rotation migration yet for `AI_SECRET_KEY`
-- automated integration tests are still missing; current verification is build-time plus manual checklist
+- the planner is still heuristic and can later move to a more explicit tool-calling protocol
+- automated integration coverage is still missing
+- high-sensitivity tool redaction can be refined further per tool

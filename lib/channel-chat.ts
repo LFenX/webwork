@@ -27,6 +27,34 @@ export type ChannelMessagePayload = {
     isAnimated: boolean
     url?: string
   } | null
+  replyTo?: {
+    id: string
+    channelId: string
+    senderId: string
+    text: string
+    stickerEmoji?: string | null
+    sticker?: {
+      id: string
+      url: string
+      name?: string
+      originalName?: string
+      isAnimated?: boolean
+    } | null
+    sender: {
+      id: string
+      email: string
+      displayName: string
+      avatarText: string
+      avatarUrl: string | null
+    }
+    attachments: {
+      id: string
+      originalName: string
+      mimeType: string
+      size: number
+      downloadUrl: string
+    }[]
+  } | null
   createdAt: string
   attachments: {
     id: string
@@ -234,6 +262,36 @@ type ChannelMessageWithRelations = {
     isAnimated: boolean
     url?: string
   } | null
+  replyTo?: {
+    id: string
+    channelId: string
+    senderId: string
+    text: string
+    stickerEmoji?: string | null
+    sender: {
+      id: string
+      email: string
+      displayName: string
+      avatarText: string
+      avatarUrl: string | null
+    }
+    attachments: {
+      id: string
+      originalName: string
+      mimeType: string
+      size: number
+    }[]
+    sticker?: {
+      id: string
+      scope: string
+      name: string
+      originalName: string
+      mimeType: string
+      size: number
+      isAnimated: boolean
+      url?: string
+    } | null
+  } | null
 }
 
 export function serializeChannelMessage(message: ChannelMessageWithRelations): ChannelMessagePayload {
@@ -246,6 +304,28 @@ export function serializeChannelMessage(message: ChannelMessageWithRelations): C
     stickerId: message.stickerId,
     stickerEmoji: message.stickerEmoji,
     sticker: message.sticker ? { ...message.sticker, url: `/api/stickers/${message.sticker.id}/file` } : null,
+    replyTo: message.replyTo ? {
+      id: message.replyTo.id,
+      channelId: message.replyTo.channelId,
+      senderId: message.replyTo.senderId,
+      text: message.replyTo.text,
+      stickerEmoji: message.replyTo.stickerEmoji,
+      sender: message.replyTo.sender,
+      sticker: message.replyTo.sticker ? {
+        id: message.replyTo.sticker.id,
+        url: `/api/stickers/${message.replyTo.sticker.id}/file`,
+        name: message.replyTo.sticker.name,
+        originalName: message.replyTo.sticker.originalName,
+        isAnimated: message.replyTo.sticker.isAnimated,
+      } : null,
+      attachments: message.replyTo.attachments.map((attachment) => ({
+        id: attachment.id,
+        originalName: attachment.originalName,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+        downloadUrl: `/api/channels/attachments/${attachment.id}/download`,
+      })),
+    } : null,
     createdAt: message.createdAt.toISOString(),
     attachments: message.attachments.map((attachment) => ({
       id: attachment.id,

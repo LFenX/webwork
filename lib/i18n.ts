@@ -43,10 +43,13 @@ type Dictionary = {
     privacyDesc: string
     language: string
     languageDesc: string
+    usage: string
+    usageDesc: string
     profileTitle: string
     passwordTitle: string
     privacyTitle: string
     languageTitle: string
+    usageTitle: string
     displayName: string
     avatarText: string
     avatarUpload: string
@@ -58,6 +61,7 @@ type Dictionary = {
     avatarImageOnly: string
     avatarTooLarge: string
     passwordInput: string
+    passwordConfirm: string
     passwordSubmit: string
     passwordStatus: string
     passwordRequested: string
@@ -66,6 +70,9 @@ type Dictionary = {
     passwordApproved: string
     passwordPending: string
     passwordRejected: string
+    passwordMismatch: string
+    showPassword: string
+    hidePassword: string
     visibilityHint: string
     privateVisibility: string
     friendsVisibility: string
@@ -141,19 +148,22 @@ const zhCN: Dictionary = {
   },
   settings: {
     title: "设置中心",
-    description: "管理个人资料、密码审批、展示权限和语言偏好。",
+    description: "管理个人资料、密码申请、隐私和语言偏好。",
     profile: "个人资料",
     profileDesc: "修改昵称、头像、地区、简介和邮箱。",
-    password: "密码更改",
-    passwordDesc: "提交密码更改申请并查看审批状态。",
-    privacy: "资料展示权限",
-    privacyDesc: "统一管理各个模块对好友的可见性。",
+    password: "修改密码",
+    passwordDesc: "提交密码修改申请并查看审批状态。",
+    privacy: "资料可见范围",
+    privacyDesc: "统一管理各模块是否对好友可见。",
     language: "语言",
-    languageDesc: "切换中文与英文界面。",
+    languageDesc: "切换中文和英文界面。",
+    usage: "使用说明",
+    usageDesc: "查看聊天、AI、首页布局和管理员功能的简要说明。",
     profileTitle: "个人资料设置",
-    passwordTitle: "密码更改",
-    privacyTitle: "资料展示权限",
+    passwordTitle: "密码修改",
+    privacyTitle: "资料可见范围",
     languageTitle: "语言设置",
+    usageTitle: "使用说明",
     displayName: "昵称",
     avatarText: "默认头像文字",
     avatarUpload: "上传头像",
@@ -161,22 +171,26 @@ const zhCN: Dictionary = {
     bio: "简介",
     email: "邮箱",
     profileSaved: "个人资料已保存",
-    profileSaveFailed: "保存资料失败",
+    profileSaveFailed: "保存个人资料失败",
     avatarImageOnly: "请选择图片文件",
     avatarTooLarge: "头像图片不能超过 5MB",
-    passwordInput: "请输入新密码",
-    passwordSubmit: "提交审批申请",
-    passwordStatus: "查看审批状态",
-    passwordRequested: "密码更改申请已提交，等待管理员审批",
-    passwordRequestFailed: "提交密码更改申请失败",
-    passwordNoRequest: "还没有密码修改申请",
-    passwordApproved: "管理员已同意，新密码已经生效",
-    passwordPending: "申请仍在等待管理员审核",
-    passwordRejected: "最近的密码申请未生效",
-    visibilityHint: "好友可见表示登录好友可以查看，对外仍然不可见。",
-    privateVisibility: "私密",
+    passwordInput: "输入新密码",
+    passwordConfirm: "再次输入新密码",
+    passwordSubmit: "提交申请",
+    passwordStatus: "查看状态",
+    passwordRequested: "密码修改申请已提交，等待管理员审批。",
+    passwordRequestFailed: "提交密码修改申请失败",
+    passwordNoRequest: "还没有密码修改申请。",
+    passwordApproved: "最近一次密码修改申请已通过。",
+    passwordPending: "最近一次密码修改申请仍在等待审批。",
+    passwordRejected: "最近一次密码修改申请未生效。",
+    passwordMismatch: "两次输入的新密码不一致。",
+    showPassword: "显示密码",
+    hidePassword: "隐藏密码",
+    visibilityHint: "好友可见表示登录后的好友可以查看，对外部访客依然不可见。",
+    privateVisibility: "仅自己",
     friendsVisibility: "好友可见",
-    languageHint: "语言偏好会跟随账号保存，并在核心界面即时生效。",
+    languageHint: "语言偏好会保存到账号，并立即应用到主要界面。",
     chinese: "中文",
     english: "English",
     languageSaved: "语言设置已保存",
@@ -209,9 +223,9 @@ const zhCN: Dictionary = {
     leftGroup: "已退出群聊",
     dissolvedGroup: "群聊已解散",
     worldReadonly: "世界频道不提供群管理功能。",
-    ownerOnly: "仅群主可编辑群资料和成员。",
+    ownerOnly: "只有群主可以修改群资料和成员。",
     noAnnouncement: "暂未设置群公告",
-    manageHiddenForWorld: "世界频道没有群管理页",
+    manageHiddenForWorld: "世界频道没有群管理页面",
     confirmRemove: (name) => `确认将 ${name} 移出群聊吗？`,
     confirmLeave: "确认退出当前群聊吗？",
     confirmDissolve: "确认解散当前群聊吗？此操作不可恢复。",
@@ -239,7 +253,7 @@ const enUS: Dictionary = {
     notes: "Notes",
     jobs: "Jobs",
     interviews: "Interviews",
-    ai: "AI",
+    ai: "AI Assistant",
     friends: "Friends",
     admin: "Admin",
     login: "Login",
@@ -248,19 +262,22 @@ const enUS: Dictionary = {
   },
   settings: {
     title: "Settings",
-    description: "Manage your profile, password request, visibility, and language.",
+    description: "Manage your profile, password requests, privacy, and language.",
     profile: "Profile",
     profileDesc: "Update display name, avatar, location, bio, and email.",
     password: "Password",
     passwordDesc: "Submit a password change request and check approval status.",
-    privacy: "Profile Visibility",
+    privacy: "Visibility",
     privacyDesc: "Control which modules are visible to friends.",
     language: "Language",
     languageDesc: "Switch between Chinese and English.",
+    usage: "Usage Guide",
+    usageDesc: "Read a quick guide for chat, AI, layout editing, and admin tools.",
     profileTitle: "Profile Settings",
     passwordTitle: "Password Change",
-    privacyTitle: "Profile Visibility",
+    privacyTitle: "Visibility Settings",
     languageTitle: "Language Settings",
+    usageTitle: "Usage Guide",
     displayName: "Display name",
     avatarText: "Avatar fallback text",
     avatarUpload: "Upload avatar",
@@ -272,19 +289,23 @@ const enUS: Dictionary = {
     avatarImageOnly: "Please choose an image file",
     avatarTooLarge: "Avatar image must be under 5MB",
     passwordInput: "Enter a new password",
+    passwordConfirm: "Confirm the new password",
     passwordSubmit: "Submit request",
     passwordStatus: "Check status",
-    passwordRequested: "Password change request submitted and waiting for approval",
-    passwordRequestFailed: "Failed to submit password change request",
-    passwordNoRequest: "No password change request yet",
-    passwordApproved: "Your latest password request was approved",
-    passwordPending: "Your latest password request is still pending",
-    passwordRejected: "Your latest password request did not take effect",
-    visibilityHint: "Friends can view these modules after logging in. They remain private to everyone else.",
+    passwordRequested: "Password change request submitted successfully.",
+    passwordRequestFailed: "Failed to submit the password change request",
+    passwordNoRequest: "No password change request yet.",
+    passwordApproved: "Your latest password change request has been approved.",
+    passwordPending: "Your latest password change request is still pending.",
+    passwordRejected: "Your latest password change request did not take effect.",
+    passwordMismatch: "The two password entries do not match.",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+    visibilityHint: "Friends can view these modules after signing in. They stay hidden from public visitors.",
     privateVisibility: "Private",
     friendsVisibility: "Friends only",
-    languageHint: "Language preference is saved to your account and applies immediately in core screens.",
-    chinese: "中文",
+    languageHint: "Your language preference is saved to your account and applied immediately.",
+    chinese: "Chinese",
     english: "English",
     languageSaved: "Language preference saved",
   },
@@ -302,7 +323,7 @@ const enUS: Dictionary = {
     publishToFeed: "Broadcast this world-channel message",
     loadFailed: "Failed to load",
     createGroup: "Create group",
-    groupInfo: "Group Info",
+    groupInfo: "Group info",
     groupName: "Group name",
     groupAnnouncement: "Group announcement",
     groupOwner: "Owner",
@@ -316,9 +337,9 @@ const enUS: Dictionary = {
     leftGroup: "You left the group",
     dissolvedGroup: "Group dissolved",
     worldReadonly: "The world channel does not support group management.",
-    ownerOnly: "Only the group owner can edit group details or members.",
+    ownerOnly: "Only the group owner can edit group details and members.",
     noAnnouncement: "No group announcement yet",
-    manageHiddenForWorld: "World channel has no group management page",
+    manageHiddenForWorld: "The world channel has no management page",
     confirmRemove: (name) => `Remove ${name} from this group?`,
     confirmLeave: "Leave this group?",
     confirmDissolve: "Dissolve this group? This cannot be undone.",

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 
 export type RealtimeEventType =
   | "chat:message"
+  | "chat:read"
   | "channel:message"
   | "friend-request:created"
   | "friend-request:accepted"
