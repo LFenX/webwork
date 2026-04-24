@@ -2,15 +2,16 @@
 
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import { ChatPanel, useChatSession } from "@/components/friend-chat"
+import { ChatPanel, type ChatFriend, useChatSession } from "@/components/friend-chat"
 
-export function FriendChatPageClient({ userId, friendId }: { userId: string; friendId: string }) {
-  const chat = useChatSession(friendId, undefined, undefined, userId)
+export function FriendChatPageClient({ userId, friendId, currentUser }: { userId: string; friendId: string; currentUser: ChatFriend }) {
+  const chat = useChatSession(friendId, undefined, undefined, currentUser)
 
   return (
     <div className="mx-auto flex h-[calc(var(--app-viewport-height)-3rem)] max-w-[1000px] flex-col px-0 py-0 md:h-[calc(var(--app-viewport-height)-8.5rem)] md:px-6 md:pb-6 md:pt-12">
       <ChatPanel
         friend={chat.friend}
+        currentUser={currentUser}
         messages={chat.messages}
         loading={chat.loading}
         sending={chat.sending}
@@ -19,12 +20,12 @@ export function FriendChatPageClient({ userId, friendId }: { userId: string; fri
         text={chat.text}
         files={chat.files}
         sticker={chat.sticker}
-        sendOriginal={chat.sendOriginal}
+        replyTo={chat.replyTo}
         onTextChange={chat.setText}
         onFilesChange={chat.setFiles}
         onStickerChange={chat.setSticker}
         onStickerPick={chat.pickSticker}
-        onSendOriginalChange={chat.setSendOriginal}
+        onReplyChange={chat.setReplyTo}
         onSend={chat.sendMessage}
         onLoadOlder={chat.loadOlderMessages}
         onReload={chat.loadMessages}

@@ -182,16 +182,14 @@ export async function transferOwnership(currentOwnerId: string, nextOwnerId: str
   }
 
   return prisma.$transaction(async (tx) => {
-    const [currentOwner, nextOwner] = await Promise.all([
-      tx.user.findUnique({
-        where: { id: currentOwnerId },
-        select: { id: true, email: true, displayName: true, role: true },
-      }),
-      tx.user.findUnique({
-        where: { id: nextOwnerId },
-        select: { id: true, email: true, displayName: true, role: true },
-      }),
-    ])
+    const currentOwner = await tx.user.findUnique({
+      where: { id: currentOwnerId },
+      select: { id: true, email: true, displayName: true, role: true },
+    })
+    const nextOwner = await tx.user.findUnique({
+      where: { id: nextOwnerId },
+      select: { id: true, email: true, displayName: true, role: true },
+    })
 
     if (!currentOwner || currentOwner.role !== "owner") {
       throw new Error("OWNER_NOT_FOUND")

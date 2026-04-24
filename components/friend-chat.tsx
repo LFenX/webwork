@@ -1,27 +1,24 @@
 "use client"
 
 import Link from "next/link"
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type ClipboardEvent as ReactClipboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   AlertCircle,
-  CheckCircle2,
-  Circle,
-  CornerUpLeft,
-  Download,
   File as FileIcon,
   Loader2,
   Paperclip,
   RefreshCcw,
-  Reply,
   Send,
-  X,
 } from "lucide-react"
+import { ComposerReplyPreview, MessageActionSurface, MessageReplyReference, type MessageActionItem } from "@/components/chat-message-actions"
+import { ChatComposerAttachments } from "@/components/chat-composer-attachments"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StickerPicker, type StickerPick } from "@/components/sticker-picker"
 import { UserAvatar } from "@/components/user-avatar"
 import { setActiveChatContext } from "@/lib/active-chat"
+import { copyImageToClipboard, getClipboardImageFiles, saveStickerToCustomLibrary, triggerBrowserDownload } from "@/lib/chat-media-actions"
 
 export interface ChatFriend {
   id: string
@@ -40,12 +37,23 @@ export type ChatAttachment = {
   downloadUrl: string
 }
 
+type ChatStickerAsset = {
+  id: string
+  url: string
+  scope?: string
+  name?: string
+  originalName?: string
+  mimeType?: string
+  size?: number
+  isAnimated?: boolean
+}
+
 export type ReplyPreview = {
   id: string
   senderId: string
   text: string
   stickerEmoji?: string | null
-  sticker?: { id: string; url: string; name?: string; originalName?: string; isAnimated?: boolean } | null
+  sticker?: ChatStickerAsset | null
   sender?: ChatFriend
   attachments: ChatAttachment[]
 }
@@ -57,7 +65,7 @@ export type ChatMessage = {
   text: string
   stickerId?: string | null
   stickerEmoji?: string | null
-  sticker?: { id: string; url: string; name?: string; originalName?: string; isAnimated?: boolean } | null
+  sticker?: ChatStickerAsset | null
   readAt: string | null
   createdAt: string
   sender?: ChatFriend
@@ -95,7 +103,6 @@ type ComposerLabels = {
   typeMessage: string
   send: string
   sending: string
-  originalImage: string
   sticker: string
   imagePreview: string
   openProfile: string
@@ -110,6 +117,9 @@ type ComposerLabels = {
   replyingTo: string
   cancelReply: string
   reply: string
+  copy: string
+  copied: string
+  copyFailed: string
   image: string
   attachment: string
   noHistory: string
@@ -136,7 +146,6 @@ function getLabels(): ComposerLabels {
       typeMessage: "Type a message...",
       send: "Send",
       sending: "Sending",
-      originalImage: "Send original image",
       sticker: "Sticker",
       imagePreview: "Image preview",
       openProfile: "Open profile",
@@ -151,6 +160,9 @@ function getLabels(): ComposerLabels {
       replyingTo: "Replying to",
       cancelReply: "Cancel reply",
       reply: "Reply",
+      copy: "Copy",
+      copied: "Copied",
+      copyFailed: "Copy failed",
       image: "Image",
       attachment: "Attachment",
       noHistory: "No chat history yet",
@@ -170,7 +182,6 @@ function getLabels(): ComposerLabels {
     typeMessage: "输入消息...",
     send: "发送",
     sending: "发送中",
-    originalImage: "发送原图",
     sticker: "表情",
     imagePreview: "图片预览",
     openProfile: "打开资料",
@@ -188,11 +199,9 @@ function getLabels(): ComposerLabels {
     image: "图片",
     attachment: "附件",
     noHistory: "还没有聊天记录",
-  }
+  } as ComposerLabels
 }
 
-const IMAGE_MAX_EDGE = 1600
-const IMAGE_QUALITY = 0.82
 const TIME_GAP_MS = 5 * 60 * 1000
 const HISTORY_BATCH_SIZE = 100
 const HISTORY_AUTO_TARGET = 240
@@ -243,44 +252,8 @@ function formatBytes(size: number) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`
 }
 
-function fileTypeLabel(file: Pick<File, "name" | "type">) {
-  const labels = getLabels()
-  if (file.type.startsWith("image/")) return labels.image
-  const ext = file.name.split(".").pop()?.toUpperCase()
-  return ext ? `${ext}` : labels.attachment
-}
-
-async function compressImageIfNeeded(file: File, sendOriginal: boolean) {
-  if (sendOriginal) return file
-  if (!file.type.startsWith("image/")) return file
-  if (file.type === "image/gif" || file.type === "image/png") return file
-
-  const image = await createImageBitmap(file).catch(() => null)
-  if (!image) return file
-
-  const scale = Math.min(1, IMAGE_MAX_EDGE / Math.max(image.width, image.height))
-  if (scale >= 1) {
-    image.close()
-    return file
-  }
-
-  const canvas = document.createElement("canvas")
-  canvas.width = Math.max(1, Math.round(image.width * scale))
-  canvas.height = Math.max(1, Math.round(image.height * scale))
-  const context = canvas.getContext("2d")
-  if (!context) {
-    image.close()
-    return file
-  }
-
-  context.drawImage(image, 0, 0, canvas.width, canvas.height)
-  image.close()
-
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", IMAGE_QUALITY))
-  if (!blob || blob.size >= file.size) return file
-
-  const name = file.name.replace(/\.[^.]+$/, "") || "image"
-  return new File([blob], `${name}.jpg`, { type: "image/jpeg", lastModified: Date.now() })
+async function compressImageIfNeeded(file: File) {
+  return file
 }
 
 function compareChatMessages(a: ChatMessage, b: ChatMessage) {
@@ -307,6 +280,31 @@ function getReplySummary(reply?: ReplyPreview | null) {
   if (reply.attachments.some((attachment) => attachment.mimeType.startsWith("image/"))) return `[${labels.image}]`
   if (reply.attachments.length > 0) return `[${labels.attachment}]`
   return ""
+}
+
+function messageToReplyPreview(message: ChatMessage, sender: ChatFriend): ReplyPreview {
+  return {
+    id: message.id,
+    senderId: message.senderId,
+    text: message.text,
+    stickerEmoji: message.stickerEmoji,
+    sticker: message.sticker,
+    sender,
+    attachments: message.attachments,
+  }
+}
+
+function getMessageCopyText(message: ChatMessage) {
+  if (message.text.trim()) return message.text.trim()
+  if (message.stickerEmoji) return message.stickerEmoji
+  if (message.sticker) return `[${getLabels().sticker}]`
+  if (message.attachments.length > 0) return message.attachments.map((attachment) => attachment.originalName).join("\n")
+  return ""
+}
+
+function getPrimaryImageAttachment(message: ChatMessage) {
+  const imageAttachments = message.attachments.filter((attachment) => attachment.mimeType.startsWith("image/"))
+  return imageAttachments.length === 1 ? imageAttachments[0] : null
 }
 
 function uploadMessage({
@@ -348,7 +346,20 @@ function uploadMessage({
   })
 }
 
-export function useChatSession(friendId: string | null, initialFriend?: ChatFriend | null, onSummaryChange?: () => void, _userId?: string) {
+async function markChatMessagesRead(friendId: string, messageIds?: string[]) {
+  const res = await fetch(`/api/chats/${friendId}/read`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messageIds }),
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? "Failed to mark chat as read")
+  }
+}
+
+export function useChatSession(friendId: string | null, initialFriend?: ChatFriend | null, onSummaryChange?: () => void, currentUser?: ChatFriend | null) {
   const [loadedFriend, setLoadedFriend] = useState<ChatFriend | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -356,7 +367,6 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
   const [files, setFiles] = useState<File[]>([])
   const [sticker, setSticker] = useState<StickerPick | null>(null)
   const [replyTo, setReplyTo] = useState<ReplyPreview | null>(null)
-  const [sendOriginal, setSendOriginal] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [sending, setSending] = useState(false)
@@ -431,13 +441,25 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
 
   useEffect(() => {
     if (!friendId) return
-    setMessages([])
-    setFiles([])
-    setSticker(null)
-    setReplyTo(null)
-    setNextCursor(null)
-    void loadMessages()
+    const timer = window.setTimeout(() => {
+      setMessages([])
+      setFiles([])
+      setSticker(null)
+      setReplyTo(null)
+      setNextCursor(null)
+      void loadMessages()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [friendId, loadMessages])
+
+  const syncReadState = useCallback(async (messageIds?: string[]) => {
+    if (!friendId) return
+    try {
+      await markChatMessagesRead(friendId, messageIds)
+    } catch {
+      // Ignore transient sync failures; the next manual or visibility refresh will reconcile.
+    }
+  }, [friendId])
 
   useEffect(() => {
     if (!friendId) return
@@ -445,17 +467,12 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
       if (document.visibilityState !== "visible") return
       void loadMessages()
     }
-    const onFocus = () => refresh()
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") refresh()
     }
-    const interval = window.setInterval(refresh, 60_000)
 
-    window.addEventListener("focus", onFocus)
     document.addEventListener("visibilitychange", onVisibilityChange)
     return () => {
-      window.clearInterval(interval)
-      window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [friendId, loadMessages])
@@ -465,15 +482,18 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
     const source = new EventSource(`/api/chats/${friendId}/events`)
     source.addEventListener("message", (event) => {
       const message = JSON.parse((event as MessageEvent).data) as ChatMessage
+      if (message.senderId !== friendId) {
+        onSummaryChange?.()
+        window.dispatchEvent(new CustomEvent("chat-unread-refresh"))
+        return
+      }
       setMessages((current) => mergeChatMessages(current, [message]))
+      void syncReadState([message.id])
       onSummaryChange?.()
       window.dispatchEvent(new CustomEvent("chat-unread-refresh"))
     })
-    source.onerror = () => {
-      void loadMessages()
-    }
     return () => source.close()
-  }, [friendId, loadMessages, onSummaryChange])
+  }, [friendId, onSummaryChange, syncReadState])
 
   useEffect(() => {
     const onRead = (event: Event) => {
@@ -496,57 +516,77 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
     if (!draftText && files.length === 0 && !sticker) return
 
     setSending(true)
-    const localId = `local-${crypto.randomUUID()}`
-    const localFiles = files.map((file, index) => ({
-      id: `${localId}-file-${index}`,
-      originalName: file.name || "file",
-      mimeType: file.type || "application/octet-stream",
-      size: file.size,
-      downloadUrl: URL.createObjectURL(file),
-    }))
-    const localMessage: ChatMessage = {
-      id: localId,
-      senderId: "self",
-      receiverId: friendId,
-      text: draftText,
-      readAt: null,
-      createdAt: new Date().toISOString(),
-      stickerId: sticker?.type === "asset" ? sticker.id : null,
-      stickerEmoji: sticker?.type === "emoji" ? sticker.emoji : null,
-      sticker: sticker?.type === "asset" ? { id: sticker.id, url: sticker.url, name: sticker.name } : null,
-      replyTo,
-      attachments: localFiles,
-      localStatus: "sending",
-      progress: 0,
-    }
-    setMessages((current) => [...current, localMessage])
+    const draftFiles = [...files]
+    setText("")
+    setFiles([])
+    setSticker(null)
+    setReplyTo(null)
 
-    try {
-      const preparedFiles = await Promise.all(files.map((file) => compressImageIfNeeded(file, sendOriginal)))
-      const uploaded = await uploadMessage({
-        friendId,
-        text: draftText,
-        files: preparedFiles,
-        sticker,
-        replyToId: replyTo?.id ?? null,
-        onProgress: (progress) => {
-          setMessages((current) => current.map((item) => (item.id === localId ? { ...item, progress } : item)))
-        },
-      })
-      setMessages((current) => current.map((item) => (item.id === localId ? uploaded : item)))
-      setText("")
-      setFiles([])
-      setSticker(null)
-      setReplyTo(null)
-      onSummaryChange?.()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Send failed"
-      setMessages((current) => current.map((item) => (item.id === localId ? { ...item, localStatus: "failed", error: message, progress: 0 } : item)))
-      toast.error(message)
-    } finally {
-      setSending(false)
+    const preparedFiles = await Promise.all(draftFiles.map((file) => compressImageIfNeeded(file)))
+    const batches = [
+      ...(draftText ? [{ text: draftText, files: [] as File[], sticker: null as StickerPick | null }] : []),
+      ...preparedFiles.map((file) => ({ text: "", files: [file], sticker: null as StickerPick | null })),
+      ...(sticker ? [{ text: "", files: [] as File[], sticker }] : []),
+    ]
+    const selfSender =
+      currentUser
+      ?? messagesRef.current.find((message) => message.senderId !== friend.id && message.sender)?.sender
+      ?? { id: "self", email: "", displayName: "", avatarText: "", avatarUrl: null }
+    const localEntries = batches.map((batch, index) => {
+      const localId = `local-${crypto.randomUUID()}`
+      const localFiles = batch.files.map((file, fileIndex) => ({
+        id: `${localId}-file-${fileIndex}`,
+        originalName: file.name || "file",
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+        downloadUrl: URL.createObjectURL(file),
+      }))
+      const localMessage: ChatMessage = {
+        id: localId,
+        senderId: selfSender.id || "self",
+        receiverId: friendId,
+        text: batch.text,
+        readAt: null,
+        createdAt: new Date().toISOString(),
+        sender: selfSender,
+        stickerId: batch.sticker?.type === "asset" ? batch.sticker.id : null,
+        stickerEmoji: batch.sticker?.type === "emoji" ? batch.sticker.emoji : null,
+        sticker: batch.sticker?.type === "asset" ? { id: batch.sticker.id, url: batch.sticker.url, name: batch.sticker.name } : null,
+        replyTo: index === 0 ? replyTo : null,
+        attachments: localFiles,
+        localStatus: "sending",
+        progress: 0,
+      }
+      return { batch, localId, localMessage }
+    })
+    setMessages((current) => [...current, ...localEntries.map((entry) => entry.localMessage)])
+
+    let firstReplyId = replyTo?.id ?? null
+    for (let index = 0; index < localEntries.length; index += 1) {
+      const { batch, localId } = localEntries[index]
+      try {
+        const uploaded = await uploadMessage({
+          friendId,
+          text: batch.text,
+          files: batch.files,
+          sticker: batch.sticker,
+          replyToId: index === 0 ? firstReplyId : null,
+          onProgress: (progress) => {
+            setMessages((current) => current.map((item) => (item.id === localId ? { ...item, progress } : item)))
+          },
+        })
+        setMessages((current) => current.map((item) => (item.id === localId ? uploaded : item)))
+        onSummaryChange?.()
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Send failed"
+        setMessages((current) => current.map((item) => (item.id === localId ? { ...item, localStatus: "failed", error: message, progress: 0 } : item)))
+        toast.error(message)
+      }
+      firstReplyId = null
     }
-  }, [files, friend, friendId, onSummaryChange, replyTo, sendOriginal, sending, sticker, text])
+
+    setSending(false)
+  }, [currentUser, files, friend, friendId, onSummaryChange, replyTo, sending, sticker, text])
 
   const retryMessage = useCallback(async (messageId: string) => {
     const failed = messagesRef.current.find((message) => message.id === messageId)
@@ -585,12 +625,10 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
     sending,
     text,
     files,
-    sendOriginal,
     sticker,
     replyTo,
     setText,
     setFiles,
-    setSendOriginal,
     setSticker,
     setReplyTo,
     pickSticker,
@@ -602,69 +640,78 @@ export function useChatSession(friendId: string | null, initialFriend?: ChatFrie
   }
 }
 
-function DraftFilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
-  const previewUrl = useMemo(() => (file.type.startsWith("image/") ? URL.createObjectURL(file) : null), [file])
-
-  useEffect(() => {
-    if (!previewUrl) return
-    return () => URL.revokeObjectURL(previewUrl)
-  }, [previewUrl])
-
-  return (
-    <div className="flex min-w-0 items-center gap-2 rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-hover] p-2">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[--radius-sm] bg-white">
-        {previewUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewUrl} alt={file.name} className="h-full w-full object-cover" />
-        ) : (
-          <FileIcon size={18} className="text-[--color-text-muted]" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium text-[--color-text-primary]">{file.name || "file"}</p>
-        <p className="text-[10px] text-[--color-text-muted]">{fileTypeLabel(file)} / {formatBytes(file.size)}</p>
-      </div>
-      <button type="button" onClick={onRemove} className="shrink-0 text-[--color-text-muted] hover:text-[--color-danger]">
-        <X size={14} />
-      </button>
-    </div>
-  )
-}
-
 function AttachmentView({ attachment, mine, onPreview }: { attachment: ChatAttachment; mine: boolean; onPreview: (attachment: ChatAttachment) => void }) {
   const isImage = attachment.mimeType.startsWith("image/")
   if (isImage) {
     return (
       <button type="button" onClick={() => onPreview(attachment)} className="block max-w-full overflow-hidden rounded-[--radius-md] hover:opacity-95">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={attachment.downloadUrl} alt={attachment.originalName} className="max-h-72 max-w-full object-contain" />
+        <img src={attachment.downloadUrl} alt={attachment.originalName} className="block max-h-72 max-w-full object-contain" />
       </button>
     )
   }
 
+  const extension = attachment.originalName.split(".").pop()?.toUpperCase() || "FILE"
+
   return (
-    <div className={`overflow-hidden rounded border ${mine ? "border-[#d5e2ff] bg-white" : "border-[--color-border] bg-[--color-bg-hover]"}`}>
-      <a href={attachment.downloadUrl} className="flex items-center gap-2 px-2 py-2 text-xs text-[--color-link] hover:no-underline">
-        <FileIcon size={14} />
-        <span className="min-w-0 flex-1 truncate">{attachment.originalName}</span>
-        <span>{formatBytes(attachment.size)}</span>
-        <Download size={14} />
+    <div className={`overflow-hidden rounded-2xl border shadow-sm ${mine ? "border-[#d5e2ff] bg-white" : "border-[--color-border] bg-white"}`}>
+      <a href={attachment.downloadUrl} download={attachment.originalName} className="flex min-w-[220px] max-w-[280px] items-center gap-3 px-4 py-3 text-left hover:no-underline">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-[--color-text-primary]">{attachment.originalName}</p>
+          <p className="mt-1 text-xs text-[--color-text-muted]">{formatBytes(attachment.size)}</p>
+        </div>
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${mine ? "bg-[#e8f0ff] text-[#2563eb]" : "bg-[--color-bg-hover] text-[--color-text-secondary]"}`}>
+          <div className="flex flex-col items-center gap-1">
+            <FileIcon size={16} />
+            <span className="text-[9px] font-semibold leading-none">{extension.slice(0, 4)}</span>
+          </div>
+        </div>
       </a>
     </div>
   )
 }
 
-function ReplyChip({ reply }: { reply: ReplyPreview }) {
+function MessageActionPreview({ message, senderName }: { message: ChatMessage; senderName: string }) {
   return (
-    <div className="mb-2 rounded-lg border border-[--color-border] bg-black/5 px-3 py-2 text-xs text-[--color-text-secondary]">
-      <p className="font-medium text-[--color-text-primary]">{reply.sender?.displayName || reply.sender?.email || getLabels().you}</p>
-      <p className="truncate">{getReplySummary(reply)}</p>
+    <div className="space-y-2 p-3">
+      <p className="truncate text-xs font-medium text-[--color-text-secondary]">{senderName}</p>
+      {message.text ? <p className="whitespace-pre-wrap break-words text-sm text-[--color-text-primary]">{message.text}</p> : null}
+      {message.stickerEmoji ? <p className="text-4xl leading-none">{message.stickerEmoji}</p> : null}
+      {message.sticker ? (
+        <div className="overflow-hidden rounded-xl bg-white p-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={message.sticker.url} alt={message.sticker.name || message.sticker.originalName || "sticker"} className="block max-h-28 max-w-full object-contain" />
+        </div>
+      ) : null}
+      {message.attachments.length > 0 ? (
+        <div className="space-y-2">
+          {message.attachments.map((attachment) => (
+            attachment.mimeType.startsWith("image/") ? (
+              <div key={attachment.id} className="overflow-hidden rounded-xl bg-white p-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={attachment.downloadUrl} alt={attachment.originalName} className="block max-h-32 max-w-full object-contain" />
+              </div>
+            ) : (
+              <div key={attachment.id} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#e8f0ff] text-[#2563eb]">
+                  <FileIcon size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-[--color-text-primary]">{attachment.originalName}</p>
+                  <p className="text-xs text-[--color-text-muted]">{formatBytes(attachment.size)}</p>
+                </div>
+              </div>
+            )
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
 
 export function ChatPanel({
   friend,
+  currentUser,
   messages,
   loading,
   sending,
@@ -673,13 +720,11 @@ export function ChatPanel({
   text,
   files,
   sticker,
-  sendOriginal = false,
   replyTo,
   onTextChange,
   onFilesChange,
   onStickerChange,
   onStickerPick,
-  onSendOriginalChange,
   onReplyChange,
   onSend,
   onLoadOlder,
@@ -691,6 +736,7 @@ export function ChatPanel({
   userId,
 }: {
   friend: ChatFriend | null
+  currentUser?: ChatFriend | null
   messages: ChatMessage[]
   loading: boolean
   sending: boolean
@@ -699,13 +745,11 @@ export function ChatPanel({
   text: string
   files: File[]
   sticker?: StickerPick | null
-  sendOriginal?: boolean
   replyTo?: ReplyPreview | null
   onTextChange: (value: string) => void
   onFilesChange: (files: File[]) => void
   onStickerChange?: (sticker: StickerPick | null) => void
   onStickerPick?: (sticker: StickerPick) => void
-  onSendOriginalChange?: (value: boolean) => void
   onReplyChange?: (reply: ReplyPreview | null) => void
   onSend: () => void
   onLoadOlder?: () => Promise<void> | void
@@ -724,7 +768,6 @@ export function ChatPanel({
   const [failedMessage, setFailedMessage] = useState<ChatMessage | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [previewImage, setPreviewImage] = useState<ChatAttachment | null>(null)
-  const hasImageDraft = useMemo(() => files.some((file) => file.type.startsWith("image/")), [files])
 
   const trailingMineMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -771,6 +814,13 @@ export function ChatPanel({
     container.addEventListener("scroll", onScroll, { passive: true })
     return () => container.removeEventListener("scroll", onScroll)
   }, [handleLoadOlder, hasOlder, loading, loadingOlder])
+
+  const handleComposerPaste = useCallback((event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedFiles = getClipboardImageFiles(event.clipboardData)
+    if (pastedFiles.length === 0) return
+    event.preventDefault()
+    onFilesChange([...files, ...pastedFiles])
+  }, [files, onFilesChange])
 
   if (!friend) {
     return (
@@ -829,13 +879,84 @@ export function ChatPanel({
             {messages.map((message, index) => {
               const previous = messages[index - 1]
               const mine = message.senderId !== friend.id
-              const sender = message.sender ?? (mine ? { id: "self", email: "", displayName: labels.you, avatarText: "", avatarUrl: null } : friend)
+              const sender = message.sender ?? (mine ? (currentUser ?? { id: "self", email: "", displayName: labels.you, avatarText: "", avatarUrl: null }) : friend)
               const assetStickerOnly = !message.text && !message.stickerEmoji && Boolean(message.sticker) && message.attachments.length === 0
               const imageOnly = !message.text && !message.stickerEmoji && !message.sticker && message.attachments.length > 0 && message.attachments.every((attachment) => attachment.mimeType.startsWith("image/"))
+              const fileOnly = !message.text && !message.stickerEmoji && !message.sticker && message.attachments.length > 0 && message.attachments.every((attachment) => !attachment.mimeType.startsWith("image/"))
+              const attachmentOnly = imageOnly || fileOnly
+              const hasLeadingContent = Boolean(message.text || message.stickerEmoji || message.sticker)
               const showReadStatus = mine && trailingMineMessageId === message.id && !message.localStatus
+              const primaryImage = getPrimaryImageAttachment(message)
+              const addStickerLabel = getLocale() === "en-US" ? "Add to My Stickers" : "添加到我的表情"
+              const stickerSavedLabel = getLocale() === "en-US" ? "Saved to your custom stickers." : "已添加到我的表情"
+              const downloadImageLabel = getLocale() === "en-US" ? "Download Image" : "下载图片"
+              const copyImageLabel = getLocale() === "en-US" ? "Copy Image" : "复制图片"
+              const copyImageSuccessLabel = getLocale() === "en-US" ? "Image copied. You can paste it into the composer." : "图片已复制，可直接粘贴到输入框"
+              const copyImageFailedLabel = getLocale() === "en-US" ? "Image copy failed" : "复制图片失败"
+              const quoteLabel = getLocale() === "en-US" ? "Quote" : "引用"
+              const copyLabel = labels.copy ?? "复制"
+              const copiedLabel = labels.copied ?? "已复制"
+              const copyFailedLabel = labels.copyFailed ?? "复制失败"
+              const replySummary = message.replyTo ? getReplySummary(message.replyTo) : ""
+              const actionPreview = <MessageActionPreview message={message} senderName={sender.displayName || sender.email || labels.you} />
+              const actionItems: MessageActionItem[] = [
+                {
+                  id: "reply",
+                  label: quoteLabel,
+                  onSelect: () => onReplyChange?.(messageToReplyPreview(message, sender)),
+                },
+                {
+                  id: "copy",
+                  label: copyLabel,
+                  onSelect: async () => {
+                    const copyText = getMessageCopyText(message)
+                    if (!copyText) return
+                    try {
+                      await navigator.clipboard.writeText(copyText)
+                      toast.success(copiedLabel)
+                    } catch {
+                      toast.error(copyFailedLabel)
+                    }
+                  },
+                },
+              ]
+              if (message.sticker?.id && userId) {
+                actionItems.splice(1, 0, {
+                  id: "save-sticker",
+                  label: addStickerLabel,
+                  onSelect: async () => {
+                    try {
+                      await saveStickerToCustomLibrary(message.sticker!.id, userId)
+                      toast.success(stickerSavedLabel)
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : copyFailedLabel)
+                    }
+                  },
+                })
+              }
+              if (primaryImage) {
+                actionItems.splice(actionItems.length - 1, 0,
+                  {
+                    id: "download-image",
+                    label: downloadImageLabel,
+                    onSelect: () => triggerBrowserDownload(primaryImage.downloadUrl, primaryImage.originalName),
+                  },
+                  {
+                    id: "copy-image",
+                    label: copyImageLabel,
+                    onSelect: async () => {
+                      try {
+                        await copyImageToClipboard(primaryImage.downloadUrl)
+                        toast.success(copyImageSuccessLabel)
+                      } catch (error) {
+                        toast.error(error instanceof Error ? error.message : copyImageFailedLabel)
+                      }
+                    },
+                  }
+                )
+              }
               const bubbleContent = (
                 <>
-                  {message.replyTo ? <ReplyChip reply={message.replyTo} /> : null}
                   {message.text && <p className="whitespace-pre-wrap break-words text-sm">{message.text}</p>}
                   {message.stickerEmoji && <p className="text-5xl leading-none">{message.stickerEmoji}</p>}
                   {message.sticker && (
@@ -843,7 +964,7 @@ export function ChatPanel({
                     <img src={message.sticker.url} alt={message.sticker.name || message.sticker.originalName || "sticker"} className={assetStickerOnly ? "max-h-36 max-w-36 object-contain" : "max-h-32 max-w-32 object-contain"} />
                   )}
                   {message.attachments.length > 0 && (
-                    <div className="mt-2 space-y-2">
+                    <div className={hasLeadingContent ? "mt-2 space-y-2" : "space-y-2"}>
                       {message.attachments.map((attachment) => (
                         <AttachmentView key={attachment.id} attachment={attachment} mine={mine} onPreview={setPreviewImage} />
                       ))}
@@ -851,18 +972,6 @@ export function ChatPanel({
                   )}
                   <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-[--color-text-muted]">
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => onReplyChange?.({
-                        id: message.id,
-                        senderId: message.senderId,
-                        text: message.text,
-                        stickerEmoji: message.stickerEmoji,
-                        sticker: message.sticker,
-                        sender,
-                        attachments: message.attachments,
-                      })} className="inline-flex items-center gap-1 hover:text-[--color-link]">
-                        <Reply size={12} />
-                        <span>{labels.reply}</span>
-                      </button>
                       {message.localStatus === "sending" && (
                         <span className="inline-flex items-center gap-1">
                           <Loader2 size={11} className="animate-spin" />
@@ -880,21 +989,6 @@ export function ChatPanel({
                 </>
               )
 
-              const startLongPress = () => {
-                const timer = window.setTimeout(() => {
-                  onReplyChange?.({
-                    id: message.id,
-                    senderId: message.senderId,
-                    text: message.text,
-                    stickerEmoji: message.stickerEmoji,
-                    sticker: message.sticker,
-                    sender,
-                    attachments: message.attachments,
-                  })
-                }, 450)
-                return timer
-              }
-
               return (
                 <div key={message.id}>
                   {shouldShowTime(previous, message) && (
@@ -906,20 +1000,17 @@ export function ChatPanel({
                         <UserAvatar size="sm" name={sender.displayName} email={sender.email} avatarText={sender.avatarText} avatarUrl={sender.avatarUrl} />
                       </button>
                     )}
-                    <div
-                      className={(assetStickerOnly || imageOnly) ? "group relative max-w-[84%]" : `wechat-bubble group relative max-w-[84%] px-3 py-2 text-[--color-text-primary] ${mine ? "wechat-bubble-right" : "wechat-bubble-left"}`}
-                      onPointerDown={() => {
-                        const timer = startLongPress()
-                        const clear = () => {
-                          window.clearTimeout(timer)
-                          window.removeEventListener("pointerup", clear)
-                          window.removeEventListener("pointercancel", clear)
-                        }
-                        window.addEventListener("pointerup", clear)
-                        window.addEventListener("pointercancel", clear)
-                      }}
-                    >
-                      {bubbleContent}
+                    <div className={`flex max-w-[84%] flex-col ${mine ? "items-end" : "items-start"}`}>
+                      <MessageActionSurface className={(assetStickerOnly || attachmentOnly) ? "group relative max-w-full" : `wechat-bubble group relative max-w-full px-3 py-2 text-[--color-text-primary] ${mine ? "wechat-bubble-right" : "wechat-bubble-left"}`} items={actionItems} preview={actionPreview}>
+                        {bubbleContent}
+                      </MessageActionSurface>
+                      {message.replyTo && replySummary ? (
+                        <MessageReplyReference
+                          sender={message.replyTo.sender?.displayName || message.replyTo.sender?.email || labels.you}
+                          summary={replySummary}
+                          align={mine ? "right" : "left"}
+                        />
+                      ) : null}
                     </div>
                     {mine && (
                       <UserAvatar size="sm" name={sender.displayName} email={sender.email} avatarText={sender.avatarText} avatarUrl={sender.avatarUrl} />
@@ -932,56 +1023,6 @@ export function ChatPanel({
           </div>
         )}
       </div>
-
-      {files.length > 0 && (
-        <div className="max-h-44 shrink-0 overflow-y-auto border-t border-[--color-border] bg-[--color-bg-surface] px-3 py-2 sm:px-4">
-          {hasImageDraft && (
-            <button
-              type="button"
-              onClick={() => onSendOriginalChange?.(!sendOriginal)}
-              className={`mb-2 inline-flex items-center gap-1.5 text-xs transition-colors hover:text-[--color-link] ${sendOriginal ? "text-[--color-link]" : "text-[--color-text-muted]"}`}
-            >
-              {sendOriginal ? <CheckCircle2 size={14} /> : <Circle size={14} />}
-              {labels.originalImage}
-            </button>
-          )}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {files.map((file, index) => (
-              <DraftFilePreview
-                key={`${file.name}-${file.lastModified}-${index}`}
-                file={file}
-                onRemove={() => onFilesChange(files.filter((_, i) => i !== index))}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {replyTo ? (
-        <div className="shrink-0 border-t border-[--color-border] bg-[--color-bg-surface] px-3 py-2 sm:px-4">
-          <div className="flex items-start justify-between gap-3 rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-hover] px-3 py-2">
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-[--color-text-primary]">{labels.replyingTo} {replyTo.sender?.displayName || replyTo.sender?.email || labels.you}</p>
-              <p className="truncate text-xs text-[--color-text-secondary]">{getReplySummary(replyTo)}</p>
-            </div>
-            <button type="button" onClick={() => onReplyChange?.(null)} className="shrink-0 text-[--color-text-muted] hover:text-[--color-danger]">
-              <X size={14} />
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {sticker?.type === "asset" && (
-        <div className="shrink-0 border-t border-[--color-border] px-3 py-2 sm:px-4">
-          <span className="inline-flex items-center gap-2 rounded border border-[--color-border] bg-[--color-bg-hover] px-2 py-1">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={sticker.url} alt={sticker.name} className="h-10 w-10 object-contain" />
-            <button type="button" onClick={() => onStickerChange?.(null)} className="text-[--color-text-muted] hover:text-[--color-danger]">
-              <X size={13} />
-            </button>
-          </span>
-        </div>
-      )}
 
       <form
         className="wechat-composer shrink-0 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
@@ -1001,14 +1042,29 @@ export function ChatPanel({
           }}
         />
         <div className="wechat-composer-panel flex flex-col">
+          <ChatComposerAttachments
+            files={files}
+            sticker={sticker}
+            fileLabel={labels.attachment}
+            onRemoveFile={(index) => onFilesChange(files.filter((_, i) => i !== index))}
+            onRemoveSticker={() => onStickerChange?.(null)}
+          />
           <textarea
             value={text}
             onChange={(event) => onTextChange(event.target.value)}
+            onPaste={handleComposerPaste}
             onFocus={() => window.setTimeout(() => endRef.current?.scrollIntoView({ block: "end" }), 80)}
             placeholder={labels.typeMessage}
             rows={3}
             className="wechat-composer-input max-h-32 flex-1 resize-none px-3 py-3 text-sm text-[--color-text-primary]"
           />
+          {replyTo ? (
+            <ComposerReplyPreview
+              sender={replyTo.sender?.displayName || replyTo.sender?.email || labels.you}
+              summary={getReplySummary(replyTo)}
+              onClear={() => onReplyChange?.(null)}
+            />
+          ) : null}
           <div className="flex items-center gap-1 px-3 pb-3">
             <StickerPicker userId={userId} onPick={(pick) => onStickerPick ? onStickerPick(pick) : onStickerChange?.(pick)} />
             <Button type="button" variant="ghost" size="sm" onClick={() => inputRef.current?.click()} className="h-9 w-9 shrink-0 px-0 text-[--color-text-secondary] hover:bg-[#ededed]">
@@ -1079,23 +1135,13 @@ export function ChatPanel({
       </Dialog>
 
       <Dialog open={Boolean(previewImage)} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <DialogContent className="max-w-[min(92vw,920px)]">
-          <DialogHeader>
-            <DialogTitle>{previewImage?.originalName || labels.imagePreview}</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-[min(96vw,960px)] gap-0 overflow-hidden p-2 sm:p-3">
           {previewImage && (
-            <div className="flex max-h-[75vh] items-center justify-center overflow-auto rounded-[--radius-md] bg-black/5 p-2">
+            <div className="flex max-h-[92vh] items-center justify-center overflow-auto rounded-[--radius-lg]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={previewImage.downloadUrl} alt={previewImage.originalName} className="max-h-[72vh] max-w-full object-contain" />
+              <img src={previewImage.downloadUrl} alt={previewImage.originalName} className="block max-h-[88vh] max-w-full object-contain" />
             </div>
           )}
-          <DialogFooter>
-            <Button asChild variant="outline">
-              <a href={previewImage?.downloadUrl} download={previewImage?.originalName}>
-                <Download size={14} /> Download
-              </a>
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

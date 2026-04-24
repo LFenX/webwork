@@ -381,7 +381,18 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-[1200px] px-6 pb-10 pt-4">
-      <AnnouncementChannelBar initialAnnouncements={announcements} userId={userId} locale={userSettings.language} />
+      <AnnouncementChannelBar
+        initialAnnouncements={announcements}
+        userId={userId}
+        locale={userSettings.language}
+        currentUser={{
+          id: userId,
+          email: profile?.email ?? session.email,
+          displayName: profile?.displayName ?? profile?.email ?? session.email,
+          avatarText: profile?.avatarText ?? "",
+          avatarUrl: profile?.avatarUrl ?? null,
+        }}
+      />
 
       {profile && (
         <section className="mb-6 flex items-center gap-4 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] px-4 py-4">

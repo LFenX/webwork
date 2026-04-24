@@ -97,7 +97,10 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
 
   useEffect(() => {
     if (!enabled) return
-    void load()
+    const timer = window.setTimeout(() => {
+      void load()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [enabled, load])
 
   const pendingCount = useMemo(() => requests.filter((item) => item.status === "pending").length, [requests])

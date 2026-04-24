@@ -67,6 +67,14 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
     return () => window.clearTimeout(timer)
   }, [load, open])
 
+  useEffect(() => {
+    const handleUpdated = () => {
+      void load()
+    }
+    window.addEventListener("stickers-updated", handleUpdated)
+    return () => window.removeEventListener("stickers-updated", handleUpdated)
+  }, [load])
+
   async function upload(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? [])
     event.currentTarget.value = ""

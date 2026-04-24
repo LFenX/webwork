@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ChatPanel, type ChatFriend, type ChatSummary, messagePreview, presenceLabel, useChatSession } from "@/components/friend-chat"
 import { UserAvatar } from "@/components/user-avatar"
+import { getActiveChatContext, subscribeActiveChatContext } from "@/lib/active-chat"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 
 interface Friend extends ChatFriend {
@@ -151,11 +152,15 @@ function AvatarWithUnread({ friend, unreadCount }: { friend: Friend; unreadCount
 }
 
 async function fetchFriendData(): Promise<FriendData> {
+  const activeContext = getActiveChatContext()
+  const summaryParams = new URLSearchParams()
+  if (activeContext?.kind === "direct") summaryParams.set("activeFriendId", activeContext.id)
+  const summaryUrl = summaryParams.size > 0 ? `/api/chats/summary?${summaryParams.toString()}` : "/api/chats/summary"
   const responses = await Promise.all([
     fetch("/api/friends", { cache: "no-store" }),
     fetch("/api/friend-requests?direction=received", { cache: "no-store" }),
     fetch("/api/friend-requests?direction=sent", { cache: "no-store" }),
-    fetch("/api/chats/summary", { cache: "no-store" }),
+    fetch(summaryUrl, { cache: "no-store" }),
   ])
 
   if (responses.some((response) => !response.ok)) throw new Error("Failed to load friends")
@@ -169,7 +174,7 @@ async function fetchFriendData(): Promise<FriendData> {
   }
 }
 
-export function FriendsClient({ userId }: { userId: string }) {
+export function FriendsClient({ userId, currentUser }: { userId: string; currentUser: ChatFriend }) {
   const labels = getLabels()
   const [view, setView] = useState<ViewMode>("friends")
   const [friends, setFriends] = useState<Friend[]>([])
@@ -192,7 +197,10 @@ export function FriendsClient({ userId }: { userId: string }) {
 
   const refreshSummary = useCallback(async () => {
     try {
-      const response = await fetch("/api/chats/summary", { cache: "no-store" })
+      const activeContext = getActiveChatContext()
+      const params = new URLSearchParams()
+      if (activeContext?.kind === "direct") params.set("activeFriendId", activeContext.id)
+      const response = await fetch(params.size > 0 ? `/api/chats/summary?${params.toString()}` : "/api/chats/summary", { cache: "no-store" })
       if (!response.ok) return
       const data = await response.json()
       const items = Array.isArray(data.items) ? data.items : []
@@ -202,18 +210,20 @@ export function FriendsClient({ userId }: { userId: string }) {
     }
   }, [])
 
-  const chat = useChatSession(view === "chat" ? selectedFriendId : null, selectedFriend, refreshSummary, userId)
+  const chat = useChatSession(view === "chat" ? selectedFriendId : null, selectedFriend, refreshSummary, currentUser)
 
-  const loadAll = useCallback(async () => {
-    setLoading(true)
+  const loadAll = useCallback(async ({ showLoading = true, useCache = true }: { showLoading?: boolean; useCache?: boolean } = {}) => {
+    if (showLoading) setLoading(true)
     try {
-      const cached = readUserStorage<FriendData>({
-        kind: "session",
-        key: friendCacheKey,
-        userId,
-        ttlMs: FRIEND_CACHE_TTL_MS,
-      })
-      if (cached) {
+      const cached = useCache
+        ? readUserStorage<FriendData>({
+            kind: "session",
+            key: friendCacheKey,
+            userId,
+            ttlMs: FRIEND_CACHE_TTL_MS,
+          })
+        : null
+      if (cached && showLoading) {
         startTransition(() => {
           setFriends(cached.friends)
           setReceived(cached.received)
@@ -234,7 +244,7 @@ export function FriendsClient({ userId }: { userId: string }) {
     } catch {
       toast.error(labels.loadFailed)
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
   }, [friendCacheKey, labels.loadFailed, startTransition, userId])
 
@@ -244,29 +254,36 @@ export function FriendsClient({ userId }: { userId: string }) {
   }, [loadAll])
 
   useEffect(() => {
-    const refresh = () => {
+    const refreshFriends = () => {
       if (document.visibilityState !== "visible") return
       removeUserStorage("session", friendCacheKey)
-      void loadAll()
+      void loadAll({ showLoading: false, useCache: false })
     }
-    const interval = window.setInterval(refresh, FRIEND_PRESENCE_REFRESH_MS)
-    const onFocus = () => refresh()
+    const refreshChatSummary = () => {
+      void refreshSummary()
+    }
+    const interval = window.setInterval(refreshFriends, FRIEND_PRESENCE_REFRESH_MS)
+    const onFocus = () => refreshFriends()
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") refresh()
+      if (document.visibilityState === "visible") refreshFriends()
     }
+    const unsubscribeActiveChat = subscribeActiveChatContext(() => {
+      void refreshSummary()
+    })
 
     window.addEventListener("focus", onFocus)
     document.addEventListener("visibilitychange", onVisibilityChange)
-    window.addEventListener("chat-unread-refresh", refresh)
-    window.addEventListener("presence-refresh", refresh)
+    window.addEventListener("chat-unread-refresh", refreshChatSummary)
+    window.addEventListener("presence-refresh", refreshFriends)
     return () => {
       window.clearInterval(interval)
       window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisibilityChange)
-      window.removeEventListener("chat-unread-refresh", refresh)
-      window.removeEventListener("presence-refresh", refresh)
+      window.removeEventListener("chat-unread-refresh", refreshChatSummary)
+      window.removeEventListener("presence-refresh", refreshFriends)
+      unsubscribeActiveChat()
     }
-  }, [friendCacheKey, loadAll])
+  }, [friendCacheKey, loadAll, refreshSummary])
 
   function switchView(next: ViewMode) {
     setView(next)
@@ -297,7 +314,7 @@ export function FriendsClient({ userId }: { userId: string }) {
         setEmail("")
         setRequestNote("")
         removeUserStorage("session", friendCacheKey)
-        await loadAll()
+        await loadAll({ useCache: false })
       }
     } finally {
       setRequestSending(false)
@@ -313,7 +330,7 @@ export function FriendsClient({ userId }: { userId: string }) {
     if (response.ok) {
       toast.success(action === "accept" ? labels.requestAccepted : labels.requestRejected)
       removeUserStorage("session", friendCacheKey)
-      await loadAll()
+      await loadAll({ useCache: false })
     } else {
       toast.error(labels.operationFailed)
     }
@@ -324,7 +341,7 @@ export function FriendsClient({ userId }: { userId: string }) {
     if (response.ok) {
       toast.success(labels.requestCancelled)
       removeUserStorage("session", friendCacheKey)
-      await loadAll()
+      await loadAll({ useCache: false })
     } else {
       toast.error(labels.operationFailed)
     }
@@ -336,7 +353,7 @@ export function FriendsClient({ userId }: { userId: string }) {
       toast.success(labels.unfriended)
       setUnfriendTarget(null)
       removeUserStorage("session", friendCacheKey)
-      await loadAll()
+      await loadAll({ useCache: false })
     } else {
       toast.error(labels.operationFailed)
     }
@@ -395,6 +412,7 @@ export function FriendsClient({ userId }: { userId: string }) {
           onSelectFriend={setSelectedFriendId}
           chat={chat}
           userId={userId}
+          currentUser={currentUser}
           labels={labels}
         />
       )}
@@ -587,6 +605,7 @@ function ChatWorkspace({
   onSelectFriend,
   chat,
   userId,
+  currentUser,
   labels,
 }: {
   friends: Friend[]
@@ -596,6 +615,7 @@ function ChatWorkspace({
   onSelectFriend: (id: string) => void
   chat: ReturnType<typeof useChatSession>
   userId: string
+  currentUser: ChatFriend
   labels: ReturnType<typeof getLabels>
 }) {
   return (
@@ -624,19 +644,18 @@ function ChatWorkspace({
       <div className="hidden lg:block">
         <ChatPanel
           friend={selectedFriend}
+          currentUser={currentUser}
           messages={chat.messages}
           loading={chat.loading}
           sending={chat.sending}
           text={chat.text}
           files={chat.files}
           sticker={chat.sticker}
-          sendOriginal={chat.sendOriginal}
           replyTo={chat.replyTo}
           onTextChange={chat.setText}
           onFilesChange={chat.setFiles}
           onStickerChange={chat.setSticker}
           onStickerPick={chat.pickSticker}
-          onSendOriginalChange={chat.setSendOriginal}
           onReplyChange={chat.setReplyTo}
           onSend={chat.sendMessage}
           onReload={chat.loadMessages}

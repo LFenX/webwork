@@ -1,9 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Download, File as FileIcon, Loader2, Megaphone, Menu, MessageCircle, Paperclip, Plus, RefreshCcw, Send, UserPlus, X } from "lucide-react"
+import { type ClipboardEvent as ReactClipboardEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { File as FileIcon, Loader2, Megaphone, Menu, MessageCircle, Paperclip, Plus, RefreshCcw, Send, UserPlus, X } from "lucide-react"
 import { toast } from "sonner"
+import { ComposerReplyPreview, MessageActionSurface, MessageReplyReference, type MessageActionItem } from "@/components/chat-message-actions"
+import { ChatComposerAttachments } from "@/components/chat-composer-attachments"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -11,6 +13,7 @@ import { StickerPicker, type StickerPick } from "@/components/sticker-picker"
 import { UserAvatar } from "@/components/user-avatar"
 import { GroupAvatar } from "@/components/group-avatar"
 import { deleteChatOutboxItem, listChatOutboxItems, saveChatOutboxItem, type ChatOutboxItem } from "@/lib/chat-outbox"
+import { copyImageToClipboard, getClipboardImageFiles, saveStickerToCustomLibrary, triggerBrowserDownload } from "@/lib/chat-media-actions"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 import { getDictionary, type AppLocale } from "@/lib/i18n"
 
@@ -51,6 +54,17 @@ type ChannelAttachment = {
   downloadUrl: string
 }
 
+type ChannelStickerAsset = {
+  id: string
+  url: string
+  scope?: string
+  name?: string
+  originalName?: string
+  mimeType?: string
+  size?: number
+  isAnimated?: boolean
+}
+
 type ChannelMessage = {
   id: string
   channelId: string
@@ -59,7 +73,7 @@ type ChannelMessage = {
   text: string
   stickerId?: string | null
   stickerEmoji?: string | null
-  sticker?: { id: string; url: string; name?: string; originalName?: string; isAnimated?: boolean } | null
+  sticker?: ChannelStickerAsset | null
   createdAt: string
   attachments: ChannelAttachment[]
   replyTo?: {
@@ -67,7 +81,7 @@ type ChannelMessage = {
     sender: Friend
     text: string
     stickerEmoji?: string | null
-    sticker?: { id: string; url: string; name?: string; originalName?: string } | null
+    sticker?: ChannelStickerAsset | null
     attachments: ChannelAttachment[]
   } | null
   localStatus?: "sending" | "failed"
@@ -137,12 +151,12 @@ function uploadChannelMessage({
   })
 }
 
-function outboxToChannelMessage(item: ChatOutboxItem, currentUserId: string): ChannelMessage {
+function outboxToChannelMessage(item: ChatOutboxItem, currentUser: Friend): ChannelMessage {
   return {
     id: item.id,
     channelId: item.conversationId,
-    senderId: currentUserId,
-    sender: { id: currentUserId, email: "", displayName: "我", avatarText: "", avatarUrl: null },
+    senderId: currentUser.id,
+    sender: currentUser,
     text: item.text,
     stickerId: item.sticker?.type === "asset" ? item.sticker.id : null,
     stickerEmoji: item.sticker?.type === "emoji" ? item.sticker.emoji : null,
@@ -176,16 +190,38 @@ function mergeChannelMessages(current: ChannelMessage[], incoming: ChannelMessag
   return [...byId.values()].sort(compareChannelMessages)
 }
 
+function getChannelReplySummary(reply?: ChannelMessage["replyTo"] | null) {
+  if (!reply) return ""
+  if (reply.text.trim()) return reply.text.trim()
+  if (reply.stickerEmoji || reply.sticker) return "[Sticker]"
+  if (reply.attachments.length > 0) return reply.attachments[0]?.originalName || "[Attachment]"
+  return ""
+}
+
+function getChannelMessageCopyText(message: ChannelMessage) {
+  if (message.text.trim()) return message.text.trim()
+  if (message.stickerEmoji) return message.stickerEmoji
+  if (message.sticker) return "[Sticker]"
+  if (message.attachments.length > 0) return message.attachments.map((attachment) => attachment.originalName).join("\n")
+  return ""
+}
+
+function getPrimaryChannelImageAttachment(message: ChannelMessage) {
+  const imageAttachments = message.attachments.filter((attachment) => attachment.mimeType.startsWith("image/"))
+  return imageAttachments.length === 1 ? imageAttachments[0] : null
+}
+
 export function AnnouncementChannelBar({
   initialAnnouncements,
   userId,
+  currentUser,
   locale = "zh-CN",
 }: {
   initialAnnouncements: AnnouncementItem[]
   userId: string
+  currentUser: Friend
   locale?: AppLocale
 }) {
-  const dict = getDictionary(locale)
   const [open, setOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [announcements, setAnnouncements] = useState(initialAnnouncements)
@@ -296,7 +332,7 @@ export function AnnouncementChannelBar({
           <SheetHeader className="border-b border-[--color-border] px-4 py-3">
             <SheetTitle className="text-base">频道</SheetTitle>
           </SheetHeader>
-          <GroupChatClient userId={userId} locale={locale} onWorldAnnouncement={refreshAnnouncements} />
+          <GroupChatClient userId={userId} currentUser={currentUser} locale={locale} onWorldAnnouncement={refreshAnnouncements} />
         </SheetContent>
       </Sheet>
 
@@ -330,10 +366,12 @@ export function AnnouncementChannelBar({
 
 export function GroupChatClient({
   userId,
+  currentUser,
   locale = "zh-CN",
   onWorldAnnouncement = noopWorldAnnouncement,
 }: {
   userId: string
+  currentUser: Friend
   locale?: AppLocale
   onWorldAnnouncement?: () => void
 }) {
@@ -367,6 +405,10 @@ export function GroupChatClient({
   const isWorld = selected?.id === WORLD_CHANNEL_ID
   const friendIds = useMemo(() => new Set(friends.map((friend) => friend.id)), [friends])
   const inputDraftKey = selectedId ? userStorageKey(userId, "chat-input", `channel:${selectedId}`) : ""
+  const activeReplyTo = useMemo(
+    () => (replyTo && messages.some((message) => message.id === replyTo.id) ? replyTo : null),
+    [messages, replyTo]
+  )
 
   useEffect(() => {
     messagesRef.current = messages
@@ -413,7 +455,7 @@ export function GroupChatClient({
         return
       }
       const restoredDrafts = await listChatOutboxItems(userId, "channel", channelId)
-      const draftMessages = restoredDrafts.map((item) => outboxToChannelMessage(item, currentUserId || userId))
+      const draftMessages = restoredDrafts.map((item) => outboxToChannelMessage(item, currentUser))
       setMessages((current) => mergeChannelMessages(current.filter((item) => item.localStatus !== "failed"), [...items, ...draftMessages]))
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "加载消息失败")
@@ -421,7 +463,7 @@ export function GroupChatClient({
       if (appendOlder) setLoadingOlder(false)
       else setLoading(false)
     }
-  }, [currentUserId, userId])
+  }, [currentUser, userId])
 
   const loadOlderMessages = useCallback(async () => {
     if (!selectedId || !nextCursor || loading || loadingOlder) return
@@ -482,13 +524,6 @@ export function GroupChatClient({
   }, [inputDraftKey, text, userId])
 
   useEffect(() => {
-    if (!replyTo) return
-    if (!messages.some((message) => message.id === replyTo.id)) {
-      setReplyTo(null)
-    }
-  }, [messages, replyTo])
-
-  useEffect(() => {
     const currentLastMessageId = messages[messages.length - 1]?.id ?? null
     if (!selectedId) {
       lastMessageIdRef.current = currentLastMessageId
@@ -502,85 +537,99 @@ export function GroupChatClient({
 
   async function sendMessage(stickerOverride?: StickerPick | null) {
     const activeSticker = stickerOverride ?? sticker
-    const immediateAsset = activeSticker?.type === "asset"
-    const draft = immediateAsset ? "" : text.trim()
-    const draftFiles = immediateAsset ? [] : files
+    const draft = text.trim()
+    const draftFiles = [...files]
     if (!selected || (!draft && draftFiles.length === 0 && !activeSticker) || sending) return
-    const clientMutationId = crypto.randomUUID()
-    const localId = `local-${clientMutationId}`
-    const localMessage: ChannelMessage = {
-      id: localId,
-      channelId: selected.id,
-      senderId: currentUserId || userId,
-      sender: { id: currentUserId || userId, email: "", displayName: "我", avatarText: "", avatarUrl: null },
-      text: draft,
-      stickerId: activeSticker?.type === "asset" ? activeSticker.id : null,
-      stickerEmoji: activeSticker?.type === "emoji" ? activeSticker.emoji : null,
-      sticker: activeSticker?.type === "asset" ? { id: activeSticker.id, url: activeSticker.url, name: activeSticker.name } : null,
-      createdAt: new Date().toISOString(),
-      attachments: draftFiles.map((file, index) => ({
-        id: `${localId}-${index}`,
-        originalName: file.name || "file",
-        mimeType: file.type || "application/octet-stream",
-        size: file.size,
-        downloadUrl: URL.createObjectURL(file),
-      })),
-      replyTo: replyTo
-        ? {
-            id: replyTo.id,
-            sender: replyTo.sender,
-            text: replyTo.text,
-            stickerEmoji: replyTo.stickerEmoji ?? null,
-            sticker: replyTo.sticker ?? null,
-            attachments: replyTo.attachments,
-          }
-        : null,
-      localStatus: "sending",
-    }
-    setMessages((current) => [...current, localMessage])
-    if (!immediateAsset) {
-      removeUserStorage("session", inputDraftKey)
-      setText("")
-      setFiles([])
-    }
+
+    const shouldPublish = isWorld && publishToAnnouncement
+    removeUserStorage("session", inputDraftKey)
+    setText("")
+    setFiles([])
     setSticker(null)
+    setReplyTo(null)
+    setPublishToAnnouncement(false)
     setSending(true)
-    try {
-      const shouldPublish = isWorld && publishToAnnouncement
-      const created = await uploadChannelMessage({
-        channelId: selected.id,
-        text: draft,
-        files: draftFiles,
-        sticker: activeSticker,
-        publishToAnnouncement: shouldPublish,
-        replyToId: replyTo?.id ?? null,
-      })
-      setMessages((current) => current.map((item) => item.id === localId ? created : item))
-      await deleteChatOutboxItem(localId)
-      if (shouldPublish && draft) onWorldAnnouncement()
-      setPublishToAnnouncement(false)
-      setReplyTo(null)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "发送失败"
-      await saveChatOutboxItem({
+
+    const batches = [
+      ...(draft ? [{ text: draft, files: [] as File[], sticker: null as StickerPick | null, publish: shouldPublish }] : []),
+      ...draftFiles.map((file) => ({ text: "", files: [file], sticker: null as StickerPick | null, publish: false })),
+      ...(activeSticker ? [{ text: "", files: [] as File[], sticker: activeSticker, publish: false }] : []),
+    ]
+    const localEntries = batches.map((batch, index) => {
+      const clientMutationId = crypto.randomUUID()
+      const localId = `local-${clientMutationId}`
+      const localMessage: ChannelMessage = {
         id: localId,
-        clientMutationId,
-        userId,
-        conversationType: "channel",
-        conversationId: selected.id,
-        text: draft,
-        sticker: activeSticker ?? null,
-        files: draftFiles,
-        createdAt: Date.now(),
-        lastError: message,
-      }).catch((saveError) => {
-        toast.error(saveError instanceof Error ? saveError.message : "保存重试消息失败")
-      })
-      setMessages((current) => current.map((item) => item.id === localId ? { ...item, localStatus: "failed" } : item))
-      toast.error(message)
-    } finally {
-      setSending(false)
+        channelId: selected.id,
+        senderId: currentUser.id,
+        sender: currentUser,
+        text: batch.text,
+        stickerId: batch.sticker?.type === "asset" ? batch.sticker.id : null,
+        stickerEmoji: batch.sticker?.type === "emoji" ? batch.sticker.emoji : null,
+        sticker: batch.sticker?.type === "asset" ? { id: batch.sticker.id, url: batch.sticker.url, name: batch.sticker.name } : null,
+        createdAt: new Date().toISOString(),
+        attachments: batch.files.map((file, fileIndex) => ({
+          id: `${localId}-${fileIndex}`,
+          originalName: file.name || "file",
+          mimeType: file.type || "application/octet-stream",
+          size: file.size,
+          downloadUrl: URL.createObjectURL(file),
+        })),
+        replyTo: index === 0 && activeReplyTo
+          ? {
+              id: activeReplyTo.id,
+              sender: activeReplyTo.sender,
+              text: activeReplyTo.text,
+              stickerEmoji: activeReplyTo.stickerEmoji ?? null,
+              sticker: activeReplyTo.sticker ?? null,
+              attachments: activeReplyTo.attachments,
+            }
+          : null,
+        localStatus: "sending",
+      }
+      return { batch, clientMutationId, localId, localMessage }
+    })
+    setMessages((current) => [...current, ...localEntries.map((entry) => entry.localMessage)])
+
+    let firstReplyId = activeReplyTo?.id ?? null
+    for (let index = 0; index < localEntries.length; index += 1) {
+      const { batch, clientMutationId, localId } = localEntries[index]
+      try {
+        const created = await uploadChannelMessage({
+          channelId: selected.id,
+          text: batch.text,
+          files: batch.files,
+          sticker: batch.sticker,
+          publishToAnnouncement: batch.publish,
+          replyToId: index === 0 ? firstReplyId : null,
+        })
+        setMessages((current) => current.map((item) => item.id === localId ? created : item))
+        await deleteChatOutboxItem(localId)
+        if (batch.publish && batch.text) onWorldAnnouncement()
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "????"
+        await saveChatOutboxItem({
+          id: localId,
+          clientMutationId,
+          userId,
+          conversationType: "channel",
+          conversationId: selected.id,
+          text: batch.text,
+          sticker: batch.sticker ?? null,
+          files: batch.files,
+          createdAt: Date.now(),
+          lastError: message,
+        }).catch((saveError) => {
+          toast.error(saveError instanceof Error ? saveError.message : "????????")
+        })
+        setMessages((current) => current.map((item) => item.id === localId ? { ...item, localStatus: "failed" } : item))
+        toast.error(message)
+      }
+
+      firstReplyId = null
     }
+
+    setSending(false)
   }
 
   async function retryFailedMessage(messageId: string) {
@@ -638,6 +687,13 @@ export function GroupChatClient({
     container.addEventListener("scroll", onScroll, { passive: true })
     return () => container.removeEventListener("scroll", onScroll)
   }, [handleLoadOlderMessages, loading, loadingOlder, messages.length, nextCursor])
+
+  const handleComposerPaste = useCallback((event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedFiles = getClipboardImageFiles(event.clipboardData)
+    if (pastedFiles.length === 0) return
+    event.preventDefault()
+    setFiles((current) => [...current, ...pastedFiles])
+  }, [])
 
   return (
     <div className="relative flex min-h-0 w-full max-w-full flex-1 overflow-hidden md:grid md:grid-cols-[260px_minmax(0,1fr)]">
@@ -741,6 +797,8 @@ export function GroupChatClient({
                   <ChannelMessageBubble
                     message={message}
                     mine={message.senderId === (currentUserId || userId)}
+                    locale={locale}
+                    userId={userId}
                     onUserClick={setProfileUser}
                     onImagePreview={setPreviewImage}
                     onRetry={retryFailedMessage}
@@ -753,52 +811,6 @@ export function GroupChatClient({
             </div>
           )}
         </div>
-
-        {replyTo && (
-          <div className="border-t border-[--color-border] px-4 py-2">
-            <div className="flex items-start justify-between gap-3 rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-hover] px-3 py-2">
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-[--color-text-secondary]">
-                  Replying to {replyTo.sender.displayName || replyTo.sender.email}
-                </p>
-                <p className="truncate text-xs text-[--color-text-muted]">
-                  {replyTo.text || replyTo.stickerEmoji || (replyTo.sticker ? "[Sticker]" : replyTo.attachments[0]?.originalName || "[Attachment]")}
-                </p>
-              </div>
-              <button type="button" onClick={() => setReplyTo(null)} className="text-[--color-text-muted] hover:text-[--color-danger]">
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {files.length > 0 && (
-          <div className="border-t border-[--color-border] px-4 py-2">
-            <div className="flex flex-wrap gap-2">
-              {files.map((file, index) => (
-                <span key={`${file.name}-${index}`} className="inline-flex max-w-[220px] items-center gap-1 rounded border border-[--color-border] px-2 py-1 text-xs">
-                  <FileIcon size={13} />
-                  <span className="truncate">{file.name}</span>
-                  <button type="button" onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}>
-                    <X size={13} />
-                  </button>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {sticker?.type === "asset" && (
-          <div className="border-t border-[--color-border] px-4 py-2">
-            <span className="inline-flex items-center gap-2 rounded border border-[--color-border] bg-[--color-bg-hover] px-2 py-1">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={sticker.url} alt={sticker.name} className="h-10 w-10 object-contain" />
-              <button type="button" onClick={() => setSticker(null)} className="text-[--color-text-muted] hover:text-[--color-danger]">
-                <X size={13} />
-              </button>
-            </span>
-          </div>
-        )}
 
         <form
           className="wechat-composer p-3"
@@ -818,13 +830,28 @@ export function GroupChatClient({
             }}
           />
           <div className="wechat-composer-panel flex flex-col">
+            <ChatComposerAttachments
+              files={files}
+              sticker={sticker}
+              fileLabel={locale === "en-US" ? "File" : "文件"}
+              onRemoveFile={(index) => setFiles((current) => current.filter((_, i) => i !== index))}
+              onRemoveSticker={() => setSticker(null)}
+            />
             <textarea
               value={text}
               onChange={(event) => setText(event.target.value)}
+              onPaste={handleComposerPaste}
               rows={3}
               placeholder="输入消息..."
               className="wechat-composer-input max-h-32 flex-1 resize-none px-3 py-3 text-sm text-[--color-text-primary]"
             />
+            {activeReplyTo ? (
+              <ComposerReplyPreview
+                sender={activeReplyTo.sender.displayName || activeReplyTo.sender.email}
+                summary={getChannelReplySummary(activeReplyTo)}
+                onClear={() => setReplyTo(null)}
+              />
+            ) : null}
             <div className="flex items-center gap-1 px-3 pb-3">
               <StickerPicker
                 userId={userId}
@@ -886,23 +913,13 @@ export function GroupChatClient({
         onOpenChange={(open) => !open && setProfileUser(null)}
       />
       <Dialog open={Boolean(previewImage)} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <DialogContent className="max-w-[min(92vw,920px)]">
-          <DialogHeader>
-            <DialogTitle>{previewImage?.originalName || "图片预览"}</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-[min(96vw,960px)] gap-0 overflow-hidden p-2 sm:p-3">
           {previewImage && (
-            <div className="flex max-h-[75vh] items-center justify-center overflow-auto rounded-[--radius-md] bg-black/5 p-2">
+            <div className="flex max-h-[92vh] items-center justify-center overflow-auto rounded-[--radius-lg]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={previewImage.downloadUrl} alt={previewImage.originalName} className="max-h-[72vh] max-w-full object-contain" />
+              <img src={previewImage.downloadUrl} alt={previewImage.originalName} className="block max-h-[88vh] max-w-full object-contain" />
             </div>
           )}
-          <DialogFooter>
-            <Button asChild variant="outline">
-              <a href={previewImage?.downloadUrl} download={previewImage?.originalName}>
-                <Download size={14} /> 下载
-              </a>
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -912,6 +929,8 @@ export function GroupChatClient({
 function ChannelMessageBubble({
   message,
   mine,
+  locale,
+  userId,
   onUserClick,
   onImagePreview,
   onRetry,
@@ -920,6 +939,8 @@ function ChannelMessageBubble({
 }: {
   message: ChannelMessage
   mine: boolean
+  locale: AppLocale
+  userId: string
   onUserClick: (user: Friend) => void
   onImagePreview: (attachment: ChannelAttachment) => void
   onRetry: (messageId: string) => void
@@ -928,6 +949,77 @@ function ChannelMessageBubble({
 }) {
   const assetStickerOnly = !message.text && !message.stickerEmoji && Boolean(message.sticker) && message.attachments.length === 0
   const imageOnly = !message.text && !message.stickerEmoji && !message.sticker && message.attachments.length > 0 && message.attachments.every((attachment) => attachment.mimeType.startsWith("image/"))
+  const fileOnly = !message.text && !message.stickerEmoji && !message.sticker && message.attachments.length > 0 && message.attachments.every((attachment) => !attachment.mimeType.startsWith("image/"))
+  const attachmentOnly = imageOnly || fileOnly
+  const hasLeadingContent = Boolean(message.text || message.stickerEmoji || message.sticker)
+  const primaryImage = getPrimaryChannelImageAttachment(message)
+  const actionLabels = locale === "en-US"
+    ? { reply: "Quote", copy: "Copy", copied: "Copied", copyFailed: "Copy failed", you: "You" }
+    : { reply: "引用", copy: "复制", copied: "已复制", copyFailed: "复制失败", you: "我" }
+  const replySummary = getChannelReplySummary(message.replyTo)
+  const addStickerLabel = locale === "en-US" ? "Add to My Stickers" : "添加到我的表情"
+  const stickerSavedLabel = locale === "en-US" ? "Saved to your custom stickers." : "已添加到我的表情"
+  const downloadImageLabel = locale === "en-US" ? "Download Image" : "下载图片"
+  const copyImageLabel = locale === "en-US" ? "Copy Image" : "复制图片"
+  const copyImageSuccessLabel = locale === "en-US" ? "Image copied. You can paste it into the composer." : "图片已复制，可直接粘贴到输入框"
+  const copyImageFailedLabel = locale === "en-US" ? "Image copy failed" : "复制图片失败"
+  const actionPreview = <ChannelMessageActionPreview message={message} senderName={message.sender.displayName || message.sender.email || actionLabels.you} />
+  const actionItems: MessageActionItem[] = [
+    {
+      id: "reply",
+      label: actionLabels.reply,
+      onSelect: () => onReply(message),
+    },
+    {
+      id: "copy",
+      label: actionLabels.copy,
+      onSelect: async () => {
+        const copyText = getChannelMessageCopyText(message)
+        if (!copyText) return
+        try {
+          await navigator.clipboard.writeText(copyText)
+          toast.success(actionLabels.copied)
+        } catch {
+          toast.error(actionLabels.copyFailed)
+        }
+      },
+    },
+  ]
+  if (message.sticker?.id) {
+    actionItems.splice(1, 0, {
+      id: "save-sticker",
+      label: addStickerLabel,
+      onSelect: async () => {
+        try {
+          await saveStickerToCustomLibrary(message.sticker!.id, userId)
+          toast.success(stickerSavedLabel)
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : actionLabels.copyFailed)
+        }
+      },
+    })
+  }
+  if (primaryImage) {
+    actionItems.splice(actionItems.length - 1, 0,
+      {
+        id: "download-image",
+        label: downloadImageLabel,
+        onSelect: () => triggerBrowserDownload(primaryImage.downloadUrl, primaryImage.originalName),
+      },
+      {
+        id: "copy-image",
+        label: copyImageLabel,
+        onSelect: async () => {
+          try {
+            await copyImageToClipboard(primaryImage.downloadUrl)
+            toast.success(copyImageSuccessLabel)
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : copyImageFailedLabel)
+          }
+        },
+      }
+    )
+  }
   return (
     <div className={`flex items-start gap-2 ${mine ? "justify-end" : "justify-start"}`}>
       {!mine && (
@@ -937,21 +1029,7 @@ function ChannelMessageBubble({
       )}
       <div className={`flex max-w-[78%] flex-col ${mine ? "items-end" : "items-start"}`}>
         <p className="mb-1 max-w-full truncate text-xs text-[--color-text-muted]">{message.sender.displayName || message.sender.email}</p>
-        <div className={(assetStickerOnly || imageOnly) ? "" : `wechat-bubble px-3 py-2 text-[--color-text-primary] ${mine ? "wechat-bubble-right" : "wechat-bubble-left"}`}>
-          {message.replyTo && (
-            <button
-              type="button"
-              onClick={() => onReply(message.replyTo ? { ...message, ...message.replyTo, channelId: message.channelId, senderId: message.replyTo.sender.id, sender: message.replyTo.sender, createdAt: message.createdAt, localStatus: undefined } as ChannelMessage : message)}
-              className="mb-2 block w-full rounded-[--radius-sm] border border-[--color-border] bg-black/5 px-2 py-1 text-left hover:bg-black/10"
-            >
-              <p className="truncate text-[11px] font-medium text-[--color-text-secondary]">
-                {message.replyTo.sender.displayName || message.replyTo.sender.email}
-              </p>
-              <p className="truncate text-[11px] text-[--color-text-muted]">
-                {message.replyTo.text || message.replyTo.stickerEmoji || (message.replyTo.sticker ? "[Sticker]" : message.replyTo.attachments[0]?.originalName || "[Attachment]")}
-              </p>
-            </button>
-          )}
+        <MessageActionSurface className={(assetStickerOnly || attachmentOnly) ? "" : `wechat-bubble px-3 py-2 text-[--color-text-primary] ${mine ? "wechat-bubble-right" : "wechat-bubble-left"}`} items={actionItems} preview={actionPreview}>
           {message.text && <p className="whitespace-pre-wrap break-words text-sm">{message.text}</p>}
           {message.stickerEmoji && <p className="text-5xl leading-none">{message.stickerEmoji}</p>}
           {message.sticker && (
@@ -959,7 +1037,7 @@ function ChannelMessageBubble({
             <img src={message.sticker.url} alt={message.sticker.name || message.sticker.originalName || "sticker"} className={assetStickerOnly ? "max-h-36 max-w-36 object-contain" : "max-h-32 max-w-32 object-contain"} />
           )}
           {message.attachments.length > 0 && (
-            <div className="mt-2 space-y-2">
+            <div className={hasLeadingContent ? "mt-2 space-y-2" : "space-y-2"}>
               {message.attachments.map((attachment) => <AttachmentView key={attachment.id} attachment={attachment} mine={mine} onPreview={onImagePreview} />)}
             </div>
           )}
@@ -974,10 +1052,14 @@ function ChannelMessageBubble({
               )}
             </div>
           )}
-        </div>
-        <button type="button" onClick={() => onReply(message)} className="mt-1 text-[11px] text-[--color-link] hover:underline">
-          Reply
-        </button>
+        </MessageActionSurface>
+        {message.replyTo && replySummary ? (
+          <MessageReplyReference
+            sender={message.replyTo.sender.displayName || message.replyTo.sender.email || actionLabels.you}
+            summary={replySummary}
+            align={mine ? "right" : "left"}
+          />
+        ) : null}
       </div>
       {mine && (
         <button type="button" onClick={() => onUserClick(message.sender)} className="mt-5 shrink-0">
@@ -994,18 +1076,63 @@ function AttachmentView({ attachment, mine, onPreview }: { attachment: ChannelAt
     return (
       <button type="button" onClick={() => onPreview(attachment)} className="block max-w-full overflow-hidden rounded-[--radius-md] hover:opacity-95">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={attachment.downloadUrl} alt={attachment.originalName} className="max-h-72 max-w-full object-contain" />
+        <img src={attachment.downloadUrl} alt={attachment.originalName} className="block max-h-72 max-w-full object-contain" />
       </button>
     )
   }
+  const extension = attachment.originalName.split(".").pop()?.toUpperCase() || "FILE"
   return (
-    <div className={`overflow-hidden rounded border ${mine ? "border-[#d5e2ff] bg-white" : "border-[--color-border] bg-[--color-bg-hover]"}`}>
-      <a href={attachment.downloadUrl} className="flex items-center gap-2 px-2 py-2 text-xs text-[--color-link] hover:no-underline">
-        <FileIcon size={14} />
-        <span className="min-w-0 flex-1 truncate">{attachment.originalName}</span>
-        <span>{formatBytes(attachment.size)}</span>
-        <Download size={14} />
+    <div className={`overflow-hidden rounded-2xl border shadow-sm ${mine ? "border-[#d5e2ff] bg-white" : "border-[--color-border] bg-white"}`}>
+      <a href={attachment.downloadUrl} download={attachment.originalName} className="flex min-w-[220px] max-w-[280px] items-center gap-3 px-4 py-3 text-left hover:no-underline">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-[--color-text-primary]">{attachment.originalName}</p>
+          <p className="mt-1 text-xs text-[--color-text-muted]">{formatBytes(attachment.size)}</p>
+        </div>
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${mine ? "bg-[#e8f0ff] text-[#2563eb]" : "bg-[--color-bg-hover] text-[--color-text-secondary]"}`}>
+          <div className="flex flex-col items-center gap-1">
+            <FileIcon size={16} />
+            <span className="text-[9px] font-semibold leading-none">{extension.slice(0, 4)}</span>
+          </div>
+        </div>
       </a>
+    </div>
+  )
+}
+
+function ChannelMessageActionPreview({ message, senderName }: { message: ChannelMessage; senderName: string }) {
+  return (
+    <div className="space-y-2 p-3">
+      <p className="truncate text-xs font-medium text-[--color-text-secondary]">{senderName}</p>
+      {message.text ? <p className="whitespace-pre-wrap break-words text-sm text-[--color-text-primary]">{message.text}</p> : null}
+      {message.stickerEmoji ? <p className="text-4xl leading-none">{message.stickerEmoji}</p> : null}
+      {message.sticker ? (
+        <div className="overflow-hidden rounded-xl bg-white p-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={message.sticker.url} alt={message.sticker.name || message.sticker.originalName || "sticker"} className="block max-h-28 max-w-full object-contain" />
+        </div>
+      ) : null}
+      {message.attachments.length > 0 ? (
+        <div className="space-y-2">
+          {message.attachments.map((attachment) => (
+            attachment.mimeType.startsWith("image/") ? (
+              <div key={attachment.id} className="overflow-hidden rounded-xl bg-white p-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={attachment.downloadUrl} alt={attachment.originalName} className="block max-h-32 max-w-full object-contain" />
+              </div>
+            ) : (
+              <div key={attachment.id} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#e8f0ff] text-[#2563eb]">
+                  <FileIcon size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-[--color-text-primary]">{attachment.originalName}</p>
+                  <p className="text-xs text-[--color-text-muted]">{formatBytes(attachment.size)}</p>
+                </div>
+              </div>
+            )
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }

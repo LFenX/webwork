@@ -118,7 +118,6 @@ export function RealtimeNotifications({ userId }: { userId: string }) {
 
       const activeContext = getActiveChatContext()
       if (activeContext?.kind === "direct" && activeContext.id === message.senderId) {
-        window.dispatchEvent(new CustomEvent("chat-unread-refresh"))
         return
       }
 
