@@ -64,12 +64,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "表情包不存在" }, { status: 400, headers: NO_STORE })
   }
 
-  if (session.userId === ownerId) {
-    return NextResponse.json({ error: "不能给自己留言" }, { status: 400, headers: NO_STORE })
-  }
-
   const friends = await areFriends(session.userId, ownerId)
-  if (!friends) return NextResponse.json({ error: "只有好友才能留言" }, { status: 403, headers: NO_STORE })
+  if (!friends && session.userId !== ownerId) {
+    return NextResponse.json({ error: "只有好友或主页所有者才能留言" }, { status: 403, headers: NO_STORE })
+  }
 
   if (parentId) {
     const parent = await prisma.guestbookMessage.findFirst({

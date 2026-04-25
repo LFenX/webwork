@@ -382,7 +382,7 @@ export default async function HomePage() {
       ),
     },
     { id: "visitStats" as const, content: <VisitStatsPanel userId={userId} /> },
-    { id: "guestbook" as const, content: <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={false} /> },
+    { id: "guestbook" as const, content: <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={true} /> },
   ]
 
   return (
@@ -548,7 +548,7 @@ export default async function HomePage() {
 
       <VisitStatsPanel userId={userId} />
 
-      <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={false} />
+      <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={true} />
       </div>
     </div>
   )

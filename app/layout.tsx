@@ -23,6 +23,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   interactiveWidget: "resizes-content",
   themeColor: "#FAF9F5",
+  viewportFit: "cover",
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -31,6 +32,20 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `${settings.ownerName} Space`,
     description: settings.heroTagline,
+    manifest: '/manifest.json',
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'default',
+      title: 'lgplayblog',
+    },
+    icons: {
+      icon: [
+        { url: '/favicon.ico' },
+      ],
+      apple: [
+        { url: '/apple-touch-icon.png', sizes: '180x180' },
+      ],
+    },
   }
 }
 
