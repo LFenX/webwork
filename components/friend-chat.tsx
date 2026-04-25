@@ -19,6 +19,7 @@ import { StickerPicker, type StickerPick } from "@/components/sticker-picker"
 import { UserAvatar } from "@/components/user-avatar"
 import { setActiveChatContext } from "@/lib/active-chat"
 import { copyImageToClipboard, getClipboardImageFiles, saveStickerToCustomLibrary, triggerBrowserDownload } from "@/lib/chat-media-actions"
+import { handleEnterToSubmit } from "@/lib/keyboard"
 
 export interface ChatFriend {
   id: string
@@ -1124,6 +1125,7 @@ export function ChatPanel({
           <textarea
             value={text}
             onChange={(event) => onTextChange(event.target.value)}
+            onKeyDown={(event) => handleEnterToSubmit(event, onSend, { disabled: sending || (!text.trim() && files.length === 0 && !sticker) })}
             onPaste={handleComposerPaste}
             placeholder={labels.typeMessage}
             rows={3}

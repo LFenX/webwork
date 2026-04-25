@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { getDict } from "@/lib/i18n"
 
 interface SettingsDialogProps {
   ownerName: string
@@ -28,10 +29,13 @@ type ProfileForm = {
 
 function initials(name: string) {
   const value = name.trim()
-  return (value ? Array.from(value).slice(0, 2).join("") : "我").toUpperCase()
+  return (value ? Array.from(value).slice(0, 2).join("") : "?").toUpperCase()
 }
 
 export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialogProps) {
+  const dict = getDict()
+  const s = dict.settings
+  const a = dict.auth
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<ProfileForm>({
@@ -90,11 +94,11 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
     const file = event.target.files?.[0]
     if (!file) return
     if (!file.type.startsWith("image/")) {
-      toast.error("请选择图片文件")
+      toast.error(s.avatarImageOnly)
       return
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("头像图片不能超过 5MB")
+      toast.error(s.avatarTooLarge)
       return
     }
     setAvatarFile(file)
@@ -122,7 +126,7 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
         })
         const uploadData = await uploadRes.json().catch(() => null)
         if (!uploadRes.ok || !uploadData?.url) {
-          throw new Error(uploadData?.error ?? "头像上传失败")
+          throw new Error(uploadData?.error ?? s.profileSaveFailed)
         }
         avatarUrl = uploadData.url
       }
@@ -143,9 +147,9 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
       })
       if (!res.ok) {
         const data = await res.json().catch(() => null)
-        throw new Error(data?.error ?? "保存失败")
+        throw new Error(data?.error ?? s.profileSaveFailed)
       }
-      toast.success("用户信息已保存")
+      toast.success(s.profileSaved)
       setAvatarFile(null)
       setAvatarObjectUrl((current) => {
         if (current) URL.revokeObjectURL(current)
@@ -154,7 +158,7 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
       setOpen(false)
       router.refresh()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "保存失败")
+      toast.error(error instanceof Error ? error.message : s.profileSaveFailed)
     } finally {
       setSaving(false)
     }
@@ -169,11 +173,11 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
         body: JSON.stringify({ password }),
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "提交失败")
+      if (!res.ok) throw new Error(data?.error ?? a.requestFailed)
       setPassword("")
-      toast.success("密码修改申请已提交，等待管理员同意")
+      toast.success(s.passwordRequested)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "提交失败")
+      toast.error(error instanceof Error ? error.message : a.requestFailed)
     } finally {
       setRequestingPassword(false)
     }
@@ -183,18 +187,18 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
     try {
       const res = await fetch("/api/auth/password-change", { cache: "no-store" })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "查询失败")
+      if (!res.ok) throw new Error(data?.error ?? a.checkFailed)
       if (!data?.request) {
-        toast.info("还没有密码修改申请")
+        toast.info(s.passwordNoRequest)
       } else if (data.request.status === "approved") {
-        toast.success("管理员已同意，新密码已经生效")
+        toast.success(s.passwordApproved)
       } else if (data.request.status === "pending") {
-        toast.info("申请仍在等待管理员审核")
+        toast.info(s.passwordPending)
       } else {
-        toast.info("最近的密码申请未生效")
+        toast.info(s.passwordRejected)
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "查询失败")
+      toast.error(error instanceof Error ? error.message : a.checkFailed)
     }
   }
 
@@ -203,21 +207,21 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
       <button
         onClick={() => setOpen(true)}
         className="p-1.5 text-[--color-text-muted] hover:text-[--color-text-primary] hover:bg-[--color-bg-hover] rounded transition-colors"
-        title="用户信息设置"
+        title={dict.common.settings}
       >
         <Settings size={15} />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>用户信息设置</DialogTitle>
+            <DialogTitle>{s.profileTitle}</DialogTitle>
           </DialogHeader>
           <div className="mt-2 space-y-4 sm:space-y-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
               <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border border-[--color-border] bg-[--color-bg-hover]">
                 {avatarPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarPreview} alt="头像预览" className="h-full w-full object-cover" />
+                  <img src={avatarPreview} alt="avatar preview" className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xl font-semibold text-[--color-text-primary]">
                     {fallbackAvatar}
@@ -226,17 +230,17 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
               </div>
               <div className="min-w-0 flex-1 space-y-3">
                 <div>
-                  <Label className="mb-1 block text-xs">昵称</Label>
+                  <Label className="mb-1 block text-xs">{s.displayName}</Label>
                   <Input
                     value={form.displayName}
                     onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
-                    placeholder="你的昵称"
+                    placeholder={dict.settings.nickname}
                     className="h-9 text-sm"
                   />
                 </div>
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                   <div className="min-w-0">
-                    <Label className="mb-1 block text-xs">默认头像文字</Label>
+                    <Label className="mb-1 block text-xs">{s.avatarText}</Label>
                     <Input
                       value={form.avatarText}
                       onChange={(e) => setForm((f) => ({ ...f, avatarText: e.target.value }))}
@@ -246,7 +250,7 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
                     />
                   </div>
                   <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-[--radius-sm] border border-[--color-border-strong] px-3 text-sm hover:bg-[--color-bg-hover] sm:mt-5">
-                    <Upload size={14} /> 上传
+                    <Upload size={14} /> {s.avatarUpload}
                     <input type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
                   </label>
                 </div>
@@ -255,16 +259,16 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="min-w-0">
-                <Label className="mb-1 block text-xs">地区</Label>
+                <Label className="mb-1 block text-xs">{s.location}</Label>
                 <Input
                   value={form.location}
                   onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-                  placeholder="例如：中国上海"
+                  placeholder={dict.common.none}
                   className="h-9 text-sm"
                 />
               </div>
               <div className="min-w-0">
-                <Label className="mb-1 block text-xs">邮箱</Label>
+                <Label className="mb-1 block text-xs">{s.email}</Label>
                 <Input
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
@@ -275,7 +279,7 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
               </div>
             </div>
             <div>
-              <Label className="mb-1 block text-xs">个性签名</Label>
+              <Label className="mb-1 block text-xs">{dict.settings.signature ?? "Signature"}</Label>
               <Textarea
                 value={form.bio}
                 onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
@@ -287,7 +291,7 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
 
             <div className="rounded-[--radius-lg] border border-[--color-border] p-3">
               <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-                <KeyRound size={15} /> 修改密码
+                <KeyRound size={15} /> {dict.settings.changePassword ?? "Change password"}
               </div>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                 <Input
@@ -295,22 +299,22 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
                   onChange={(e) => setPassword(e.target.value)}
                   type="password"
                   minLength={8}
-                  placeholder="先输入新密码，提交给管理员审核"
+                  placeholder={s.passwordInput}
                   className="h-9 text-sm"
                 />
                 <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={requestPasswordChange} disabled={requestingPassword || password.length < 8}>
-                  提交申请
+                  {s.passwordSubmit}
                 </Button>
                 <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={checkPasswordStatus}>
-                  查看是否生效
+                  {s.passwordStatus}
                 </Button>
               </div>
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setOpen(false)}>取消</Button>
+              <Button variant="outline" size="sm" onClick={() => setOpen(false)}>{dict.common.cancel}</Button>
               <Button size="sm" onClick={handleSave} disabled={saving}>
-                {saving ? "保存中..." : "保存"}
+                {saving ? dict.common.saving : dict.common.save}
               </Button>
             </div>
           </div>

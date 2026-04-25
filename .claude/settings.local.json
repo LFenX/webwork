@@ -35,7 +35,9 @@
       "Bash(npx next *)",
       "Bash(sqlite3 D:/appmy/webappwork/dev.db \"SELECT COUNT\\(*\\) as posts FROM Post; SELECT COUNT\\(*\\) as jobs FROM JobApplication; SELECT COUNT\\(*\\) as interviews FROM InterviewRecord;\")",
       "Bash(ADMIN_EMAIL=lfiescut@gmail.com ADMIN_PASSWORD=changeme123 ADMIN_DISPLAY_NAME=LFen npx tsx scripts/migrate-multiuser.ts)",
-      "Bash(npm i *)"
+      "Bash(npm i *)",
+      "Bash(grep -r \"tailwind\" package.json)",
+      "Bash(grep -r \"tailwindcss\" package.json)"
     ]
   }
 }

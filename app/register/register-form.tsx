@@ -5,8 +5,11 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getDict } from "@/lib/i18n"
 
 export function RegisterForm() {
+  const dict = getDict()
+  const a = dict.auth
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [lastEmail, setLastEmail] = useState("")
@@ -36,14 +39,14 @@ export function RegisterForm() {
     }).catch(() => null)
 
     if (!res) {
-      setError("网络错误，请稍后再试")
+      setError(a.networkError)
       setPending(false)
       return
     }
 
     if (!res.ok) {
       const data = await res.json().catch(() => null)
-      setError(data?.error ?? "注册失败，请稍后再试")
+      setError(data?.error ?? a.registrationFailed)
       setPending(false)
       return
     }
@@ -51,7 +54,7 @@ export function RegisterForm() {
     const data = await res.json().catch(() => null)
     window.localStorage.setItem("pendingRegistrationEmail", email)
     setLastEmail(email)
-    setMessage(data?.message ?? "注册申请已提交，等待管理员审核。")
+    setMessage(data?.message ?? a.registrationSubmitted)
     setPending(false)
   }
 
@@ -66,7 +69,7 @@ export function RegisterForm() {
     const email = String(form?.get("email") || lastEmail || storedEmail).trim().toLowerCase()
 
     if (!email) {
-      setError("请输入注册邮箱后再查看审核状态")
+      setError(a.noEmail)
       setChecking(false)
       return
     }
@@ -79,14 +82,14 @@ export function RegisterForm() {
     }).catch(() => null)
 
     if (!res) {
-      setError("网络错误，请稍后再试")
+      setError(a.networkError)
       setChecking(false)
       return
     }
 
     const data = await res.json().catch(() => null)
     if (!res.ok) {
-      setError(data?.message ?? data?.error ?? "没有找到该邮箱的注册申请")
+      setError(data?.message ?? data?.error ?? a.checkFailed)
       setChecking(false)
       return
     }
@@ -94,10 +97,10 @@ export function RegisterForm() {
     if (data?.status === "approved") {
       window.localStorage.removeItem("pendingRegistrationEmail")
       setApproved(true)
-      setMessage(data.message ?? "注册已通过，请登录。")
+      setMessage(data.message ?? "Registration approved. Please log in.")
     } else {
       setLastEmail(email)
-      setMessage(data?.message ?? "注册申请仍在等待审核。")
+      setMessage(data?.message ?? a.pending)
     }
     setChecking(false)
   }
@@ -105,15 +108,15 @@ export function RegisterForm() {
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label className="text-xs mb-1 block">昵称</Label>
-        <Input name="displayName" placeholder="你的名字" autoComplete="name" required />
+        <Label className="text-xs mb-1 block">{a.nickname}</Label>
+        <Input name="displayName" placeholder={a.namePlaceholder} autoComplete="name" required />
       </div>
       <div>
-        <Label className="text-xs mb-1 block">邮箱</Label>
+        <Label className="text-xs mb-1 block">{a.email}</Label>
         <Input name="email" type="email" placeholder="you@example.com" autoComplete="email" required />
       </div>
       <div>
-        <Label className="text-xs mb-1 block">密码（至少 8 位）</Label>
+        <Label className="text-xs mb-1 block">{a.passwordMin}</Label>
         <Input name="password" type="password" placeholder="••••••••" autoComplete="new-password" required />
       </div>
       {error && (
@@ -124,14 +127,14 @@ export function RegisterForm() {
       )}
       {approved && (
         <Link href="/login" className="block text-sm text-center text-[--color-link] hover:underline">
-          去登录
+          {a.goToLogin}
         </Link>
       )}
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "提交中…" : "提交注册申请"}
+        {pending ? a.submitting : a.submitRegistration}
       </Button>
       <Button type="button" variant="outline" className="w-full" disabled={checking} onClick={handleCheckStatus}>
-        {checking ? "查询中…" : "查看审核状态"}
+        {checking ? a.checking : a.checkApproval}
       </Button>
     </form>
   )

@@ -37,61 +37,77 @@ export async function POST(req: NextRequest) {
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
+    start(controller) {
+      // Open the response body immediately
+      controller.enqueue(encoder.encode(": ok\n\n"))
+
+      const enqueue = (chunk: Uint8Array) => {
+        try { controller.enqueue(chunk) } catch { /* stream closed */ }
+      }
+
       const write = (event: string, data: unknown) => {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+        enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
       }
 
-      try {
-        write("conversation", {
-          conversationId: conversation.id,
-          assistantMessageId: assistantMessage.id,
-          runId: run.id,
-        })
+      let closed = false
 
-        const runtimeResult = await runAIRuntime({
-          userId: session.userId,
-          conversationId: conversation.id,
-          assistantMessageId: assistantMessage.id,
-          runId: run.id,
-          prompt: parsed.data.prompt,
-          attachments: parsed.data.attachments,
-          modelOverride: parsed.data.modelOverride,
-          onToken: async () => {},
-          onEvent: async (event, payload) => {
-            write(event, payload)
-          },
-        })
+      const executeStream = async () => {
+        try {
+          write("conversation", {
+            conversationId: conversation.id,
+            assistantMessageId: assistantMessage.id,
+            runId: run.id,
+          })
 
-        await finalizeAssistantMessage({
-          assistantMessageId: assistantMessage.id,
-          contentMarkdown: runtimeResult.contentMarkdown,
-          reasoningSummary: runtimeResult.reasoningSummary,
-          toolTraceSummary: runtimeResult.toolTraceSummary,
-          modelName: runtimeResult.modelName,
-        })
+          const runtimeResult = await runAIRuntime({
+            userId: session.userId,
+            conversationId: conversation.id,
+            assistantMessageId: assistantMessage.id,
+            runId: run.id,
+            prompt: parsed.data.prompt,
+            attachments: parsed.data.attachments,
+            modelOverride: parsed.data.modelOverride,
+            onToken: () => {},
+            onEvent: (event, payload) => {
+              write(event, payload)
+            },
+          })
 
-        write("run_completed", {
-          conversationId: conversation.id,
-          assistantMessageId: assistantMessage.id,
-          runId: run.id,
-        })
-        controller.close()
-      } catch (error) {
-        await failAssistantMessage(assistantMessage.id, "生成失败，请稍后重试。")
-        await finalizeAIRun({
-          runId: run.id,
-          status: "failed",
-          summary: error instanceof Error ? error.message : "Stream failed",
-        }).catch(() => null)
-        write("run_failed", {
-          runId: run.id,
-          message: error instanceof Error ? error.message : "Stream failed",
-        })
-        controller.close()
+          await finalizeAssistantMessage({
+            assistantMessageId: assistantMessage.id,
+            contentMarkdown: runtimeResult.contentMarkdown,
+            reasoningSummary: runtimeResult.reasoningSummary,
+            toolTraceSummary: runtimeResult.toolTraceSummary,
+            modelName: runtimeResult.modelName,
+          })
+
+          write("run_completed", {
+            conversationId: conversation.id,
+            assistantMessageId: assistantMessage.id,
+            runId: run.id,
+          })
+          if (!closed) { closed = true; try { controller.close() } catch { /* ignore */ } }
+        } catch (error) {
+          await failAssistantMessage(assistantMessage.id, "生成失败，请稍后重试。")
+          await finalizeAIRun({
+            runId: run.id,
+            status: "failed",
+            summary: error instanceof Error ? error.message : "Stream failed",
+          }).catch(() => null)
+          write("run_failed", {
+            runId: run.id,
+            message: error instanceof Error ? error.message : "Stream failed",
+          })
+          if (!closed) { closed = true; try { controller.close() } catch { /* ignore */ } }
+        }
       }
+
+      void executeStream()
     },
-  })
+    cancel() {
+      // no explicit cleanup needed — close is handled in executeStream
+    },
+  }, { highWaterMark: 0 })
 
   return new Response(stream, {
     headers: {

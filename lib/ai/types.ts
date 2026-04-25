@@ -31,6 +31,23 @@ export type AIResolvedProviderConfig = AISafeProviderConfig & {
   apiKey: string
 }
 
+export type AIUserConfigSummary = {
+  id: string
+  name: string
+  isActive: boolean
+  providerLabel: string
+  baseUrl: string
+  model: string
+  temperature: number
+  streamEnabled: boolean
+  isEnabled: boolean
+  apiKeyMask: string
+  lastTestStatus: string
+  lastTestedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export type AIStatusSnapshot = {
   canUseAI: boolean
   source: AIProviderSource

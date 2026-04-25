@@ -24,7 +24,7 @@ export const getAdminUserProfileOverviewTool = {
     }
 
     const [userConfig, grant, accessRequest] = await Promise.all([
-      prisma.aIUserProviderConfig.findUnique({ where: { userId: targetUserId } }),
+      prisma.aIUserProviderConfig.findFirst({ where: { userId: targetUserId, isActive: true } }),
       prisma.aIUsageGrant.findUnique({ where: { userId: targetUserId } }),
       prisma.aIAccessRequest.findFirst({
         where: { userId: targetUserId },

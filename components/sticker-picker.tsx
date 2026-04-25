@@ -2,18 +2,24 @@
 
 import Link from "next/link"
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Check, Plus, SmilePlus, Upload, X } from "lucide-react"
+import { Check, Loader2, Plus, SmilePlus, Upload, X } from "lucide-react"
 import { toast } from "sonner"
 import { MessageActionSurface, type MessageActionItem } from "@/components/chat-message-actions"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
+  addStickersToGroup,
   contributeStickersToCommunity,
+  createStickerGroup,
+  deleteStickerGroup,
+  removeStickersFromGroup,
+  renameStickerGroup,
   saveStickerToCustomLibrary,
   saveStickersToCustomLibrary,
 } from "@/lib/chat-media-actions"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
+import { getDict } from "@/lib/i18n"
 
 export type StickerPick =
   | { type: "emoji"; emoji: string }
@@ -45,11 +51,18 @@ type PublicStickerGroup = {
 
 const STICKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 
+type StickerGroupWithStickers = {
+  id: string
+  name: string
+  stickers: StickerAsset[]
+}
+
 type StickerCache = {
   defaults: string[]
   custom: StickerAsset[]
   public: StickerAsset[]
   publicGroups: PublicStickerGroup[]
+  customGroups: StickerGroupWithStickers[]
 }
 
 function StickerTile({
@@ -104,13 +117,27 @@ function StickerTile({
 }
 
 export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pick: StickerPick) => void; compact?: boolean; userId?: string }) {
+  const dict = getDict()
+  const st = dict.stickers
+
   const [open, setOpen] = useState(false)
   const [defaults, setDefaults] = useState<string[]>([])
   const [custom, setCustom] = useState<StickerAsset[]>([])
   const [publicStickers, setPublicStickers] = useState<StickerAsset[]>([])
   const [publicGroups, setPublicGroups] = useState<PublicStickerGroup[]>([])
   const [tab, setTab] = useState<"default" | "custom" | "public">("default")
+  const [customGroups, setCustomGroups] = useState<StickerGroupWithStickers[]>([])
+  const [groupSelectionMode, setGroupSelectionMode] = useState<string | null>(null)
+  const [groupSelectedIds, setGroupSelectedIds] = useState<string[]>([])
+  const [creatingGroup, setCreatingGroup] = useState(false)
+  const [newGroupName, setNewGroupName] = useState("")
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
+  const [editGroupName, setEditGroupName] = useState("")
+  const [uploadTargetGroup, setUploadTargetGroup] = useState("")
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadFileIndex, setUploadFileIndex] = useState(0)
+  const [uploadFileTotal, setUploadFileTotal] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [customSelectionMode, setCustomSelectionMode] = useState(false)
   const [customSelectionAction, setCustomSelectionAction] = useState<"contribute" | "delete">("contribute")
@@ -128,6 +155,7 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
         setCustom(cached.custom)
         setPublicStickers(cached.public)
         setPublicGroups(cached.publicGroups)
+        setCustomGroups(cached.customGroups ?? [])
       }
     }
     const res = await fetch("/api/stickers", { cache: "no-store" })
@@ -138,11 +166,13 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
       custom: Array.isArray(data.custom) ? data.custom : [],
       public: Array.isArray(data.public) ? data.public : [],
       publicGroups: Array.isArray(data.publicGroups) ? data.publicGroups : [],
+      customGroups: Array.isArray(data.customGroups) ? data.customGroups : [],
     }
     setDefaults(next.defaults)
     setCustom(next.custom)
     setPublicStickers(next.public)
     setPublicGroups(next.publicGroups)
+    setCustomGroups(next.customGroups)
     if (cacheKey && userId) writeUserStorage({ kind: "local", key: cacheKey, userId, value: next })
   }, [cacheKey, userId])
 
@@ -160,6 +190,9 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
     return () => window.removeEventListener("stickers-updated", handleUpdated)
   }, [load])
 
+  const communityDisplayName = st.communityStickers
+  const defaultTab = st.defaultTab
+
   const groupedPublic = useMemo(() => {
     if (publicGroups.length > 0) return publicGroups
     return publicStickers.length > 0
@@ -167,34 +200,69 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
           contributor: {
             id: "community",
             email: "",
-            displayName: "社区表情",
-            avatarText: "社区",
+            displayName: communityDisplayName,
+            avatarText: defaultTab,
             avatarUrl: null,
           },
           stickers: publicStickers,
         }]
       : []
-  }, [publicGroups, publicStickers])
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- i18n strings are stable
+  }, [publicGroups, publicStickers, communityDisplayName, defaultTab])
 
   async function upload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+    const files = Array.from(event.target.files ?? [])
     event.currentTarget.value = ""
-    if (!file) return
+    if (files.length === 0) return
     setUploading(true)
+    setUploadFileTotal(files.length)
+    setUploadFileIndex(0)
+    setUploadProgress(0)
     try {
-      const form = new FormData()
-      form.append("files", file)
-      const res = await fetch("/api/stickers", { method: "POST", body: form })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        toast.error(data.error ?? "上传表情失败")
-        return
+      let createdCount = 0
+      for (let i = 0; i < files.length; i++) {
+        setUploadFileIndex(i)
+        const form = new FormData()
+        form.append("files", files[i])
+        let stickerId: string | undefined
+        await new Promise<void>((resolve, reject) => {
+          const request = new XMLHttpRequest()
+          request.open("POST", "/api/stickers")
+          request.upload.onprogress = (event) => {
+            if (!event.lengthComputable) return
+            const fileProgress = event.loaded / event.total
+            const overallPercent = Math.round(((i + fileProgress) / files.length) * 100)
+            setUploadProgress(Math.min(overallPercent, 99))
+          }
+          request.onload = () => {
+            const data = JSON.parse(request.responseText || "{}")
+            if (request.status >= 200 && request.status < 300) {
+              createdCount += data.items?.length ?? 0
+              stickerId = data.items?.[0]?.id as string | undefined
+              resolve()
+            } else {
+              reject(new Error(data.error ?? dict.common.error))
+            }
+          }
+          request.onerror = () => reject(new Error(dict.common.error))
+          request.send(form)
+        })
+        if (stickerId && uploadTargetGroup && userId) {
+          try {
+            await addStickersToGroup(uploadTargetGroup, [stickerId], userId)
+          } catch { /* ignore group-add failures — don't block upload flow */ }
+        }
+        // refresh list after each success so the user sees it immediately
+        if (cacheKey) removeUserStorage("local", cacheKey)
+        await load()
       }
-      if (cacheKey) removeUserStorage("local", cacheKey)
-      await load()
-      toast.success("表情已上传")
+      setUploadProgress(100)
+      toast.success(createdCount > 0 ? `${dict.common.upload} (${createdCount})` : `${dict.common.upload}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : dict.common.error)
     } finally {
       setUploading(false)
+      setUploadFileTotal(0)
     }
   }
 
@@ -203,13 +271,13 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
     setSubmitting(true)
     try {
       const result = await contributeStickersToCommunity(selectedCustomIds, userId)
-      toast.success(result.addedCount > 0 ? `已贡献 ${result.addedCount} 个表情到社区` : "选中的表情已存在于社区")
+      toast.success(result.addedCount > 0 ? `${st.contributeToCommunity} (${result.addedCount})` : st.contributed)
       setCustomSelectionMode(false)
       setSelectedCustomIds([])
       if (cacheKey) removeUserStorage("local", cacheKey)
       await load()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "贡献表情失败")
+      toast.error(error instanceof Error ? error.message : dict.common.error)
     } finally {
       setSubmitting(false)
     }
@@ -225,15 +293,15 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
       const response = await fetch("/api/stickers", { method: "POST", body: form })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(data.error ?? "删除表情失败")
+        throw new Error(data.error ?? dict.common.error)
       }
-      toast.success(`已删除 ${Number(data.deletedCount ?? 0)} 个表情`)
+      toast.success(`${dict.common.delete} (${Number(data.deletedCount ?? 0)})`)
       setCustomSelectionMode(false)
       setSelectedCustomIds([])
       if (cacheKey) removeUserStorage("local", cacheKey)
       await load()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "删除表情失败")
+      toast.error(error instanceof Error ? error.message : dict.common.error)
     } finally {
       setSubmitting(false)
     }
@@ -244,13 +312,13 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
     setSubmitting(true)
     try {
       const result = await saveStickersToCustomLibrary(selectedPublicIds, userId)
-      toast.success(result.addedCount > 0 ? `已添加 ${result.addedCount} 个表情到我的表情` : "选中的表情都已在我的表情中")
+      toast.success(result.addedCount > 0 ? `${st.addToCustom} (${result.addedCount})` : st.savedToCustom)
       setPublicSelectionMode(false)
       setSelectedPublicIds([])
       if (cacheKey) removeUserStorage("local", cacheKey)
       await load()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "添加表情失败")
+      toast.error(error instanceof Error ? error.message : dict.common.error)
     } finally {
       setSubmitting(false)
     }
@@ -260,11 +328,113 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
     if (!userId) return
     try {
       const result = await saveStickerToCustomLibrary(stickerId, userId)
-      toast.success(result.deduped ? "该表情已在我的表情中" : "已添加到我的表情")
+      toast.success(result.deduped ? st.savedToCustom : st.addToCustom)
       if (cacheKey) removeUserStorage("local", cacheKey)
       await load()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "添加表情失败")
+      toast.error(error instanceof Error ? error.message : dict.common.error)
+    }
+  }
+
+  async function handleDeleteOwnPublic(stickerId: string) {
+    if (!userId) return
+    try {
+      const form = new FormData()
+      form.set("action", "delete-public")
+      form.append("deleteStickerIds", stickerId)
+      const res = await fetch("/api/stickers", { method: "POST", body: form })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? dict.common.error)
+      toast.success(dict.common.delete)
+      if (cacheKey) removeUserStorage("local", cacheKey)
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : dict.common.error)
+    }
+  }
+
+  async function handleCreateGroup(scope: string) {
+    if (!userId || !newGroupName.trim()) return
+    try {
+      await createStickerGroup(newGroupName.trim(), scope, userId)
+      toast.success(st.createGroup)
+      setCreatingGroup(false)
+      setNewGroupName("")
+      if (cacheKey) removeUserStorage("local", cacheKey)
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : dict.common.error)
+    }
+  }
+
+  async function handleContributeGroupSelected() {
+    if (!userId || groupSelectedIds.length === 0) return
+    setSubmitting(true)
+    try {
+      const result = await contributeStickersToCommunity(groupSelectedIds, userId)
+      toast.success(result.addedCount > 0 ? `${st.contributeToCommunity} (${result.addedCount})` : st.contributed)
+      setGroupSelectionMode(null)
+      setGroupSelectedIds([])
+      if (cacheKey) removeUserStorage("local", cacheKey)
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : dict.common.error)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleRenameGroup(groupId: string) {
+    if (!userId || !editGroupName.trim()) return
+    try {
+      await renameStickerGroup(groupId, editGroupName.trim(), userId)
+      toast.success(st.renameGroup)
+      setEditingGroupId(null)
+      setEditGroupName("")
+      if (cacheKey) removeUserStorage("local", cacheKey)
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : dict.common.error)
+    }
+  }
+
+  async function handleDeleteGroup(groupId: string, groupName: string) {
+    if (!userId || !window.confirm(`${dict.common.confirm} ${dict.common.delete} 「${groupName}」? ${dict.common.delete} ${st.defaultTab}`)) return
+    try {
+      await deleteStickerGroup(groupId, userId)
+      toast.success(st.deleteGroup)
+      if (cacheKey) removeUserStorage("local", cacheKey)
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : dict.common.error)
+    }
+  }
+
+  async function handleAddStickersToGroup(groupId: string) {
+    if (!userId || groupSelectedIds.length === 0) return
+    try {
+      const added = await addStickersToGroup(groupId, groupSelectedIds, userId)
+      toast.success(added > 0 ? `${st.addToGroup} (${added})` : st.addToGroup)
+      setGroupSelectionMode(null)
+      setGroupSelectedIds([])
+      if (cacheKey) removeUserStorage("local", cacheKey)
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : dict.common.error)
+    }
+  }
+
+  async function handleRemoveStickersFromGroup(groupId: string) {
+    if (!userId || groupSelectedIds.length === 0) return
+    try {
+      await removeStickersFromGroup(groupId, groupSelectedIds, userId)
+      toast.success(st.removeFromGroup)
+      setGroupSelectionMode(null)
+      setGroupSelectedIds([])
+      if (cacheKey) removeUserStorage("local", cacheKey)
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : dict.common.error)
     }
   }
 
@@ -285,9 +455,9 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
         <div className="flex items-center justify-between border-b border-[--color-border] px-3 py-2">
           <div className="flex gap-1">
             {[
-              ["default", "默认"],
-              ["custom", "我的"],
-              ["public", "公用"],
+              ["default", st.defaultTab],
+              ["custom", st.customTab],
+              ["public", st.publicTab],
             ].map(([key, label]) => (
               <button
                 key={key}
@@ -298,6 +468,12 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
                     setCustomSelectionMode(false)
                     setCustomSelectionAction("contribute")
                     setSelectedCustomIds([])
+                    setGroupSelectionMode(null)
+                    setGroupSelectedIds([])
+                    setCreatingGroup(false)
+                    setNewGroupName("")
+                    setEditingGroupId(null)
+                    setEditGroupName("")
                   }
                   if (key !== "public") {
                     setPublicSelectionMode(false)
@@ -321,21 +497,21 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
               {publicSelectionMode ? (
                 <>
                   <Button type="button" size="sm" variant="outline" onClick={() => { setPublicSelectionMode(false); setSelectedPublicIds([]) }}>
-                    取消
+                    {dict.common.cancel}
                   </Button>
                   <Button type="button" size="sm" onClick={() => void handleAddSelectedToMine()} disabled={submitting || selectedPublicIds.length === 0 || !userId}>
-                    确定添加
+                    {dict.common.confirm}
                   </Button>
                 </>
               ) : (
                 <Button type="button" size="sm" variant="outline" onClick={() => setPublicSelectionMode(true)} disabled={!userId || publicStickers.length === 0}>
-                  批量添加到我的表情
+                  {st.addToCustom}
                 </Button>
               )}
             </div>
             <Button asChild type="button" size="sm" variant="ghost">
               <Link href="/stickers/community" onClick={() => setOpen(false)}>
-                查看详情
+                {dict.common.show}
               </Link>
             </Button>
           </div>
@@ -361,69 +537,130 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
           ) : null}
 
           {tab === "custom" ? (
-            <>
-              {custom.length === 0 ? (
-                <p className="py-10 text-center text-sm text-[--color-text-muted]">还没有自定义表情包</p>
-              ) : (
-                <div className="grid grid-cols-5 gap-3">
-                  {custom.map((sticker) => (
-                    <StickerTile
-                      key={sticker.id}
-                      sticker={sticker}
-                      selectable={customSelectionMode}
-                      selected={selectedCustomIds.includes(sticker.id)}
-                      onClick={() => {
-                        if (customSelectionMode) {
-                          setSelectedCustomIds((current) => toggleSelected(current, sticker.id))
-                          return
-                        }
-                        onPick({ type: "asset", id: sticker.id, url: sticker.url, name: sticker.name || sticker.originalName, isAnimated: sticker.isAnimated })
-                        setOpen(false)
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          ) : null}
-
-          {tab === "public" ? (
-            groupedPublic.length === 0 ? (
-              <p className="py-10 text-center text-sm text-[--color-text-muted]">公用表情包库暂无内容</p>
-            ) : (
-              <div className="space-y-4">
-                {groupedPublic.map((group) => (
-                  <section key={group.contributor.id} className="space-y-2 rounded-2xl border border-[--color-border] bg-[--color-bg-surface] p-3">
-                    <div className="flex items-center gap-3">
-                      <UserAvatar
-                        size="sm"
-                        name={group.contributor.displayName}
-                        email={group.contributor.email}
-                        avatarText={group.contributor.avatarText}
-                        avatarUrl={group.contributor.avatarUrl}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-[--color-text-primary]">{group.contributor.displayName || group.contributor.email}</p>
-                        <p className="truncate text-xs text-[--color-text-muted]">贡献的表情包</p>
-                      </div>
+            <div className="space-y-4">
+              {/* Group sections */}
+              {customGroups.map((group) => {
+                const isManaging = groupSelectionMode === group.id
+                return (
+                  <section key={group.id} className="rounded-2xl border border-[--color-border] bg-[--color-bg-surface] p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      {editingGroupId === group.id ? (
+                        <div className="flex flex-1 items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={editGroupName}
+                            onChange={(e) => setEditGroupName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") void handleRenameGroup(group.id) }}
+                            className="h-7 min-w-0 flex-1 rounded border border-[--color-border] bg-[--color-bg] px-2 text-sm"
+                            autoFocus
+                          />
+                          <Button type="button" size="sm" className="h-7 px-2 text-xs" onClick={() => void handleRenameGroup(group.id)} disabled={!editGroupName.trim()}>{dict.common.ok}</Button>
+                          <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setEditingGroupId(null); setEditGroupName("") }}>{dict.common.cancel}</Button>
+                        </div>
+                      ) : (
+                        <span className="truncate text-sm font-medium text-[--color-text-primary]">{group.name}</span>
+                      )}
+                      {!editingGroupId && !customSelectionMode && groupSelectionMode === null ? (
+                        <div className="flex shrink-0 gap-1">
+                          <button type="button" className="rounded px-1.5 py-0.5 text-xs text-[--color-text-muted] hover:bg-[--color-bg-hover]" onClick={() => { setEditingGroupId(group.id); setEditGroupName(group.name) }}>{st.renameGroup}</button>
+                          <button type="button" className="rounded px-1.5 py-0.5 text-xs text-[--color-danger] hover:bg-[--color-bg-hover]" onClick={() => void handleDeleteGroup(group.id, group.name)}>{dict.common.delete}</button>
+                          <button type="button" className="rounded px-1.5 py-0.5 text-xs text-[--color-text-muted] hover:bg-[--color-bg-hover]" onClick={() => { setGroupSelectionMode(group.id); setGroupSelectedIds([]) }}>{st.manageGroups}</button>
+                        </div>
+                      ) : isManaging ? (
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button type="button" className="rounded px-1.5 py-0.5 text-xs text-[--color-text-muted] hover:bg-[--color-bg-hover]" onClick={() => { setGroupSelectionMode(null); setGroupSelectedIds([]) }}>{dict.common.cancel}</button>
+                          <button type="button" className="rounded px-1.5 py-0.5 text-xs text-[--color-danger] hover:bg-[--color-bg-hover]" disabled={groupSelectedIds.length === 0} onClick={() => void handleRemoveStickersFromGroup(group.id)}>{st.removeFromGroup}</button>
+                          <button type="button" className="rounded px-1.5 py-0.5 text-xs text-[--color-text-muted] hover:bg-[--color-bg-hover]" disabled={groupSelectedIds.length === 0} onClick={() => void handleContributeGroupSelected()}>{st.contributeToCommunity}</button>
+                          {customGroups.length > 1 ? (
+                            <select
+                              className="rounded border border-[--color-border] bg-[--color-bg] px-1 py-0.5 text-xs text-[--color-accent]"
+                              value=""
+                              disabled={groupSelectedIds.length === 0}
+                              onChange={(e) => { if (e.target.value) { void handleAddStickersToGroup(e.target.value); e.target.value = "" } }}
+                            >
+                              <option value="" disabled>{st.addToGroup}...</option>
+                              {customGroups.filter((g) => g.id !== group.id).map((g) => (
+                                <option key={g.id} value={g.id}>{g.name}</option>
+                              ))}
+                            </select>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
+                    {group.stickers.length === 0 ? (
+                      <p className="py-4 text-center text-xs text-[--color-text-muted]">{dict.common.noData}</p>
+                    ) : (
+                      <div className="grid grid-cols-5 gap-3">
+                        {group.stickers.map((sticker) => (
+                          <StickerTile
+                            key={sticker.id}
+                            sticker={sticker}
+                            selectable={isManaging || customSelectionMode}
+                            selected={isManaging ? groupSelectedIds.includes(sticker.id) : selectedCustomIds.includes(sticker.id)}
+                            onClick={() => {
+                              if (isManaging) {
+                                setGroupSelectedIds((current) => toggleSelected(current, sticker.id))
+                                return
+                              }
+                              if (customSelectionMode) {
+                                setSelectedCustomIds((current) => toggleSelected(current, sticker.id))
+                                return
+                              }
+                              onPick({ type: "asset", id: sticker.id, url: sticker.url, name: sticker.name || sticker.originalName, isAnimated: sticker.isAnimated })
+                              setOpen(false)
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )
+              })}
+
+              {/* Ungrouped stickers */}
+              {(custom.length > 0 || customGroups.length === 0) ? (
+                <section className="rounded-2xl border border-[--color-border] bg-[--color-bg-surface] p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-[--color-text-muted]">{dict.common.none}</span>
+                    {!customSelectionMode && groupSelectionMode === null && custom.length > 0 ? (
+                      <button type="button" className="rounded px-1.5 py-0.5 text-xs text-[--color-text-muted] hover:bg-[--color-bg-hover]" onClick={() => { setGroupSelectionMode("ungrouped"); setGroupSelectedIds([]) }}>{st.manageGroups}</button>
+                    ) : groupSelectionMode === "ungrouped" ? (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button type="button" className="rounded px-1.5 py-0.5 text-xs text-[--color-text-muted] hover:bg-[--color-bg-hover]" onClick={() => { setGroupSelectionMode(null); setGroupSelectedIds([]) }}>{dict.common.cancel}</button>
+                        <button type="button" className="rounded px-1.5 py-0.5 text-xs text-[--color-text-muted] hover:bg-[--color-bg-hover]" disabled={groupSelectedIds.length === 0} onClick={() => void handleContributeGroupSelected()}>{st.contributeToCommunity}</button>
+                        {customGroups.length > 0 ? (
+                          <select
+                            className="rounded border border-[--color-border] bg-[--color-bg] px-1 py-0.5 text-xs text-[--color-accent]"
+                            value=""
+                            disabled={groupSelectedIds.length === 0}
+                            onChange={(e) => { if (e.target.value) { void handleAddStickersToGroup(e.target.value); e.target.value = "" } }}
+                          >
+                            <option value="" disabled>{st.addToGroup}...</option>
+                            {customGroups.map((g) => (
+                              <option key={g.id} value={g.id}>{g.name}</option>
+                            ))}
+                          </select>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  {custom.length === 0 ? (
+                    <p className="py-4 text-center text-xs text-[--color-text-muted]">{dict.common.noData}</p>
+                  ) : (
                     <div className="grid grid-cols-5 gap-3">
-                      {group.stickers.map((sticker) => (
+                      {custom.map((sticker) => (
                         <StickerTile
                           key={sticker.id}
                           sticker={sticker}
-                          selectable={publicSelectionMode}
-                          selected={selectedPublicIds.includes(sticker.id)}
-                          contextItems={userId ? [{
-                            id: "save-to-custom",
-                            label: "添加到我的表情",
-                            onSelect: () => {
-                              void handleAddSingleToMine(sticker.id)
-                            },
-                          }] : []}
+                          selectable={customSelectionMode || groupSelectionMode === "ungrouped"}
+                          selected={customSelectionMode ? selectedCustomIds.includes(sticker.id) : groupSelectionMode === "ungrouped" ? groupSelectedIds.includes(sticker.id) : false}
                           onClick={() => {
-                            if (publicSelectionMode) {
-                              setSelectedPublicIds((current) => toggleSelected(current, sticker.id))
+                            if (customSelectionMode) {
+                              setSelectedCustomIds((current) => toggleSelected(current, sticker.id))
+                              return
+                            }
+                            if (groupSelectionMode === "ungrouped") {
+                              setGroupSelectedIds((current) => toggleSelected(current, sticker.id))
                               return
                             }
                             onPick({ type: "asset", id: sticker.id, url: sticker.url, name: sticker.name || sticker.originalName, isAnimated: sticker.isAnimated })
@@ -432,10 +669,100 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
                         />
                       ))}
                     </div>
-                  </section>
-                ))}
-              </div>
-            )
+                  )}
+                </section>
+              ) : null}
+
+              {/* Create group */}
+              {!customSelectionMode && groupSelectionMode === null && !editingGroupId ? (
+                creatingGroup ? (
+                  <div className="flex items-center gap-1.5 rounded-2xl border border-[--color-border] bg-[--color-bg-surface] p-3">
+                    <input
+                      type="text"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") void handleCreateGroup("custom") }}
+                      placeholder={st.groupName}
+                      className="h-7 min-w-0 flex-1 rounded border border-[--color-border] bg-[--color-bg] px-2 text-sm"
+                      autoFocus
+                      maxLength={20}
+                    />
+                    <Button type="button" size="sm" className="h-7 px-2 text-xs" onClick={() => void handleCreateGroup("custom")} disabled={!newGroupName.trim()}>{dict.common.ok}</Button>
+                    <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setCreatingGroup(false); setNewGroupName("") }}>{dict.common.cancel}</Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-center gap-1 rounded-2xl border border-dashed border-[--color-border] bg-[--color-bg-surface] p-3 text-sm text-[--color-text-muted] hover:border-[--color-accent] hover:text-[--color-accent]"
+                    onClick={() => setCreatingGroup(true)}
+                  >
+                    + {st.createGroup}
+                  </button>
+                )
+              ) : null}
+            </div>
+          ) : null}
+
+          {tab === "public" ? (
+            <div className="space-y-4">
+              {/* Contributor sections */}
+              {groupedPublic.map((group) => (
+                <section key={group.contributor.id} className="space-y-2 rounded-2xl border border-[--color-border] bg-[--color-bg-surface] p-3">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar
+                      size="sm"
+                      name={group.contributor.displayName}
+                      email={group.contributor.email}
+                      avatarText={group.contributor.avatarText}
+                      avatarUrl={group.contributor.avatarUrl}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[--color-text-primary]">{group.contributor.displayName || group.contributor.email}</p>
+                      <p className="truncate text-xs text-[--color-text-muted]">{st.communityStickers}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-5 gap-3">
+                    {group.stickers.map((sticker) => (
+                      <StickerTile
+                        key={sticker.id}
+                        sticker={sticker}
+                        selectable={publicSelectionMode}
+                        selected={selectedPublicIds.includes(sticker.id)}
+                        contextItems={(() => {
+                          const items: MessageActionItem[] = []
+                          if (userId) {
+                            items.push({
+                              id: "save-to-custom",
+                              label: st.addToCustom,
+                              onSelect: () => { void handleAddSingleToMine(sticker.id) },
+                            })
+                          }
+                          if (userId && group.contributor.id === userId) {
+                            items.push({
+                              id: "delete-public",
+                              label: dict.common.delete,
+                              onSelect: () => { void handleDeleteOwnPublic(sticker.id) },
+                            })
+                          }
+                          return items
+                        })()}
+                        onClick={() => {
+                          if (publicSelectionMode) {
+                            setSelectedPublicIds((current) => toggleSelected(current, sticker.id))
+                            return
+                          }
+                          onPick({ type: "asset", id: sticker.id, url: sticker.url, name: sticker.name || sticker.originalName, isAnimated: sticker.isAnimated })
+                          setOpen(false)
+                        }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+              {groupedPublic.length === 0 ? (
+                <p className="py-10 text-center text-sm text-[--color-text-muted]">{dict.common.noData}</p>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
@@ -444,7 +771,7 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
             {customSelectionMode ? (
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant="outline" className="flex-1" onClick={() => { setCustomSelectionMode(false); setSelectedCustomIds([]) }}>
-                  取消
+                  {dict.common.cancel}
                 </Button>
                 <Button
                   type="button"
@@ -453,43 +780,76 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
                   disabled={submitting || selectedCustomIds.length === 0 || !userId}
                   onClick={() => void (customSelectionAction === "delete" ? handleDeleteSelected() : handleContributeSelected())}
                 >
-                  {customSelectionAction === "delete" ? "确定删除" : "确定贡献"}
+                  {customSelectionAction === "delete" ? dict.common.delete : st.contributeToCommunity}
                 </Button>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={upload} />
-                <Button type="button" size="sm" variant="outline" className="flex-1 gap-1.5" disabled={uploading} onClick={() => inputRef.current?.click()}>
-                  <Upload size={14} />
-                  {uploading ? "上传中..." : "上传表情包"}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 gap-1.5"
-                  disabled={!userId || custom.length === 0}
-                  onClick={() => {
-                    setCustomSelectionAction("contribute")
-                    setCustomSelectionMode(true)
-                  }}
-                >
-                  <Plus size={14} />
-                  贡献表情包到社区
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 gap-1.5"
-                  disabled={!userId || custom.length === 0}
-                  onClick={() => {
-                    setCustomSelectionAction("delete")
-                    setCustomSelectionMode(true)
-                  }}
-                >
-                  删除表情包
-                </Button>
+              <div className="space-y-2">
+                {uploading ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Loader2 size={14} className="animate-spin text-[--color-accent]" />
+                      <span className="text-sm text-[--color-text-primary]">{dict.common.uploading}</span>
+                      <span className="text-xs tabular-nums text-[--color-text-muted]">
+                        {uploadFileTotal > 1 ? `(${Math.min(uploadFileIndex + 1, uploadFileTotal)}/${uploadFileTotal})` : `(${uploadProgress}%)`}
+                      </span>
+                    </div>
+                    <div className="overflow-hidden rounded-full" style={{ height: 6, backgroundColor: "var(--color-border, #e5e7eb)" }}>
+                      <div className="h-full rounded-full transition-all duration-200" style={{ width: `${uploadProgress}%`, backgroundColor: "var(--color-accent, #2563eb)" }} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      {customGroups.length > 0 ? (
+                        <select
+                          className="h-9 rounded border border-[--color-border] bg-[--color-bg] px-2 text-xs text-[--color-text-primary]"
+                          value={uploadTargetGroup}
+                          onChange={(e) => setUploadTargetGroup(e.target.value)}
+                        >
+                          <option value="">{dict.common.none}</option>
+                          {customGroups.map((g) => (
+                            <option key={g.id} value={g.id}>{dict.common.upload} {g.name}</option>
+                          ))}
+                        </select>
+                      ) : null}
+                      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={upload} />
+                      <Button type="button" size="sm" variant="outline" className="flex-1 gap-1.5" onClick={() => inputRef.current?.click()}>
+                        <Upload size={14} />
+                        {dict.common.upload}
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 gap-1.5"
+                        disabled={!userId || (custom.length === 0 && customGroups.every((g) => g.stickers.length === 0))}
+                        onClick={() => {
+                          setCustomSelectionAction("contribute")
+                          setCustomSelectionMode(true)
+                        }}
+                      >
+                        <Plus size={14} />
+                        {st.contributeToCommunity}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 gap-1.5"
+                        disabled={!userId || (custom.length === 0 && customGroups.every((g) => g.stickers.length === 0))}
+                        onClick={() => {
+                          setCustomSelectionAction("delete")
+                          setCustomSelectionMode(true)
+                        }}
+                      >
+                        {dict.common.delete}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

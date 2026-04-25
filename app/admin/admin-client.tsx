@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiDelete, apiFetch, apiPatch, apiPost } from "@/lib/api-client"
 import { ADMIN_PERMISSION_DEFS, type AdminPermissionKey, type AdminPermissionMap } from "@/lib/admin-permissions"
+import { getDict } from "@/lib/i18n"
 import { formatChinaDateTime } from "@/lib/time"
 
 type RegistrationRequest = {
@@ -113,8 +114,8 @@ type PageResult<T> = {
   hasMore: boolean
 }
 
-function formatTime(value: string | null) {
-  if (!value) return "Never logged in"
+function formatTime(value: string | null, dict: ReturnType<typeof getDict>) {
+  if (!value) return dict.admin.neverLoggedIn
   return formatChinaDateTime(value)
 }
 
@@ -149,6 +150,9 @@ function isNearBottom(event: UIEvent<HTMLDivElement>) {
 }
 
 export function AdminClient() {
+  const dict = getDict()
+  const d = dict.admin
+
   const [data, setData] = useState<Overview | null>(null)
   const [users, setUsers] = useState<UserItem[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
@@ -241,7 +245,7 @@ export function AdminClient() {
         ])
       } catch (error) {
         if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Failed to load admin overview")
+          toast.error(error instanceof Error ? error.message : d.failedToLoad)
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -300,7 +304,7 @@ export function AdminClient() {
 
   async function approve(id: string) {
     await apiPost(`/api/admin/registrations/${id}/approve`, {})
-    toast.success("Registration approved")
+    toast.success(d.approved)
     setRefreshKey((key) => key + 1)
   }
 
@@ -312,7 +316,7 @@ export function AdminClient() {
 
   async function updateRole(id: string, role: string) {
     await apiPatch(`/api/admin/users/${id}/role`, { role })
-    toast.success("User role updated")
+    toast.success(d.roleUpdated)
     setRefreshKey((key) => key + 1)
   }
 
@@ -322,7 +326,7 @@ export function AdminClient() {
     }
     try {
       await apiPost(`/api/admin/users/${user.id}/transfer-owner`, {})
-      toast.success("Ownership transferred")
+      toast.success(d.ownershipTransferred)
       setRefreshKey((key) => key + 1)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to transfer ownership")
@@ -337,7 +341,7 @@ export function AdminClient() {
       setAdminPermissions((items) =>
         items.map((item) => (item.id === admin.id ? { ...item, permissions: updated.permissions } : item))
       )
-      toast.success("Admin permissions updated")
+      toast.success(d.permissionsUpdated)
     } catch (error) {
       setAdminPermissions((items) => items.map((item) => (item.id === admin.id ? admin : item)))
       toast.error(error instanceof Error ? error.message : "Failed to update permissions")
@@ -348,7 +352,7 @@ export function AdminClient() {
     if (!confirm(`Delete ${user.email}? Only users inactive for at least 30 days can be deleted.`)) return
     try {
       await apiDelete(`/api/admin/users/${user.id}`)
-      toast.success("User deleted")
+      toast.success(d.userDeleted)
       setRefreshKey((key) => key + 1)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete user")
@@ -357,30 +361,30 @@ export function AdminClient() {
 
   function getDeleteBlockedReason(user: UserItem, inactiveDays: number | null) {
     if (!data) return "Temporarily unavailable"
-    if (user.id === data.currentAdmin.id) return "Cannot delete yourself"
-    if (user.role === "owner") return "Cannot delete the owner"
-    if (inactiveDays === null) return "Never logged in"
-    if (inactiveDays < 30) return `${30 - inactiveDays} days remaining`
+    if (user.id === data.currentAdmin.id) return d.deleteBlocked.self
+    if (user.role === "owner") return d.deleteBlocked.owner
+    if (inactiveDays === null) return d.deleteBlocked.neverLogin
+    if (inactiveDays < 30) return d.deleteBlocked.daysRemaining(30 - inactiveDays)
     return null
   }
 
   async function saveUpdateLog(item: UpdateLogItem) {
     const customMessage = updateDrafts[item.hash] ?? item.customMessage ?? item.originalMessage
     await apiPatch(`/api/admin/updates/${item.hash}`, { customMessage, useOriginal: false, hidden: false })
-    toast.success("Update log display saved")
+    toast.success(d.updateLogSaved)
     setRefreshKey((key) => key + 1)
   }
 
   async function resetUpdateLog(item: UpdateLogItem) {
     await apiPatch(`/api/admin/updates/${item.hash}`, { useOriginal: true, hidden: false })
-    toast.success("Original commit note restored")
+    toast.success(d.originalRestored)
     setRefreshKey((key) => key + 1)
   }
 
   async function hideUpdateLog(item: UpdateLogItem) {
     if (!confirm(`Hide this update from the public changelog?\n${item.message}`)) return
     await apiDelete(`/api/admin/updates/${item.hash}`)
-    toast.success("Update hidden from changelog")
+    toast.success(d.updateHidden)
     setRefreshKey((key) => key + 1)
   }
 
@@ -391,7 +395,7 @@ export function AdminClient() {
         "/api/admin/activities/refresh-geo",
         {}
       )
-      toast.success(`Geo lookup updated ${result.updated} records, ${result.failed} failed`)
+      toast.success(d.geoRefreshed(result.updated, result.failed))
       await loadActivities(null, false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to refresh geo locations")
@@ -406,7 +410,7 @@ export function AdminClient() {
     setAnnouncementSaving(true)
     try {
       await apiPost("/api/announcements", { content })
-      toast.success("Announcement published")
+      toast.success(d.announcementPublished)
       setAnnouncementDraft("")
       await loadAnnouncements()
     } catch (error) {
@@ -420,7 +424,7 @@ export function AdminClient() {
     if (!confirm(`Delete this announcement?\n${item.content}`)) return
     try {
       await apiDelete(`/api/announcements/${item.id}`)
-      toast.success("Announcement deleted")
+      toast.success(d.announcementDeleted)
       await loadAnnouncements()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete announcement")
@@ -430,7 +434,7 @@ export function AdminClient() {
   async function deleteBroadcast(item: BroadcastItem) {
     if (!confirm(`Delete this broadcast?\n${item.content}`)) return
     await apiDelete(`/api/world-broadcasts/${item.id}`)
-    toast.success("Broadcast deleted")
+    toast.success(d.broadcastDeleted)
     await loadBroadcasts()
   }
 
@@ -444,7 +448,7 @@ export function AdminClient() {
       files.forEach((file) => form.append("files", file))
       const response = await fetch("/api/admin/stickers", { method: "POST", body: form })
       if (!response.ok) throw new Error("Upload failed")
-      toast.success("Public stickers uploaded")
+      toast.success(d.stickersUploaded)
       await loadStickers()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Upload failed")
@@ -455,39 +459,37 @@ export function AdminClient() {
 
   async function deletePublicSticker(item: StickerItem) {
     await apiDelete(`/api/admin/stickers/${item.id}`)
-    toast.success("Sticker deleted")
+    toast.success(d.stickerDeleted)
     await loadStickers()
   }
 
   return (
     <div className="mx-auto max-w-[1200px] px-6 py-10">
       <div className="mb-8">
-        <h1 className="mb-1 text-xl font-semibold">Admin Console</h1>
-        <p className="text-sm text-[--color-text-muted]">
-          Review access requests, manage members, and inspect recent operations.
-        </p>
+        <h1 className="mb-1 text-xl font-semibold">{d.title}</h1>
+        <p className="text-sm text-[--color-text-muted]">{d.description}</p>
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-2 text-xs text-[--color-text-muted]">Pending approvals</p>
+          <p className="mb-2 text-xs text-[--color-text-muted]">{d.pendingApprovals}</p>
           <p className="text-2xl font-semibold">{stats.pending}</p>
         </div>
         <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-2 text-xs text-[--color-text-muted]">Loaded users</p>
+          <p className="mb-2 text-xs text-[--color-text-muted]">{d.loadedUsers}</p>
           <p className="text-2xl font-semibold">
             {stats.users}
             {usersHasMore ? "+" : ""}
           </p>
         </div>
         <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-2 text-xs text-[--color-text-muted]">Admins</p>
+          <p className="mb-2 text-xs text-[--color-text-muted]">{d.admins}</p>
           <p className="text-2xl font-semibold">{stats.admins}</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="py-16 text-center text-sm text-[--color-text-muted]">Loading...</div>
+        <div className="py-16 text-center text-sm text-[--color-text-muted]">{d.loading}</div>
       ) : data ? (
         <div className="space-y-8">
           <AdminAIPanel enabled={hasPermission("manageAI")} />
@@ -496,13 +498,13 @@ export function AdminClient() {
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck size={16} />
-                <h2 className="text-sm font-semibold">Admin permissions</h2>
+                <h2 className="text-sm font-semibold">{d.adminPermissions}</h2>
               </div>
 
               <div className="mb-3 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                <p className="text-sm font-medium">Transfer ownership</p>
+                <p className="text-sm font-medium">{d.transferOwnership}</p>
                 <p className="mt-1 text-xs text-[--color-text-muted]">
-                  Choose another admin or member to become the owner. You will keep admin access after the transfer.
+                  {d.transferOwnerDesc}
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Select
@@ -511,7 +513,7 @@ export function AdminClient() {
                     disabled={ownerTransferCandidates.length === 0}
                   >
                     <SelectTrigger className="h-9 w-[280px] text-xs">
-                      <SelectValue placeholder="Select the new owner" />
+                      <SelectValue placeholder={d.selectNewOwner} />
                     </SelectTrigger>
                     <SelectContent>
                       {ownerTransferCandidates.map((user) => (
@@ -527,17 +529,17 @@ export function AdminClient() {
                     onClick={() => selectedOwnerTransferUser && transferOwner(selectedOwnerTransferUser)}
                     disabled={!selectedOwnerTransferUser}
                   >
-                    Transfer owner
+                    {d.transferOwner}
                   </Button>
                 </div>
               </div>
 
               <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
                 {adminPermissions.length === 0 ? (
-                  <p className="text-sm text-[--color-text-muted]">No extra admins available.</p>
+                  <p className="text-sm text-[--color-text-muted]">{d.noExtraAdmins}</p>
                 ) : (
                   <>
-                    <p className="mb-3 text-sm font-medium">Choose an admin to edit permissions</p>
+                    <p className="mb-3 text-sm font-medium">{d.chooseAdminEdit}</p>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                       {adminPermissions.map((admin) => (
                         <button
@@ -549,7 +551,7 @@ export function AdminClient() {
                           <p className="truncate text-sm font-medium">{admin.displayName || admin.email}</p>
                           <p className="mt-1 truncate font-mono text-xs text-[--color-text-muted]">{admin.email}</p>
                           <p className="mt-3 text-xs text-[--color-text-muted]">
-                            {ADMIN_PERMISSION_DEFS.filter((permission) => admin.permissions[permission.key]).length} permissions enabled
+                            {d.permissionsEnabled(ADMIN_PERMISSION_DEFS.filter((permission) => admin.permissions[permission.key]).length)}
                           </p>
                         </button>
                       ))}
@@ -564,11 +566,11 @@ export function AdminClient() {
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <UserCheck size={16} />
-                <h2 className="text-sm font-semibold">Registration approvals</h2>
+                <h2 className="text-sm font-semibold">{d.registrationApprovals}</h2>
               </div>
               <div className="max-h-[320px] overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
                 {data.requests.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">No pending registration requests.</p>
+                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noRegistrationRequests}</p>
                 ) : (
                   data.requests.map((request) => (
                     <div key={request.id} className="flex items-center gap-4 border-b border-[--color-border] px-4 py-3 last:border-b-0">
@@ -576,9 +578,9 @@ export function AdminClient() {
                         <p className="text-sm font-medium">{request.displayName}</p>
                         <p className="break-all font-mono text-xs text-[--color-text-muted]">{request.email}</p>
                       </div>
-                      <span className="text-xs text-[--color-text-muted]">{formatTime(request.createdAt)}</span>
+                      <span className="text-xs text-[--color-text-muted]">{formatTime(request.createdAt, dict)}</span>
                       <Button size="sm" onClick={() => approve(request.id)}>
-                        Approve
+                        {d.approve}
                       </Button>
                     </div>
                   ))
@@ -591,11 +593,11 @@ export function AdminClient() {
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <KeyRound size={16} />
-                <h2 className="text-sm font-semibold">Password change approvals</h2>
+                <h2 className="text-sm font-semibold">{d.passwordApprovals}</h2>
               </div>
               <div className="max-h-[320px] overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
                 {data.passwordRequests.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">No pending password change requests.</p>
+                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noPasswordRequests}</p>
                 ) : (
                   data.passwordRequests.map((request) => (
                     <div key={request.id} className="flex items-center gap-4 border-b border-[--color-border] px-4 py-3 last:border-b-0">
@@ -603,9 +605,9 @@ export function AdminClient() {
                         <p className="text-sm font-medium">{request.user.displayName || request.user.email}</p>
                         <p className="break-all font-mono text-xs text-[--color-text-muted]">{request.user.email}</p>
                       </div>
-                      <span className="text-xs text-[--color-text-muted]">{formatTime(request.requestedAt)}</span>
+                      <span className="text-xs text-[--color-text-muted]">{formatTime(request.requestedAt, dict)}</span>
                       <Button size="sm" onClick={() => approvePassword(request.id)}>
-                        Approve
+                        {d.approve}
                       </Button>
                     </div>
                   ))
@@ -618,38 +620,38 @@ export function AdminClient() {
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck size={16} />
-                <h2 className="text-sm font-semibold">Announcements</h2>
+                <h2 className="text-sm font-semibold">{d.announcements}</h2>
               </div>
               <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
                 <textarea
                   value={announcementDraft}
                   onChange={(event) => setAnnouncementDraft(event.target.value)}
                   maxLength={500}
-                  placeholder="Write the announcement text shown on the site home page."
+                  placeholder={d.announcementPlaceholder}
                   className="min-h-24 w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-primary] p-2 text-sm outline-none focus:border-[--color-accent]"
                 />
                 <div className="mt-3 flex items-center justify-between">
                   <span className="font-mono text-xs text-[--color-text-muted]">{announcementDraft.length}/500</span>
                   <Button size="sm" onClick={publishAnnouncement} disabled={announcementSaving || !announcementDraft.trim()}>
-                    {announcementSaving ? "Publishing..." : "Publish announcement"}
+                    {announcementSaving ? d.publishing : d.publishAnnouncement}
                   </Button>
                 </div>
               </div>
               <div className="mt-3 max-h-[420px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
                 {announcements.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">No announcement history yet.</p>
+                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noAnnouncements}</p>
                 ) : (
                   announcements.map((item) => (
                     <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
                       <div className="mb-2 flex items-start justify-between gap-3">
                         <p className="font-mono text-xs text-[--color-text-muted]">
-                          {formatTime(item.createdAt)} / {item.fromWorldChannel ? "World channel" : "Admin"}
+                          {formatTime(item.createdAt, dict)} / {item.fromWorldChannel ? d.worldChannel : d.adminSource}
                         </p>
                         <button
                           type="button"
                           onClick={() => deleteAnnouncement(item)}
                           className="text-[--color-text-muted] hover:text-[--color-danger]"
-                          title="Delete announcement"
+                          title={d.deleteAnnouncement}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -666,23 +668,23 @@ export function AdminClient() {
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck size={16} />
-                <h2 className="text-sm font-semibold">World channel broadcasts</h2>
+                <h2 className="text-sm font-semibold">{d.worldBroadcasts}</h2>
               </div>
               <div className="max-h-[420px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
                 {broadcasts.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">No broadcast history yet.</p>
+                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noBroadcasts}</p>
                 ) : (
                   broadcasts.map((item) => (
                     <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
                       <div className="mb-2 flex items-start justify-between gap-3">
                         <p className="font-mono text-xs text-[--color-text-muted]">
-                          {formatTime(item.createdAt)} / {item.author.displayName || item.author.email}
+                          {formatTime(item.createdAt, dict)} / {item.author.displayName || item.author.email}
                         </p>
                         <button
                           type="button"
                           onClick={() => deleteBroadcast(item)}
                           className="text-[--color-text-muted] hover:text-[--color-danger]"
-                          title="Delete broadcast"
+                          title={d.deleteBroadcast}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -699,12 +701,12 @@ export function AdminClient() {
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <ImageIcon size={16} />
-                <h2 className="text-sm font-semibold">Public sticker library</h2>
+                <h2 className="text-sm font-semibold">{d.manageStickers}</h2>
               </div>
               <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-[--radius-sm] border border-[--color-border] px-3 py-2 text-sm hover:bg-[--color-bg-hover]">
                   <Upload size={14} />
-                  {stickerUploading ? "Uploading..." : "Upload public stickers"}
+                  {stickerUploading ? dict.common.uploading : d.uploadPublicStickers}
                   <input type="file" accept="image/*" multiple className="hidden" onChange={uploadPublicStickers} disabled={stickerUploading} />
                 </label>
                 <div className="mt-4 grid max-h-[360px] grid-cols-4 gap-3 overflow-y-auto pr-1 sm:grid-cols-8">
@@ -716,7 +718,7 @@ export function AdminClient() {
                         type="button"
                         onClick={() => deletePublicSticker(item)}
                         className="absolute right-1 top-1 hidden rounded bg-white p-1 text-[--color-danger] shadow group-hover:block"
-                        title="Delete sticker"
+                        title={d.deleteSticker}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -731,7 +733,7 @@ export function AdminClient() {
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <UserCog size={16} />
-                <h2 className="text-sm font-semibold">User management</h2>
+                <h2 className="text-sm font-semibold">{d.userManagement}</h2>
               </div>
               <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
                 <div
@@ -744,10 +746,10 @@ export function AdminClient() {
                     <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
                       <thead className="sticky top-0 z-10">
                         <tr>
-                          <th className="glass-nav-bg w-[290px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">User</th>
-                          <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Role</th>
-                          <th className="glass-nav-bg w-[190px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Last login</th>
-                          <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Delete rule</th>
+                          <th className="glass-nav-bg w-[290px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.userTable.displayName}</th>
+                          <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.userTable.role}</th>
+                          <th className="glass-nav-bg w-[190px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.userTable.lastLogin}</th>
+                          <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.userTable.deleteRule}</th>
                           {data.canManageUsers ? <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5" /> : null}
                         </tr>
                       </thead>
@@ -777,36 +779,36 @@ export function AdminClient() {
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="user">User</SelectItem>
-                                      <SelectItem value="admin">Admin</SelectItem>
+                                      <SelectItem value="user">{d.role.user}</SelectItem>
+                                      <SelectItem value="admin">{d.role.admin}</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 text-xs">
                                     {user.role === "owner" ? <ShieldCheck size={13} /> : null}
-                                    {user.role === "owner" ? "Owner" : user.role === "admin" ? "Admin" : "User"}
+                                    {user.role === "owner" ? d.role.owner : user.role === "admin" ? d.role.admin : d.role.user}
                                   </span>
                                 )}
                               </td>
                               <td className="w-[190px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {formatTime(user.lastLoginAt)}
+                                {formatTime(user.lastLoginAt, dict)}
                               </td>
                               <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {deleteBlockedReason ?? "Deletable"}
+                                {deleteBlockedReason ?? d.deletable}
                               </td>
                               {data.canManageUsers ? (
                                 <td className="w-[170px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
                                   <div className="flex items-center justify-end gap-2">
                                     {canTransferOwner ? (
                                       <Button size="sm" variant="outline" onClick={() => transferOwner(user)} className="h-8 px-2 text-xs">
-                                        Transfer
+                                        {d.transfer}
                                       </Button>
                                     ) : null}
                                     <button
                                       onClick={() => deleteUser(user)}
                                       disabled={Boolean(deleteBlockedReason)}
                                       className="p-1 text-[--color-text-muted] hover:text-[--color-danger] disabled:cursor-not-allowed disabled:opacity-40"
-                                      title={deleteBlockedReason ?? "Delete user"}
+                                      title={deleteBlockedReason ?? d.deleteUser}
                                     >
                                       <Trash2 size={14} />
                                     </button>
@@ -818,7 +820,7 @@ export function AdminClient() {
                         })}
                       </tbody>
                     </table>
-                    {usersLoading ? <p className="p-3 text-center text-xs text-[--color-text-muted]">Loading more users...</p> : null}
+                    {usersLoading ? <p className="p-3 text-center text-xs text-[--color-text-muted]">{d.loadingMoreUsers}</p> : null}
                   </div>
                 </div>
               </div>
@@ -830,25 +832,25 @@ export function AdminClient() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={16} />
-                  <h2 className="text-sm font-semibold">Recent activity</h2>
+                  <h2 className="text-sm font-semibold">{d.recentActivity}</h2>
                   <span className="text-xs text-[--color-text-muted]">
-                    Last refresh: {activitiesRefreshedAt ? formatTime(activitiesRefreshedAt) : "Not refreshed yet"}
+                    {d.lastRefresh}: {activitiesRefreshedAt ? formatTime(activitiesRefreshedAt, dict) : d.notRefreshedYet}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button size="sm" variant="outline" onClick={() => void loadActivities(null, false)} disabled={activitiesLoading}>
-                    <RotateCcw size={14} /> {activitiesLoading ? "Refreshing..." : "Refresh logs"}
+                    <RotateCcw size={14} /> {activitiesLoading ? d.refreshing : d.refreshLogs}
                   </Button>
                   {hasPermission("refreshGeoLocations") ? (
                     <Button size="sm" variant="outline" onClick={refreshGeoLocations} disabled={geoRefreshing}>
-                      <RotateCcw size={14} /> {geoRefreshing ? "Refreshing..." : "Refresh geo data"}
+                      <RotateCcw size={14} /> {geoRefreshing ? d.refreshing : d.refreshGeo}
                     </Button>
                   ) : null}
                 </div>
               </div>
               <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
                 {activities.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">No activity records yet.</p>
+                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noActivity}</p>
                 ) : (
                   <div
                     className="max-h-[500px] overflow-auto bg-[--color-bg-surface]"
@@ -860,19 +862,19 @@ export function AdminClient() {
                       <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
                         <thead className="sticky top-0 z-10">
                           <tr>
-                            <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Time</th>
-                            <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Action</th>
-                            <th className="glass-nav-bg w-[300px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">User and detail</th>
-                            <th className="glass-nav-bg w-[180px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">IP address</th>
-                            <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Geo</th>
-                            <th className="glass-nav-bg w-[140px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">Device</th>
+                            <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.time}</th>
+                            <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.action}</th>
+                            <th className="glass-nav-bg w-[300px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.userDetail}</th>
+                            <th className="glass-nav-bg w-[180px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.ipAddress}</th>
+                            <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.geo}</th>
+                            <th className="glass-nav-bg w-[140px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.device}</th>
                           </tr>
                         </thead>
                         <tbody>
                           {activities.map((activity) => (
                             <tr key={activity.id}>
                               <td className="w-[160px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {formatTime(activity.createdAt)}
+                                {formatTime(activity.createdAt, dict)}
                               </td>
                               <td className="w-[170px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs">
                                 <span className={`inline-flex min-w-[72px] items-center justify-center rounded-full border px-2.5 py-1 font-mono ${activityActionClass(activity.action)}`}>
@@ -880,22 +882,22 @@ export function AdminClient() {
                                 </span>
                               </td>
                               <td className="w-[300px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {(activity.user?.displayName || activity.user?.email || "System")}: {activity.detail}
+                                {(activity.user?.displayName || activity.user?.email || d.system)}: {activity.detail}
                               </td>
                               <td className="w-[180px] break-all border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted]">
-                                {activity.ipAddress || "Unknown"}
+                                {activity.ipAddress || d.unknown}
                               </td>
                               <td className="w-[160px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {activity.geoLocation || "Unknown"}
+                                {activity.geoLocation || d.unknown}
                               </td>
                               <td className="w-[140px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {activity.deviceInfo || "Unknown"}
+                                {activity.deviceInfo || d.unknown}
                               </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
-                      {activitiesLoading ? <p className="p-3 text-center text-xs text-[--color-text-muted]">Loading more activity...</p> : null}
+                      {activitiesLoading ? <p className="p-3 text-center text-xs text-[--color-text-muted]">{d.loadingMoreActivity}</p> : null}
                     </div>
                   </div>
                 )}
@@ -907,23 +909,23 @@ export function AdminClient() {
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <GitCommitHorizontal size={16} />
-                <h2 className="text-sm font-semibold">Public changelog display</h2>
+                <h2 className="text-sm font-semibold">{d.changelogDisplay}</h2>
               </div>
               <div className="max-h-[520px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
                 {data.updates.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">No git update records yet.</p>
+                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noUpdateRecords}</p>
                 ) : (
                   data.updates.map((item) => (
                     <div key={item.hash} className={`rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4 ${item.hidden ? "opacity-55" : ""}`}>
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-mono text-xs text-[--color-text-muted]">
-                            {formatTime(item.date)} - {item.hash.slice(0, 12)}
+                            {formatTime(item.date, dict)} - {item.hash.slice(0, 12)}
                           </p>
-                          <p className="mt-1 text-xs text-[--color-text-muted]">Original note: {item.originalMessage}</p>
+                          <p className="mt-1 text-xs text-[--color-text-muted]">{d.originalNote}: {item.originalMessage}</p>
                         </div>
                         <span className="text-xs text-[--color-text-muted]">
-                          {item.hidden ? "Hidden" : item.useOriginal ? "Showing original note" : "Showing custom note"}
+                          {item.hidden ? d.status.hidden : item.useOriginal ? d.status.showingOriginalNote : d.status.showingCustomNote}
                         </span>
                       </div>
                       <textarea
@@ -933,13 +935,13 @@ export function AdminClient() {
                       />
                       <div className="mt-3 flex flex-wrap justify-end gap-2">
                         <Button size="sm" variant="outline" onClick={() => saveUpdateLog(item)}>
-                          <Save size={14} /> Save custom note
+                          <Save size={14} /> {d.saveCustomNote}
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => resetUpdateLog(item)}>
-                          <RotateCcw size={14} /> Restore original
+                          <RotateCcw size={14} /> {d.restoreOriginal}
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => hideUpdateLog(item)} className="text-[--color-danger]">
-                          <Trash2 size={14} /> Hide entry
+                          <Trash2 size={14} /> {d.hideEntry}
                         </Button>
                       </div>
                     </div>
@@ -954,7 +956,7 @@ export function AdminClient() {
       <Dialog open={Boolean(selectedAdminPermission)} onOpenChange={(open) => !open && setSelectedAdminPermissionId(null)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Admin permissions</DialogTitle>
+            <DialogTitle>{d.adminPermissions}</DialogTitle>
             <DialogDescription>
               {selectedAdminPermission
                 ? `Editing permissions for ${selectedAdminPermission.displayName || selectedAdminPermission.email}.`
@@ -986,7 +988,7 @@ export function AdminClient() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedAdminPermissionId(null)}>
-              Close
+              {d.close}
             </Button>
           </DialogFooter>
         </DialogContent>

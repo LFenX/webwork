@@ -27,6 +27,8 @@ import {
   loadModelCatalog,
   saveModelCatalog,
 } from "@/lib/ai/model-presets"
+import { getDict, type Dictionary } from "@/lib/i18n"
+import { handleEnterToSubmit } from "@/lib/keyboard"
 
 type AIProviderCapabilities = {
   streamText: boolean
@@ -103,6 +105,21 @@ type MessageItem = {
   attachments: AttachmentItem[]
 }
 
+type UserConfigSummary = {
+  id: string
+  name: string
+  isActive: boolean
+  providerLabel: string
+  baseUrl: string
+  model: string
+  temperature: number
+  streamEnabled: boolean
+  isEnabled: boolean
+  apiKeyMask: string
+  lastTestStatus: string
+  lastTestedAt: string | null
+}
+
 type AIStatusResponse = {
   storageReady: boolean
   status: {
@@ -134,18 +151,8 @@ type AIStatusResponse = {
     createdAt: string
     reviewedAt: string | null
   } | null
-  userConfig: {
-    providerLabel: string
-    baseUrl: string
-    model: string
-    temperature: number
-    streamEnabled: boolean
-    capabilities?: AIProviderCapabilities | null
-    isEnabled: boolean
-    apiKeyMask: string
-    lastTestStatus: string
-    lastTestedAt: string | null
-  } | null
+  userConfig: (UserConfigSummary & { capabilities?: AIProviderCapabilities | null }) | null
+  userConfigs?: UserConfigSummary[]
 }
 
 const SUGGESTIONS = [
@@ -154,39 +161,39 @@ const SUGGESTIONS = [
   "帮我汇总最近三天的重要动态",
 ]
 
-function reasonLabel(reason: string) {
+function reasonLabel(dict: Dictionary, reason: string) {
   switch (reason) {
     case "ready":
-      return "已可用"
+      return dict.ai.reasonReady
     case "server-secret-missing":
-      return "服务端缺少 AI 安全配置"
+      return dict.ai.reasonServerSecretMissing
     case "request-pending":
-      return "申请审核中"
+      return dict.ai.accessPending
     case "request-rejected":
-      return "申请已被拒绝"
+      return dict.ai.accessDenied
     case "grant-paused":
-      return "管理员授权已暂停"
+      return dict.ai.grantPaused
     case "grant-revoked":
-      return "管理员授权已撤销"
+      return dict.ai.grantRevoked
     case "configure-personal-api":
-      return "请先配置个人 API"
+      return dict.ai.reasonConfigurePersonalApi
     case "request-access":
-      return "请先申请访问权限"
+      return dict.ai.reasonRequestAccess
     default:
-      return "暂时不可用"
+      return dict.ai.reasonUnavailable
   }
 }
 
-function sourceLabel(source: "user" | "grant" | "none") {
-  if (source === "user") return "自定义 API"
-  if (source === "grant") return "管理员授权"
-  return "暂无来源"
+function sourceLabel(dict: Dictionary, source: "user" | "grant" | "none") {
+  if (source === "user") return dict.ai.sourceCustom
+  if (source === "grant") return dict.ai.sourceGrant
+  return dict.ai.sourceNone
 }
 
-function modeLabel(mode: MessageItem["runMode"]) {
-  if (mode === "admin-delegated") return "管理员代查"
-  if (mode === "visible-user") return "可见页读取"
-  return "本人数据"
+function modeLabel(dict: Dictionary, mode: MessageItem["runMode"]) {
+  if (mode === "admin-delegated") return dict.ai.modeAdminDelegated
+  if (mode === "visible-user") return dict.ai.modeVisibleUser
+  return dict.ai.modeSelf
 }
 
 function formatConversationTime(value: string) {
@@ -229,25 +236,27 @@ function capabilityTone(supported: boolean) {
     : "border-slate-200 bg-slate-100 text-slate-500"
 }
 
-function stepKindLabel(type: string) {
+function stepKindLabel(dict: Dictionary, type: string) {
   switch (type) {
     case "reasoning":
-      return "思考"
+      return dict.ai.thinking
     case "tool_call":
-      return "工具调用"
+      return dict.ai.toolCalling
     case "assistant_output":
-      return "最终回答"
+      return dict.ai.stepKindFinalAnswer
     case "warning":
-      return "能力提示"
+      return dict.ai.stepKindWarning
     default:
-      return "过程"
+      return dict.ai.stepKindGeneric
   }
 }
 
 function stepLeadIcon(type: string, status: string) {
   if (type === "tool_call") return <Wrench size={15} />
   if (type === "warning") return <TriangleAlert size={15} />
+  if (status === "running" || status === "streaming") return <Loader2 size={15} className="animate-spin" />
   if (status === "completed") return <CheckCircle2 size={15} />
+  if (status === "failed") return <TriangleAlert size={15} />
   return <Sparkles size={15} />
 }
 
@@ -268,10 +277,10 @@ function extractReasoningNarrative(step: StepPreview) {
   return toReadableLines(step.summary)
 }
 
-function formatValueInline(value: unknown): string {
-  if (value == null) return "未提供"
+function formatValueInline(dict: Dictionary, value: unknown): string {
+  if (value == null) return dict.ai.notProvided
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value)
-  if (Array.isArray(value)) return value.map((item) => formatValueInline(item)).join("、")
+  if (Array.isArray(value)) return value.map((item) => formatValueInline(dict, item)).join("、")
   return compactJson(value)
 }
 
@@ -286,7 +295,7 @@ function isStructuredToolResult(value: unknown): value is {
   return "ok" in value && "access" in value && "summary" in value && "data" in value
 }
 
-function buildToolNarrative(step: StepPreview) {
+function buildToolNarrative(dict: Dictionary, step: StepPreview) {
   if (step.type !== "tool_call") return []
 
   const sections: Array<{ title: string; body: string }> = []
@@ -295,16 +304,16 @@ function buildToolNarrative(step: StepPreview) {
   const toolName = typeof input?.toolName === "string" ? input.toolName : step.title
 
   sections.push({
-    title: "这一步在做什么",
-    body: `系统调用了 ${toolName}，目的是 ${step.summary || "补充当前回答所需的数据"}`,
+    title: dict.ai.stepWhatDoing,
+    body: `${dict.ai.stepSystemCalled} ${toolName}，${dict.ai.stepPurposeIs} ${step.summary || dict.ai.stepSupplementalData}`,
   })
 
   const args = input?.arguments
   if (args && typeof args === "object" && !Array.isArray(args) && Object.keys(args).length > 0) {
     sections.push({
-      title: "本次传入的信息",
+      title: dict.ai.stepInputInfo,
       body: Object.entries(args)
-        .map(([key, value]) => `${key}：${formatValueInline(value)}`)
+        .map(([key, value]) => `${key}：${formatValueInline(dict, value)}`)
         .join("；"),
     })
   }
@@ -312,20 +321,20 @@ function buildToolNarrative(step: StepPreview) {
   if (output?.result !== undefined) {
     if (isStructuredToolResult(output.result)) {
       sections.push({
-        title: "这一步得到了什么",
+        title: dict.ai.stepWhatGot,
         body: output.result.summary,
       })
 
       if (output.result.reason) {
         sections.push({
-          title: "为什么是这个结果",
+          title: dict.ai.stepWhyResult,
           body: output.result.reason,
         })
       }
 
       if (output.result.data && typeof output.result.data === "object") {
         sections.push({
-          title: "返回的数据摘要",
+          title: dict.ai.stepDataSummary,
           body: compactJson(output.result.data),
         })
       }
@@ -334,12 +343,12 @@ function buildToolNarrative(step: StepPreview) {
     }
 
     sections.push({
-      title: "工具返回了什么",
+      title: dict.ai.stepWhatReturned,
       body: typeof output.result === "string" ? output.result : compactJson(output.result),
     })
   } else if (step.errorMessage) {
     sections.push({
-      title: "为什么失败了",
+      title: dict.ai.stepWhyFailed,
       body: step.errorMessage,
     })
   }
@@ -347,7 +356,7 @@ function buildToolNarrative(step: StepPreview) {
   return sections
 }
 
-function renderStepDetail(step: StepPreview) {
+function renderStepDetail(dict: Dictionary, step: StepPreview) {
   if (step.type === "reasoning") {
     const lines = extractReasoningNarrative(step)
     if (lines.length === 0) return null
@@ -363,7 +372,7 @@ function renderStepDetail(step: StepPreview) {
   }
 
   if (step.type === "tool_call") {
-    const sections = buildToolNarrative(step)
+    const sections = buildToolNarrative(dict, step)
     if (sections.length === 0) return null
     return (
       <div className="space-y-3 py-1">
@@ -384,7 +393,7 @@ function renderStepDetail(step: StepPreview) {
   }
 
   if (step.type === "assistant_output") {
-    return <p className="py-1 text-sm leading-7 text-[--color-text-secondary]">正文已经显示在下方，这里只保留阶段记录。</p>
+    return <p className="py-1 text-sm leading-7 text-[--color-text-secondary]">{dict.ai.stepFallbackNote}</p>
   }
 
   const fallback = compactJson(step.outputPreview) || compactJson(step.inputPreview)
@@ -397,102 +406,136 @@ function renderStepDetail(step: StepPreview) {
   )
 }
 
-function TraceBlock({ step }: { step: StepPreview }) {
-  const detail = renderStepDetail(step)
-  return (
-    <details className="group rounded-2xl">
-      <summary className="flex cursor-pointer list-none items-start gap-3 py-3 marker:hidden">
-        <span className={`mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full ${statusChip(step.status)}`}>
-          {stepLeadIcon(step.type, step.status)}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs uppercase tracking-[0.16em] text-[--color-text-muted]">{stepKindLabel(step.type)}</span>
-            <span className="text-sm font-medium text-[--color-text-primary]">{step.title}</span>
-            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] ${statusChip(step.status)}`}>
-              {step.status}
-            </span>
-          </div>
-          {step.summary ? <p className="mt-1 line-clamp-2 text-sm text-[--color-text-secondary]">{step.summary}</p> : null}
-        </div>
-        <span className="text-xs text-[--color-text-muted]">{formatMessageTime(step.startedAt)}</span>
-        <ChevronDown size={16} className="shrink-0 text-[--color-text-muted] transition-transform group-open:rotate-180" />
-      </summary>
+const statusLabel = (status: string) => status
 
-      {detail ? <div className="ml-11 border-l border-[--color-border] pl-5">{detail}</div> : null}
-    </details>
+function TraceBlock({ step, isLast, dict }: { step: StepPreview; isLast: boolean; dict: Dictionary }) {
+  const detail = renderStepDetail(dict, step)
+  const isRunning = step.status === "running"
+
+  return (
+    <div
+      className={`${isRunning ? "animate-in fade-in slide-in-from-left-1 duration-300" : ""}`}
+      style={{ animationDuration: "300ms" }}
+    >
+      <details className="group" open={isRunning || isLast}>
+        <summary className="flex cursor-pointer list-none items-start gap-3 py-2.5 marker:hidden">
+          <span className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full shrink-0 ${statusChip(step.status)} ${isRunning ? "animate-pulse" : ""}`}>
+            {stepLeadIcon(step.type, step.status)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm font-medium text-[--color-text-primary] truncate">{step.title}</span>
+              <span className={`inline-flex rounded-full border px-2 py-px text-[11px] shrink-0 ${statusChip(step.status)}`}>
+                {statusLabel(step.status)}
+              </span>
+            </div>
+            {step.summary ? <p className="mt-0.5 text-xs text-[--color-text-secondary] line-clamp-2">{step.summary}</p> : null}
+          </div>
+          <span className="text-[11px] text-[--color-text-muted] shrink-0 mt-1">{formatMessageTime(step.startedAt)}</span>
+          <ChevronDown size={14} className="shrink-0 text-[--color-text-muted] transition-transform group-open:rotate-180 mt-1" />
+        </summary>
+        {detail ? <div className="ml-10 border-l-2 border-[--color-border] pl-4 pb-2">{detail}</div> : null}
+      </details>
+    </div>
   )
 }
 
-function TraceSection({ title, steps, defaultOpen = false }: { title: string; steps: StepPreview[]; defaultOpen?: boolean }) {
+function TraceSection({ title, steps, icon, defaultOpen = false, dict }: { title: string; steps: StepPreview[]; icon: React.ReactNode; defaultOpen?: boolean; dict: Dictionary }) {
   if (steps.length === 0) return null
 
   return (
-    <details open={defaultOpen} className="group rounded-2xl">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-3 marker:hidden">
-        <div className="flex items-center gap-3">
+    <details open={defaultOpen} className="group mb-2">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-2.5 marker:hidden">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[--color-text-muted]">{icon}</span>
           <span className="text-sm font-medium text-[--color-text-primary]">{title}</span>
-          <span className="rounded-full bg-[--color-bg-hover] px-2.5 py-1 text-[11px] text-[--color-text-muted]">
-            {steps.length} 个阶段
+          <span className="rounded-full bg-[--color-bg-hover] px-2 py-0.5 text-[11px] text-[--color-text-muted]">
+            {dict.ai.phaseCount(steps.length)}
           </span>
         </div>
         <ChevronDown size={16} className="shrink-0 text-[--color-text-muted] transition-transform group-open:rotate-180" />
       </summary>
-      <div className="space-y-1">
-        {steps.map((step) => (
-          <TraceBlock key={step.id} step={step} />
+      <div className="space-y-0.5">
+        {steps.map((step, i) => (
+          <TraceBlock key={step.id} step={step} isLast={i === steps.length - 1} dict={dict} />
         ))}
       </div>
+      {/* Decorative connector line for running steps */}
+      {defaultOpen && steps.some((s) => s.status === "running") ? (
+        <div className="ml-[14px] mt-0.5 mb-1 h-3 w-px bg-[--color-border]" />
+      ) : null}
     </details>
   )
 }
 
-function AssistantMessageCard({ message, run }: { message: MessageItem; run?: RunDetail }) {
+/** Close unclosed fenced code blocks so react-markdown doesn't break during streaming. */
+function normalizeStreamingMarkdown(source: string): string {
+  const ticks = (source.match(/```/g) ?? []).length
+  return ticks % 2 !== 0 ? source + "\n```" : source
+}
+
+function AssistantMessageCard({ message, run, dict }: { message: MessageItem; run?: RunDetail; dict: Dictionary }) {
   const steps = run?.steps?.length ? run.steps : message.stepsPreview
   const warnings = steps.filter((step) => step.type === "warning")
   const reasoningSteps = steps.filter((step) => step.type === "reasoning")
   const toolSteps = steps.filter((step) => step.type === "tool_call")
+  const isStreaming = message.status === "streaming"
   const modelName = run?.finalModel || message.modelName
+  const hasContent = Boolean(message.contentMarkdown?.trim())
+  const displayMarkdown = isStreaming
+    ? normalizeStreamingMarkdown(message.contentMarkdown ?? "")
+    : (message.contentMarkdown ?? "")
 
   return (
     <article className="mr-auto w-full max-w-[1180px]">
       <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-sm font-semibold text-[--color-text-primary]">AI 助手</span>
+        <span className="text-sm font-semibold text-[--color-text-primary]">{dict.ai.title}</span>
         <span className="text-xs text-[--color-text-muted]">{formatMessageTime(message.createdAt)}</span>
         {modelName ? (
           <span className="rounded-full bg-[--color-bg-hover] px-2.5 py-1 text-[11px] text-[--color-text-muted]">{modelName}</span>
         ) : null}
         {message.runMode ? (
-          <span className="rounded-full bg-[--color-bg-hover] px-2.5 py-1 text-[11px] text-[--color-text-muted]">{modeLabel(message.runMode)}</span>
+          <span className="rounded-full bg-[--color-bg-hover] px-2.5 py-1 text-[11px] text-[--color-text-muted]">{modeLabel(dict, message.runMode)}</span>
         ) : null}
-        {message.contentMarkdown ? (
+        {hasContent ? (
           <button
             type="button"
             className="ml-auto inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs text-[--color-text-muted] transition-colors hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
             onClick={async () => {
               await navigator.clipboard.writeText(message.contentMarkdown)
-              toast.success("已复制回答")
+              toast.success(dict.ai.answerCopied)
             }}
           >
             <Copy size={13} />
-            复制
+            {dict.common.copy}
           </button>
         ) : null}
       </div>
 
       <div className="space-y-4">
+        {/* Status badges */}
         <div className="flex flex-wrap items-center gap-2">
           <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${statusChip(message.runStatus ?? message.status)}`}>
             {message.runStatus ?? message.status}
           </span>
-          <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
-            {reasoningSteps.length > 0 ? `${reasoningSteps.length} 个思考阶段` : "无显式思考阶段"}
-          </span>
-          <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
-            {toolSteps.length > 0 ? `${toolSteps.length} 次工具调用` : "未调用工具"}
-          </span>
+          {reasoningSteps.length > 0 ? (
+            <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+              {dict.ai.thinkingStages(reasoningSteps.length)}
+            </span>
+          ) : isStreaming ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+              <Loader2 size={10} className="animate-spin" />
+              {dict.ai.thinkingStages(0)}
+            </span>
+          ) : null}
+          {toolSteps.length > 0 ? (
+            <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+              {dict.ai.toolCallsTimes(toolSteps.length)}
+            </span>
+          ) : null}
         </div>
 
+        {/* Warnings */}
         {warnings.length > 0 ? (
           <div className="space-y-2">
             {warnings.map((step) => (
@@ -503,38 +546,44 @@ function AssistantMessageCard({ message, run }: { message: MessageItem; run?: Ru
           </div>
         ) : null}
 
+        {/* Thinking & tool call trace — two independent sections */}
         {(reasoningSteps.length > 0 || toolSteps.length > 0) ? (
-          <details className="group rounded-2xl bg-[--color-bg-hover]/60 px-4 py-2">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-2 marker:hidden">
-              <div>
-                <p className="text-sm font-medium text-[--color-text-primary]">查看执行过程</p>
-                <p className="text-xs text-[--color-text-muted]">回答完成后默认收起，需要时再展开思考或工具调用。</p>
-              </div>
-              <ChevronDown size={16} className="shrink-0 text-[--color-text-muted] transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="space-y-1 pt-1">
-              <TraceSection title="思考过程" steps={reasoningSteps} defaultOpen={message.status === "streaming"} />
-              <TraceSection title="工具调用过程" steps={toolSteps} />
-            </div>
-          </details>
+          <div className="rounded-2xl bg-[--color-bg-hover]/40 px-4 py-2">
+            <TraceSection
+              title={dict.ai.thinkingProcess}
+              steps={reasoningSteps}
+              icon={<Sparkles size={15} />}
+              defaultOpen={isStreaming && reasoningSteps.some((s) => s.status === "running")}
+              dict={dict}
+            />
+            <TraceSection
+              title={dict.ai.toolCallProcess}
+              steps={toolSteps}
+              icon={<Wrench size={15} />}
+              defaultOpen={isStreaming && toolSteps.some((s) => s.status === "running")}
+              dict={dict}
+            />
+          </div>
         ) : null}
 
-        {message.contentMarkdown ? (
+        {/* Content area — Markdown renders in both streaming and completed states */}
+        {hasContent ? (
           <div className="ai-response">
-            <MarkdownContent source={message.contentMarkdown} />
+            <MarkdownContent key={displayMarkdown.length} source={displayMarkdown} />
           </div>
-        ) : (
-          <div className="inline-flex items-center gap-2 rounded-full bg-[--color-bg-hover] px-4 py-2 text-sm text-[--color-text-muted]">
+        ) : isStreaming ? (
+          <div className="flex items-center gap-2 py-2 text-sm text-[--color-text-muted]">
             <Loader2 size={14} className="animate-spin" />
-            正在思考并生成回答...
+            {dict.ai.generatingMessage}
           </div>
-        )}
+        ) : null}
       </div>
     </article>
   )
 }
 
 export function AIAssistantClient() {
+  const dict = getDict()
   const [conversations, setConversations] = useState<ConversationItem[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [messages, setMessages] = useState<MessageItem[]>([])
@@ -570,14 +619,14 @@ export function AIAssistantClient() {
   async function loadStatus() {
     const res = await fetch("/api/ai/status", { cache: "no-store" })
     const data = await res.json().catch(() => null)
-    if (!res.ok) throw new Error(data?.error ?? "加载 AI 状态失败")
+    if (!res.ok) throw new Error(data?.error ?? dict.ai.loadAiStatusFailed)
     setStatusPayload(data)
   }
 
   async function loadConversations(preferredId?: string | null) {
     const res = await fetch("/api/ai/conversations", { cache: "no-store" })
     const data = await res.json().catch(() => null)
-    if (!res.ok) throw new Error(data?.error ?? "加载会话失败")
+    if (!res.ok) throw new Error(data?.error ?? dict.ai.loadConversationsFailed)
     const items: ConversationItem[] = Array.isArray(data?.items) ? data.items : []
     setConversations(items)
 
@@ -601,12 +650,28 @@ export function AIAssistantClient() {
 
     const res = await fetch(`/api/ai/conversations/${conversationId}/messages`, { cache: "no-store" })
     const data = await res.json().catch(() => null)
-    if (!res.ok) throw new Error(data?.error ?? "加载消息失败")
+    if (!res.ok) throw new Error(data?.error ?? dict.ai.loadMessagesFailed)
 
-    const items: MessageItem[] = Array.isArray(data?.items) ? data.items : []
-    setMessages(items)
+    const serverItems: MessageItem[] = Array.isArray(data?.items) ? data.items : []
+    // Merge with local state: preserve streaming trace events, adopt server content for completed messages
+    setMessages((prev) => {
+      const prevMap = new Map(prev.map((m) => [m.id, m]))
+      return serverItems.map((server) => {
+        const local = prevMap.get(server.id)
+        if (!local) return server
+        // If local message was streaming and now server says completed, merge
+        if (local.status === "streaming" && server.status === "completed") {
+          return {
+            ...server,
+            // Preserve locally-built stepsPreview which have correct types from SSE events
+            stepsPreview: local.stepsPreview.length > 0 ? local.stepsPreview : server.stepsPreview,
+          }
+        }
+        return server
+      })
+    })
 
-    const assistants = items.filter((item) => item.role === "assistant" && item.runId)
+    const assistants = serverItems.filter((item) => item.role === "assistant" && item.runId)
     await Promise.all(assistants.map((item) => loadRun(item.id)))
   }
 
@@ -617,7 +682,7 @@ export function AIAssistantClient() {
       const conversationId = await loadConversations()
       await loadMessages(conversationId)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "加载 AI 助手失败")
+      toast.error(error instanceof Error ? error.message : dict.ai.loadAiFailed)
     } finally {
       setLoading(false)
     }
@@ -630,7 +695,12 @@ export function AIAssistantClient() {
   }, [])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    const container = endRef.current?.parentElement
+    if (!container) return
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120
+    if (isNearBottom || sending) {
+      endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    }
   }, [messages, sending])
 
   useEffect(() => {
@@ -652,16 +722,16 @@ export function AIAssistantClient() {
       const res = await fetch("/api/ai/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "新对话" }),
+        body: JSON.stringify({ title: dict.ai.newConversation }),
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "创建会话失败")
+      if (!res.ok) throw new Error(data?.error ?? dict.ai.createConversationFailed)
       await loadConversations(data?.id ?? null)
       setMessages([])
       setRunsByMessageId({})
       setMobilePanel(null)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "创建会话失败")
+      toast.error(error instanceof Error ? error.message : dict.ai.createConversationFailed)
     }
   }
 
@@ -673,12 +743,12 @@ export function AIAssistantClient() {
         body: JSON.stringify({ title: renameValue }),
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "重命名失败")
+      if (!res.ok) throw new Error(data?.error ?? dict.ai.renameConversationFailed)
       setRenamingId(null)
       setRenameValue("")
       await loadConversations(id)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "重命名失败")
+      toast.error(error instanceof Error ? error.message : dict.ai.renameConversationFailed)
     }
   }
 
@@ -686,12 +756,12 @@ export function AIAssistantClient() {
     try {
       const res = await fetch(`/api/ai/conversations/${id}`, { method: "DELETE" })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "删除会话失败")
+      if (!res.ok) throw new Error(data?.error ?? dict.ai.deleteConversationFailed)
       const nextId = conversations.find((item) => item.id !== id)?.id ?? null
       await loadConversations(nextId)
       await loadMessages(nextId)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "删除会话失败")
+      toast.error(error instanceof Error ? error.message : dict.ai.deleteConversationFailed)
     }
   }
 
@@ -704,12 +774,12 @@ export function AIAssistantClient() {
         body: JSON.stringify({ message: requestMessage }),
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "提交申请失败")
-      toast.success("已提交 AI 使用申请")
+      if (!res.ok) throw new Error(data?.error ?? dict.ai.submitRequestFailed)
+      toast.success(dict.ai.aiRequestSubmitted)
       setRequestMessage("")
       await loadStatus()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "提交申请失败")
+      toast.error(error instanceof Error ? error.message : dict.ai.submitRequestFailed)
     }
   }
 
@@ -718,7 +788,7 @@ export function AIAssistantClient() {
     form.set("file", file)
     const response = await fetch("/api/upload", { method: "POST", body: form })
     const data = await response.json().catch(() => null)
-    if (!response.ok) throw new Error(data?.error ?? "图片上传失败")
+    if (!response.ok) throw new Error(data?.error ?? dict.ai.imageUploadFailed)
     return {
       id: data?.id ?? crypto.randomUUID(),
       uploadId: data?.id ?? null,
@@ -782,7 +852,7 @@ export function AIAssistantClient() {
     if ((!text && attachments.length === 0) || sending) return
 
     if (!statusPayload?.status.canUseAI) {
-      toast.error("当前没有可用的 AI 来源，请先配置个人 API 或提交申请。")
+      toast.error(dict.ai.noAvailableAiHint)
       return
     }
 
@@ -849,13 +919,47 @@ export function AIAssistantClient() {
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => null)
-        throw new Error(data?.error ?? "发送失败")
+        throw new Error(data?.error ?? dict.ai.sendFailed)
       }
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ""
       let resolvedConversationId = activeConversationId
+
+      const appendAssistantDelta = (delta: string) => {
+        if (!delta) return
+        patchAssistantMessage(currentAssistantId, (item) => ({
+          ...item,
+          contentMarkdown: (item.contentMarkdown ?? "") + delta,
+        }))
+      }
+
+      // Throttled trace delta buffer — flush every 80ms for smooth UI
+      const traceThrottleMs = 80
+      let traceFlushTimer: ReturnType<typeof setTimeout> | null = null
+      let pendingTraceBuffer: Record<string, { accumulated: string }> = {}
+      const flushTraceBuffer = () => {
+        const snapshot = pendingTraceBuffer
+        pendingTraceBuffer = {}
+        traceFlushTimer = null
+        for (const [stepId, entry] of Object.entries(snapshot)) {
+          if (!entry.accumulated) continue
+          // Append the accumulated reasoning delta to the step's summary via upsertStep
+          setMessages((prev) =>
+            prev.map((m) => {
+              const step = m.stepsPreview.find((s) => s.id === stepId)
+              if (!step) return m
+              return {
+                ...m,
+                stepsPreview: m.stepsPreview.map((s) =>
+                  s.id === stepId ? { ...s, summary: (s.summary ?? "") + entry.accumulated } : s
+                ),
+              }
+            })
+          )
+        }
+      }
 
       while (true) {
         const { value, done } = await reader.read()
@@ -875,107 +979,142 @@ export function AIAssistantClient() {
               .split("\n")
               .find((line) => line.startsWith("data: "))
               ?.slice(6) ?? "null"
-          const payload = JSON.parse(rawData)
+          let payload: Record<string, unknown> | null = null
+          try { payload = JSON.parse(rawData) } catch { continue }
 
+          // ── conversation: rename temp message to server id ──
           if (eventName === "conversation") {
-            resolvedConversationId = payload?.conversationId ?? resolvedConversationId
-            currentAssistantId = payload?.assistantMessageId ?? currentAssistantId
-            patchAssistantMessage(currentAssistantId, (item) => ({
-              ...item,
-              id: payload?.assistantMessageId ?? item.id,
-              runId: payload?.runId ?? item.runId,
-            }))
-            if (resolvedConversationId) setActiveConversationId(resolvedConversationId)
+            const serverConvId = payload?.conversationId as string | undefined
+            const serverMsgId = payload?.assistantMessageId as string | undefined
+            if (serverMsgId) {
+              patchAssistantMessage(currentAssistantId, (item) => ({
+                ...item,
+                id: serverMsgId,
+                runId: (payload?.runId as string) ?? item.runId,
+              }))
+              currentAssistantId = serverMsgId
+            }
+            if (serverConvId) {
+              resolvedConversationId = serverConvId
+              setActiveConversationId(serverConvId)
+            }
             continue
           }
 
-          if (eventName === "reasoning_started" || eventName === "tool_call_started" || eventName === "assistant_started" || eventName === "capability_warning") {
-            upsertStep(currentAssistantId, {
-              id: payload?.stepId ?? crypto.randomUUID(),
-              type:
-                payload?.type ??
-                (eventName.startsWith("reasoning") ? "reasoning" :
-                eventName.startsWith("tool_call") ? "tool_call" :
-                eventName === "capability_warning" ? "warning" : "assistant_output"),
-              title: payload?.title ?? "执行阶段",
-              status: payload?.status ?? "running",
-              startedAt: payload?.startedAt ?? new Date().toISOString(),
-              finishedAt: payload?.finishedAt ?? null,
-              summary: payload?.summary ?? "",
-              errorMessage: payload?.errorMessage ?? "",
-              inputPreview: payload?.inputPreview,
-              outputPreview: payload?.outputPreview,
-              providerMetadata: payload?.providerMetadata ?? null,
-            })
-            continue
-          }
-
-          if (eventName === "reasoning_delta") {
-            patchAssistantMessage(currentAssistantId, (item) => ({
-              ...item,
-              reasoningSummary: `${item.reasoningSummary}${payload?.delta ?? ""}`.trim(),
-            }))
-            continue
-          }
-
+          // ── assistant_delta: the ONLY content delta event ──
           if (eventName === "assistant_delta") {
-            patchAssistantMessage(currentAssistantId, (item) => ({
-              ...item,
-              contentMarkdown: `${item.contentMarkdown}${payload?.delta ?? ""}`,
-            }))
+            appendAssistantDelta((payload?.delta as string) ?? "")
             continue
           }
 
-          if (eventName === "tool_call_completed" || eventName === "tool_call_failed" || eventName === "reasoning_completed" || eventName === "assistant_completed") {
+          // ── token event: ignored — content is already handled by assistant_delta ──
+          if (eventName === "token") {
+            continue
+          }
+
+          // ── reasoning_delta (throttled) ──
+          if (eventName === "reasoning_delta") {
+            const delta = (payload?.delta as string) ?? ""
+            const stepId = (payload?.stepId as string) ?? ""
+            if (delta && stepId) {
+              pendingTraceBuffer[stepId] = { accumulated: (pendingTraceBuffer[stepId]?.accumulated ?? "") + delta }
+              if (!traceFlushTimer) traceFlushTimer = setTimeout(flushTraceBuffer, traceThrottleMs)
+            }
+            // Also update the message-level reasoning summary (instant, lightweight)
+            if (delta) {
+              patchAssistantMessage(currentAssistantId, (item) => ({
+                ...item,
+                reasoningSummary: `${item.reasoningSummary}${delta}`.trim(),
+              }))
+            }
+            continue
+          }
+
+          // ── step start events ──
+          if (eventName === "reasoning_started" || eventName === "tool_call_started" || eventName === "assistant_started" || eventName === "capability_warning") {
+            const derivedType = eventName.startsWith("reasoning") ? "reasoning"
+              : eventName.startsWith("tool_call") ? "tool_call"
+              : eventName.startsWith("assistant") ? "assistant_output"
+              : eventName === "capability_warning" ? "warning"
+              : "assistant_output"
             upsertStep(currentAssistantId, {
-              id: payload?.stepId ?? crypto.randomUUID(),
-              type: payload?.type ?? "tool_call",
-              title: payload?.title ?? "执行阶段",
-              status: payload?.status ?? (eventName.endsWith("failed") ? "failed" : "completed"),
-              startedAt: payload?.startedAt ?? new Date().toISOString(),
-              finishedAt: payload?.finishedAt ?? new Date().toISOString(),
-              summary: payload?.summary ?? "",
-              errorMessage: payload?.errorMessage ?? "",
+              id: (payload?.stepId as string) ?? crypto.randomUUID(),
+              type: (payload?.type as string) || derivedType,
+              title: (payload?.title as string) ?? dict.ai.stepKindPhase,
+              status: ((payload?.status as string) === "completed" ? "completed" : (payload?.status as string) === "failed" ? "failed" : "running") as "running" | "completed" | "failed",
+              startedAt: (payload?.startedAt as string) ?? new Date().toISOString(),
+              finishedAt: (payload?.finishedAt as string) ?? null,
+              summary: (payload?.summary as string) ?? "",
+              errorMessage: (payload?.errorMessage as string) ?? "",
               inputPreview: payload?.inputPreview,
               outputPreview: payload?.outputPreview,
-              providerMetadata: payload?.providerMetadata ?? null,
+              providerMetadata: (payload?.providerMetadata as Record<string, unknown>) ?? null,
             })
             continue
           }
 
+          // ── step complete/fail events ──
+          if (eventName === "tool_call_completed" || eventName === "tool_call_failed" || eventName === "reasoning_completed" || eventName === "assistant_completed") {
+            // Derive type from event name — NEVER default to "tool_call"
+            const derivedType = eventName.startsWith("reasoning") ? "reasoning"
+              : eventName.startsWith("tool_call") ? "tool_call"
+              : eventName.startsWith("assistant") ? "assistant_output"
+              : "warning"
+            upsertStep(currentAssistantId, {
+              id: (payload?.stepId as string) ?? crypto.randomUUID(),
+              type: (payload?.type as string) || derivedType,
+              title: (payload?.title as string) ?? dict.ai.stepKindPhase,
+              status: ((payload?.status as string) === "completed" ? "completed" : (payload?.status as string) === "failed" ? "failed" : eventName.endsWith("failed") ? "failed" : "completed") as "running" | "completed" | "failed",
+              startedAt: (payload?.startedAt as string) ?? new Date().toISOString(),
+              finishedAt: (payload?.finishedAt as string) ?? new Date().toISOString(),
+              summary: (payload?.summary as string) ?? "",
+              errorMessage: (payload?.errorMessage as string) ?? "",
+              inputPreview: payload?.inputPreview,
+              outputPreview: payload?.outputPreview,
+              providerMetadata: (payload?.providerMetadata as Record<string, unknown>) ?? null,
+            })
+            continue
+          }
+
+          // ── run_completed ──
           if (eventName === "run_completed") {
             patchAssistantMessage(currentAssistantId, (item) => ({
               ...item,
-              id: payload?.assistantMessageId ?? item.id,
               status: "completed",
               runStatus: "completed",
-              runId: payload?.runId ?? item.runId,
-              modelName: payload?.model ?? item.modelName,
+              runId: (payload?.runId as string) ?? item.runId,
+              modelName: (payload?.model as string) ?? item.modelName,
             }))
             continue
           }
 
+          // ── run_failed ──
           if (eventName === "run_failed") {
             patchAssistantMessage(currentAssistantId, (item) => ({
               ...item,
               status: "failed",
               runStatus: "failed",
-              contentMarkdown: item.contentMarkdown || (payload?.message ?? "生成失败，请稍后重试。"),
+              contentMarkdown: item.contentMarkdown || ((payload?.message as string) ?? dict.ai.generateFailedRetry),
             }))
           }
         }
       }
 
-      await loadConversations(resolvedConversationId)
-      if (resolvedConversationId) await loadMessages(resolvedConversationId)
+      // Flush any remaining throttled trace deltas
+      if (traceFlushTimer) { clearTimeout(traceFlushTimer); flushTraceBuffer() }
+
+      if (resolvedConversationId && resolvedConversationId !== activeConversationId) {
+        await loadConversations(resolvedConversationId)
+        await loadMessages(resolvedConversationId)
+      }
     } catch (error) {
       patchAssistantMessage(currentAssistantId, (item) => ({
         ...item,
         status: "failed",
         runStatus: "failed",
-        contentMarkdown: error instanceof Error ? error.message : "发送失败",
+        contentMarkdown: error instanceof Error ? error.message : dict.ai.sendFailed,
       }))
-      toast.error(error instanceof Error ? error.message : "发送失败")
+      toast.error(error instanceof Error ? error.message : dict.ai.sendFailed)
     } finally {
       setSending(false)
     }
@@ -994,11 +1133,11 @@ export function AIAssistantClient() {
           <div className="flex items-center justify-between gap-3 px-1 pb-4">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-[--color-text-muted]">Conversations</p>
-              <p className="mt-1 text-lg font-semibold text-[--color-text-primary]">AI 助手</p>
+              <p className="mt-1 text-lg font-semibold text-[--color-text-primary]">{dict.ai.title}</p>
             </div>
             <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void createConversation()}>
               <MessageSquarePlus size={14} />
-              新建
+              {dict.ai.newChat}
             </Button>
           </div>
 
@@ -1018,10 +1157,10 @@ export function AIAssistantClient() {
                     />
                     <div className="flex items-center gap-2">
                       <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void renameConversation(conversation.id)}>
-                        保存
+                        {dict.common.save}
                       </Button>
                       <Button size="sm" variant="outline" className="rounded-full px-4 shadow-none" onClick={() => setRenamingId(null)}>
-                        取消
+                        {dict.common.cancel}
                       </Button>
                     </div>
                   </div>
@@ -1036,7 +1175,7 @@ export function AIAssistantClient() {
                   >
                     <p className="line-clamp-2 text-sm font-medium leading-6 text-[--color-text-primary]">{conversation.title}</p>
                     <p className="mt-1 text-xs text-[--color-text-muted]">
-                      {formatConversationTime(conversation.lastMessageAt)} · {conversation.messageCount} 条消息
+                      {formatConversationTime(conversation.lastMessageAt)} · {dict.ai.messagesCount(conversation.messageCount)}
                     </p>
                   </button>
                 )}
@@ -1075,15 +1214,15 @@ export function AIAssistantClient() {
                 className="inline-flex h-10 items-center gap-2 rounded-full border border-[--color-border] bg-[color:var(--color-bg-surface)] px-4 text-sm text-[--color-text-primary]"
                 onClick={() => setMobilePanel("conversations")}
               >
-                会话
+                {dict.ai.conversations}
               </button>
-              <p className="truncate text-base font-semibold text-[--color-text-primary]">{activeConversation?.title || "AI 助手"}</p>
+              <p className="truncate text-base font-semibold text-[--color-text-primary]">{activeConversation?.title || dict.ai.title}</p>
               <button
                 type="button"
                 className="inline-flex h-10 items-center gap-2 rounded-full border border-[--color-border] bg-[color:var(--color-bg-surface)] px-4 text-sm text-[--color-text-primary]"
                 onClick={() => setMobilePanel("controls")}
               >
-                更多
+                {dict.ai.more}
               </button>
             </div>
           </div>
@@ -1092,9 +1231,9 @@ export function AIAssistantClient() {
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 max-w-3xl [&>h2]:hidden [&>p:last-child]:hidden">
                 <p className="truncate text-sm leading-7 text-[--color-text-secondary]">Agent Runtime: stream output, tool traces, and image understanding stay in one conversation view.</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[--color-text-primary]">更接近 Codex 的执行视图</h2>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[--color-text-primary]">{dict.ai.codexViewTitle}</h2>
                 <p className="mt-3 max-w-3xl text-base leading-8 text-[--color-text-secondary]">
-                  支持流式正文、工具调用轨迹、多图输入和 provider 能力降级提示。
+                  {dict.ai.codexViewDescription}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1102,17 +1241,17 @@ export function AIAssistantClient() {
                 {activeModelName ? <span className="rounded-full border border-[--color-border] px-4 py-2 text-sm text-[--color-text-primary]">{activeModelName}</span> : null}
                 <Button variant="outline" className="rounded-full border-[--color-border] bg-[color:var(--color-bg-surface)] px-4 shadow-none hover:bg-[--color-bg-hover]" onClick={() => setSettingsOpen(true)}>
                   <Settings2 size={14} />
-                  设置
+                  {dict.ai.settings}
                 </Button>
               </div>
             </div>
 
             {capabilities ? (
               <div className="mt-4 hidden flex-wrap items-center gap-2">
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.streamText)}`}>流式</span>
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.toolCalling)}`}>工具调用</span>
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.visionInput)}`}>图片理解</span>
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.reasoningStream)}`}>思考流</span>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.streamText)}`}>{dict.ai.streaming}</span>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.toolCalling)}`}>{dict.ai.toolCalling}</span>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.visionInput)}`}>{dict.ai.imageUnderstanding}</span>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.reasoningStream)}`}>{dict.ai.thinkingStream}</span>
               </div>
             ) : null}
           </div>
@@ -1121,7 +1260,7 @@ export function AIAssistantClient() {
             {loading ? (
               <div className="flex h-full items-center justify-center text-sm text-[--color-text-muted]">
                 <Loader2 size={16} className="mr-2 animate-spin" />
-                正在加载 AI 助手...
+                {dict.ai.loadingAi}
               </div>
             ) : (
               <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 md:gap-8 md:py-7">
@@ -1132,17 +1271,17 @@ export function AIAssistantClient() {
                         <Sparkles size={18} />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-[--color-text-primary]">当前还不能直接提问</p>
-                        <p className="mt-1 text-sm text-[--color-text-secondary]">{statusPayload ? reasonLabel(statusPayload.status.reason) : "请稍后再试"}</p>
+                        <p className="text-sm font-semibold text-[--color-text-primary]">{dict.ai.currentlyUnavailable}</p>
+                        <p className="mt-1 text-sm text-[--color-text-secondary]">{statusPayload ? reasonLabel(dict, statusPayload.status.reason) : dict.ai.pleaseTryLater}</p>
                       </div>
                     </div>
 
                     {statusPayload?.accessRequest ? (
                       <div className="mt-5 rounded-[16px] border border-[color:color-mix(in_srgb,var(--color-warning)_24%,white)] bg-[color:var(--color-bg-surface)] px-4 py-4 text-sm leading-7 text-[--color-text-secondary]">
-                        <p className="font-medium text-[--color-text-primary]">最近一次申请：{statusPayload.accessRequest.status}</p>
+                        <p className="font-medium text-[--color-text-primary]">{dict.ai.applicationStatus}{statusPayload.accessRequest.status}</p>
                         <p className="mt-2">{statusPayload.accessRequest.message}</p>
                         {statusPayload.accessRequest.reviewNote ? (
-                          <p className="mt-2 text-[--color-text-muted]">审核备注：{statusPayload.accessRequest.reviewNote}</p>
+                          <p className="mt-2 text-[--color-text-muted]">{dict.ai.reviewNote}{statusPayload.accessRequest.reviewNote}</p>
                         ) : null}
                       </div>
                     ) : null}
@@ -1152,15 +1291,15 @@ export function AIAssistantClient() {
                         value={requestMessage}
                         onChange={(event) => setRequestMessage(event.target.value)}
                         rows={3}
-                        placeholder="简单说明你的使用场景。"
+                        placeholder={dict.ai.requestPlaceholder}
                         className="rounded-[16px] border-[color:color-mix(in_srgb,var(--color-warning)_24%,white)] bg-[color:var(--color-bg-surface)] px-4 py-3 shadow-none"
                       />
                       <div className="flex gap-2 sm:flex-col">
                         <Button className="rounded-full px-5 shadow-none" onClick={() => void submitAccessRequest()}>
-                          提交申请
+                          {dict.ai.requestAccess}
                         </Button>
                         <Button variant="outline" className="rounded-full border-[--color-border] bg-[color:var(--color-bg-surface)] px-5 shadow-none hover:bg-[--color-bg-hover]" onClick={() => setSettingsOpen(true)}>
-                          配置 API
+                          {dict.ai.configureApi}
                         </Button>
                       </div>
                     </div>
@@ -1171,9 +1310,9 @@ export function AIAssistantClient() {
                   <div className="flex flex-col gap-6 py-4">
                     <div className="max-w-4xl">
                       <p className="text-sm font-medium uppercase tracking-[0.22em] text-[--color-text-muted]">New Conversation</p>
-                      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-[--color-text-primary] sm:text-4xl">让 AI 助手更自然地接入你的站内工作流</h2>
+                      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-[--color-text-primary] sm:text-4xl">{dict.ai.heroTitle}</h2>
                       <p className="mt-4 max-w-2xl text-base leading-8 text-[--color-text-secondary]">
-                        这里会保留会话记录，并按你的权限读取可访问的数据。新的执行视图会把思考、工具调用和最终回答分开呈现。
+                        {dict.ai.heroDescription}
                       </p>
                     </div>
 
@@ -1191,7 +1330,7 @@ export function AIAssistantClient() {
                             </div>
                             <div>
                               <p className="text-sm font-medium leading-7 text-[--color-text-primary]">{item}</p>
-                              <p className="mt-1 text-xs text-[--color-text-muted] group-hover:text-[--color-text-secondary]">点击直接发送</p>
+                              <p className="mt-1 text-xs text-[--color-text-muted] group-hover:text-[--color-text-secondary]">{dict.ai.clickToSend}</p>
                             </div>
                           </div>
                         </button>
@@ -1202,7 +1341,7 @@ export function AIAssistantClient() {
                   <div className="flex flex-col gap-8 pb-4">
                     {messages.map((message) =>
                       message.role === "assistant" ? (
-                        <AssistantMessageCard key={message.id} message={message} run={runsByMessageId[message.id]} />
+                        <AssistantMessageCard key={message.id} message={message} run={runsByMessageId[message.id]} dict={dict} />
                       ) : (
                         <article key={message.id} className="ml-auto max-w-[88%] lg:max-w-[76%]">
                           <div className="rounded-[18px] bg-[linear-gradient(180deg,#fbf5ef_0%,#f7efe7_100%)] px-5 py-4 text-[15px] leading-8 text-[--color-text-primary] shadow-[0_10px_24px_rgba(201,100,66,0.08)]">
@@ -1251,14 +1390,14 @@ export function AIAssistantClient() {
                     const uploaded = await Promise.all(files.map((file) => uploadAttachment(file)))
                     setAttachments((current) => [...current, ...uploaded])
                   } catch (error) {
-                    toast.error(error instanceof Error ? error.message : "图片上传失败")
+                    toast.error(error instanceof Error ? error.message : dict.ai.imageUploadFailed)
                   }
                 }}
               />
 
               <div className="hidden flex-wrap items-center gap-2 px-1 pb-3 md:flex">
                 <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
-                  {sourceLabel(statusPayload?.status.source ?? "none")}
+                  {sourceLabel(dict, statusPayload?.status.source ?? "none")}
                 </span>
                 {providerLabel ? (
                   <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
@@ -1286,7 +1425,7 @@ export function AIAssistantClient() {
                           type="button"
                           onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                           className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black text-white shadow-sm transition-transform hover:scale-105"
-                          aria-label="移除图片"
+                          aria-label={dict.ai.removeImage}
                         >
                           <X size={14} />
                         </button>
@@ -1354,7 +1493,7 @@ export function AIAssistantClient() {
                   type="button"
                   onClick={() => attachmentInputRef.current?.click()}
                   className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-bg-surface)] text-[--color-text-primary] shadow-[0_16px_34px_rgba(34,27,20,0.08)] transition-transform hover:-translate-y-0.5"
-                  aria-label="上传图片"
+                  aria-label={dict.ai.uploadImage}
                 >
                   <Plus size={28} strokeWidth={2.1} />
                 </button>
@@ -1364,8 +1503,9 @@ export function AIAssistantClient() {
                     ref={desktopPromptInputRef}
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
+                    onKeyDown={(event) => handleEnterToSubmit(event, () => void sendPrompt(), { disabled: sending || (!prompt.trim() && attachments.length === 0) })}
                     rows={1}
-                    placeholder="输入你的问题，例如总结近况、查看聊天、搜索消息，或结合多张图片进行分析。"
+                    placeholder={dict.ai.desktopPlaceholder}
                     className="min-h-[42px] max-h-[36vh] flex-1 resize-none overflow-hidden !rounded-none !border-0 !bg-transparent px-0 py-[3px] text-[18px] leading-8 !shadow-none outline-none ring-0 focus-visible:!ring-0 focus-visible:!ring-offset-0"
                   />
 
@@ -1374,7 +1514,7 @@ export function AIAssistantClient() {
                     onClick={() => setModelMenuOpen((current) => !current)}
                     className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm text-[--color-text-secondary] transition-colors hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
                   >
-                    进阶
+                    {dict.ai.advanced}
                     <ChevronDown size={16} />
                   </button>
 
@@ -1383,7 +1523,7 @@ export function AIAssistantClient() {
                     onClick={() => void sendPrompt()}
                     disabled={sending || (!prompt.trim() && attachments.length === 0)}
                     className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-black/40"
-                    aria-label={sending ? "生成中" : "发送消息"}
+                    aria-label={sending ? dict.ai.generating : dict.ai.sendMessage}
                   >
                     {sending ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={22} strokeWidth={2.4} />}
                   </button>
@@ -1395,7 +1535,7 @@ export function AIAssistantClient() {
                   type="button"
                   onClick={() => attachmentInputRef.current?.click()}
                   className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-bg-surface)] text-[--color-text-primary] shadow-[0_18px_36px_rgba(34,27,20,0.08)]"
-                  aria-label="上传图片"
+                  aria-label={dict.ai.uploadImage}
                 >
                   <Plus size={30} strokeWidth={2.1} />
                 </button>
@@ -1405,8 +1545,9 @@ export function AIAssistantClient() {
                     ref={mobilePromptInputRef}
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
+                    onKeyDown={(event) => handleEnterToSubmit(event, () => void sendPrompt(), { disabled: sending || (!prompt.trim() && attachments.length === 0) })}
                     rows={1}
-                    placeholder="输入问题"
+                    placeholder={dict.ai.mobilePlaceholder}
                     className="min-h-[42px] max-h-[50vh] flex-1 resize-none overflow-hidden !rounded-none !border-0 !bg-transparent px-0 py-[3px] text-[16px] leading-8 !shadow-none outline-none ring-0 focus-visible:!ring-0 focus-visible:!ring-offset-0"
                   />
 
@@ -1415,7 +1556,7 @@ export function AIAssistantClient() {
                     onClick={() => void sendPrompt()}
                     disabled={sending || (!prompt.trim() && attachments.length === 0)}
                     className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white disabled:cursor-not-allowed disabled:bg-black/40"
-                    aria-label={sending ? "生成中" : "发送消息"}
+                    aria-label={sending ? dict.ai.generating : dict.ai.sendMessage}
                   >
                     {sending ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={22} strokeWidth={2.4} />}
                   </button>
@@ -1432,7 +1573,7 @@ export function AIAssistantClient() {
                     {mobilePanel === "conversations" ? "Conversations" : "Controls"}
                   </p>
                   <p className="text-base font-semibold text-[--color-text-primary]">
-                    {mobilePanel === "conversations" ? "切换会话" : "聊天设置"}
+                    {mobilePanel === "conversations" ? dict.ai.switchConversation : dict.ai.chatSettings}
                   </p>
                 </div>
                 <button
@@ -1447,10 +1588,10 @@ export function AIAssistantClient() {
               {mobilePanel === "conversations" ? (
                 <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
                   <div className="mb-4 flex items-center justify-between gap-3">
-                    <p className="text-sm text-[--color-text-secondary]">手机端把会话列表收进这里，聊天主界面保持更干净。</p>
+                    <p className="text-sm text-[--color-text-secondary]">{dict.ai.mobileConversationsHint}</p>
                     <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void createConversation()}>
                       <MessageSquarePlus size={14} />
-                      新建
+                      {dict.ai.newChat}
                     </Button>
                   </div>
                   <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
@@ -1468,7 +1609,7 @@ export function AIAssistantClient() {
                       >
                         <p className="line-clamp-2 text-sm font-medium leading-6 text-[--color-text-primary]">{conversation.title}</p>
                         <p className="mt-1 text-xs text-[--color-text-muted]">
-                          {formatConversationTime(conversation.lastMessageAt)} · {conversation.messageCount} 条消息
+                          {formatConversationTime(conversation.lastMessageAt)} · {dict.ai.messagesCount(conversation.messageCount)}
                         </p>
                       </button>
                     ))}
@@ -1477,23 +1618,23 @@ export function AIAssistantClient() {
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
                   <div className="rounded-[18px] bg-[--color-bg-hover] p-4">
-                    <p className="text-xs text-[--color-text-muted]">当前来源</p>
+                    <p className="text-xs text-[--color-text-muted]">{dict.ai.currentSource}</p>
                     <p className="mt-2 text-sm font-medium text-[--color-text-primary]">
-                      {statusPayload ? `${reasonLabel(statusPayload.status.reason)} / ${sourceLabel(statusPayload.status.source)}` : "正在加载..."}
+                      {statusPayload ? `${reasonLabel(dict, statusPayload.status.reason)} / ${sourceLabel(dict, statusPayload.status.source)}` : dict.common.loading}
                     </p>
                     {providerLabel ? (
                       <p className="mt-2 text-xs leading-6 text-[--color-text-secondary]">
-                        {providerLabel} · {activeModelName || "未选择模型"}
+                        {providerLabel} · {activeModelName || dict.ai.noModelSelected}
                       </p>
                     ) : null}
                   </div>
 
                   {capabilities ? (
                     <div className="flex flex-wrap gap-2">
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.streamText)}`}>流式</span>
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.toolCalling)}`}>工具调用</span>
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.visionInput)}`}>图片理解</span>
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.reasoningStream)}`}>思考流</span>
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.streamText)}`}>{dict.ai.streaming}</span>
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.toolCalling)}`}>{dict.ai.toolCalling}</span>
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.visionInput)}`}>{dict.ai.imageUnderstanding}</span>
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.reasoningStream)}`}>{dict.ai.thinkingStream}</span>
                     </div>
                   ) : null}
 
@@ -1506,7 +1647,7 @@ export function AIAssistantClient() {
                     }}
                   >
                     <Settings2 size={15} />
-                    打开 AI 设置
+                    {dict.ai.openAiSettings}
                   </Button>
                 </div>
               )}
@@ -1518,7 +1659,7 @@ export function AIAssistantClient() {
       <AISettingsSheet
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
-        status={statusPayload ? { storageReady: statusPayload.storageReady, userConfig: statusPayload.userConfig } : null}
+        storageReady={statusPayload?.storageReady ?? false}
         onSaved={() => void loadStatus()}
       />
     </>

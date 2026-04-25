@@ -115,8 +115,8 @@ function isDefaultConversationTitle(title: string) {
 }
 
 export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnapshot> {
-  const [userConfig, grant, latestRequest] = await Promise.all([
-    prisma.aIUserProviderConfig.findUnique({ where: { userId } }),
+  const [activeConfig, grant, latestRequest] = await Promise.all([
+    getActiveUserConfig(userId),
     prisma.aIUsageGrant.findUnique({ where: { userId } }),
     prisma.aIAccessRequest.findFirst({
       where: { userId },
@@ -134,8 +134,8 @@ export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnaps
       config: null,
       configState: {
         storageReady,
-        hasUserConfig: Boolean(userConfig),
-        userConfigEnabled: Boolean(userConfig?.isEnabled),
+        hasUserConfig: Boolean(activeConfig),
+        userConfigEnabled: Boolean(activeConfig?.isEnabled),
         hasGrant: Boolean(grant),
         grantStatus: grant?.status ?? null,
         accessRequestStatus: latestRequest?.status ?? null,
@@ -143,12 +143,12 @@ export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnaps
     }
   }
 
-  if (userConfig && userConfig.isEnabled && userConfig.apiKeyEncrypted) {
+  if (activeConfig && activeConfig.isEnabled && activeConfig.apiKeyEncrypted) {
     return {
       canUseAI: true,
       source: "user",
       reason: "ready",
-      config: toSafeConfig(userConfig),
+      config: toSafeConfig(activeConfig),
       configState: {
         storageReady,
         hasUserConfig: true,
@@ -168,8 +168,8 @@ export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnaps
       config: toSafeConfig(grant),
       configState: {
         storageReady,
-        hasUserConfig: Boolean(userConfig),
-        userConfigEnabled: Boolean(userConfig?.isEnabled),
+        hasUserConfig: Boolean(activeConfig),
+        userConfigEnabled: Boolean(activeConfig?.isEnabled),
         hasGrant: true,
         grantStatus: grant.status,
         accessRequestStatus: latestRequest?.status ?? null,
@@ -182,7 +182,7 @@ export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnaps
   else if (latestRequest?.status === "rejected") reason = "request-rejected"
   else if (grant?.status === "paused") reason = "grant-paused"
   else if (grant?.status === "revoked") reason = "grant-revoked"
-  else if (!userConfig && !grant) reason = "request-access"
+  else if (!activeConfig && !grant) reason = "request-access"
 
   return {
     canUseAI: false,
@@ -191,8 +191,8 @@ export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnaps
     config: null,
     configState: {
       storageReady,
-      hasUserConfig: Boolean(userConfig),
-      userConfigEnabled: Boolean(userConfig?.isEnabled),
+      hasUserConfig: Boolean(activeConfig),
+      userConfigEnabled: Boolean(activeConfig?.isEnabled),
       hasGrant: Boolean(grant),
       grantStatus: grant?.status ?? null,
       accessRequestStatus: latestRequest?.status ?? null,
@@ -206,7 +206,7 @@ export async function getEffectiveProviderConfig(userId: string, modelOverride?:
   const resolvedModel = modelOverride?.trim() || status.config.model
 
   if (status.source === "user") {
-    const config = await prisma.aIUserProviderConfig.findUnique({ where: { userId } })
+    const config = await getActiveUserConfig(userId)
     if (!config?.apiKeyEncrypted) return null
     return {
       ...toSafeConfig({ ...config, model: resolvedModel }),
@@ -377,65 +377,172 @@ export async function listRecentConversationHistory(userId: string, conversation
     }))
 }
 
-export async function getAIUserConfig(userId: string) {
-  return prisma.aIUserProviderConfig.findUnique({ where: { userId } })
+export async function getAIUserConfigs(userId: string) {
+  return prisma.aIUserProviderConfig.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      isActive: true,
+      providerLabel: true,
+      baseUrl: true,
+      model: true,
+      temperature: true,
+      streamEnabled: true,
+      isEnabled: true,
+      apiKeyMask: true,
+      lastTestedAt: true,
+      lastTestStatus: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  })
 }
 
-export async function upsertAIUserConfig(userId: string, input: AIProviderConfigInput | AIProviderConfigUpdateInput) {
-  const apiKey = typeof input.apiKey === "string" ? input.apiKey.trim() : undefined
-  const encryptedApiKey = apiKey ? encryptSecret(apiKey) : undefined
-  const data = {
-    providerType: "openai-compatible",
-    ...(input.providerLabel !== undefined ? { providerLabel: input.providerLabel.trim() } : {}),
-    ...(input.baseUrl !== undefined ? { baseUrl: normalizeBaseUrl(input.baseUrl) } : {}),
-    ...(input.model !== undefined ? { model: input.model.trim() } : {}),
-    ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
-    ...(input.streamEnabled !== undefined ? { streamEnabled: input.streamEnabled } : {}),
-    ...(input.isEnabled !== undefined ? { isEnabled: input.isEnabled } : {}),
-    ...(encryptedApiKey ? { apiKeyEncrypted: encryptedApiKey, apiKeyMask: maskApiKey(apiKey!) } : {}),
-  }
+export async function getAIUserConfigById(configId: string) {
+  return prisma.aIUserProviderConfig.findUnique({ where: { id: configId } })
+}
 
-  const config = await prisma.aIUserProviderConfig.upsert({
-    where: { userId },
-    update: data,
-    create: {
+export async function getActiveUserConfig(userId: string) {
+  return prisma.aIUserProviderConfig.findFirst({
+    where: { userId, isActive: true },
+  })
+}
+
+export async function createAIUserConfig(userId: string, input: AIProviderConfigInput) {
+  if (!input.name?.trim()) throw new Error("配置名称不能为空")
+
+  const apiKey = input.apiKey.trim()
+  const encryptedApiKey = encryptSecret(apiKey)
+  const normalizedBaseUrl = normalizeBaseUrl(input.baseUrl)
+
+  const activeCount = await prisma.aIUserProviderConfig.count({ where: { userId, isActive: true } })
+  const isActive = activeCount === 0
+
+  const config = await prisma.aIUserProviderConfig.create({
+    data: {
       userId,
+      name: input.name.trim(),
+      isActive,
       providerType: "openai-compatible",
-      providerLabel: input.providerLabel?.trim() || "OpenAI-compatible",
-      baseUrl: input.baseUrl ? normalizeBaseUrl(input.baseUrl) : "",
-      model: input.model?.trim() || "",
+      providerLabel: input.providerLabel.trim(),
+      baseUrl: normalizedBaseUrl,
+      apiKeyEncrypted: encryptedApiKey,
+      apiKeyMask: maskApiKey(apiKey),
+      model: input.model.trim(),
       temperature: input.temperature ?? 0.7,
       streamEnabled: input.streamEnabled ?? true,
       isEnabled: input.isEnabled ?? true,
-      apiKeyEncrypted: encryptedApiKey || "",
-      apiKeyMask: apiKey ? maskApiKey(apiKey) : "",
     },
   })
 
-  await createAIAuditLog(userId, userId, "ai_user_config_updated", "Updated personal AI provider config", {
+  await createAIAuditLog(userId, userId, "ai_user_config_created", "Created AI provider config", {
+    configId: config.id,
+    name: config.name,
     providerLabel: config.providerLabel,
     model: config.model,
-    enabled: config.isEnabled,
   })
 
   return config
 }
 
-export async function removeAIUserConfig(userId: string) {
-  await prisma.aIUserProviderConfig.deleteMany({ where: { userId } })
-  await createAIAuditLog(userId, userId, "ai_user_config_deleted", "Removed personal AI provider config")
+export async function updateAIUserConfig(configId: string, input: AIProviderConfigUpdateInput) {
+  const existing = await prisma.aIUserProviderConfig.findUnique({ where: { id: configId } })
+  if (!existing) throw new Error("配置不存在")
+
+  const apiKey = typeof input.apiKey === "string" ? input.apiKey.trim() : undefined
+  const encryptedApiKey = apiKey ? encryptSecret(apiKey) : undefined
+
+  const data: Record<string, unknown> = {}
+  if (input.name !== undefined) data.name = input.name.trim()
+  if (input.providerLabel !== undefined) data.providerLabel = input.providerLabel.trim()
+  if (input.baseUrl !== undefined) data.baseUrl = normalizeBaseUrl(input.baseUrl)
+  if (input.model !== undefined) data.model = input.model.trim()
+  if (input.temperature !== undefined) data.temperature = input.temperature
+  if (input.streamEnabled !== undefined) data.streamEnabled = input.streamEnabled
+  if (input.isEnabled !== undefined) data.isEnabled = input.isEnabled
+  if (encryptedApiKey) {
+    data.apiKeyEncrypted = encryptedApiKey
+    data.apiKeyMask = maskApiKey(apiKey!)
+  }
+
+  const config = await prisma.aIUserProviderConfig.update({
+    where: { id: configId },
+    data,
+  })
+
+  await createAIAuditLog(existing.userId, existing.userId, "ai_user_config_updated", "Updated AI provider config", {
+    configId: config.id,
+    name: config.name,
+    providerLabel: config.providerLabel,
+    model: config.model,
+  })
+
+  return config
 }
 
-export async function markAIUserConfigTest(userId: string, status: "passed" | "failed") {
+export async function deleteAIUserConfig(configId: string) {
+  const existing = await prisma.aIUserProviderConfig.findUnique({ where: { id: configId } })
+  if (!existing) throw new Error("配置不存在")
+
+  await prisma.aIUserProviderConfig.delete({ where: { id: configId } })
+
+  if (existing.isActive) {
+    const next = await prisma.aIUserProviderConfig.findFirst({
+      where: { userId: existing.userId },
+      orderBy: { updatedAt: "desc" },
+    })
+    if (next) {
+      await prisma.aIUserProviderConfig.update({
+        where: { id: next.id },
+        data: { isActive: true },
+      })
+    }
+  }
+
+  await createAIAuditLog(existing.userId, existing.userId, "ai_user_config_deleted", "Deleted AI provider config", {
+    configId,
+    name: existing.name,
+  })
+}
+
+export async function setActiveAIUserConfig(configId: string) {
+  const config = await prisma.aIUserProviderConfig.findUnique({ where: { id: configId } })
+  if (!config) throw new Error("配置不存在")
+
   await prisma.aIUserProviderConfig.updateMany({
-    where: { userId },
+    where: { userId: config.userId },
+    data: { isActive: false },
+  })
+
+  await prisma.aIUserProviderConfig.update({
+    where: { id: configId },
+    data: { isActive: true },
+  })
+
+  await createAIAuditLog(config.userId, config.userId, "ai_user_config_activated", "Set active AI provider config", {
+    configId,
+    name: config.name,
+  })
+}
+
+export async function markAIUserConfigTest(configId: string, status: "passed" | "failed") {
+  const config = await prisma.aIUserProviderConfig.findUnique({ where: { id: configId } })
+  if (!config) return
+
+  await prisma.aIUserProviderConfig.update({
+    where: { id: configId },
     data: {
       lastTestedAt: new Date(),
       lastTestStatus: status,
     },
   })
 
-  await createAIAuditLog(userId, userId, "ai_user_config_tested", `Tested personal AI provider config: ${status}`)
+  await createAIAuditLog(config.userId, config.userId, "ai_user_config_tested", `Tested AI provider config: ${status}`, {
+    configId,
+    name: config.name,
+  })
 }
 
 export async function testAIProviderConnection(input: AIProviderConfigInput) {

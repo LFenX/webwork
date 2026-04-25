@@ -18,6 +18,7 @@ import { SimpleLineChart } from "@/components/charts/line-chart"
 import { JOB_STATUS, JOB_CHANNELS } from "@/lib/enums"
 import { apiFetch, apiPost, apiPatch, apiDelete } from "@/lib/api-client"
 import { formatChinaDate } from "@/lib/time"
+import { getDict } from "@/lib/i18n"
 
 interface Job {
   id: string
@@ -84,6 +85,8 @@ const defaultForm: JobForm = {
 }
 
 export function JobsClient() {
+  const dict = getDict()
+
   const [jobs, setJobs] = useState<Job[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -91,7 +94,7 @@ export function JobsClient() {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [search, setSearch] = useState("")
-  const [filterStatus, setFilterStatus] = useState("全部")
+  const [filterStatus, setFilterStatus] = useState(dict.jobs.allStatus)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [editingJob, setEditingJob] = useState<Job | null>(null)
@@ -106,7 +109,7 @@ export function JobsClient() {
     try {
       const params = new URLSearchParams({ limit: "50" })
       if (search) params.set("q", search)
-      if (filterStatus !== "全部") params.set("status", filterStatus)
+      if (filterStatus !== dict.jobs.allStatus) params.set("status", filterStatus)
       if (cursor) params.set("cursor", cursor)
       params.set("_t", String(Date.now()))
       const page = await apiFetch<JobsPage>(`/api/jobs?${params.toString()}`)
@@ -117,7 +120,7 @@ export function JobsClient() {
       if (append) setLoadingMore(false)
       else setLoading(false)
     }
-  }, [filterStatus, search])
+  }, [filterStatus, search, dict.jobs.allStatus])
 
   const refreshStats = useCallback(async () => {
     const statsData = await apiFetch<Stats>(`/api/jobs/stats?_t=${Date.now()}`)
@@ -133,7 +136,7 @@ export function JobsClient() {
         if (cancelled) return
         await loadJobs(null, false)
       } catch {
-        if (!cancelled) toast.error("加载失败")
+        if (!cancelled) toast.error(dict.error.title)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -174,7 +177,7 @@ export function JobsClient() {
 
   async function handleSave() {
     if (!form.company || !form.position) {
-      toast.error("公司名称和职位不能为空")
+      toast.error(dict.common.error)
       return
     }
     setSaving(true)
@@ -189,20 +192,21 @@ export function JobsClient() {
       if (editingJob) await apiPatch(`/api/jobs/${editingJob.id}`, body)
       else await apiPost("/api/jobs", body)
       setDialogOpen(false)
-      toast.success(editingJob ? "已更新" : "已添加")
+      toast.success(dict.jobs.saved)
       triggerRefresh()
     } catch {
-      toast.error("操作失败，请重试")
+      toast.error(dict.common.error)
     } finally {
       setSaving(false)
     }
   }
 
   async function handleDelete(id: string, closeSheet = false) {
-    if (!confirm("确认删除这条记录？")) return
+    const job = jobs.find(j => j.id === id)
+    if (!confirm(dict.jobs.deleteConfirm(job?.company ?? ""))) return
     await apiDelete(`/api/jobs/${id}`)
     if (closeSheet) setDetailOpen(false)
-    toast.success("已删除")
+    toast.success(dict.jobs.deleted)
     triggerRefresh()
   }
 
@@ -215,14 +219,14 @@ export function JobsClient() {
       const updated = await apiPatch<Job>(`/api/jobs/${id}`, { status })
       setJobs((current) => {
         const next = current.map((job) => (job.id === id ? { ...job, ...updated, _count: job._count } : job))
-        return filterStatus !== "全部" && status !== filterStatus ? next.filter((job) => job.id !== id) : next
+        return filterStatus !== dict.jobs.allStatus && status !== filterStatus ? next.filter((job) => job.id !== id) : next
       })
       setDetailJob((current) => (current?.id === id ? { ...current, ...updated, _count: current._count } : current))
       void refreshStats()
     } catch {
       setJobs(previousJobs)
       setDetailJob(previousDetail)
-      toast.error("状态更新失败")
+      toast.error(dict.common.error)
     }
   }
 
@@ -234,32 +238,32 @@ export function JobsClient() {
   return (
     <div className="mx-auto max-w-[1200px] px-6 py-10">
       <div className="mb-8">
-        <h1 className="mb-1 text-xl font-semibold">求职追踪</h1>
-        <p className="text-sm text-[--color-text-muted]">记录每一次投递，追踪求职进度</p>
+        <h1 className="mb-1 text-xl font-semibold">{dict.jobs.title}</h1>
+        <p className="text-sm text-[--color-text-muted]">{dict.nav.jobs}</p>
       </div>
 
       {stats && (
         <section className="mb-8">
           <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatsCard title="累计投递" value={stats.total} sub="家公司" />
-            <StatsCard title="回复率" value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
-            <StatsCard title="面试转化率" value={`${stats.interviewRate}%`} sub="进入面试" />
-            <StatsCard title="Offer 率" value={`${stats.offerRate}%`} trend={stats.offerRate > 0 ? "up" : "neutral"} />
+            <StatsCard title={dict.jobs.total} value={stats.total} sub={dict.jobs.total} />
+            <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? dict.jobs.replied : dict.jobs.replyRate} trend={stats.replyRate > 50 ? "up" : "neutral"} />
+            <StatsCard title={dict.jobs.interviewRate} value={`${stats.interviewRate}%`} sub={dict.jobs.interviewRate} />
+            <StatsCard title={dict.jobs.offerRate} value={`${stats.offerRate}%`} trend={stats.offerRate > 0 ? "up" : "neutral"} />
           </div>
 
           {stats.total > 0 && (
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                <p className="mb-3 text-xs text-[--color-text-muted]">按状态分布</p>
+                <p className="mb-3 text-xs text-[--color-text-muted]">{dict.jobs.statusChart}</p>
                 <SimpleBarChart data={statusDist} height={Math.max(120, statusDist.length * 32)} />
               </div>
               <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                <p className="mb-3 text-xs text-[--color-text-muted]">按渠道分布</p>
+                <p className="mb-3 text-xs text-[--color-text-muted]">{dict.jobs.channelChart}</p>
                 <SimpleBarChart data={stats.channelDist} height={Math.max(120, stats.channelDist.length * 32)} />
               </div>
               {stats.monthlyTrend.length > 1 && (
                 <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                  <p className="mb-3 text-xs text-[--color-text-muted]">按月投递趋势</p>
+                  <p className="mb-3 text-xs text-[--color-text-muted]">{dict.jobs.trendChart}</p>
                   <SimpleLineChart data={stats.monthlyTrend} height={180} />
                 </div>
               )}
@@ -272,7 +276,7 @@ export function JobsClient() {
         <div className="relative min-w-[200px] flex-1">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[--color-text-muted]" />
           <Input
-            placeholder="搜索任意字段，可用空格组合条件..."
+            placeholder={dict.jobs.search}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-8 border-[--color-border] pl-8 text-sm"
@@ -289,24 +293,24 @@ export function JobsClient() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="全部">全部状态</SelectItem>
+            <SelectItem value={dict.jobs.allStatus}>{dict.jobs.allStatus}</SelectItem>
             {JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
 
         <Button size="sm" onClick={openCreate} className="h-8 gap-1.5">
-          <Plus size={14} /> 新建记录
+          <Plus size={14} /> {dict.jobs.newApplication}
         </Button>
       </div>
 
       <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
         {loading ? (
-          <div className="py-16 text-center text-sm text-[--color-text-muted]">加载中...</div>
+          <div className="py-16 text-center text-sm text-[--color-text-muted]">{dict.common.loading}</div>
         ) : jobs.length === 0 ? (
           <EmptyState
-            title="暂无投递记录"
-            description="点击右上角“新建记录”开始追踪你的求职进度"
-            action={{ label: "新建记录", onClick: openCreate }}
+            title={dict.common.noData}
+            description={dict.jobs.noData}
+            action={{ label: dict.jobs.newApplication, onClick: openCreate }}
           />
         ) : (
           <div className="overflow-x-auto bg-[--color-bg-surface]">
@@ -314,16 +318,16 @@ export function JobsClient() {
               <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
                 <thead>
                   <tr>
-                    <th className="w-[150px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">公司</th>
-                    <th className="w-[180px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">职位</th>
-                    <th className="w-[110px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">渠道</th>
-                    <th className="w-[100px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">投递日期</th>
-                    <th className="w-[120px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">状态</th>
-                    <th className="w-[90px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">BASE</th>
-                    <th className="w-[120px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">联系人</th>
-                    <th className="w-[70px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">面试</th>
-                    <th className="w-[86px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">链接</th>
-                    <th className="w-[170px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">备注</th>
+                    <th className="w-[150px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.company}</th>
+                    <th className="w-[180px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.position}</th>
+                    <th className="w-[110px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.channel}</th>
+                    <th className="w-[100px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">{dict.jobs.appliedAt}</th>
+                    <th className="w-[120px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.status}</th>
+                    <th className="w-[90px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.baseLocation}</th>
+                    <th className="w-[120px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.hrContact}</th>
+                    <th className="w-[70px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">{dict.nav.interviews}</th>
+                    <th className="w-[86px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.link}</th>
+                    <th className="w-[170px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.notes}</th>
                     <th className="w-[90px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5" />
                   </tr>
                 </thead>
@@ -357,27 +361,27 @@ export function JobsClient() {
                         <td className="w-[86px] whitespace-nowrap border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]" onClick={(e) => e.stopPropagation()}>
                           {job.link ? (
                             <a href={job.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[--color-link] hover:underline">
-                              投递 <ExternalLink size={10} />
+                              {dict.jobs.link} <ExternalLink size={10} />
                             </a>
                           ) : <span className="text-xs text-[--color-text-muted]">-</span>}
                         </td>
                         <td className="w-[170px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job.notes}</td>
                         <td className="w-[90px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]" onClick={(e) => e.stopPropagation()}>
                           <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                            <button onClick={() => openDetail(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-link]" title="查看"><Eye size={13} /></button>
-                            <button onClick={() => openEdit(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-text-primary]" title="编辑"><Pencil size={13} /></button>
-                            <button onClick={() => handleDelete(job.id)} className="p-1 text-[--color-text-muted] hover:text-[--color-danger]" title="删除"><Trash2 size={13} /></button>
+                            <button onClick={() => openDetail(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-link]" title={dict.jobs.detail}><Eye size={13} /></button>
+                            <button onClick={() => openEdit(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-text-primary]" title={dict.common.edit}><Pencil size={13} /></button>
+                            <button onClick={() => handleDelete(job.id)} className="p-1 text-[--color-text-muted] hover:text-[--color-danger]" title={dict.common.delete}><Trash2 size={13} /></button>
                           </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {loadingMore && <p className="p-3 text-center text-xs text-[--color-text-muted]">加载更多记录...</p>}
+                {loadingMore && <p className="p-3 text-center text-xs text-[--color-text-muted]">{dict.common.loadMore}</p>}
                 {hasMore && !loadingMore && (
                   <div className="border-t border-[--color-border] p-3 text-center">
                     <Button type="button" variant="outline" size="sm" onClick={() => void loadJobs(nextCursor, true)}>
-                      加载更多
+                      {dict.common.loadMore}
                     </Button>
                   </div>
                 )}
@@ -387,7 +391,7 @@ export function JobsClient() {
         )}
       </div>
 
-      {jobs.length > 0 && <p className="mt-2 font-mono text-xs text-[--color-text-muted]">{jobs.length}{hasMore ? "+" : ""} 条记录</p>}
+      {jobs.length > 0 && <p className="mt-2 font-mono text-xs text-[--color-text-muted]">{jobs.length}{hasMore ? "+" : ""} {dict.jobs.total}</p>}
 
       <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-md">
@@ -400,29 +404,29 @@ export function JobsClient() {
               <div className="space-y-4 text-sm">
                 <StatusBadge status={detailJob.status} type="job" />
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-                  <div><span className="mb-0.5 block text-[--color-text-muted]">渠道</span><span>{detailJob.channel}</span></div>
-                  <div><span className="mb-0.5 block text-[--color-text-muted]">投递日期</span><span className="font-mono">{formatChinaDate(detailJob.appliedAt)}</span></div>
-                  <div><span className="mb-0.5 block text-[--color-text-muted]">BASE 地</span><span>{detailJob.baseLocation || "-"}</span></div>
-                  <div><span className="mb-0.5 block text-[--color-text-muted]">HR 联系</span><span>{detailJob.hrContact || "-"}</span></div>
-                  <div><span className="mb-0.5 block text-[--color-text-muted]">关联面试</span><span className="font-mono">{detailJob._count?.interviews ?? 0} 轮</span></div>
+                  <div><span className="mb-0.5 block text-[--color-text-muted]">{dict.jobs.channel}</span><span>{detailJob.channel}</span></div>
+                  <div><span className="mb-0.5 block text-[--color-text-muted]">{dict.jobs.appliedAt}</span><span className="font-mono">{formatChinaDate(detailJob.appliedAt)}</span></div>
+                  <div><span className="mb-0.5 block text-[--color-text-muted]">{dict.jobs.baseLocation}</span><span>{detailJob.baseLocation || "-"}</span></div>
+                  <div><span className="mb-0.5 block text-[--color-text-muted]">{dict.jobs.hrContact}</span><span>{detailJob.hrContact || "-"}</span></div>
+                  <div><span className="mb-0.5 block text-[--color-text-muted]">{dict.nav.interviews}</span><span className="font-mono">{detailJob._count?.interviews ?? 0}</span></div>
                   {detailJob.link && (
                     <div>
-                      <span className="mb-0.5 block text-[--color-text-muted]">投递链接</span>
+                      <span className="mb-0.5 block text-[--color-text-muted]">{dict.jobs.link}</span>
                       <a href={detailJob.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 whitespace-nowrap text-[--color-link] hover:underline">
-                        打开投递页 <ExternalLink size={10} />
+                        {dict.jobs.link} <ExternalLink size={10} />
                       </a>
                     </div>
                   )}
                 </div>
                 {detailJob.notes && (
                   <div>
-                    <span className="mb-1 block text-xs text-[--color-text-muted]">备注</span>
+                    <span className="mb-1 block text-xs text-[--color-text-muted]">{dict.jobs.notes}</span>
                     <p className="rounded border border-[--color-border] bg-[--color-bg-hover] p-2 text-sm">{detailJob.notes}</p>
                   </div>
                 )}
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" onClick={() => openEdit(detailJob)} className="gap-1.5"><Pencil size={13} /> 编辑</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleDelete(detailJob.id, true)} className="gap-1.5 text-[--color-danger] hover:text-[--color-danger]"><Trash2 size={13} /> 删除</Button>
+                  <Button size="sm" variant="outline" onClick={() => openEdit(detailJob)} className="gap-1.5"><Pencil size={13} /> {dict.common.edit}</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleDelete(detailJob.id, true)} className="gap-1.5 text-[--color-danger] hover:text-[--color-danger]"><Trash2 size={13} /> {dict.common.delete}</Button>
                 </div>
               </div>
             </>
@@ -433,33 +437,33 @@ export function JobsClient() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingJob ? "编辑投递记录" : "新建投递记录"}</DialogTitle>
+            <DialogTitle>{editingJob ? dict.jobs.editApplication : dict.jobs.newApplication}</DialogTitle>
           </DialogHeader>
           <div className="mt-2 space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="mb-1 block text-xs">公司 *</Label>
-                <Input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} placeholder="公司名称" className="h-8 text-sm" />
+                <Label className="mb-1 block text-xs">{dict.jobs.company} *</Label>
+                <Input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} placeholder={dict.jobs.company} className="h-8 text-sm" />
               </div>
               <div>
-                <Label className="mb-1 block text-xs">职位 *</Label>
-                <Input value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} placeholder="职位名称" className="h-8 text-sm" />
+                <Label className="mb-1 block text-xs">{dict.jobs.position} *</Label>
+                <Input value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} placeholder={dict.jobs.position} className="h-8 text-sm" />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <Label className="mb-1 block text-xs">渠道</Label>
+                <Label className="mb-1 block text-xs">{dict.jobs.channel}</Label>
                 <Select value={form.channel} onValueChange={(v) => setForm((f) => ({ ...f, channel: v }))}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>{JOB_CHANNELS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="mb-1 block text-xs">投递日期</Label>
+                <Label className="mb-1 block text-xs">{dict.jobs.appliedAt}</Label>
                 <Input type="date" value={form.appliedAt} onChange={(e) => setForm((f) => ({ ...f, appliedAt: e.target.value }))} className="h-8 font-mono text-sm" />
               </div>
               <div>
-                <Label className="mb-1 block text-xs">状态</Label>
+                <Label className="mb-1 block text-xs">{dict.jobs.status}</Label>
                 <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>{JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
@@ -468,25 +472,25 @@ export function JobsClient() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="mb-1 block text-xs">BASE 地</Label>
-                <Input value={form.baseLocation} onChange={(e) => setForm((f) => ({ ...f, baseLocation: e.target.value }))} placeholder="如：北京、上海、远程" className="h-8 text-sm" />
+                <Label className="mb-1 block text-xs">{dict.jobs.baseLocation}</Label>
+                <Input value={form.baseLocation} onChange={(e) => setForm((f) => ({ ...f, baseLocation: e.target.value }))} placeholder={dict.jobs.baseLocation} className="h-8 text-sm" />
               </div>
               <div>
-                <Label className="mb-1 block text-xs">HR 联系</Label>
-                <Input value={form.hrContact} onChange={(e) => setForm((f) => ({ ...f, hrContact: e.target.value }))} placeholder="姓名 / 微信 / 电话" className="h-8 text-sm" />
+                <Label className="mb-1 block text-xs">{dict.jobs.hrContact}</Label>
+                <Input value={form.hrContact} onChange={(e) => setForm((f) => ({ ...f, hrContact: e.target.value }))} placeholder={dict.jobs.hrContact} className="h-8 text-sm" />
               </div>
             </div>
             <div>
-              <Label className="mb-1 block text-xs">投递链接</Label>
+              <Label className="mb-1 block text-xs">{dict.jobs.link}</Label>
               <Input value={form.link} onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))} placeholder="https://..." className="h-8 font-mono text-sm" />
             </div>
             <div>
-              <Label className="mb-1 block text-xs">备注</Label>
-              <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="内推人、岗位来源、注意事项..." className="resize-none text-sm" rows={2} />
+              <Label className="mb-1 block text-xs">{dict.jobs.notes}</Label>
+              <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder={dict.jobs.notes} className="resize-none text-sm" rows={2} />
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>取消</Button>
-              <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "保存中..." : "保存"}</Button>
+              <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>{dict.jobs.cancel}</Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? dict.jobs.saving : dict.jobs.save}</Button>
             </div>
           </div>
         </DialogContent>

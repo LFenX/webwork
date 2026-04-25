@@ -1,12 +1,15 @@
-import { copyFile, mkdir, unlink, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, unlink } from "node:fs/promises"
+import { createWriteStream } from "node:fs"
 import path from "node:path"
+import { Readable } from "node:stream"
+import { pipeline } from "node:stream/promises"
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { getSession } from "@/lib/session"
 import {
   DEFAULT_STICKERS,
-  STICKER_MAX_SIZE,
   canAccessStickerAsset,
+  isStickerUsed,
   makeStickerFilename,
   safeStickerStoragePath,
   serializeSticker,
@@ -229,23 +232,72 @@ export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "未登录" }, { status: 401, headers: NO_STORE })
 
-  const assets = await prisma.stickerAsset.findMany({
-    where: { OR: [{ scope: "public" }, { ownerId: session.userId }] },
-    include: {
-      owner: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
-      uploader: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
-    },
-    orderBy: [{ createdAt: "desc" }],
-  })
+  const [assets, userGroups] = await Promise.all([
+    prisma.stickerAsset.findMany({
+      where: {
+        OR: [
+          { scope: "public", ownerId: { not: null } },
+          { ownerId: session.userId },
+        ],
+      },
+      include: {
+        owner: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
+        uploader: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
+      },
+      orderBy: [{ createdAt: "desc" }],
+    }),
+    prisma.stickerGroup.findMany({
+      where: { ownerId: session.userId },
+      include: {
+        entries: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            sortOrder: true,
+            sticker: {
+              include: {
+                owner: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
+                uploader: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { sortOrder: "asc" },
+    }),
+  ])
 
   const customAssets = assets.filter((item) => item.scope === "custom")
   const publicAssets = assets.filter((item) => item.scope === "public")
 
+  const customGroups = userGroups
+    .filter((g) => g.scope === "custom")
+    .map((g) => ({
+      id: g.id,
+      name: g.name,
+      stickers: g.entries.map((e) => serializeStickerWithContributor(e.sticker)),
+    }))
+
+  const publicContribGroups = userGroups
+    .filter((g) => g.scope === "public")
+    .map((g) => ({
+      id: g.id,
+      name: g.name,
+      stickers: g.entries.map((e) => serializeStickerWithContributor(e.sticker)),
+    }))
+
+  const groupedCustomIds = new Set(
+    customGroups.flatMap((g) => g.stickers.map((s) => s.id))
+  )
+  const ungroupedCustom = customAssets.filter((a) => !groupedCustomIds.has(a.id))
+
   return NextResponse.json({
     defaults: DEFAULT_STICKERS,
-    custom: customAssets.map(serializeStickerWithContributor),
+    custom: ungroupedCustom.map(serializeStickerWithContributor),
     public: publicAssets.map(serializeStickerWithContributor),
     publicGroups: groupPublicStickers(publicAssets),
+    customGroups,
+    publicContribGroups,
   }, { headers: NO_STORE })
 }
 
@@ -292,7 +344,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ addedCount, dedupedCount }, { status: 201, headers: NO_STORE })
   }
 
-  if (action === "delete-custom" || deleteStickerIds.length > 0) {
+  if (action === "delete-custom" || (deleteStickerIds.length > 0 && action !== "delete-public")) {
     if (deleteStickerIds.length === 0) {
       return NextResponse.json({ error: "请选择要删除的表情" }, { status: 400, headers: NO_STORE })
     }
@@ -303,20 +355,76 @@ export async function POST(req: NextRequest) {
         scope: "custom",
       },
     })
-    await prisma.stickerAsset.deleteMany({
-      where: {
-        id: { in: stickers.map((item) => item.id) },
-        ownerId: session.userId,
-        scope: "custom",
-      },
-    })
-    await Promise.all(
-      stickers.map(async (sticker) => {
-        const filePath = safeStickerStoragePath(sticker.storagePath)
-        if (filePath) await unlink(filePath).catch(() => null)
+    const toArchive: typeof stickers = []
+    const toDelete: typeof stickers = []
+    for (const s of stickers) {
+      if (await isStickerUsed(s.id)) {
+        toArchive.push(s)
+      } else {
+        toDelete.push(s)
+      }
+    }
+
+    if (toArchive.length > 0) {
+      await prisma.stickerAsset.updateMany({
+        where: { id: { in: toArchive.map((s) => s.id) } },
+        data: { ownerId: null },
       })
-    )
-    return NextResponse.json({ deletedCount: stickers.length }, { headers: NO_STORE })
+    }
+
+    if (toDelete.length > 0) {
+      await prisma.stickerAsset.deleteMany({
+        where: { id: { in: toDelete.map((s) => s.id) } },
+      })
+      await Promise.all(
+        toDelete.map(async (sticker) => {
+          const filePath = safeStickerStoragePath(sticker.storagePath)
+          if (filePath) await unlink(filePath).catch(() => null)
+        })
+      )
+    }
+
+    return NextResponse.json({ deletedCount: toDelete.length, archivedCount: toArchive.length }, { headers: NO_STORE })
+  }
+
+  if (action === "delete-public") {
+    const ids = [...new Set(form.getAll("deleteStickerIds").map((value) => String(value).trim()).filter(Boolean))]
+    if (ids.length === 0) {
+      return NextResponse.json({ error: "请选择要删除的表情" }, { status: 400, headers: NO_STORE })
+    }
+    const stickers = await prisma.stickerAsset.findMany({
+      where: { id: { in: ids }, ownerId: session.userId, scope: "public" },
+    })
+    const toArchive: typeof stickers = []
+    const toDelete: typeof stickers = []
+    for (const s of stickers) {
+      if (await isStickerUsed(s.id)) {
+        toArchive.push(s)
+      } else {
+        toDelete.push(s)
+      }
+    }
+
+    if (toArchive.length > 0) {
+      await prisma.stickerAsset.updateMany({
+        where: { id: { in: toArchive.map((s) => s.id) } },
+        data: { ownerId: null },
+      })
+    }
+
+    if (toDelete.length > 0) {
+      await prisma.stickerAsset.deleteMany({
+        where: { id: { in: toDelete.map((s) => s.id) } },
+      })
+      await Promise.all(
+        toDelete.map(async (sticker) => {
+          const filePath = safeStickerStoragePath(sticker.storagePath)
+          if (filePath) await unlink(filePath).catch(() => null)
+        })
+      )
+    }
+
+    return NextResponse.json({ deletedCount: toDelete.length, archivedCount: toArchive.length }, { headers: NO_STORE })
   }
 
   if (sourceStickerId) {
@@ -331,15 +439,14 @@ export async function POST(req: NextRequest) {
     if (!file.type.startsWith("image/")) {
       return NextResponse.json({ error: "表情只支持图片或 GIF" }, { status: 400, headers: NO_STORE })
     }
-    if (file.size > STICKER_MAX_SIZE) {
-      return NextResponse.json({ error: "单个表情不能超过 5MB" }, { status: 413, headers: NO_STORE })
-    }
 
     const filename = makeStickerFilename(file.name || "sticker")
     const storagePath = path.join(session.userId, filename)
     const userDir = path.join(root, session.userId)
     await mkdir(userDir, { recursive: true })
-    await writeFile(path.join(userDir, filename), Buffer.from(await file.arrayBuffer()))
+    const filePath = path.join(userDir, filename)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await pipeline(Readable.fromWeb(file.stream() as any), createWriteStream(filePath))
 
     const sticker = await prisma.stickerAsset.create({
       data: {
@@ -372,9 +479,19 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "缺少表情 id" }, { status: 400, headers: NO_STORE })
 
   const sticker = await prisma.stickerAsset.findFirst({
-    where: { id, ownerId: session.userId, scope: "custom" },
+    where: {
+      id,
+      ownerId: session.userId,
+      OR: [{ scope: "custom" }, { scope: "public" }],
+    },
   })
   if (!sticker) return NextResponse.json({ error: "表情不存在" }, { status: 404, headers: NO_STORE })
+
+  const used = await isStickerUsed(id)
+  if (used) {
+    await prisma.stickerAsset.update({ where: { id }, data: { ownerId: null } })
+    return NextResponse.json({ archived: true }, { headers: NO_STORE })
+  }
 
   await prisma.stickerAsset.delete({ where: { id } })
   const filePath = safeStickerStoragePath(sticker.storagePath)

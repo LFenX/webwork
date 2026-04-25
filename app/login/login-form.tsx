@@ -5,8 +5,11 @@ import { Eye, EyeOff, KeyRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getDict } from "@/lib/i18n"
 
 export function LoginForm() {
+  const dict = getDict()
+  const a = dict.auth
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -35,14 +38,14 @@ export function LoginForm() {
     }).catch(() => null)
 
     if (!res) {
-      setError("网络错误，请稍后再试")
+      setError(a.networkError)
       setPending(false)
       return
     }
 
     if (!res.ok) {
       const data = await res.json().catch(() => null)
-      setError(data?.error ?? "登录失败，请稍后再试")
+      setError(data?.error ?? a.loginFailed)
       setPending(false)
       return
     }
@@ -62,11 +65,11 @@ export function LoginForm() {
         cache: "no-store",
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "提交失败")
+      if (!res.ok) throw new Error(data?.error ?? a.requestFailed)
       setNewPassword("")
-      setMessage("密码修改申请已提交，等待管理员同意")
+      setMessage(a.passwordChangeSubmitted)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "提交失败")
+      setError(err instanceof Error ? err.message : a.requestFailed)
     } finally {
       setResetPending(false)
     }
@@ -84,18 +87,18 @@ export function LoginForm() {
         cache: "no-store",
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "查询失败")
+      if (!res.ok) throw new Error(data?.error ?? a.checkFailed)
       if (!data?.request) {
-        setMessage("还没有找到这个邮箱的密码修改申请")
+        setMessage(a.noRequest)
       } else if (data.request.status === "approved") {
-        setMessage("管理员已同意，新密码已经生效，可以直接登录")
+        setMessage(a.approved)
       } else if (data.request.status === "pending") {
-        setMessage("申请仍在等待管理员审核")
+        setMessage(a.pending)
       } else {
-        setMessage("最近的密码申请未生效")
+        setMessage(a.rejected)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "查询失败")
+      setError(err instanceof Error ? err.message : a.checkFailed)
     } finally {
       setChecking(false)
     }
@@ -105,16 +108,16 @@ export function LoginForm() {
     <div className="space-y-4">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <Label className="mb-1 block text-xs">邮箱</Label>
+          <Label className="mb-1 block text-xs">{a.email}</Label>
           <Input name="email" type="email" placeholder="you@example.com" autoComplete="email" required />
         </div>
         <div>
-          <Label className="mb-1 block text-xs">密码</Label>
+          <Label className="mb-1 block text-xs">{a.password}</Label>
           <div className="relative">
             <Input
               name="password"
               type={showPassword ? "text" : "password"}
-              placeholder="请输入密码"
+              placeholder={a.passwordPlaceholder}
               autoComplete="current-password"
               required
               className="pr-10"
@@ -123,7 +126,7 @@ export function LoginForm() {
               type="button"
               onClick={() => setShowPassword((value) => !value)}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[--color-text-muted] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
-              title={showPassword ? "隐藏密码" : "显示密码"}
+              title={showPassword ? a.hidePassword : a.showPassword}
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
@@ -132,7 +135,7 @@ export function LoginForm() {
         {error && <p className="text-sm text-[--color-danger]">{error}</p>}
         {message && <p className="text-sm text-[--color-text-secondary]">{message}</p>}
         <Button type="submit" className="w-full" disabled={pending}>
-          {pending ? "登录中..." : "登录"}
+          {pending ? a.loggingIn : a.login}
         </Button>
       </form>
 
@@ -141,13 +144,13 @@ export function LoginForm() {
         onClick={() => setResetOpen((value) => !value)}
         className="inline-flex w-full items-center justify-center gap-1.5 text-sm text-[--color-link] hover:underline"
       >
-        <KeyRound size={14} /> 修改或找回密码
+        <KeyRound size={14} /> {a.resetPassword}
       </button>
 
       {resetOpen && (
         <div className="space-y-3 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
           <div>
-            <Label className="mb-1 block text-xs">注册邮箱</Label>
+            <Label className="mb-1 block text-xs">{a.registerEmail}</Label>
             <Input
               value={resetEmail}
               onChange={(event) => setResetEmail(event.target.value)}
@@ -157,22 +160,22 @@ export function LoginForm() {
             />
           </div>
           <div>
-            <Label className="mb-1 block text-xs">新密码（至少 8 位）</Label>
+            <Label className="mb-1 block text-xs">{a.newPasswordMin}</Label>
             <Input
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
               type="text"
               minLength={8}
-              placeholder="输入希望设置的新密码"
+              placeholder={a.newPasswordPlaceholder}
               autoComplete="new-password"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Button type="button" variant="outline" size="sm" onClick={requestPasswordChange} disabled={resetPending || !resetEmail || newPassword.length < 8}>
-              {resetPending ? "提交中..." : "提交申请"}
+              {resetPending ? a.submitting : a.submitRequest}
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={checkPasswordStatus} disabled={checking || !resetEmail}>
-              {checking ? "查询中..." : "查看是否生效"}
+              {checking ? a.checking : a.checkStatus}
             </Button>
           </div>
         </div>

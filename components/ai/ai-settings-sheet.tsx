@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { KeyRound, PlugZap, Save, TestTube2, Trash2 } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { CheckCircle2, KeyRound, PlugZap, Plus, Save, TestTube2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,8 @@ import {
   modelCatalogToTextareaValue,
   saveModelCatalog,
 } from "@/lib/ai/model-presets"
+import { getDict } from "@/lib/i18n"
+import type { AIUserConfigSummary } from "@/lib/ai/types"
 
 type AIProviderCapabilities = {
   streamText: boolean
@@ -22,6 +24,7 @@ type AIProviderCapabilities = {
 }
 
 type ConfigPayload = {
+  name: string
   providerLabel: string
   baseUrl: string
   apiKey: string
@@ -31,20 +34,8 @@ type ConfigPayload = {
   isEnabled: boolean
 }
 
-type UserConfigStatus = {
-  providerLabel: string
-  baseUrl: string
-  model: string
-  temperature: number
-  streamEnabled: boolean
-  capabilities?: AIProviderCapabilities | null
-  isEnabled: boolean
-  apiKeyMask: string
-  lastTestStatus: string
-  lastTestedAt: string | null
-}
-
 const DEFAULT_FORM: ConfigPayload = {
+  name: "",
   providerLabel: "OpenAI-compatible",
   baseUrl: "",
   apiKey: "",
@@ -54,32 +45,31 @@ const DEFAULT_FORM: ConfigPayload = {
   isEnabled: true,
 }
 
-function buildForm(userConfig: UserConfigStatus | null) {
-  if (!userConfig) return DEFAULT_FORM
-
+function buildForm(config: AIUserConfigSummary): ConfigPayload {
   return {
-    providerLabel: userConfig.providerLabel,
-    baseUrl: userConfig.baseUrl,
+    name: config.name || "",
+    providerLabel: config.providerLabel,
+    baseUrl: config.baseUrl,
     apiKey: "",
-    model: userConfig.model,
-    temperature: String(userConfig.temperature ?? 0.7),
-    streamEnabled: userConfig.streamEnabled,
-    isEnabled: userConfig.isEnabled,
+    model: config.model,
+    temperature: String(config.temperature ?? 0.7),
+    streamEnabled: config.streamEnabled,
+    isEnabled: config.isEnabled,
   }
 }
 
-function CapabilityPills({ capabilities }: { capabilities: AIProviderCapabilities | null }) {
+function CapabilityPills({ capabilities, dict }: { capabilities: AIProviderCapabilities | null; dict: ReturnType<typeof getDict> }) {
   if (!capabilities) return null
 
   const items: Array<[string, boolean]> = [
-    ["流式", capabilities.streamText],
-    ["工具调用", capabilities.toolCalling],
-    ["图片理解", capabilities.visionInput],
-    ["思考流", capabilities.reasoningStream],
+    [dict.ai.streaming, capabilities.streamText],
+    [dict.ai.toolCalling, capabilities.toolCalling],
+    [dict.ai.imageUnderstanding, capabilities.visionInput],
+    [dict.ai.thinkingStream, capabilities.reasoningStream],
   ]
 
   return (
-    <div className="mt-4 flex flex-wrap gap-2">
+    <div className="mt-3 flex flex-wrap gap-2">
       {items.map(([label, supported]) => (
         <span
           key={label}
@@ -93,31 +83,66 @@ function CapabilityPills({ capabilities }: { capabilities: AIProviderCapabilitie
 }
 
 function AISettingsSheetBody({
-  status,
+  storageReady,
   onOpenChange,
   onSaved,
 }: {
-  status: {
-    storageReady?: boolean
-    userConfig: UserConfigStatus | null
-  } | null
+  storageReady: boolean
   onOpenChange: (open: boolean) => void
   onSaved: () => Promise<void> | void
 }) {
-  const [form, setForm] = useState<ConfigPayload>(() => buildForm(status?.userConfig ?? null))
+  const dict = getDict()
+  const [configs, setConfigs] = useState<AIUserConfigSummary[]>([])
+  const [configsLoading, setConfigsLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState<ConfigPayload>(DEFAULT_FORM)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
-  const [testedCapabilities, setTestedCapabilities] = useState<AIProviderCapabilities | null>(status?.userConfig?.capabilities ?? null)
-  const [modelCatalogText, setModelCatalogText] = useState(() => {
-    const providerLabel = status?.userConfig?.providerLabel ?? DEFAULT_FORM.providerLabel
-    const baseUrl = status?.userConfig?.baseUrl ?? DEFAULT_FORM.baseUrl
-    const fallbackModel = status?.userConfig?.model ?? DEFAULT_FORM.model
-    const catalog = loadModelCatalog(providerLabel, baseUrl, fallbackModel)
-    return modelCatalogToTextareaValue(catalog.models)
-  })
-  const storageReady = status?.storageReady ?? true
+  const [testedCapabilities, setTestedCapabilities] = useState<AIProviderCapabilities | null>(null)
+  const [testStatus, setTestStatus] = useState<{ status: string; testedAt: string | null } | null>(null)
+  const [modelCatalogText, setModelCatalogText] = useState("")
+
+  const loadConfigs = useCallback(async () => {
+    setConfigsLoading(true)
+    try {
+      const res = await fetch("/api/ai/configs", { cache: "no-store" })
+      const data = await res.json().catch(() => null)
+      if (data?.configs) setConfigs(data.configs as AIUserConfigSummary[])
+    } catch {
+      // ignore
+    } finally {
+      setConfigsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetching config list on mount
+    void loadConfigs()
+  }, [loadConfigs])
+
+  function resetForm() {
+    setForm(DEFAULT_FORM)
+    setEditingId(null)
+    setTestedCapabilities(null)
+    setTestStatus(null)
+    setModelCatalogText("")
+  }
+
+  function loadConfig(config: AIUserConfigSummary) {
+    const f = buildForm(config)
+    setForm(f)
+    setEditingId(config.id)
+    setTestedCapabilities(null)
+    setTestStatus(config.lastTestedAt ? { status: config.lastTestStatus, testedAt: config.lastTestedAt } : null)
+    const catalog = loadModelCatalog(config.providerLabel, config.baseUrl, config.model)
+    setModelCatalogText(modelCatalogToTextareaValue(catalog.models))
+  }
 
   async function handleSave() {
+    if (!form.name.trim()) {
+      toast.error(dict.ai.configNamePlaceholder)
+      return
+    }
     setSaving(true)
     try {
       const catalog = saveModelCatalog(
@@ -130,26 +155,36 @@ function AISettingsSheetBody({
         form.model,
       )
       setModelCatalogText(modelCatalogToTextareaValue(catalog.models))
-      const res = await fetch("/api/ai/config", {
-        method: "PUT",
+
+      const body = {
+        name: form.name.trim(),
+        providerLabel: form.providerLabel,
+        baseUrl: form.baseUrl,
+        apiKey: form.apiKey,
+        model: form.model,
+        temperature: Number(form.temperature || "0.7"),
+        streamEnabled: form.streamEnabled,
+        isEnabled: form.isEnabled,
+      }
+
+      const url = editingId ? `/api/ai/configs/${editingId}` : "/api/ai/configs"
+      const method = editingId ? "PUT" : "POST"
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          providerLabel: form.providerLabel,
-          baseUrl: form.baseUrl,
-          apiKey: form.apiKey,
-          model: form.model,
-          temperature: Number(form.temperature || "0.7"),
-          streamEnabled: form.streamEnabled,
-          isEnabled: form.isEnabled,
-        }),
+        body: JSON.stringify(body),
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "保存配置失败")
-      toast.success("AI 配置已保存")
+      if (!res.ok) throw new Error(data?.error ?? dict.ai.saveConfigFailed)
+      toast.success(dict.ai.configSaved)
+      await loadConfigs()
+      if (!editingId && data?.config?.id) {
+        setEditingId(data.config.id)
+      }
       await onSaved()
-      onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "保存配置失败")
+      toast.error(error instanceof Error ? error.message : dict.ai.saveConfigFailed)
     } finally {
       setSaving(false)
     }
@@ -158,121 +193,210 @@ function AISettingsSheetBody({
   async function handleTest() {
     setTesting(true)
     try {
+      const body: Record<string, unknown> = {
+        providerLabel: form.providerLabel,
+        baseUrl: form.baseUrl,
+        apiKey: form.apiKey,
+        model: form.model,
+        temperature: Number(form.temperature || "0.7"),
+        streamEnabled: form.streamEnabled,
+        isEnabled: form.isEnabled,
+      }
+      if (editingId) body.configId = editingId
+
       const res = await fetch("/api/ai/config/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          providerLabel: form.providerLabel,
-          baseUrl: form.baseUrl,
-          apiKey: form.apiKey,
-          model: form.model,
-          temperature: Number(form.temperature || "0.7"),
-          streamEnabled: form.streamEnabled,
-          isEnabled: form.isEnabled,
-        }),
+        body: JSON.stringify(body),
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "连接测试失败")
+      if (!res.ok) throw new Error(data?.error ?? dict.ai.testConnectionFailed)
       setTestedCapabilities(data?.capabilities ?? null)
-      toast.success("连接测试成功")
-      await onSaved()
+      setTestStatus({ status: "passed", testedAt: new Date().toISOString() })
+      toast.success(dict.ai.testConnectionSuccess)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "连接测试失败")
+      setTestStatus({ status: "failed", testedAt: new Date().toISOString() })
+      toast.error(error instanceof Error ? error.message : dict.ai.testConnectionFailed)
     } finally {
       setTesting(false)
     }
   }
 
-  async function handleDelete() {
-    setSaving(true)
+  async function handleDeleteConfig(configId: string, configName: string) {
+    if (!confirm(dict.ai.confirmDeleteConfig.replace("{name}", configName))) return
     try {
-      const res = await fetch("/api/ai/config", { method: "DELETE" })
-      const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? "删除配置失败")
-      toast.success("已删除自定义 AI 配置")
+      const res = await fetch(`/api/ai/configs/${configId}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error ?? dict.ai.deleteConfigFailed)
+      }
+      toast.success(dict.ai.configDeleted)
+      if (editingId === configId) resetForm()
+      await loadConfigs()
       await onSaved()
-      onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "删除配置失败")
-    } finally {
-      setSaving(false)
+      toast.error(error instanceof Error ? error.message : dict.ai.deleteConfigFailed)
     }
   }
 
+  async function handleActivate(configId: string) {
+    try {
+      const res = await fetch(`/api/ai/configs/${configId}/activate`, { method: "POST" })
+      if (!res.ok) throw new Error()
+      toast.success(dict.ai.configActivated)
+      await loadConfigs()
+      await onSaved()
+    } catch {
+      toast.error(dict.ai.saveConfigFailed)
+    }
+  }
+
+  const activeConfig = configs.find((c) => c.isActive)
+
   return (
-    <SheetContent side="right" className="w-[min(100vw,520px)] sm:max-w-none">
+    <SheetContent side="right" className="w-[min(100vw,520px)] sm:max-w-none overflow-y-auto">
       <SheetHeader>
         <SheetTitle className="flex items-center gap-2">
           <KeyRound size={18} />
-          AI 模型配置
+          {dict.ai.settingsSheetTitle}
         </SheetTitle>
         <SheetDescription>
-          按 OpenAI-compatible 方式保存 provider。测试时会探测流式、工具调用、图片理解和思考流能力。
+          {dict.ai.settingsSheetDescription}
         </SheetDescription>
       </SheetHeader>
 
       <div className="mt-6 space-y-5">
         {!storageReady ? (
           <div className="rounded-[--radius-lg] border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            服务端未配置 <code>AI_SECRET_KEY</code>，当前无法安全保存或更新 AI 凭证。请先在项目根目录的 <code>.env</code> 中添加该变量，并重启开发服务器。
+            {dict.ai.storageNotReadyWarning}
           </div>
         ) : null}
 
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="text-xs text-[--color-text-muted]">当前掩码</p>
-          <p className="mt-1 text-sm text-[--color-text-primary]">{status?.userConfig?.apiKeyMask || "尚未配置"}</p>
-          <p className="mt-2 text-xs text-[--color-text-muted]">
-            最近测试：{status?.userConfig?.lastTestStatus || "unknown"}
-            {status?.userConfig?.lastTestedAt ? ` / ${new Date(status.userConfig.lastTestedAt).toLocaleString("zh-CN")}` : ""}
-          </p>
-          <CapabilityPills capabilities={testedCapabilities} />
+        {/* Saved configs list */}
+        <div>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-medium text-[--color-text-muted]">{dict.ai.savedConfigs}</Label>
+            <Button type="button" variant="ghost" size="sm" onClick={resetForm}>
+              <Plus size={14} className="mr-1" />
+              {dict.ai.newConfig}
+            </Button>
+          </div>
+          {configsLoading ? (
+            <p className="mt-2 text-xs text-[--color-text-muted]">{dict.ai.loadingConfigs}</p>
+          ) : configs.length === 0 ? (
+            <p className="mt-2 text-xs text-[--color-text-muted]">{dict.ai.noSavedConfigs}</p>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {configs.map((config) => (
+                <div
+                  key={config.id}
+                  className={`rounded-[--radius-lg] border p-3 ${config.isActive ? "border-emerald-300 bg-emerald-50/50" : "border-[--color-border] bg-[--color-bg-surface]"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium text-[--color-text-primary]">{config.name || config.providerLabel}</span>
+                        {config.isActive ? (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                            <CheckCircle2 size={10} />
+                            {dict.ai.activeBadge}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">
+                        {config.providerLabel} / {config.model || "—"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[--color-text-muted]">
+                        {config.apiKeyMask} &middot; {dict.ai.lastTest}{config.lastTestStatus}
+                      </p>
+                    </div>
+                    <div className="ml-2 flex shrink-0 gap-1">
+                      {!config.isActive ? (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => handleActivate(config.id)} title={dict.ai.activateConfig}>
+                          <CheckCircle2 size={14} />
+                        </Button>
+                      ) : null}
+                      <Button type="button" variant="ghost" size="sm" onClick={() => loadConfig(config)} title={dict.ai.loadConfig}>
+                        <PlugZap size={14} />
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => handleDeleteConfig(config.id, config.name || config.providerLabel)} title={dict.ai.deleteConfigBtn}>
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
+        {/* Divider */}
+        <div className="border-t border-[--color-border]" />
+
+        {/* Current status */}
+        {editingId || activeConfig ? (
+          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+            <p className="text-xs text-[--color-text-muted]">
+              {editingId ? `${dict.ai.loadConfigPrompt}` : `${dict.ai.activeConfig}: ${activeConfig?.name || activeConfig?.providerLabel || ""}`}
+            </p>
+            {editingId ? (
+              <p className="mt-1 text-xs text-[--color-text-muted]">
+                {dict.ai.lastTest}{testStatus?.status ?? "unknown"}
+                {testStatus?.testedAt ? ` / ${new Date(testStatus.testedAt).toLocaleString()}` : ""}
+              </p>
+            ) : null}
+            <CapabilityPills capabilities={testedCapabilities} dict={dict} />
+          </div>
+        ) : null}
+
+        {/* Form */}
         <div className="space-y-3">
           <div>
-            <Label className="mb-1 block text-xs">Provider 名称</Label>
+            <Label className="mb-1 block text-xs">{dict.ai.configName}</Label>
+            <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder={dict.ai.configNamePlaceholder} />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs">{dict.ai.providerLabel}</Label>
             <Input value={form.providerLabel} onChange={(event) => setForm((current) => ({ ...current, providerLabel: event.target.value }))} />
           </div>
           <div>
-            <Label className="mb-1 block text-xs">Base URL</Label>
+            <Label className="mb-1 block text-xs">{dict.ai.baseUrl}</Label>
             <Input value={form.baseUrl} onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.example.com/v1" />
           </div>
           <div>
-            <Label className="mb-1 block text-xs">API Key</Label>
-            <Input type="password" value={form.apiKey} onChange={(event) => setForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder="输入新的 API Key 用于更新" />
+            <Label className="mb-1 block text-xs">{dict.ai.apiKey}</Label>
+            <Input type="password" value={form.apiKey} onChange={(event) => setForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={dict.ai.apiKeyPlaceholder} />
           </div>
           <div>
-            <Label className="mb-1 block text-xs">Model</Label>
-            <Input value={form.model} onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))} placeholder="gpt-4.1-mini / deepseek-chat / qwen..." />
+            <Label className="mb-1 block text-xs">{dict.ai.model}</Label>
+            <Input value={form.model} onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))} placeholder={dict.ai.modelPlaceholder} />
           </div>
           <div>
-            <Label className="mb-1 block text-xs">Model list for quick switch</Label>
+            <Label className="mb-1 block text-xs">{dict.ai.modelListLabel}</Label>
             <Textarea
               value={modelCatalogText}
               onChange={(event) => setModelCatalogText(event.target.value)}
               rows={5}
-              placeholder={"Enter one model per line, for example:\nqwen3.6-plus\ngpt-4.1-mini\ndeepseek-chat"}
+              placeholder={dict.ai.modelListPlaceholder}
               className="min-h-[132px] resize-y"
             />
-            <p className="mt-2 text-xs text-[--color-text-muted]">
-              Saved locally for this provider. After saving, models can be switched from the &quot;Advanced&quot; menu in the chat input.
-            </p>
+            <p className="mt-2 text-xs text-[--color-text-muted]">{dict.ai.modelListHint}</p>
           </div>
           <div>
-            <Label className="mb-1 block text-xs">Temperature</Label>
+            <Label className="mb-1 block text-xs">{dict.ai.temperature}</Label>
             <Input value={form.temperature} onChange={(event) => setForm((current) => ({ ...current, temperature: event.target.value }))} />
           </div>
           <div className="flex items-center justify-between rounded-[--radius-lg] border border-[--color-border] px-3 py-2">
             <div>
-              <p className="text-sm font-medium text-[--color-text-primary]">启用流式响应</p>
-              <p className="text-xs text-[--color-text-muted]">provider 支持时会沿用这个开关。</p>
+              <p className="text-sm font-medium text-[--color-text-primary]">{dict.ai.streamEnabled}</p>
+              <p className="text-xs text-[--color-text-muted]">{dict.ai.streamEnabledHint}</p>
             </div>
             <input type="checkbox" checked={form.streamEnabled} onChange={(event) => setForm((current) => ({ ...current, streamEnabled: event.target.checked }))} />
           </div>
           <div className="flex items-center justify-between rounded-[--radius-lg] border border-[--color-border] px-3 py-2">
             <div>
-              <p className="text-sm font-medium text-[--color-text-primary]">启用这份配置</p>
-              <p className="text-xs text-[--color-text-muted]">关闭后会退回到管理员授权或不可用状态。</p>
+              <p className="text-sm font-medium text-[--color-text-primary]">{dict.ai.enableConfigLabel}</p>
+              <p className="text-xs text-[--color-text-muted]">{dict.ai.enableConfigHint}</p>
             </div>
             <input type="checkbox" checked={form.isEnabled} onChange={(event) => setForm((current) => ({ ...current, isEnabled: event.target.checked }))} />
           </div>
@@ -280,24 +404,19 @@ function AISettingsSheetBody({
 
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={handleTest} disabled={testing}>
-            <TestTube2 size={14} /> {testing ? "测试中..." : "测试连接"}
+            <TestTube2 size={14} /> {testing ? dict.ai.testingConnection : dict.ai.testConnectionBtn}
           </Button>
           <Button type="button" onClick={handleSave} disabled={saving || !storageReady}>
-            <Save size={14} /> {saving ? "保存中..." : "保存配置"}
-          </Button>
-          <Button type="button" variant="outline" onClick={handleDelete} disabled={saving || !storageReady}>
-            <Trash2 size={14} /> 删除配置
+            <Save size={14} /> {saving ? dict.ai.savingConfig : dict.ai.saveConfigBtn}
           </Button>
         </div>
 
         <div className="rounded-[--radius-lg] border border-dashed border-[--color-border] bg-[--color-bg-hover] p-4 text-sm text-[--color-text-secondary]">
           <div className="flex items-center gap-2 font-medium text-[--color-text-primary]">
             <PlugZap size={15} />
-            Provider 能力说明
+            {dict.ai.capabilityDescriptionTitle}
           </div>
-          <p className="mt-2">
-            如果某项能力灰掉，AI 页面会明确提示降级原因，例如不支持多图理解、原生工具调用或 reasoning 流，而不会伪装成成功执行。
-          </p>
+          <p className="mt-2">{dict.ai.capabilityDescriptionHint}</p>
         </div>
       </div>
     </SheetContent>
@@ -307,23 +426,27 @@ function AISettingsSheetBody({
 export function AISettingsSheet({
   open,
   onOpenChange,
-  status,
+  storageReady,
   onSaved,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  status: {
-    storageReady?: boolean
-    userConfig: UserConfigStatus | null
-  } | null
+  storageReady: boolean
   onSaved: () => Promise<void> | void
 }) {
+  const [formKey, setFormKey] = useState(0)
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- key rotation on sheet open is intentional
+    if (open) setFormKey(Date.now())
+  }, [open])
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      {open ? (
+      {formKey !== 0 ? (
         <AISettingsSheetBody
-          key={status?.userConfig?.lastTestedAt ?? status?.userConfig?.apiKeyMask ?? "empty"}
-          status={status}
+          key={formKey}
+          storageReady={storageReady}
           onOpenChange={onOpenChange}
           onSaved={onSaved}
         />

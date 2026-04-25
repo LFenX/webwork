@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import { getDict } from "@/lib/i18n"
 
 type UserAvatarProps = {
   name?: string | null
@@ -19,14 +20,21 @@ const SIZE_CLASS = {
   xl: "h-24 w-24 text-2xl",
 }
 
+const PRESENCE_LABELS: Record<string, string> = {}
+
 function fallbackText(name?: string | null, email?: string | null, avatarText?: string | null) {
-  const source = avatarText || name || email || "我"
-  return Array.from(source.trim()).slice(0, 2).join("").toUpperCase() || "我"
+  const source = avatarText || name || email || "?"
+  return Array.from(source.trim()).slice(0, 2).join("").toUpperCase() || "?"
 }
 
 export function UserAvatar({ name, email, avatarText, avatarUrl, size = "md", presenceStatus, className = "" }: UserAvatarProps) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const dict = useMemo(() => {
+    try { return getDict() } catch { return null }
+  }, [])
   const showImage = Boolean(avatarUrl) && failedUrl !== avatarUrl
+
+  const presenceLabel = presenceStatus ? (dict?.friends as Record<string, string> | undefined)?.[presenceStatus] ?? presenceStatus : undefined
 
   return (
     <div className={`relative shrink-0 ${className}`}>
@@ -37,7 +45,7 @@ export function UserAvatar({ name, email, avatarText, avatarUrl, size = "md", pr
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={avatarUrl || undefined}
-            alt={name || email || "头像"}
+            alt={name || email || "avatar"}
             className="h-full w-full object-cover"
             onError={() => setFailedUrl(avatarUrl ?? null)}
           />
@@ -52,8 +60,8 @@ export function UserAvatar({ name, email, avatarText, avatarUrl, size = "md", pr
           className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[--color-bg-primary] ${
             presenceStatus === "online" ? "bg-emerald-500" : presenceStatus === "away" ? "bg-amber-400" : "bg-gray-400"
           }`}
-          aria-label={presenceStatus === "online" ? "在线" : presenceStatus === "away" ? "离开" : "下线"}
-          title={presenceStatus === "online" ? "在线" : presenceStatus === "away" ? "离开" : "下线"}
+          aria-label={presenceLabel}
+          title={presenceLabel}
         />
       )}
     </div>

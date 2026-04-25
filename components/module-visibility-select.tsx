@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { getDict } from "@/lib/i18n"
 import type { ModuleKey } from "@/lib/permissions"
 
 export function ModuleVisibilitySelect({
@@ -20,13 +21,14 @@ export function ModuleVisibilitySelect({
     savedFriends: string
   }
 }) {
+  const dict = getDict()
   const router = useRouter()
   const [visibility, setVisibility] = useState(initialVisibility)
   const [saving, setSaving] = useState(false)
 
   const text = labels ?? {
-    private: "Private",
-    friends: "Friends only",
+    private: dict.settings.privateVisibility,
+    friends: dict.settings.friendsVisibility,
     saveFailed: "Failed to update visibility",
     savedPrivate: "Module set to private",
     savedFriends: "Friends can now view this module",

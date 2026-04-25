@@ -5,8 +5,9 @@ import { CommentsSection } from "@/components/comments-section"
 import { MarkdownContent } from "@/components/markdown-content"
 import { VisibilityToggle } from "@/components/visibility-toggle"
 import { PostFolderSelect } from "@/components/post-folder-select"
-import type { CreatorProfile } from "@/lib/profile"
+import { getDict } from "@/lib/i18n"
 import { formatChinaDateTime } from "@/lib/time"
+import type { CreatorProfile } from "@/lib/profile"
 
 type ArticleReaderProps = {
   post: {
@@ -20,7 +21,7 @@ type ArticleReaderProps = {
     visibility: string
     createdAt: string
     updatedAt: string
-    author: { email: string; displayName: string }
+    author: { email: string; displayName: string; id?: string }
     folder: { id: string; name: string } | null
     wordCount: number
     readingMinutes: number
@@ -30,9 +31,13 @@ type ArticleReaderProps = {
   backLabel: string
   editHref?: string
   canEdit?: boolean
+  userId?: string
 }
 
-export function ArticleReader({ post, creator, backHref, backLabel, editHref, canEdit = false }: ArticleReaderProps) {
+export function ArticleReader({ post, creator, backHref, backLabel, editHref, canEdit = false, userId }: ArticleReaderProps) {
+  const dict = getDict()
+  const ar = dict.article
+
   return (
     <div className="mx-auto w-full max-w-[1360px] px-6 py-10 lg:pr-[330px]">
       <article className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] px-6 py-8 shadow-sm md:px-10 lg:px-12">
@@ -50,7 +55,7 @@ export function ArticleReader({ post, creator, backHref, backLabel, editHref, ca
                 href={editHref}
                 className="inline-flex items-center gap-1.5 rounded-[--radius-sm] bg-[--color-text-primary] px-3 py-1.5 text-sm text-[--color-bg-surface] hover:no-underline"
               >
-                <Pencil size={14} /> 编辑
+                <Pencil size={14} /> {ar.edit}
               </Link>
             </div>
           )}
@@ -58,39 +63,46 @@ export function ArticleReader({ post, creator, backHref, backLabel, editHref, ca
         <header className="mb-10">
           <h1 className="mb-4 text-3xl font-semibold leading-tight text-[--color-text-primary]">{post.title}</h1>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[--color-text-muted]">
-            <span className="inline-flex items-center gap-1.5 font-mono">
-              <Calendar size={14} /> 发布于 {formatChinaDateTime(post.createdAt)}
+            <span className="inline-flex items-center gap-1">
+              <Calendar size={14} /> {ar.publishedAt}: {formatChinaDateTime(post.date)}
             </span>
-            <span className="inline-flex items-center gap-1.5 font-mono">
-              <RefreshCcw size={14} /> 更新于 {formatChinaDateTime(post.updatedAt)}
+            <span className="inline-flex items-center gap-1">
+              <RefreshCcw size={14} /> {ar.updatedAt}: {formatChinaDateTime(post.updatedAt)}
             </span>
-            <span className="inline-flex items-center gap-1.5">
-              <User size={14} /> 作者 {post.author.displayName || post.author.email}
+            <span className="inline-flex items-center gap-1">
+              <User size={14} /> {ar.author}: {post.author.displayName}
             </span>
-            {canEdit ? (
-              <PostFolderSelect postId={post.id} type={post.type} userId={creator.id} initialFolderId={post.folder?.id ?? null} />
-            ) : (
-              <span className="inline-flex items-center gap-1.5">
-                <Folder size={14} /> {post.folder?.name || "未分类"}
+            {post.folder && (
+              <span className="inline-flex items-center gap-1">
+                <Folder size={14} /> {post.folder.name}
               </span>
             )}
-            <span className="inline-flex items-center gap-1.5">
-              <Hash size={14} /> 总字数 {post.wordCount}
+            {!post.folder && (
+              <span className="inline-flex items-center gap-1">
+                <Folder size={14} /> {ar.uncategorized}
+              </span>
+            )}
+            {post.tags.length > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <Hash size={14} /> {post.tags.join(", ")}
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1">
+              <Clock size={14} /> {ar.wordCount}: {post.wordCount} / {ar.readingTime}: {post.readingMinutes} {ar.minutes}
             </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Clock size={14} /> 阅读时长 {post.readingMinutes} 分钟
-            </span>
-            {post.tags.map((tag) => (
-              <span key={tag} className="rounded bg-[--color-bg-hover] px-1.5 py-0.5 text-xs">{tag}</span>
-            ))}
           </div>
         </header>
-        <MarkdownContent source={post.content} />
-        <div className="mt-12 border-t border-[--color-border] pt-8">
-          <CommentsSection postId={post.id} />
+        <div className="prose-custom">
+          <MarkdownContent source={post.content} />
+        </div>
+        <div className="mt-12 flex items-center gap-2">
+          <PostFolderSelect postId={post.id} postType={post.type} userId={userId} currentFolderId={post.folder?.id ?? null} />
         </div>
       </article>
-      <ArticleAside profile={creator} content={post.content} />
+      <ArticleAside content={post.content} profile={creator} dict={{ toc: ar.toc, noHeadings: ar.noHeadings }} />
+      <div className="mt-12">
+        <CommentsSection postId={post.id} />
+      </div>
     </div>
   )
 }

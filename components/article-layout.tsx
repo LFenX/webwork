@@ -1,5 +1,9 @@
+"use client"
+
 import Link from "next/link"
 import { ArrowLeft, Pencil } from "lucide-react"
+import { useMemo } from "react"
+import { getDict } from "@/lib/i18n"
 
 interface ArticleLayoutProps {
   backHref: string
@@ -10,6 +14,8 @@ interface ArticleLayoutProps {
 }
 
 export function ArticleLayout({ backHref, backLabel, editHref, actions, children }: ArticleLayoutProps) {
+  const dict = useMemo(() => getDict(), [])
+
   return (
     <div className="max-w-[960px] mx-auto px-8 py-16">
       <div className="max-w-[760px] mx-auto">
@@ -27,7 +33,7 @@ export function ArticleLayout({ backHref, backLabel, editHref, actions, children
                 href={editHref}
                 className="inline-flex items-center gap-1.5 text-sm text-[--color-text-muted] hover:text-[--color-text-primary] hover:no-underline transition-colors"
               >
-                <Pencil size={13} /> 编辑
+                <Pencil size={13} /> {dict.article.edit}
               </Link>
             )}
           </div>

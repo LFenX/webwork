@@ -662,10 +662,14 @@ async function executeToolCall(
   actor?: Awaited<ReturnType<typeof createAIToolActor>>,
 ) {
   const resolvedActor = actor ?? await createAIToolActor(params.userId)
-  const tool = AI_TOOL_MAP.get(toolCall.name)
+  const toolName = toolCall.name?.trim()
+  const tool = toolName ? AI_TOOL_MAP.get(toolName) : undefined
   if (!tool) {
-    const error = `Unknown tool requested: ${toolCall.name}`
-    const step = await createStep(params, state, "tool_call", `调用 ${toolCall.name}`, error, { arguments: toolCall.arguments })
+    const error = toolName
+      ? `Unknown tool requested: ${toolName}`
+      : `工具名解析失败 — name 字段为空。原始 tool_call: ${JSON.stringify({ id: toolCall.id, argumentsText: toolCall.argumentsText?.slice(0, 200) })}`
+    const displayTitle = toolName ? `调用 ${toolName}` : "工具调用（名称缺失）"
+    const step = await createStep(params, state, "tool_call", displayTitle, error, { arguments: toolCall.arguments })
     await completeAIRunStep(step.id, {
       status: "failed",
       summary: error,
@@ -811,6 +815,7 @@ async function runHeuristicFallback(params: RuntimeParams, state: RuntimeState, 
   })
   await emit(params, "reasoning_started", {
     stepId: reasoningStep.id,
+    type: "reasoning",
     title: reasoningStep.title,
     status: "running",
     summary: warning,
@@ -826,6 +831,7 @@ async function runHeuristicFallback(params: RuntimeParams, state: RuntimeState, 
   })
   await emit(params, "reasoning_completed", {
     stepId: reasoningStep.id,
+    type: "reasoning",
     title: reasoningStep.title,
     status: "completed",
     summary: plan.summary,
@@ -964,7 +970,7 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
           messages: conversationMessages,
           tools: toolSpecs.length ? toolSpecs : undefined,
           toolChoice: toolSpecs.length ? "auto" : "none",
-          stream: provider.streamEnabled && capabilities.streamText,
+          stream: true,
           onReasoningStart: async () => {
             onReasoningStarted()
             await emit(params, "reasoning_started", {
@@ -1069,10 +1075,22 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
 
         if (result.toolCalls.length > 0 && executions.length < MAX_TOOL_CALLS) {
           const actor = await createAIToolActor(params.userId)
-          for (const toolCall of result.toolCalls.slice(0, MAX_TOOL_CALLS - executions.length)) {
+          const roundToolCalls = result.toolCalls.slice(0, MAX_TOOL_CALLS - executions.length)
+          // Build one assistant message with ALL tool_calls for this round (required for parallel tool calls)
+          const assistantToolCallMsg: ProviderMessage = {
+            role: "assistant",
+            content: result.assistantText || "",
+            ...(result.reasoningText ? { reasoning_content: result.reasoningText } as Record<string, unknown> : {}),
+            tool_calls: roundToolCalls.map((tc: ProviderToolCall) => ({
+              id: tc.id,
+              type: "function",
+              function: { name: tc.name, arguments: tc.argumentsText },
+            })),
+          }
+          conversationMessages.push(assistantToolCallMsg as ProviderMessage)
+          for (const toolCall of roundToolCalls) {
             const execution = await executeToolCall(params, state, finalPlan, toolCall, actor)
             executions.push(execution)
-            conversationMessages.push({ role: "assistant", content: "" })
             conversationMessages.push({
               role: "tool",
               tool_call_id: toolCall.id,

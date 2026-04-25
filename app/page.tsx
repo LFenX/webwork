@@ -17,16 +17,12 @@ import { formatChinaDate, formatDateKey } from "@/lib/time"
 import { normalizeHomeLayout } from "@/lib/home-layout"
 import { countWords } from "@/lib/text-stats"
 import { getUserSiteSettings } from "@/lib/settings"
+import { getDictionary } from "@/lib/i18n"
 
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
 
 const ARTICLE_TYPES = ["blog", "reflections", "notes"] as const
-const ARTICLE_LABEL: Record<(typeof ARTICLE_TYPES)[number], string> = {
-  blog: "博客",
-  reflections: "心得",
-  notes: "笔记",
-}
 
 function isSubmittedOnly(status: string) {
   return status.includes("已投递") || status.includes("宸叉姇")
@@ -155,13 +151,13 @@ async function getProfile(userId: string) {
   return rows[0] ?? null
 }
 
-function SectionTitle({ title, href }: { title: string; href?: string }) {
+function SectionTitle({ title, href, allLabel }: { title: string; href?: string; allLabel?: string }) {
   return (
     <div className="mb-4 flex items-center justify-between">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-text-muted]">{title}</h2>
       {href && (
         <Link href={href} className="flex items-center gap-1 text-xs text-[--color-text-muted] hover:text-[--color-link] hover:no-underline">
-          全部 <ArrowRight size={12} />
+          {allLabel ?? "全部"} <ArrowRight size={12} />
         </Link>
       )}
     </div>
@@ -172,6 +168,13 @@ export default async function HomePage() {
   const session = await requireAuth()
   const { userId } = session
   const userSettings = await getUserSiteSettings(userId)
+  const dict = getDictionary(userSettings.language)
+
+  const articleLabelMap: Record<string, string> = {
+    blog: dict.nav.blog,
+    reflections: dict.nav.reflections,
+    notes: dict.nav.notes,
+  }
 
   const [
     stats,
@@ -215,7 +218,7 @@ export default async function HomePage() {
     ),
     getAnnouncementFeed(userId, 50),
     prisma.homeLayout.findUnique({ where: { userId }, select: { config: true } }).then((row) => normalizeHomeLayout(row?.config)),
-    Promise.all(ARTICLE_TYPES.map(async (type) => (await getPosts(type, userId)).map((post) => ({ ...post, typeLabel: ARTICLE_LABEL[type] })))),
+    Promise.all(ARTICLE_TYPES.map(async (type) => (await getPosts(type, userId)).map((post) => ({ ...post, typeLabel: articleLabelMap[type] })))),
     getPosts("daily", userId),
   ])
 
@@ -234,7 +237,7 @@ export default async function HomePage() {
           <SectionTitle title="写作统计" />
           <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatsCard title="累计文章" value={writingStats.total} sub="篇" />
-            <StatsCard title="总字数" value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
+            <StatsCard title={dict.article.wordCount} value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
             <StatsCard title="连续写作" value={writingStats.streak} sub="天" trend={writingStats.streak > 0 ? "up" : "neutral"} />
             <StatsCard title="本月新增" value={writingStats.thisMonth} sub="篇" />
           </div>
@@ -256,7 +259,7 @@ export default async function HomePage() {
       content: (
         <div className="grid min-w-0 gap-8 md:grid-cols-2">
           <section className="min-w-0">
-            <SectionTitle title="最近文章" href="/blog" />
+            <SectionTitle title={dict.home.latestArticles} href="/blog" allLabel={dict.common.all} />
             <div className="min-w-0 overflow-hidden">
               {allPosts.length === 0 ? (
                 <p className="text-sm text-[--color-text-muted]">还没有文章</p>
@@ -277,7 +280,7 @@ export default async function HomePage() {
             </div>
           </section>
           <section className="min-w-0">
-            <SectionTitle title="最近日常" href="/daily" />
+            <SectionTitle title="最近日常" href="/daily" allLabel={dict.common.all} />
             <div className="min-w-0 overflow-hidden">
               {recentDaily.length === 0 ? (
                 <p className="text-sm text-[--color-text-muted]">还没有日常记录</p>
@@ -330,13 +333,13 @@ export default async function HomePage() {
       id: "jobFunnel" as const,
       content: (
         <section>
-          <SectionTitle title="求职漏斗" href="/jobs" />
+          <SectionTitle title="求职漏斗" href="/jobs" allLabel={dict.common.all} />
           <div className="grid gap-6 md:grid-cols-2">
             <div className="grid grid-cols-2 gap-3">
               <StatsCard title="累计投递" value={stats.total} sub="家公司" />
-              <StatsCard title="回复率" value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
-              <StatsCard title="面试机会" value={stats.hasInterview} sub="次" />
-              <StatsCard title="Offer 数" value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
+              <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
+              <StatsCard title={dict.home.interviews} value={stats.hasInterview} sub="次" />
+              <StatsCard title={dict.home.offers} value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
             </div>
             {stats.total > 0 && (
               <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
@@ -352,9 +355,9 @@ export default async function HomePage() {
       id: "recentJobs" as const,
       content: (
         <section>
-          <SectionTitle title="最近求职动态" href="/jobs" />
+          <SectionTitle title="最近求职动态" href="/jobs" allLabel={dict.common.all} />
           {recentJobs.length === 0 ? (
-            <p className="text-sm text-[--color-text-muted]">暂无求职动态</p>
+            <p className="text-sm text-[--color-text-muted]">{dict.common.noData}</p>
           ) : (
             <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
               {recentJobs.map((job, index) => (
@@ -425,7 +428,7 @@ export default async function HomePage() {
         <SectionTitle title="写作统计" />
         <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatsCard title="累计文章" value={writingStats.total} sub="篇" />
-          <StatsCard title="总字数" value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
+          <StatsCard title={dict.article.wordCount} value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
           <StatsCard title="连续写作" value={writingStats.streak} sub="天" trend={writingStats.streak > 0 ? "up" : "neutral"} />
           <StatsCard title="本月新增" value={writingStats.thisMonth} sub="篇" />
         </div>
@@ -457,7 +460,7 @@ export default async function HomePage() {
 
       <div className="mb-10 grid min-w-0 gap-8 md:grid-cols-2">
         <section className="min-w-0">
-          <SectionTitle title="最近文章" href="/blog" />
+          <SectionTitle title={dict.home.latestArticles} href="/blog" allLabel={dict.common.all} />
           <div className="min-w-0 overflow-hidden">
             {allPosts.length === 0 ? (
               <p className="text-sm text-[--color-text-muted]">还没有文章</p>
@@ -479,7 +482,7 @@ export default async function HomePage() {
         </section>
 
         <section className="min-w-0">
-          <SectionTitle title="最近日常" href="/daily" />
+          <SectionTitle title="最近日常" href="/daily" allLabel={dict.common.all} />
           <div className="min-w-0 overflow-hidden">
             {recentDaily.length === 0 ? (
               <p className="text-sm text-[--color-text-muted]">还没有日常记录</p>
@@ -506,13 +509,13 @@ export default async function HomePage() {
       </section>
 
       <section className="mb-10">
-        <SectionTitle title="求职漏斗" href="/jobs" />
+        <SectionTitle title="求职漏斗" href="/jobs" allLabel={dict.common.all} />
         <div className="grid gap-6 md:grid-cols-2">
           <div className="grid grid-cols-2 gap-3">
             <StatsCard title="累计投递" value={stats.total} sub="家公司" />
-            <StatsCard title="回复率" value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
-            <StatsCard title="面试机会" value={stats.hasInterview} sub="次" />
-            <StatsCard title="Offer 数" value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
+            <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
+            <StatsCard title={dict.home.interviews} value={stats.hasInterview} sub="次" />
+            <StatsCard title={dict.home.offers} value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
           </div>
           {stats.total > 0 && (
             <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
@@ -525,7 +528,7 @@ export default async function HomePage() {
 
       {recentJobs.length > 0 && (
         <section className="mb-10">
-          <SectionTitle title="最近求职动态" href="/jobs" />
+          <SectionTitle title="最近求职动态" href="/jobs" allLabel={dict.common.all} />
           <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
             {recentJobs.map((job, index) => (
               <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${index < recentJobs.length - 1 ? "border-b border-[--color-border]" : ""}`}>

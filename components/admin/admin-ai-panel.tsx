@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { getDict } from "@/lib/i18n"
 
 type AdminAIOverview = {
   requestCounts: Record<string, number>
@@ -66,6 +67,9 @@ const DEFAULT_GRANT_FORM: GrantForm = {
 }
 
 export function AdminAIPanel({ enabled }: { enabled: boolean }) {
+  const dict = getDict()
+  const dp = dict.admin.aiPanel
+
   const [overview, setOverview] = useState<AdminAIOverview | null>(null)
   const [requests, setRequests] = useState<RequestItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -84,12 +88,12 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       ])
       const overviewData = await overviewRes.json().catch(() => null)
       const requestsData = await requestsRes.json().catch(() => null)
-      if (!overviewRes.ok) throw new Error(overviewData?.error ?? "Failed to load AI overview")
-      if (!requestsRes.ok) throw new Error(requestsData?.error ?? "Failed to load AI requests")
+      if (!overviewRes.ok) throw new Error(overviewData?.error ?? dp.failed)
+      if (!requestsRes.ok) throw new Error(requestsData?.error ?? dp.failed)
       setOverview(overviewData)
       setRequests(Array.isArray(requestsData?.items) ? requestsData.items : [])
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load AI admin panel")
+      toast.error(error instanceof Error ? error.message : dp.failed)
     } finally {
       setLoading(false)
     }
@@ -125,7 +129,7 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.error ?? "Failed to review the request")
-      toast.success(action === "approve" ? "AI request approved" : "AI request rejected")
+      toast.success(action === "approve" ? dp.requestApproved : dp.requestRejected)
       setReviewing(null)
       setReviewNote("")
       await load()
@@ -151,7 +155,7 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.error ?? "Failed to save the AI grant")
-      toast.success("AI grant saved")
+      toast.success(dp.grantSaved)
       setGrantOpen(false)
       setGrantForm(DEFAULT_GRANT_FORM)
       await load()
@@ -165,7 +169,7 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       const res = await fetch(`/api/admin/ai/grants/${userId}/${action}`, { method: "POST" })
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.error ?? "Failed to update grant status")
-      toast.success(action === "pause" ? "Grant paused" : "Grant revoked")
+      toast.success(action === "pause" ? dp.grantPaused : dp.grantRevoked)
       await load()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update grant status")
@@ -179,30 +183,30 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Bot size={16} />
-          <h2 className="text-sm font-semibold">AI Assistant</h2>
+          <h2 className="text-sm font-semibold">{dp.title}</h2>
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
-            <RefreshCcw size={14} /> {loading ? "Refreshing..." : "Refresh"}
+            <RefreshCcw size={14} /> {loading ? dp.refreshing : dp.refresh}
           </Button>
           <Button size="sm" onClick={() => setGrantOpen(true)}>
-            <ShieldCheck size={14} /> New Grant
+            <ShieldCheck size={14} /> {dp.newGrant}
           </Button>
         </div>
       </div>
 
       <div className="mb-4 grid gap-3 md:grid-cols-3">
-        <MetricCard label="Pending Requests" value={pendingCount} />
-        <MetricCard label="Active Grants" value={overview?.grants.filter((item) => item.status === "active").length ?? 0} />
-        <MetricCard label="Registered Tools" value={overview?.tools.length ?? 0} />
+        <MetricCard label={dp.pendingRequests} value={pendingCount} />
+        <MetricCard label={dp.activeGrants} value={overview?.grants.filter((item) => item.status === "active").length ?? 0} />
+        <MetricCard label={dp.registeredTools} value={overview?.tools.length ?? 0} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <h3 className="text-sm font-semibold text-[--color-text-primary]">Access Requests</h3>
+          <h3 className="text-sm font-semibold text-[--color-text-primary]">{dp.accessRequests}</h3>
           <div className="mt-4 space-y-3">
             {requests.length === 0 ? (
-              <p className="text-sm text-[--color-text-muted]">No AI access requests.</p>
+              <p className="text-sm text-[--color-text-muted]">{dp.noRequests}</p>
             ) : (
               requests.map((item) => (
                 <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-primary] p-3">
@@ -214,11 +218,11 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
                     <span className="rounded-full border border-[--color-border] px-2 py-1 text-xs text-[--color-text-secondary]">{item.status}</span>
                   </div>
                   <p className="mt-3 whitespace-pre-wrap text-sm text-[--color-text-secondary]">{item.message}</p>
-                  {item.reviewNote ? <p className="mt-2 text-xs text-[--color-text-muted]">Review note: {item.reviewNote}</p> : null}
+                  {item.reviewNote ? <p className="mt-2 text-xs text-[--color-text-muted]">{dp.reviewNote}: {item.reviewNote}</p> : null}
                   {item.status === "pending" ? (
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" onClick={() => { setReviewing(item); setReviewNote("") }}>
-                        Review
+                        {dp.review}
                       </Button>
                       <Button
                         size="sm"
@@ -228,7 +232,7 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
                           setGrantOpen(true)
                         }}
                       >
-                        Configure Grant
+                        {dp.configureGrant}
                       </Button>
                     </div>
                   ) : null}
@@ -240,7 +244,7 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
 
         <div className="space-y-4">
           <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-            <h3 className="text-sm font-semibold text-[--color-text-primary]">System Grants</h3>
+            <h3 className="text-sm font-semibold text-[--color-text-primary]">{dp.systemGrants}</h3>
             <div className="mt-4 max-h-72 space-y-3 overflow-y-auto pr-1">
               {overview?.grants.length ? (
                 overview.grants.map((grant) => (
@@ -253,24 +257,24 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
                       <span className="rounded-full border border-[--color-border] px-2 py-1 text-xs text-[--color-text-secondary]">{grant.status}</span>
                     </div>
                     <p className="mt-2 text-xs text-[--color-text-muted]">{grant.providerLabel} / {grant.baseUrl}</p>
-                    <p className="mt-1 text-xs text-[--color-text-muted]">Updated: {new Date(grant.updatedAt).toLocaleString()}</p>
+                    <p className="mt-1 text-xs text-[--color-text-muted]">{dp.updated}: {new Date(grant.updatedAt).toLocaleString()}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" onClick={() => void changeGrantStatus(grant.userId, "pause")}>
-                        <PauseCircle size={14} /> Pause
+                        <PauseCircle size={14} /> {dp.pause}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => void changeGrantStatus(grant.userId, "revoke")}>
-                        <Trash2 size={14} /> Revoke
+                        <Trash2 size={14} /> {dp.revoke}
                       </Button>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-[--color-text-muted]">No system grants.</p>
+                <p className="text-sm text-[--color-text-muted]">{dp.noGrants}</p>
               )}
             </div>
           </div>
 
-          <ScrollableCard title="Recent Audit Actions">
+          <ScrollableCard title={dp.recentAudit}>
             {overview?.recentAudits.length ? (
               overview.recentAudits.map((audit) => (
                 <div key={audit.id} className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary] px-3 py-2">
@@ -280,11 +284,11 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
                 </div>
               ))
             ) : (
-              <p className="text-sm text-[--color-text-muted]">No audit entries yet.</p>
+              <p className="text-sm text-[--color-text-muted]">{dp.noAudit}</p>
             )}
           </ScrollableCard>
 
-          <ScrollableCard title="Registered Tools">
+          <ScrollableCard title={dp.registeredToolsTitle}>
             {overview?.tools.map((tool) => (
               <div key={tool.name} className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary] px-3 py-2">
                 <p className="text-sm font-medium text-[--color-text-primary]">{tool.title}</p>
@@ -299,13 +303,13 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       <Dialog open={Boolean(reviewing)} onOpenChange={(open) => !open && setReviewing(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Review AI Access Request</DialogTitle>
-            <DialogDescription>Approving a request does not remove the option to use a personal provider key.</DialogDescription>
+            <DialogTitle>{dp.reviewRequest}</DialogTitle>
+            <DialogDescription>{dp.reviewRequestDesc}</DialogDescription>
           </DialogHeader>
-          <Textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} rows={4} placeholder="Optional review note" />
+          <Textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} rows={4} placeholder={dp.optionalNote} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => void reviewRequest("reject")}>Reject</Button>
-            <Button onClick={() => void reviewRequest("approve")}>Approve</Button>
+            <Button variant="outline" onClick={() => void reviewRequest("reject")}>{dp.reject}</Button>
+            <Button onClick={() => void reviewRequest("approve")}>{dp.approve}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -313,33 +317,33 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       <Dialog open={grantOpen} onOpenChange={setGrantOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Configure AI Grant</DialogTitle>
-            <DialogDescription>Choose the target admin first, then fill in the provider details.</DialogDescription>
+            <DialogTitle>{dp.configGrant}</DialogTitle>
+            <DialogDescription>{dict.admin.transferOwnerDesc}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="mb-1 block text-xs">Target admin</Label>
+              <Label className="mb-1 block text-xs">{dp.targetAdmin}</Label>
               <select
                 value={grantForm.userId}
                 onChange={(event) => setGrantForm((current) => ({ ...current, userId: event.target.value }))}
                 className="w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-surface] px-3 py-2 text-sm"
               >
-                <option value="">Select one</option>
+                <option value="">{dp.selectOne}</option>
                 {selectableUsers.map((user) => (
                   <option key={user.id} value={user.id}>{user.label}</option>
                 ))}
               </select>
             </div>
-            <Field label="Provider label" value={grantForm.providerLabel} onChange={(value) => setGrantForm((current) => ({ ...current, providerLabel: value }))} />
-            <Field label="Base URL" value={grantForm.baseUrl} onChange={(value) => setGrantForm((current) => ({ ...current, baseUrl: value }))} />
-            <Field label="API key" type="password" value={grantForm.apiKey} onChange={(value) => setGrantForm((current) => ({ ...current, apiKey: value }))} />
-            <Field label="Model" value={grantForm.model} onChange={(value) => setGrantForm((current) => ({ ...current, model: value }))} />
-            <Field label="Temperature" value={grantForm.temperature} onChange={(value) => setGrantForm((current) => ({ ...current, temperature: value }))} />
+            <Field label={dp.providerLabel} value={grantForm.providerLabel} onChange={(value) => setGrantForm((current) => ({ ...current, providerLabel: value }))} />
+            <Field label={dp.baseUrl} value={grantForm.baseUrl} onChange={(value) => setGrantForm((current) => ({ ...current, baseUrl: value }))} />
+            <Field label={dp.apiKey} type="password" value={grantForm.apiKey} onChange={(value) => setGrantForm((current) => ({ ...current, apiKey: value }))} />
+            <Field label={dp.model} value={grantForm.model} onChange={(value) => setGrantForm((current) => ({ ...current, model: value }))} />
+            <Field label={dp.temperature} value={grantForm.temperature} onChange={(value) => setGrantForm((current) => ({ ...current, temperature: value }))} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setGrantOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setGrantOpen(false)}>{dp.cancel}</Button>
             <Button onClick={() => void saveGrant()} disabled={!grantForm.userId || !grantForm.baseUrl || !grantForm.apiKey || !grantForm.model}>
-              Save Grant
+              {dp.saveGrant}
             </Button>
           </DialogFooter>
         </DialogContent>

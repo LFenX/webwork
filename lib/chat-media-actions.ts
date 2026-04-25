@@ -96,3 +96,64 @@ export async function contributeStickersToCommunity(stickerIds: string[], userId
     dedupedCount: Number(data.dedupedCount ?? 0),
   }
 }
+
+export async function createStickerGroup(name: string, scope: string, userId?: string) {
+  const form = new FormData()
+  form.set("action", "create")
+  form.set("name", name)
+  form.set("scope", scope)
+  const res = await fetch("/api/stickers/groups", { method: "POST", body: form })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? "创建分组失败")
+  if (userId) removeUserStorage("local", userStorageKey(userId, "stickers-cache", "picker"))
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("stickers-updated"))
+  return data.group
+}
+
+export async function renameStickerGroup(groupId: string, name: string, userId?: string) {
+  const form = new FormData()
+  form.set("action", "rename")
+  form.set("groupId", groupId)
+  form.set("name", name)
+  const res = await fetch("/api/stickers/groups", { method: "POST", body: form })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? "重命名分组失败")
+  if (userId) removeUserStorage("local", userStorageKey(userId, "stickers-cache", "picker"))
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("stickers-updated"))
+}
+
+export async function deleteStickerGroup(groupId: string, userId?: string) {
+  const form = new FormData()
+  form.set("action", "delete")
+  form.set("groupId", groupId)
+  const res = await fetch("/api/stickers/groups", { method: "POST", body: form })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? "删除分组失败")
+  if (userId) removeUserStorage("local", userStorageKey(userId, "stickers-cache", "picker"))
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("stickers-updated"))
+}
+
+export async function addStickersToGroup(groupId: string, stickerIds: string[], userId?: string) {
+  const form = new FormData()
+  form.set("action", "add-stickers")
+  form.set("groupId", groupId)
+  stickerIds.forEach((id) => form.append("stickerIds", id))
+  const res = await fetch("/api/stickers/groups", { method: "POST", body: form })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? "添加到分组失败")
+  if (userId) removeUserStorage("local", userStorageKey(userId, "stickers-cache", "picker"))
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("stickers-updated"))
+  return data.addedCount as number
+}
+
+export async function removeStickersFromGroup(groupId: string, stickerIds: string[], userId?: string) {
+  const form = new FormData()
+  form.set("action", "remove-stickers")
+  form.set("groupId", groupId)
+  stickerIds.forEach((id) => form.append("stickerIds", id))
+  const res = await fetch("/api/stickers/groups", { method: "POST", body: form })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? "从分组移出失败")
+  if (userId) removeUserStorage("local", userStorageKey(userId, "stickers-cache", "picker"))
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("stickers-updated"))
+}

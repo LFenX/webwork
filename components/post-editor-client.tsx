@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { MarkdownEditor } from "@/components/markdown-editor"
 import { MarkdownContent } from "@/components/markdown-content"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
+import { getDict } from "@/lib/i18n"
 import {
   Dialog,
   DialogContent,
@@ -74,6 +75,8 @@ function slugify(s: string): string {
 
 export function PostEditorClient({ mode, type, typeLabel, userId, creator, initialData }: PostEditorClientProps) {
   const router = useRouter()
+  const dict = getDict()
+  const isZh = dict.common.save === "保存"
   const base = TYPE_BASE[type]
   const draftKey = useMemo(
     () => userStorageKey(userId, "post-draft", `${type}:${initialData?.id ?? mode}`),
@@ -128,7 +131,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
         draft.visibility !== visibility ||
         draft.folderId !== folderId
 
-      if (hasDraftContent && differs && window.confirm("检测到未保存的本地草稿，是否恢复？")) {
+      if (hasDraftContent && differs && window.confirm(isZh ? "检测到未保存的本地草稿，是否恢复？" : "Unsaved draft detected. Restore it?")) {
         window.setTimeout(() => {
           setTitle(draft.title ?? "")
           setSummary(draft.summary ?? "")
@@ -137,7 +140,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
           setDate(draft.date ?? new Date().toISOString().slice(0, 10))
           setVisibility(draft.visibility ?? "private")
           setFolderId(draft.folderId ?? "")
-          toast.success("已恢复未保存草稿")
+          toast.success(dict.editor.draftLoaded)
         }, 0)
       }
     } catch {
@@ -191,7 +194,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
 
   async function handleSave() {
     if (!title.trim()) {
-      toast.error("标题不能为空")
+      toast.error(isZh ? "标题不能为空" : "Title cannot be empty")
       return
     }
     setSaving(true)
@@ -210,7 +213,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
         if (!res.ok) throw new Error()
         const post = await res.json()
         removeUserStorage("local", draftKey)
-        toast.success("已创建")
+        toast.success(dict.editor.published)
         router.push(`${base}/${encodeURIComponent(post.slug)}`)
       } else if (initialData) {
         const res = await fetch(`/api/posts/${initialData.id}`, {
@@ -221,11 +224,11 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
         })
         if (!res.ok) throw new Error()
         removeUserStorage("local", draftKey)
-        toast.success("已保存")
+        toast.success(dict.editor.saved)
         router.push(`${base}/${encodeURIComponent(initialData.slug)}`)
       }
     } catch {
-      toast.error("保存失败，请重试")
+      toast.error(isZh ? "保存失败，请重试" : "Save failed, please try again")
     } finally {
       setSaving(false)
     }
@@ -233,15 +236,15 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
 
   async function handleDelete() {
     if (!initialData) return
-    if (!confirm(`确认删除《${initialData.title}》？`)) return
+    if (!confirm(dict.editor.deleteConfirm(initialData.title))) return
     setDeleting(true)
     try {
       await fetch(`/api/posts/${initialData.id}`, { method: "DELETE", cache: "no-store" })
       removeUserStorage("local", draftKey)
-      toast.success("已删除")
+      toast.success(dict.article.deleteSuccess)
       router.push(base)
     } catch {
-      toast.error("删除失败")
+      toast.error(dict.article.deleteFailed)
     } finally {
       setDeleting(false)
     }
@@ -257,7 +260,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
             href={backHref}
             className="inline-flex items-center gap-1.5 text-sm text-[--color-text-muted] hover:text-[--color-text-primary] hover:no-underline"
           >
-            <ArrowLeft size={14} /> {mode === "create" ? `返回${typeLabel}列表` : "返回查看模式"}
+            <ArrowLeft size={14} /> {mode === "create" ? dict.editor.backToList(typeLabel) : dict.editor.backToView}
           </Link>
           <div className="flex items-center gap-2">
             <Button
@@ -266,15 +269,15 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
               onClick={() => setPreviewOpen(true)}
               className="gap-1.5"
             >
-              <Eye size={14} /> 预览
+              <Eye size={14} /> {dict.editor.preview}
             </Button>
             {mode === "edit" && (
               <Button variant="outline" size="sm" onClick={handleDelete} disabled={deleting} className="gap-1.5 text-[--color-danger]">
-                <Trash2 size={14} /> 删除
+                <Trash2 size={14} /> {dict.editor.delete}
               </Button>
             )}
             <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving ? "保存中..." : mode === "create" ? "发布" : "保存"}
+              {saving ? dict.editor.saving : mode === "create" ? dict.editor.publish : dict.editor.save}
             </Button>
           </div>
         </div>
@@ -282,26 +285,26 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
         <div className="min-w-0 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5 shadow-sm">
           <div className="grid min-w-0 gap-4">
             <div>
-              <Label className="mb-1 block text-xs">标题 *</Label>
+              <Label className="mb-1 block text-xs">{dict.editor.title} *</Label>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="文章标题"
+                placeholder={dict.editor.titlePlaceholder}
                 className="h-11 text-lg font-semibold"
               />
             </div>
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
               <div>
-                <Label className="mb-1 block text-xs">摘要</Label>
+                <Label className="mb-1 block text-xs">{dict.editor.summary}</Label>
                 <Input
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
-                  placeholder="一行摘要，显示在列表页"
+                  placeholder={dict.editor.summaryPlaceholder}
                   className="h-9 text-sm"
                 />
               </div>
               <div>
-                <Label className="mb-1 block text-xs">日期</Label>
+                <Label className="mb-1 block text-xs">{dict.editor.date}</Label>
                 <Input
                   type="date"
                   value={date}
@@ -312,41 +315,41 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
             </div>
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_150px]">
               <div>
-                <Label className="mb-1 block text-xs">标签（逗号分隔）</Label>
+                <Label className="mb-1 block text-xs">{dict.editor.tags}</Label>
                 <Input
                   value={tagsRaw}
                   onChange={(e) => setTagsRaw(e.target.value)}
-                  placeholder="React, TypeScript, 前端"
+                  placeholder={dict.editor.tagsPlaceholder}
                   className="h-9 text-sm"
                 />
               </div>
               <div>
-                <Label className="mb-1 block text-xs">可见性</Label>
+                <Label className="mb-1 block text-xs">{dict.editor.visibility}</Label>
                 <select
                   value={visibility === "friends" ? "friends" : "private"}
                   onChange={(event) => setVisibility(event.target.value)}
                   className="h-9 w-full rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-surface] px-2.5 text-sm text-[--color-text-primary] outline-none hover:bg-[--color-bg-hover] focus:border-[--color-text-primary]"
                 >
-                  <option value="private">私密</option>
-                  <option value="friends">好友可见</option>
+                  <option value="private">{dict.article.visibilityPrivate}</option>
+                  <option value="friends">{dict.article.visibilityFriends}</option>
                 </select>
               </div>
             </div>
             <div>
-              <Label className="mb-1 block text-xs">所属文件夹</Label>
+              <Label className="mb-1 block text-xs">{dict.editor.folder}</Label>
               <select
                 value={folderId}
                 onChange={(event) => setFolderId(event.target.value)}
                 className="h-9 w-full rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-surface] px-2.5 text-sm text-[--color-text-primary] outline-none hover:bg-[--color-bg-hover] focus:border-[--color-text-primary]"
               >
-                <option value="">未分类</option>
+                <option value="">{dict.editor.folderUncategorized}</option>
                 {folders.map((folder) => (
                   <option key={folder.id} value={folder.id}>{folder.name}</option>
                 ))}
               </select>
             </div>
             <div className="min-w-0">
-              <Label className="mb-2 block text-xs">正文</Label>
+              <Label className="mb-2 block text-xs">{dict.editor.content}</Label>
               <MarkdownEditor
                 value={content}
                 onChange={setContent}
@@ -363,7 +366,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{title || "预览"}</DialogTitle>
+            <DialogTitle>{title || dict.editor.preview}</DialogTitle>
           </DialogHeader>
           <div className="prose mt-2">
             <MarkdownContent source={content} />

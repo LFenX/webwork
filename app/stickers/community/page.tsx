@@ -13,7 +13,7 @@ export const metadata = {
 export default async function StickerCommunityPage() {
   const session = await requireAuth()
   const stickers = await prisma.stickerAsset.findMany({
-    where: { scope: "public" },
+    where: { scope: "public", ownerId: { not: null } },
     include: {
       owner: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
       uploader: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },

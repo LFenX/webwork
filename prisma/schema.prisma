@@ -49,6 +49,7 @@ model User {
   broadcastViews     WorldBroadcastView[]
   stickerAssets      StickerAsset[]       @relation("stickerOwner")
   uploadedStickers   StickerAsset[]       @relation("stickerUploader")
+  stickerGroups      StickerGroup[]
   homeLayout         HomeLayout?
   sentChatMessages     ChatMessage[]    @relation("chatSent")
   receivedChatMessages ChatMessage[]    @relation("chatReceived")
@@ -67,7 +68,7 @@ model User {
   aiMessageAttachments AIMessageAttachment[]
   aiRuns          AIRun[]
   aiRunSteps      AIRunStep[]
-  aiProviderConfig AIUserProviderConfig?
+  aiProviderConfigs AIUserProviderConfig[]
   aiAccessRequests AIAccessRequest[]
   aiUsageGrant     AIUsageGrant?
   aiToolCallLogs   AIToolCallLog[]
@@ -316,9 +317,38 @@ model StickerAsset {
   channelMessages ChannelMessage[] @relation("channelSticker")
   comments    Comment[] @relation("commentSticker")
   guestbookMessages GuestbookMessage[] @relation("guestbookSticker")
+  groupEntries StickerGroupEntry[]
 
   @@index([scope, createdAt])
   @@index([ownerId, createdAt])
+}
+
+model StickerGroup {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  scope     String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries   StickerGroupEntry[]
+
+  @@unique([ownerId, name, scope])
+  @@index([ownerId, scope, sortOrder])
+}
+
+model StickerGroupEntry {
+  id        String       @id @default(cuid())
+  groupId   String
+  group     StickerGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  stickerId String
+  sticker   StickerAsset  @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+
+  @@unique([groupId, stickerId])
+  @@index([stickerId])
 }
 
 model HomeLayout {
@@ -670,8 +700,10 @@ model AIMessageAttachment {
 
 model AIUserProviderConfig {
   id              String   @id @default(cuid())
-  userId          String   @unique
+  userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String   @default("")
+  isActive        Boolean  @default(false)
   providerType    String   @default("openai-compatible")
   providerLabel   String   @default("")
   baseUrl         String   @default("")
@@ -685,6 +717,8 @@ model AIUserProviderConfig {
   lastTestStatus  String   @default("unknown")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model AIAccessRequest {

@@ -1,10 +1,12 @@
 "use client"
 
-import { FormEvent, useEffect, useState } from "react"
+import { FormEvent, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { StickerPicker, type StickerPick } from "@/components/sticker-picker"
 import { ThreadedDiscussion, type ThreadItem } from "@/components/threaded-discussion"
+import { getDict } from "@/lib/i18n"
+import { handleEnterToSubmit } from "@/lib/keyboard"
 import { formatChinaDateTime } from "@/lib/time"
 
 interface CommentItem extends ThreadItem {
@@ -39,11 +41,15 @@ function SelectedSticker({ sticker, onClear }: { sticker: StickerPick; onClear: 
 }
 
 export function CommentsSection({ postId }: { postId: string }) {
+  const dict = getDict()
+  const cm = dict.comments
+
   const [comments, setComments] = useState<CommentItem[]>([])
   const [content, setContent] = useState("")
   const [sticker, setSticker] = useState<StickerPick | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
     let active = true
@@ -60,91 +66,97 @@ export function CommentsSection({ postId }: { postId: string }) {
     }
   }, [postId])
 
-  async function submitComment(nextContent: string, parentId?: string, nextSticker?: StickerPick | null) {
-    const res = await fetch(`/api/posts/${postId}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: nextContent,
-        parentId,
-        stickerId: nextSticker?.type === "asset" ? nextSticker.id : null,
-        stickerEmoji: nextSticker?.type === "emoji" ? nextSticker.emoji : null,
-      }),
-      cache: "no-store",
-    }).catch(() => null)
-    if (!res?.ok) {
-      const data = await res?.json().catch(() => null)
-      toast.error(data?.error ?? "评论失败")
-      throw new Error(data?.error ?? "评论失败")
-    }
-    const comment = await res.json()
-    setComments((items) => [...items, comment])
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const nextContent = content.trim()
-    if (!nextContent && !sticker) return
+    if (!content.trim() && !sticker) return
     setSaving(true)
     try {
-      await submitComment(nextContent, undefined, sticker)
+      const res = await fetch(`/api/posts/${postId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: content.trim(),
+          stickerId: sticker?.type === "asset" ? sticker.id : null,
+          stickerEmoji: sticker?.type === "emoji" ? sticker.emoji : null,
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to post comment")
+      const saved = await res.json()
+      setComments((prev) => [...prev, saved])
       setContent("")
       setSticker(null)
+    } catch {
+      toast.error("Failed to post comment")
     } finally {
       setSaving(false)
     }
   }
 
   async function handleDelete(id: string) {
-    const res = await fetch(`/api/posts/comments/${id}`, { method: "DELETE", cache: "no-store" })
-    if (!res.ok) {
-      toast.error("删除失败")
-      return
+    try {
+      const res = await fetch(`/api/posts/${postId}/comments/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete comment")
+      setComments((prev) => removeWithChildren(prev, id))
+      toast(cm.deleted)
+    } catch {
+      toast.error("Failed to delete comment")
     }
-    setComments((items) => removeWithChildren(items, id))
+  }
+
+  async function handleReply(parentId: string, replyContent: string, replySticker?: StickerPick | null) {
+    try {
+      const res = await fetch(`/api/posts/${postId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: replyContent.trim(),
+          parentId,
+          stickerId: replySticker?.type === "asset" ? replySticker.id : null,
+          stickerEmoji: replySticker?.type === "emoji" ? replySticker.emoji : null,
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to post reply")
+      const saved = await res.json()
+      setComments((prev) => [...prev, saved])
+    } catch {
+      toast.error("Failed to post reply")
+    }
   }
 
   return (
-    <section className="mt-12 border-t border-[--color-border] pt-8">
-      <h2 className="mb-4 text-base font-semibold">评论</h2>
-      {loading ? (
-        <p className="text-sm text-[--color-text-muted]">加载评论中...</p>
-      ) : comments.length === 0 ? (
-        <p className="mb-4 text-sm text-[--color-text-muted]">还没有评论。</p>
-      ) : (
-        <div className="mb-6 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] px-4">
-          <ThreadedDiscussion
-            items={comments}
-            canReply
-            canDelete
-            maxLength={1000}
-            formatTime={formatChinaDateTime}
-            onReply={(parentId, replyContent, replySticker) => submitComment(replyContent, parentId, replySticker)}
-            onDelete={handleDelete}
-          />
-        </div>
-      )}
+    <section>
+      <h2 className="mb-6 text-lg font-semibold text-[--color-text-primary]">{cm.title}</h2>
 
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form ref={formRef} onSubmit={handleSubmit} className="mb-8 space-y-3">
         <textarea
           value={content}
           onChange={(event) => setContent(event.target.value)}
+          onKeyDown={(event) => handleEnterToSubmit(event, () => formRef.current?.requestSubmit(), { disabled: saving || (!content.trim() && !sticker) })}
+          placeholder={cm.placeholder}
           rows={3}
-          maxLength={1000}
-          placeholder="写下评论..."
-          className="w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-surface] px-3 py-2 text-sm outline-none focus:border-[--color-text-primary]"
+          className="w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-surface] p-3 text-sm outline-none focus:border-[--color-accent]"
         />
-        {sticker && <SelectedSticker sticker={sticker} onClear={() => setSticker(null)} />}
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-xs text-[--color-text-muted]">{content.length}/1000</span>
-          <div className="flex items-center gap-2">
-            <StickerPicker compact onPick={setSticker} />
-            <Button type="submit" size="sm" disabled={saving || (!content.trim() && !sticker)}>
-              {saving ? "发送中..." : "发表评论"}
-            </Button>
-          </div>
+        <div className="flex items-center gap-2">
+          <StickerPicker onPick={setSticker} />
         </div>
+        {sticker && <SelectedSticker sticker={sticker} onClear={() => setSticker(null)} />}
+        <Button type="submit" disabled={saving || (!content.trim() && !sticker)} size="sm">
+          {saving ? cm.sending : cm.post}
+        </Button>
       </form>
+
+      {loading ? (
+        <p className="text-sm text-[--color-text-muted]">{cm.loading}</p>
+      ) : comments.length === 0 ? (
+        <p className="text-sm text-[--color-text-muted]">{cm.noComments}</p>
+      ) : (
+        <ThreadedDiscussion
+          items={comments}
+          onDelete={handleDelete}
+          onReply={handleReply}
+          formatTime={formatChinaDateTime}
+        />
+      )}
     </section>
   )
 }

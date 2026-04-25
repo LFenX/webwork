@@ -159,6 +159,7 @@ export const aiConversationUpdateSchema = z.object({
 })
 
 export const aiProviderConfigSchema = z.object({
+  name: z.string().trim().min(1).max(40).optional(),
   providerLabel: z.string().trim().min(1).max(80),
   baseUrl: z.string().trim().url().max(500),
   apiKey: z.string().trim().min(1).max(500),

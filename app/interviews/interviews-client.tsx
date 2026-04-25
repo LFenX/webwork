@@ -17,6 +17,7 @@ import { SimpleBarChart } from "@/components/charts/bar-chart"
 import { INTERVIEW_ROUNDS, INTERVIEW_FORMATS, INTERVIEW_RESULTS } from "@/lib/enums"
 import { apiFetch, apiPost, apiPatch, apiDelete } from "@/lib/api-client"
 import { formatChinaDate, formatChinaDateTime } from "@/lib/time"
+import { getDict } from "@/lib/i18n"
 
 interface Interview {
   id: string
@@ -61,13 +62,13 @@ interface Stats {
 const defaultForm = {
   company: "",
   position: "",
-  round: "技术一面" as string,
-  format: "视频" as string,
+  round: INTERVIEW_ROUNDS[0] as string,
+  format: INTERVIEW_FORMATS[0] as string,
   scheduledAt: new Date().toISOString().slice(0, 16),
   interviewers: "",
   questions: "",
   selfRating: "" as string | number,
-  result: "待定" as string,
+  result: INTERVIEW_RESULTS[0] as string,
   feedback: "",
   jobId: "",
 }
@@ -90,6 +91,8 @@ function StarRating({ value, onChange }: { value: number | null; onChange: (v: n
 }
 
 export function InterviewsClient() {
+  const dict = getDict()
+
   const [interviews, setInterviews] = useState<Interview[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [jobOptions, setJobOptions] = useState<JobOption[]>([])
@@ -184,7 +187,7 @@ export function InterviewsClient() {
 
   async function handleSave() {
     if (!form.company || !form.position) {
-      toast.error("公司名称和职位不能为空")
+      toast.error(dict.common.error)
       return
     }
     setSaving(true)
@@ -201,56 +204,57 @@ export function InterviewsClient() {
         await apiPost("/api/interviews", body)
       }
       setDialogOpen(false)
-      toast.success(editingInterview ? "已更新" : "已添加")
+      toast.success(dict.interviews.saved)
       triggerRefresh()
     } catch {
-      toast.error("操作失败")
+      toast.error(dict.common.error)
     } finally {
       setSaving(false)
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("确认删除这条面试记录？")) return
+    const item = interviews.find(i => i.id === id)
+    if (!confirm(dict.interviews.deleteConfirm(item?.company ?? ""))) return
     await apiDelete(`/api/interviews/${id}`)
-    toast.success("已删除")
+    toast.success(dict.interviews.deleted)
     triggerRefresh()
   }
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-10">
       <div className="mb-8">
-        <h1 className="text-xl font-semibold mb-1">面试记录</h1>
-        <p className="text-sm text-[--color-text-muted]">记录每一轮面试，复盘提升</p>
+        <h1 className="text-xl font-semibold mb-1">{dict.interviews.title}</h1>
+        <p className="text-sm text-[--color-text-muted]">{dict.nav.interviews}</p>
       </div>
 
       {/* Stats */}
       {stats && (
         <section className="mb-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <StatsCard title="面试总计" value={stats.total} sub="轮" />
+            <StatsCard title={dict.interviews.total} value={stats.total} sub={dict.interviews.total} />
             <StatsCard
-              title="通过率"
+              title={dict.interviews.passRate}
               value={`${stats.passRate}%`}
               trend={stats.passRate > 60 ? "up" : "neutral"}
             />
-            <StatsCard title="已通过" value={stats.passed} sub="轮" trend="up" />
-            <StatsCard title="未通过" value={stats.failed} sub="轮" trend={stats.failed > 0 ? "down" : "neutral"} />
+            <StatsCard title={dict.interviews.passed} value={stats.passed} trend="up" />
+            <StatsCard title={dict.interviews.failed} value={stats.failed} trend={stats.failed > 0 ? "down" : "neutral"} />
           </div>
 
           {stats.total > 0 && (
             <div className="grid md:grid-cols-3 gap-4">
               <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
-                <p className="text-xs text-[--color-text-muted] mb-3">按形式分布</p>
+                <p className="text-xs text-[--color-text-muted] mb-3">{dict.interviews.formatChart}</p>
                 <SimplePieChart data={stats.formatDist} height={180} />
               </div>
               <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
-                <p className="text-xs text-[--color-text-muted] mb-3">按轮次分布</p>
+                <p className="text-xs text-[--color-text-muted] mb-3">{dict.interviews.roundChart}</p>
                 <SimpleBarChart data={stats.roundDist} height={180} />
               </div>
               {stats.companyDist.length > 0 && (
                 <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
-                  <p className="text-xs text-[--color-text-muted] mb-3">按公司面试次数</p>
+                  <p className="text-xs text-[--color-text-muted] mb-3">{dict.interviews.companyChart}</p>
                   <SimpleBarChart data={stats.companyDist} height={180} />
                 </div>
               )}
@@ -261,21 +265,21 @@ export function InterviewsClient() {
 
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-[--color-text-muted] font-mono">{interviews.length} 条记录</p>
+        <p className="text-xs text-[--color-text-muted] font-mono">{interviews.length} {dict.interviews.total}</p>
         <Button size="sm" onClick={openCreate} className="h-8 gap-1.5">
-          <Plus size={14} /> 新建记录
+          <Plus size={14} /> {dict.interviews.newInterview}
         </Button>
       </div>
 
       {/* Table */}
       <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] overflow-hidden">
         {loading ? (
-          <div className="py-16 text-center text-sm text-[--color-text-muted]">加载中...</div>
+          <div className="py-16 text-center text-sm text-[--color-text-muted]">{dict.common.loading}</div>
         ) : interviews.length === 0 ? (
           <EmptyState
-            title="暂无面试记录"
-            description="点击「新建记录」记录第一次面试"
-            action={{ label: "新建记录", onClick: openCreate }}
+            title={dict.common.noData}
+            description={dict.interviews.noData}
+            action={{ label: dict.interviews.newInterview, onClick: openCreate }}
           />
         ) : (
           <div className="overflow-x-auto bg-[--color-bg-surface]">
@@ -283,14 +287,14 @@ export function InterviewsClient() {
               <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
                 <thead>
                   <tr>
-                    <th className="w-[130px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">公司</th>
-                    <th className="w-[180px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">职位</th>
-                    <th className="w-[100px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">轮次</th>
-                    <th className="w-[80px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">形式</th>
-                    <th className="w-[130px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">日期</th>
-                    <th className="w-[80px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">自评</th>
-                    <th className="w-[100px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">结果</th>
-                    <th className="w-[200px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">反馈</th>
+                    <th className="w-[130px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.interviews.company}</th>
+                    <th className="w-[180px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.interviews.position}</th>
+                    <th className="w-[100px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.interviews.round}</th>
+                    <th className="w-[80px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.interviews.format}</th>
+                    <th className="w-[130px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">{dict.interviews.scheduledAt}</th>
+                    <th className="w-[80px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.interviews.selfRating}</th>
+                    <th className="w-[100px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.interviews.result}</th>
+                    <th className="w-[200px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.interviews.feedback}</th>
                     <th className="w-[90px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5" />
                   </tr>
                 </thead>
@@ -337,16 +341,16 @@ export function InterviewsClient() {
                             <button
                               onClick={() => openDetail(item)}
                               className="p-1 text-[--color-text-muted] hover:text-[--color-link]"
-                              title="查看详情"
+                              title={dict.jobs.detail}
                             >
                               <ChevronDown size={14} />
                             </button>
                             <button
                               onClick={() => openEdit(item)}
                               className="p-1 text-xs text-[--color-text-muted] hover:text-[--color-text-primary]"
-                              title="编辑"
+                              title={dict.common.edit}
                             >
-                              编辑
+                              {dict.common.edit}
                             </button>
                             <button
                               onClick={() => handleDelete(item.id)}
@@ -370,17 +374,17 @@ export function InterviewsClient() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingInterview ? "编辑面试记录" : "新建面试记录"}</DialogTitle>
+            <DialogTitle>{editingInterview ? dict.interviews.editInterview : dict.interviews.newInterview}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
-              <Label className="text-xs mb-1 block">关联投递</Label>
+              <Label className="text-xs mb-1 block">{dict.interviews.linkJob}</Label>
               <Select value={form.jobId || "none"} onValueChange={selectJob}>
                 <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="选择一条求职投递" />
+                  <SelectValue placeholder={dict.interviews.linkJob} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">不关联投递</SelectItem>
+                  <SelectItem value="none">{dict.interviews.noJob}</SelectItem>
                   {jobOptions.map((job) => (
                     <SelectItem key={job.id} value={job.id}>
                       {job.company} / {job.position} / {job.status}
@@ -391,31 +395,31 @@ export function InterviewsClient() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs mb-1 block">公司 *</Label>
-                <Input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} placeholder="公司名称" className="h-8 text-sm" />
+                <Label className="text-xs mb-1 block">{dict.interviews.company} *</Label>
+                <Input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} placeholder={dict.interviews.company} className="h-8 text-sm" />
               </div>
               <div>
-                <Label className="text-xs mb-1 block">职位 *</Label>
-                <Input value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} placeholder="职位名称" className="h-8 text-sm" />
+                <Label className="text-xs mb-1 block">{dict.interviews.position} *</Label>
+                <Input value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} placeholder={dict.interviews.position} className="h-8 text-sm" />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <Label className="text-xs mb-1 block">轮次</Label>
+                <Label className="text-xs mb-1 block">{dict.interviews.round}</Label>
                 <Select value={form.round} onValueChange={(v) => setForm((f) => ({ ...f, round: v }))}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>{INTERVIEW_ROUNDS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs mb-1 block">形式</Label>
+                <Label className="text-xs mb-1 block">{dict.interviews.format}</Label>
                 <Select value={form.format} onValueChange={(v) => setForm((f) => ({ ...f, format: v }))}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>{INTERVIEW_FORMATS.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs mb-1 block">结果</Label>
+                <Label className="text-xs mb-1 block">{dict.interviews.result}</Label>
                 <Select value={form.result} onValueChange={(v) => setForm((f) => ({ ...f, result: v }))}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>{INTERVIEW_RESULTS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
@@ -424,29 +428,29 @@ export function InterviewsClient() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs mb-1 block">日期时间</Label>
+                <Label className="text-xs mb-1 block">{dict.interviews.scheduledAt}</Label>
                 <Input type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm((f) => ({ ...f, scheduledAt: e.target.value }))} className="h-8 text-sm font-mono" />
               </div>
               <div>
-                <Label className="text-xs mb-1 block">面试官</Label>
-                <Input value={form.interviewers} onChange={(e) => setForm((f) => ({ ...f, interviewers: e.target.value }))} placeholder="面试官姓名" className="h-8 text-sm" />
+                <Label className="text-xs mb-1 block">{dict.interviews.interviewers}</Label>
+                <Input value={form.interviewers} onChange={(e) => setForm((f) => ({ ...f, interviewers: e.target.value }))} placeholder={dict.interviews.interviewers} className="h-8 text-sm" />
               </div>
             </div>
             <div>
-              <Label className="text-xs mb-1 block">自评</Label>
+              <Label className="text-xs mb-1 block">{dict.interviews.selfRating}</Label>
               <StarRating value={form.selfRating ? Number(form.selfRating) : null} onChange={(v) => setForm((f) => ({ ...f, selfRating: v }))} />
             </div>
             <div>
-              <Label className="text-xs mb-1 block">面试题目（支持 Markdown）</Label>
-              <Textarea value={form.questions} onChange={(e) => setForm((f) => ({ ...f, questions: e.target.value }))} placeholder="## 问题&#10;- 问题1&#10;- 问题2" className="text-sm resize-none font-mono" rows={4} />
+              <Label className="text-xs mb-1 block">{dict.interviews.questions}</Label>
+              <Textarea value={form.questions} onChange={(e) => setForm((f) => ({ ...f, questions: e.target.value }))} placeholder="## Q1&#10;- Q2" className="text-sm resize-none font-mono" rows={4} />
             </div>
             <div>
-              <Label className="text-xs mb-1 block">反馈 / 备注</Label>
-              <Textarea value={form.feedback} onChange={(e) => setForm((f) => ({ ...f, feedback: e.target.value }))} placeholder="面试官的反馈，或自己的总结..." className="text-sm resize-none" rows={2} />
+              <Label className="text-xs mb-1 block">{dict.interviews.feedback}</Label>
+              <Textarea value={form.feedback} onChange={(e) => setForm((f) => ({ ...f, feedback: e.target.value }))} placeholder={dict.interviews.feedback} className="text-sm resize-none" rows={2} />
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>取消</Button>
-              <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "保存中..." : "保存"}</Button>
+              <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>{dict.interviews.cancel}</Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? dict.interviews.saving : dict.interviews.save}</Button>
             </div>
           </div>
         </DialogContent>
@@ -463,14 +467,14 @@ export function InterviewsClient() {
           {detailItem && (
             <div className="space-y-4 mt-2 text-sm">
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div><span className="text-[--color-text-muted]">关联投递：</span>{detailItem.job ? `${detailItem.job.company} / ${detailItem.job.position}` : "—"}</div>
-                <div><span className="text-[--color-text-muted]">职位：</span>{detailItem.position}</div>
-                <div><span className="text-[--color-text-muted]">形式：</span>{detailItem.format}</div>
-                <div><span className="text-[--color-text-muted]">日期：</span><span className="font-mono">{formatChinaDateTime(detailItem.scheduledAt)}</span></div>
-                <div><span className="text-[--color-text-muted]">面试官：</span>{detailItem.interviewers || "—"}</div>
-                <div><span className="text-[--color-text-muted]">结果：</span><StatusBadge status={detailItem.result} type="interview" /></div>
+                <div><span className="text-[--color-text-muted]">{dict.interviews.linkJob}：</span>{detailItem.job ? `${detailItem.job.company} / ${detailItem.job.position}` : "—"}</div>
+                <div><span className="text-[--color-text-muted]">{dict.interviews.position}：</span>{detailItem.position}</div>
+                <div><span className="text-[--color-text-muted]">{dict.interviews.format}：</span>{detailItem.format}</div>
+                <div><span className="text-[--color-text-muted]">{dict.interviews.scheduledAt}：</span><span className="font-mono">{formatChinaDateTime(detailItem.scheduledAt)}</span></div>
+                <div><span className="text-[--color-text-muted]">{dict.interviews.interviewers}：</span>{detailItem.interviewers || "—"}</div>
+                <div><span className="text-[--color-text-muted]">{dict.interviews.result}：</span><StatusBadge status={detailItem.result} type="interview" /></div>
                 <div className="flex items-center gap-1">
-                  <span className="text-[--color-text-muted]">自评：</span>
+                  <span className="text-[--color-text-muted]">{dict.interviews.selfRating}：</span>
                   {detailItem.selfRating ? (
                     <div className="flex gap-0.5">
                       {Array.from({ length: 5 }).map((_, i) => (
@@ -482,13 +486,13 @@ export function InterviewsClient() {
               </div>
               {detailItem.questions && (
                 <div>
-                  <p className="text-xs text-[--color-text-muted] mb-2">面试题目</p>
+                  <p className="text-xs text-[--color-text-muted] mb-2">{dict.interviews.questions}</p>
                   <pre className="text-xs bg-[--color-bg-hover] rounded p-3 whitespace-pre-wrap font-mono border border-[--color-border]">{detailItem.questions}</pre>
                 </div>
               )}
               {detailItem.feedback && (
                 <div>
-                  <p className="text-xs text-[--color-text-muted] mb-1">反馈</p>
+                  <p className="text-xs text-[--color-text-muted] mb-1">{dict.interviews.feedback}</p>
                   <p className="text-sm">{detailItem.feedback}</p>
                 </div>
               )}

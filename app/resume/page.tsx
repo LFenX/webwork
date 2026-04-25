@@ -7,23 +7,27 @@ import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 import { PrintButton } from "@/components/print-button"
 import { ResumePdfViewer } from "@/components/resume-pdf-viewer"
 import { getModuleVisibility } from "@/lib/permissions"
+import { getDictionary } from "@/lib/i18n"
+import { getUserSiteSettings } from "@/lib/settings"
 
-export const metadata = { title: "简历 - My Space" }
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
 
 export default async function ResumePage() {
   const { userId } = await requireAuth()
-  const [resume, visibility] = await Promise.all([
+  const [resume, visibility, settings] = await Promise.all([
     getResumeContent(userId),
     getModuleVisibility(userId, "resume"),
+    getUserSiteSettings(userId),
   ])
+  const dict = getDictionary(settings.language)
+  const re = dict.resume
 
   return (
     <div className="mx-auto w-full max-w-[960px] px-4 py-12 sm:px-8 sm:py-16">
       <div className={resume.mode === "pdf" ? "mx-auto w-full" : "mx-auto max-w-[760px]"}>
         <div className="no-print mb-10 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold">简历</h1>
+          <h1 className="text-xl font-semibold">{re.title}</h1>
           <div className="flex items-center gap-3">
             <ModuleVisibilitySelect module="resume" initialVisibility={visibility} />
             {resume.mode === "markdown" && <PrintButton />}
@@ -32,7 +36,7 @@ export default async function ResumePage() {
               prefetch={false}
               className="inline-flex items-center gap-1.5 text-sm text-[--color-text-muted] transition-colors hover:text-[--color-text-primary] hover:no-underline"
             >
-              <Pencil size={13} /> 编辑
+              <Pencil size={13} /> {re.edit}
             </Link>
           </div>
         </div>
@@ -43,7 +47,7 @@ export default async function ResumePage() {
           ) : resume.content ? (
             <MarkdownContent source={resume.content} />
           ) : (
-            <p className="text-[--color-text-muted]">点击右上角“编辑”开始编写简历。</p>
+            <p className="text-[--color-text-muted]">{re.editHint}</p>
           )}
         </div>
       </div>

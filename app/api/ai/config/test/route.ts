@@ -13,12 +13,14 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400, headers: NO_STORE })
   }
+  const configId = body?.configId as string | undefined
+
   try {
     const capabilities = await testAIProviderConnection(parsed.data)
-    await markAIUserConfigTest(session.userId, "passed")
+    if (configId) await markAIUserConfigTest(configId, "passed")
     return NextResponse.json({ success: true, capabilities }, { headers: NO_STORE })
   } catch (error) {
-    await markAIUserConfigTest(session.userId, "failed")
+    if (configId) await markAIUserConfigTest(configId, "failed")
     return NextResponse.json({ error: error instanceof Error ? error.message : "Connection failed" }, { status: 400, headers: NO_STORE })
   }
 }

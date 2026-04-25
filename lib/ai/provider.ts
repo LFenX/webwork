@@ -18,6 +18,8 @@ export type ProviderMessage = {
   role: "system" | "user" | "assistant" | "tool"
   content: string | ProviderContentPart[]
   tool_call_id?: string
+  tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>
+  reasoning_content?: string
 }
 
 export type ProviderToolSpec = {
@@ -421,8 +423,11 @@ export async function requestProviderChat(params: {
           argumentsText: "",
           arguments: null,
         }
-        if (typeof rawToolCall.id === "string") existing.id = rawToolCall.id
-        if (typeof rawToolCall.function?.name === "string") existing.name = rawToolCall.function.name
+        if (typeof rawToolCall.id === "string" && rawToolCall.id) existing.id = rawToolCall.id
+        // DeepSeek sends function.name="" in follow-up deltas — only overwrite with a non-empty value
+        if (typeof rawToolCall.function?.name === "string" && rawToolCall.function.name.trim()) {
+          existing.name = rawToolCall.function.name
+        }
         const argumentsDelta = typeof rawToolCall.function?.arguments === "string" ? rawToolCall.function.arguments : ""
         if (argumentsDelta) {
           existing.argumentsText += argumentsDelta

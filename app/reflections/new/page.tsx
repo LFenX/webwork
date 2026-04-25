@@ -1,11 +1,18 @@
 import { requireAuth } from "@/lib/auth"
 import { getCreatorProfile } from "@/lib/profile"
+import { getDictionary } from "@/lib/i18n"
+import { getUserSiteSettings } from "@/lib/settings"
 import { PostEditorClient } from "@/components/post-editor-client"
 
-export const metadata = { title: "新建心得 · My Space" }
+export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
 
 export default async function NewReflectionPage() {
   const { userId } = await requireAuth()
-  const creator = await getCreatorProfile(userId)
-  return <PostEditorClient mode="create" type="reflections" typeLabel="心得" userId={userId} creator={creator} />
+  const [creator, settings] = await Promise.all([
+    getCreatorProfile(userId),
+    getUserSiteSettings(userId),
+  ])
+  const dict = getDictionary(settings.language)
+  return <PostEditorClient mode="create" type="reflections" typeLabel={dict.nav.reflections} userId={userId} creator={creator} />
 }

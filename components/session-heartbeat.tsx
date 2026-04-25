@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { getDict } from "@/lib/i18n"
 
 type HeartbeatResponse = {
   status: "online" | "away" | "offline" | "replaced" | "expired" | string
@@ -12,6 +13,8 @@ type HeartbeatResponse = {
 const ACTIVITY_THROTTLE_MS = 30_000
 
 export function SessionHeartbeat() {
+  const dict = getDict()
+  const n = dict.notifications
   const [message, setMessage] = useState("")
   const [open, setOpen] = useState(false)
   const lastActivityPing = useRef(0)
@@ -41,7 +44,7 @@ export function SessionHeartbeat() {
       const authFailed = res.status === 401
       if (data.status === "replaced") {
         replacementNotified.current = true
-        setMessage(data.message || "你的账号已在另一台设备登录。如果不是你本人，请及时修改密码。")
+        setMessage(data.message || n.sessionExpiredDesc)
         setOpen(true)
       } else if (data.status === "expired" || (authFailed && data.status === "offline")) {
         if (document.visibilityState === "visible") goLogin()
@@ -95,11 +98,11 @@ export function SessionHeartbeat() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>账号已在其他设备登录</DialogTitle>
+          <DialogTitle>{n.sessionExpired}</DialogTitle>
           <DialogDescription>{message}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button onClick={goLogin}>重新登录</Button>
+          <Button onClick={goLogin}>{n.reLogin}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

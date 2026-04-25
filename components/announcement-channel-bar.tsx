@@ -15,7 +15,8 @@ import { GroupAvatar } from "@/components/group-avatar"
 import { deleteChatOutboxItem, listChatOutboxItems, saveChatOutboxItem, type ChatOutboxItem } from "@/lib/chat-outbox"
 import { copyImageToClipboard, getClipboardImageFiles, saveStickerToCustomLibrary, triggerBrowserDownload } from "@/lib/chat-media-actions"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
-import { getDictionary, type AppLocale } from "@/lib/i18n"
+import { getDict, type AppLocale } from "@/lib/i18n"
+import { handleEnterToSubmit } from "@/lib/keyboard"
 
 export type AnnouncementItem = {
   type?: "announcement" | "broadcast"
@@ -242,6 +243,7 @@ export function AnnouncementChannelBar({
   currentUser: Friend
   locale?: AppLocale
 }) {
+  const dict = getDict()
   const [open, setOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [announcements, setAnnouncements] = useState(initialAnnouncements)
@@ -250,7 +252,7 @@ export function AnnouncementChannelBar({
   const latest = announcements[0]
   const latestId = latest?.id
   const latestType = latest?.type ?? "announcement"
-  const latestLabel = latestType === "broadcast" ? "世界频道" : "公告"
+  const latestLabel = latestType === "broadcast" ? dict.admin.worldChannel : dict.home.announcement
 
   const refreshAnnouncements = useCallback(async () => {
     const res = await fetch("/api/announcement-feed", { cache: "no-store" })
@@ -316,12 +318,12 @@ export function AnnouncementChannelBar({
         <Button asChild size="sm" className="h-9 shrink-0 gap-1.5 text-primary-foreground hover:text-primary-foreground md:hidden">
           <Link href="/channels">
             <MessageCircle size={14} />
-            频道
+            {dict.channels.channels}
           </Link>
         </Button>
         <Button type="button" size="sm" onClick={() => setOpen(true)} className="hidden h-9 shrink-0 gap-1.5 md:inline-flex">
           <MessageCircle size={14} />
-          频道
+          {dict.channels.channels}
         </Button>
         <div className="min-w-0 flex-1 overflow-hidden">
           {latest ? (
@@ -334,23 +336,23 @@ export function AnnouncementChannelBar({
                   <span className="min-w-0">{latest.content}</span>
                 </div>
               </div>
-              <button type="button" onClick={hideLatest} className="shrink-0 text-[--color-text-muted] hover:text-[--color-text-primary]" title="隐藏">
+              <button type="button" onClick={hideLatest} className="shrink-0 text-[--color-text-muted] hover:text-[--color-text-primary]" title={dict.channels.hide}>
                 <X size={14} />
               </button>
             </div>
           ) : (
-            <p className="truncate text-sm text-[--color-text-muted]">暂无公告</p>
+            <p className="truncate text-sm text-[--color-text-muted]">{dict.channels.noAnnouncement}</p>
           )}
         </div>
         <button type="button" onClick={() => { setHistoryOpen(true); void loadHistory() }} className="shrink-0 text-xs text-[--color-link] hover:text-[--color-accent]">
-          历史
+          {dict.channels.history}
         </button>
       </div>
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="flex w-[min(96vw,980px)] max-w-none flex-col gap-0 p-0 sm:max-w-none">
           <SheetHeader className="border-b border-[--color-border] px-4 py-3">
-            <SheetTitle className="text-base">频道</SheetTitle>
+            <SheetTitle className="text-base">{dict.channels.channels}</SheetTitle>
           </SheetHeader>
           <GroupChatClient userId={userId} currentUser={currentUser} locale={locale} onWorldAnnouncement={refreshAnnouncements} />
         </SheetContent>
@@ -359,24 +361,24 @@ export function AnnouncementChannelBar({
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>公告历史</DialogTitle>
-            <DialogDescription>近期公告和世界频道广播。</DialogDescription>
+            <DialogTitle>{dict.home.announcement}{dict.channels.history}</DialogTitle>
+            <DialogDescription>{dict.home.announcements} / {dict.admin.worldChannel}</DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] space-y-3 overflow-y-auto">
             {historyAnnouncements.length === 0 && broadcastHistory.length === 0 ? (
-              <p className="text-sm text-[--color-text-muted]">暂无历史记录</p>
+              <p className="text-sm text-[--color-text-muted]">{dict.common.noData}</p>
             ) : null}
             {[...historyAnnouncements, ...broadcastHistory].map((item) => (
               <div key={`${item.type ?? "announcement"}-${item.id}`} className="rounded-[--radius-md] border border-[--color-border] p-3">
                 <p className="whitespace-pre-wrap break-words text-sm">{item.content}</p>
                 <p className="mt-2 text-xs text-[--color-text-muted]">
-                  {formatChatTime(item.createdAt)} / {item.type === "broadcast" ? "世界频道" : "管理员"} / {item.author.displayName || item.author.email}
+                  {formatChatTime(item.createdAt)} / {item.type === "broadcast" ? dict.admin.worldChannel : dict.admin.adminSource} / {item.author.displayName || item.author.email}
                 </p>
               </div>
             ))}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={loadHistory}>刷新</Button>
+            <Button type="button" variant="outline" onClick={loadHistory}>{dict.common.refresh}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -395,7 +397,7 @@ export function GroupChatClient({
   locale?: AppLocale
   onWorldAnnouncement?: () => void
 }) {
-  const dict = getDictionary(locale)
+  const dict = getDict()
   const [channels, setChannels] = useState<Channel[]>([])
   const [friends, setFriends] = useState<Friend[]>([])
   const [currentUserId, setCurrentUserId] = useState("")
@@ -450,11 +452,11 @@ export function GroupChatClient({
     ])
     const channelData = await channelRes.json().catch(() => ({}))
     const friendData = await friendRes.json().catch(() => [])
-    if (!channelRes.ok) throw new Error(channelData.error ?? "加载频道失败")
+    if (!channelRes.ok) throw new Error(channelData.error ?? dict.channels.loadFailed)
     setCurrentUserId(channelData.currentUserId ?? "")
     setChannels(Array.isArray(channelData.items) ? channelData.items : [])
     setFriends(Array.isArray(friendData) ? friendData : [])
-  }, [])
+  }, [dict.channels.loadFailed])
 
   const loadMessages = useCallback(async (channelId: string, options?: { cursor?: string | null; appendOlder?: boolean }) => {
     const appendOlder = options?.appendOlder ?? false
@@ -472,7 +474,7 @@ export function GroupChatClient({
           params.set("cursor", cursorToUse)
           const res = await fetch(`/api/channels/${channelId}/messages?${params.toString()}`, { cache: "no-store" })
           const data = await res.json().catch(() => ({}))
-          if (!res.ok) throw new Error(data.error ?? "加载消息失败")
+          if (!res.ok) throw new Error(data.error ?? dict.channels.loadFailed)
           const fetchedItems = Array.isArray(data.items) ? data.items as ChannelMessage[] : []
           const fetchedNextCursor = typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null
           const existingIds = new Set(messagesRef.current.map((item) => item.id))
@@ -488,7 +490,7 @@ export function GroupChatClient({
         if (options?.cursor) params.set("cursor", options.cursor)
         const res = await fetch(`/api/channels/${channelId}/messages?${params.toString()}`, { cache: "no-store" })
         const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data.error ?? "加载消息失败")
+        if (!res.ok) throw new Error(data.error ?? dict.channels.loadFailed)
         items = Array.isArray(data.items) ? data.items as ChannelMessage[] : []
         incomingNextCursor = typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null
       }
@@ -514,12 +516,12 @@ export function GroupChatClient({
       const draftMessages = restoredDrafts.map((item) => outboxToChannelMessage(item, currentUser))
       setMessages((current) => mergeChannelMessages(current.filter((item) => item.localStatus !== "failed"), [...items, ...draftMessages]))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "加载消息失败")
+      toast.error(error instanceof Error ? error.message : dict.channels.loadFailed)
     } finally {
       if (appendOlder) setLoadingOlder(false)
       else setLoading(false)
     }
-  }, [currentUser, userId])
+  }, [currentUser, userId, dict.channels.loadFailed])
 
   const loadOlderMessages = useCallback(async () => {
     if (!selectedId || loading || loadingOlder) return
@@ -531,10 +533,10 @@ export function GroupChatClient({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      loadChannels().catch((error) => toast.error(error instanceof Error ? error.message : "加载频道失败"))
+      loadChannels().catch((error) => toast.error(error instanceof Error ? error.message : dict.channels.loadFailed))
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [loadChannels])
+  }, [loadChannels, dict.channels.loadFailed])
 
   useEffect(() => {
     const shouldPollMembers = channels.some((channel) => channel.type === "group" && channel.members.length < 9)
@@ -677,7 +679,7 @@ export function GroupChatClient({
         await deleteChatOutboxItem(localId)
         if (batch.publish && batch.text) onWorldAnnouncement()
       } catch (error) {
-        const message = error instanceof Error ? error.message : "????"
+        const message = error instanceof Error ? error.message : dict.channels.loadFailed
         await saveChatOutboxItem({
           id: localId,
           clientMutationId,
@@ -690,7 +692,7 @@ export function GroupChatClient({
           createdAt: Date.now(),
           lastError: message,
         }).catch((saveError) => {
-          toast.error(saveError instanceof Error ? saveError.message : "????????")
+          toast.error(saveError instanceof Error ? saveError.message : dict.channels.loadFailed)
         })
         setMessages((current) => current.map((item) => item.id === localId ? { ...item, localStatus: "failed" } : item))
         toast.error(message)
@@ -719,7 +721,7 @@ export function GroupChatClient({
       await deleteChatOutboxItem(messageId)
       setMessages((current) => current.map((message) => message.id === messageId ? created : message))
     } catch (error) {
-      const message = error instanceof Error ? error.message : "发送失败"
+      const message = error instanceof Error ? error.message : dict.channels.send
       await saveChatOutboxItem({ ...item, lastError: message })
       setMessages((current) => current.map((entry) => entry.id === messageId ? { ...entry, localStatus: "failed" } : entry))
       toast.error(message)
@@ -773,13 +775,13 @@ export function GroupChatClient({
     <div className="relative flex min-h-0 w-full max-w-full flex-1 overflow-hidden md:grid md:grid-cols-[260px_minmax(0,1fr)]">
       <button
         type="button"
-        aria-label="关闭频道"
+        aria-label={dict.common.close}
         onClick={() => setChannelMenuOpen(false)}
         className={`absolute inset-0 z-10 bg-black/30 backdrop-blur-[2px] transition-opacity md:hidden ${channelMenuOpen ? "block" : "hidden"}`}
       />
       <aside className={`absolute inset-y-0 left-0 z-20 isolate flex min-h-0 w-[min(82vw,280px)] flex-col border-r border-[--color-border] bg-[--color-bg-primary]/95 shadow-xl backdrop-blur-md transition-transform duration-200 md:static md:z-auto md:w-auto md:translate-x-0 md:bg-[--color-bg-primary] md:shadow-none md:backdrop-blur-none ${channelMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center justify-between border-b border-[--color-border] bg-[--color-bg-primary]/95 p-3 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
-          <p className="text-sm font-semibold">频道</p>
+          <p className="text-sm font-semibold">{dict.channels.channels}</p>
           <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => setCreateOpen(true)}>
             <Plus size={14} />
           </Button>
@@ -804,7 +806,7 @@ export function GroupChatClient({
               )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{channel.name}</span>
-                <span className="block truncate text-xs text-[--color-text-muted]">{channel.type === "world" ? "全部用户" : `${channel.members.length} 位成员`}</span>
+                <span className="block truncate text-xs text-[--color-text-muted]">{channel.type === "world" ? dict.channels.allUsers : dict.channels.membersCount(channel.members.length)}</span>
               </span>
             </button>
           ))}
@@ -815,19 +817,19 @@ export function GroupChatClient({
         <div className="flex items-center justify-between gap-2 border-b border-[--color-border] px-3 py-3 sm:px-4">
           <Button type="button" size="sm" variant="ghost" className="h-8 shrink-0 px-2 md:hidden" onClick={() => setChannelMenuOpen(true)}>
             <Menu size={15} />
-            <span>频道</span>
+            <span>{dict.channels.channels}</span>
           </Button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{selected?.name ?? "频道"}</p>
+            <p className="truncate text-sm font-semibold">{selected?.name ?? dict.channels.channels}</p>
             <p className="truncate text-xs text-[--color-text-muted]">
-              {isWorld ? "世界频道消息可以同步广播到公告栏。" : selected?.members.map((member) => member.displayName || member.email).join(", ")}
+              {isWorld ? dict.channels.channelMessagesHint : selected?.members.map((member) => member.displayName || member.email).join(", ")}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {!isWorld && (
               <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setInviteOpen(true)}>
                 <UserPlus size={14} />
-                <span className="hidden sm:inline">邀请</span>
+                <span className="hidden sm:inline">{dict.channels.invite}</span>
               </Button>
             )}
             {!isWorld && selected ? (
@@ -837,16 +839,16 @@ export function GroupChatClient({
             ) : null}
             <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => selected && loadMessages(selected.id)}>
               <RefreshCcw size={14} />
-              <span className="hidden sm:inline">刷新</span>
+              <span className="hidden sm:inline">{dict.common.refresh}</span>
             </Button>
           </div>
         </div>
 
         <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {loading ? (
-            <p className="py-10 text-center text-sm text-[--color-text-muted]">加载消息中...</p>
+            <p className="py-10 text-center text-sm text-[--color-text-muted]">{dict.common.loading}</p>
           ) : messages.length === 0 ? (
-            <p className="py-10 text-center text-sm text-[--color-text-muted]">还没有消息。</p>
+            <p className="py-10 text-center text-sm text-[--color-text-muted]">{dict.channels.empty}</p>
           ) : (
             <div className="space-y-3">
               {(nextCursor || loadingOlder) && (
@@ -855,10 +857,10 @@ export function GroupChatClient({
                     {loadingOlder ? (
                       <>
                         <Loader2 size={13} className="animate-spin" />
-                        鍔犺浇涓?..
+                        {dict.common.loading}
                       </>
                     ) : (
-                      "鍔犺浇鏇存棭娑堟伅"
+                      dict.channels.loadEarlier
                     )}
                   </Button>
                 </div>
@@ -914,9 +916,10 @@ export function GroupChatClient({
             <textarea
               value={text}
               onChange={(event) => setText(event.target.value)}
+              onKeyDown={(event) => handleEnterToSubmit(event, () => void sendMessage(), { disabled: sending || (!text.trim() && files.length === 0 && !sticker) })}
               onPaste={handleComposerPaste}
               rows={3}
-              placeholder="输入消息..."
+              placeholder={dict.channels.typeMessage}
               className="wechat-composer-input max-h-32 flex-1 resize-none px-3 py-3 text-sm text-[--color-text-primary]"
             />
             {activeReplyTo ? (
@@ -945,7 +948,7 @@ export function GroupChatClient({
                   type="button"
                   onClick={() => setPublishToAnnouncement((value) => !value)}
                   className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[--radius-sm] transition-colors ${publishToAnnouncement ? "bg-[--color-warning-bg] text-[--color-warning]" : "text-[--color-text-muted] hover:bg-[#ededed]"}`}
-                  title="同步广播这条世界频道消息"
+                  title={dict.channels.publishToFeed}
                 >
                   <Megaphone size={16} fill={publishToAnnouncement ? "currentColor" : "none"} />
                 </button>
@@ -953,7 +956,7 @@ export function GroupChatClient({
               <div className="flex-1" />
               <Button type="submit" size="sm" disabled={sending || (!text.trim() && files.length === 0 && !sticker)} className="h-9 shrink-0 rounded-md bg-[#f0f0f0] px-5 text-sm font-normal text-[#9b9b9b] shadow-none hover:bg-[#e8e8e8] enabled:bg-[#3b82f6] enabled:text-white">
                 {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} className="sm:hidden" />}
-                <span>{sending ? "发送中" : "发送"}</span>
+                <span>{sending ? dict.channels.sending : dict.channels.send}</span>
               </Button>
             </div>
           </div>
@@ -1021,6 +1024,7 @@ function ChannelMessageBubble({
   onDiscard: (messageId: string) => void
   onReply: (message: ChannelMessage) => void
 }) {
+  const dict = getDict()
   const assetStickerOnly = !message.text && !message.stickerEmoji && Boolean(message.sticker) && message.attachments.length === 0
   const imageOnly = !message.text && !message.stickerEmoji && !message.sticker && message.attachments.length > 0 && message.attachments.every((attachment) => attachment.mimeType.startsWith("image/"))
   const fileOnly = !message.text && !message.stickerEmoji && !message.sticker && message.attachments.length > 0 && message.attachments.every((attachment) => !attachment.mimeType.startsWith("image/"))
@@ -1031,12 +1035,17 @@ function ChannelMessageBubble({
     ? { reply: "Quote", copy: "Copy", copied: "Copied", copyFailed: "Copy failed", you: "You" }
     : { reply: "引用", copy: "复制", copied: "已复制", copyFailed: "复制失败", you: "我" }
   const replySummary = getChannelReplySummary(message.replyTo)
-  const addStickerLabel = locale === "en-US" ? "Add to My Stickers" : "添加到我的表情"
-  const stickerSavedLabel = locale === "en-US" ? "Saved to your custom stickers." : "已添加到我的表情"
-  const downloadImageLabel = locale === "en-US" ? "Download Image" : "下载图片"
-  const copyImageLabel = locale === "en-US" ? "Copy Image" : "复制图片"
-  const copyImageSuccessLabel = locale === "en-US" ? "Image copied. You can paste it into the composer." : "图片已复制，可直接粘贴到输入框"
-  const copyImageFailedLabel = locale === "en-US" ? "Image copy failed" : "复制图片失败"
+  const isEN = dict.common.copy === "Copy"
+  const addStickerLabel = dict.stickers.addToCustom
+  const stickerSavedLabel = dict.stickers.savedToCustom
+  const downloadImageLabel = isEN ? "Download Image" : "下载图片"
+  const copyImageLabel = isEN ? "Copy Image" : "复制图片"
+  const copyImageSuccessLabel = isEN ? "Image copied. You can paste it into the composer." : "图片已复制，可直接粘贴到输入框"
+  const copyImageFailedLabel = isEN ? "Image copy failed" : "复制图片失败"
+  const sendFailedLabel = isEN ? "Send failed" : "发送失败"
+  const sendingLabel = dict.channels.sending
+  const retryLabel = dict.common.retry
+  const discardLabel = locale === "en-US" ? "Discard" : "放弃"
   const actionPreview = <ChannelMessageActionPreview message={message} senderName={message.sender.displayName || message.sender.email || actionLabels.you} />
   const actionItems: MessageActionItem[] = [
     {
@@ -1117,11 +1126,11 @@ function ChannelMessageBubble({
           )}
           {message.localStatus && (
             <div className="mt-1 text-right font-mono text-[10px] text-[--color-text-muted]">
-              <span>{message.localStatus === "sending" ? "发送中..." : "发送失败"}</span>
+              <span>{message.localStatus === "sending" ? sendingLabel : sendFailedLabel}</span>
               {message.localStatus === "failed" && (
                 <div className="mt-1 flex justify-end gap-2">
-                  <button type="button" onClick={() => onRetry(message.id)} className="text-[--color-link] hover:underline">重试</button>
-                  <button type="button" onClick={() => onDiscard(message.id)} className="text-[--color-danger] hover:underline">放弃</button>
+                  <button type="button" onClick={() => onRetry(message.id)} className="text-[--color-link] hover:underline">{retryLabel}</button>
+                  <button type="button" onClick={() => onDiscard(message.id)} className="text-[--color-danger] hover:underline">{discardLabel}</button>
                 </div>
               )}
             </div>
@@ -1212,9 +1221,17 @@ function ChannelMessageActionPreview({ message, senderName }: { message: Channel
 }
 
 function UserProfileDialog({ user, currentUserId, isFriend, onOpenChange }: { user: Friend | null; currentUserId: string; isFriend: boolean; onOpenChange: (open: boolean) => void }) {
+  const dict = getDict()
   const [note, setNote] = useState("")
   const [sending, setSending] = useState(false)
   const isSelf = user?.id === currentUserId
+  const isEN = dict.common.copy === "Copy"
+  const selfLabel = isEN ? "This is you." : "这是你自己。"
+  const addFriendLabel = isEN ? "Add friend" : "添加好友"
+  const sendingLabel = dict.channels.sending
+  const friendRequestNoteLabel = isEN ? "Friend request note" : "好友申请备注"
+  const friendRequestSentLabel = isEN ? "Friend request sent" : "好友申请已发送"
+  const friendRequestSendFailedLabel = isEN ? "Failed to send friend request" : "好友申请发送失败"
 
   async function sendFriendRequest() {
     if (!user || !note.trim()) return
@@ -1226,12 +1243,12 @@ function UserProfileDialog({ user, currentUserId, isFriend, onOpenChange }: { us
         body: JSON.stringify({ email: user.email, note }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error ?? "好友申请发送失败")
-      toast.success(data.message ?? "好友申请已发送")
+      if (!res.ok) throw new Error(data.error ?? friendRequestSendFailedLabel)
+      toast.success(data.message ?? friendRequestSentLabel)
       setNote("")
       onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "好友申请发送失败")
+      toast.error(error instanceof Error ? error.message : friendRequestSendFailedLabel)
     } finally {
       setSending(false)
     }
@@ -1250,14 +1267,14 @@ function UserProfileDialog({ user, currentUserId, isFriend, onOpenChange }: { us
               <DialogDescription>{user.email}</DialogDescription>
             </DialogHeader>
             {isSelf ? (
-              <p className="text-sm text-[--color-text-muted]">这是你自己。</p>
+              <p className="text-sm text-[--color-text-muted]">{selfLabel}</p>
             ) : isFriend ? (
               <DialogFooter>
                 <Button asChild variant="outline">
-                  <Link href={`/u/${user.id}`}>主页</Link>
+                  <Link href={`/u/${user.id}`}>{dict.nav.home}</Link>
                 </Button>
                 <Button asChild>
-                  <Link href={`/friends/chat/${user.id}`}>私聊</Link>
+                  <Link href={`/friends/chat/${user.id}`}>{dict.nav.friends}</Link>
                 </Button>
               </DialogFooter>
             ) : (
@@ -1267,12 +1284,12 @@ function UserProfileDialog({ user, currentUserId, isFriend, onOpenChange }: { us
                   onChange={(event) => setNote(event.target.value)}
                   maxLength={120}
                   rows={3}
-                  placeholder="好友申请备注"
+                  placeholder={friendRequestNoteLabel}
                   className="w-full resize-none rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-surface] px-3 py-2 text-sm outline-none focus:border-[--color-accent]"
                 />
                 <DialogFooter>
                   <Button type="button" onClick={sendFriendRequest} disabled={sending || !note.trim()}>
-                    {sending ? "发送中..." : "添加好友"}
+                    {sending ? sendingLabel : addFriendLabel}
                   </Button>
                 </DialogFooter>
               </div>
@@ -1285,10 +1302,12 @@ function UserProfileDialog({ user, currentUserId, isFriend, onOpenChange }: { us
 }
 
 function ChannelCreateDialog({ open, onOpenChange, friends, onCreated }: { open: boolean; onOpenChange: (open: boolean) => void; friends: Friend[]; onCreated: (channel: Channel) => void }) {
+  const dict = getDict()
   const [name, setName] = useState("")
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [saving, setSaving] = useState(false)
   const selectedIds = useMemo(() => Object.entries(selected).filter(([, value]) => value).map(([id]) => id), [selected])
+  const createGroupFailedLabel = dict.channels.loadFailed
 
   async function createGroup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1301,13 +1320,13 @@ function ChannelCreateDialog({ open, onOpenChange, friends, onCreated }: { open:
         body: JSON.stringify({ name, memberIds: selectedIds }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "创建群组失败")
+      if (!res.ok) throw new Error(data.error ?? createGroupFailedLabel)
       onCreated(data)
       setName("")
       setSelected({})
       onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "创建群组失败")
+      toast.error(error instanceof Error ? error.message : createGroupFailedLabel)
     } finally {
       setSaving(false)
     }
@@ -1318,16 +1337,16 @@ function ChannelCreateDialog({ open, onOpenChange, friends, onCreated }: { open:
       <DialogContent>
         <form onSubmit={createGroup}>
           <DialogHeader>
-            <DialogTitle>创建群组</DialogTitle>
-            <DialogDescription>选择要加入群组的好友。</DialogDescription>
+            <DialogTitle>{dict.channels.createGroup}</DialogTitle>
+            <DialogDescription>{dict.channels.invite}</DialogDescription>
           </DialogHeader>
           <div className="my-4 space-y-3">
-            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="群组名称" className="w-full rounded-[--radius-sm] border border-[--color-border] px-3 py-2 text-sm outline-none focus:border-[--color-accent]" />
+            <input value={name} onChange={(event) => setName(event.target.value)} placeholder={dict.channels.groupName} className="w-full rounded-[--radius-sm] border border-[--color-border] px-3 py-2 text-sm outline-none focus:border-[--color-accent]" />
             <FriendChecklist friends={friends} selected={selected} onSelected={setSelected} />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" disabled={saving || !name.trim()}>{saving ? "创建中..." : "创建"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{dict.common.cancel}</Button>
+            <Button type="submit" disabled={saving || !name.trim()}>{saving ? dict.common.saving : dict.common.save}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -1336,11 +1355,13 @@ function ChannelCreateDialog({ open, onOpenChange, friends, onCreated }: { open:
 }
 
 function ChannelInviteDialog({ open, onOpenChange, channel, friends, onMembers }: { open: boolean; onOpenChange: (open: boolean) => void; channel: Channel; friends: Friend[]; onMembers: (members: Friend[]) => void }) {
+  const dict = getDict()
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [saving, setSaving] = useState(false)
   const memberIds = new Set(channel.members.map((member) => member.id))
   const available = friends.filter((friend) => !memberIds.has(friend.id))
   const selectedIds = useMemo(() => Object.entries(selected).filter(([, value]) => value).map(([id]) => id), [selected])
+  const inviteFailedLabel = dict.channels.loadFailed
 
   async function invite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1353,12 +1374,12 @@ function ChannelInviteDialog({ open, onOpenChange, channel, friends, onMembers }
         body: JSON.stringify({ memberIds: selectedIds }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "邀请失败")
+      if (!res.ok) throw new Error(data.error ?? inviteFailedLabel)
       onMembers(Array.isArray(data.members) ? data.members : channel.members)
       setSelected({})
       onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "邀请失败")
+      toast.error(error instanceof Error ? error.message : inviteFailedLabel)
     } finally {
       setSaving(false)
     }
@@ -1369,15 +1390,15 @@ function ChannelInviteDialog({ open, onOpenChange, channel, friends, onMembers }
       <DialogContent>
         <form onSubmit={invite}>
           <DialogHeader>
-            <DialogTitle>邀请好友</DialogTitle>
-            <DialogDescription>把可邀请的好友加入这个群组。</DialogDescription>
+            <DialogTitle>{dict.channels.invite}</DialogTitle>
+            <DialogDescription>{dict.channels.invite}</DialogDescription>
           </DialogHeader>
           <div className="my-4">
-            <FriendChecklist friends={available} selected={selected} onSelected={setSelected} emptyText="暂无可邀请好友" />
+            <FriendChecklist friends={available} selected={selected} onSelected={setSelected} emptyText={dict.common.noData} />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" disabled={saving || selectedIds.length === 0}>{saving ? "邀请中..." : "邀请"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{dict.common.cancel}</Button>
+            <Button type="submit" disabled={saving || selectedIds.length === 0}>{saving ? dict.common.saving : dict.channels.invite}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

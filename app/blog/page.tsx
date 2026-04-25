@@ -4,38 +4,44 @@ import { requireAuth } from "@/lib/auth"
 import { getModuleVisibility } from "@/lib/permissions"
 import { ArticleFolderPanel } from "@/components/article-folder-panel"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
+import { getDictionary } from "@/lib/i18n"
+import { getUserSiteSettings } from "@/lib/settings"
 import { Plus } from "lucide-react"
 
-export const metadata = { title: "博客 — My Space" }
+export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
 
 export default async function BlogPage({ searchParams }: { searchParams: Promise<{ folder?: string }> }) {
   const [{ userId }, { folder }] = await Promise.all([requireAuth(), searchParams])
   const folderFilter = folder === "uncategorized" ? null : folder || undefined
-  const [posts, visibility, folders] = await Promise.all([
+  const [posts, visibility, folders, settings] = await Promise.all([
     getPosts("blog", userId, ["private", "friends", "public"], folderFilter),
     getModuleVisibility(userId, "blog"),
     getArticleFolders("blog", userId),
+    getUserSiteSettings(userId),
   ])
+  const dict = getDictionary(settings.language)
+  const navLabel = dict.nav.blog
 
   return (
     <div className="max-w-[800px] mx-auto px-6 py-10">
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold mb-1">博客</h1>
-            <p className="text-sm text-[--color-text-muted]">{posts.length} 篇文章</p>
+            <h1 className="text-xl font-semibold mb-1">{navLabel}</h1>
+            <p className="text-sm text-[--color-text-muted]">{dict.article.count(posts.length)}</p>
           </div>
           <div className="flex items-center gap-3">
             <ModuleVisibilitySelect module="blog" initialVisibility={visibility} />
             <Link href="/blog/new" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[--color-text-primary] text-white rounded-[--radius-sm] hover:no-underline hover:opacity-90 transition-opacity">
-              <Plus size={13} /> 新建
+              <Plus size={13} /> {dict.article.new}
             </Link>
           </div>
         </div>
       </div>
       <ArticleFolderPanel type="blog" basePath="/blog" folders={folders} selectedFolder={folder} />
       {posts.length === 0 ? (
-        <p className="text-sm text-[--color-text-muted]">还没有博客文章，点击右上角新建。</p>
+        <p className="text-sm text-[--color-text-muted]">{dict.article.empty(navLabel)}</p>
       ) : (
         <div className="space-y-0">
           {posts.map((post) => (

@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getActiveChatContext } from "@/lib/active-chat"
+import { getDict } from "@/lib/i18n"
 
 type RealtimeEvent = {
   type: string
@@ -35,15 +36,15 @@ function asUserUpdate(value: unknown): RoutedUserUpdate | null {
   return value && typeof value === "object" ? (value as RoutedUserUpdate) : null
 }
 
-function messagePreview(message: ChatToastMessage) {
+function messagePreview(message: ChatToastMessage, n: ReturnType<typeof getDict>["notifications"]) {
   if (typeof message.text === "string" && message.text.trim()) return message.text.trim()
-  if (message.sticker || message.stickerEmoji) return "[Sticker]"
+  if (message.sticker || message.stickerEmoji) return n.sticker
   if (Array.isArray(message.attachments) && message.attachments.length > 0) {
     const first = message.attachments[0]
-    if (first?.mimeType?.startsWith("image/")) return "[Image]"
-    return first?.originalName || "[Attachment]"
+    if (first?.mimeType?.startsWith("image/")) return n.image
+    return first?.originalName || n.attachment
   }
-  return "You have a new message"
+  return n.newMessage
 }
 
 function isOwnWorkspacePath(pathname: string) {
@@ -77,6 +78,8 @@ function shouldRefreshUserPath(pathname: string, currentUserId: string, payload:
 export function RealtimeNotifications({ userId }: { userId: string }) {
   const pathname = usePathname()
   const router = useRouter()
+  const dict = getDict()
+  const n = dict.notifications
 
   useEffect(() => {
     const source = new EventSource("/api/realtime/events")
@@ -127,10 +130,10 @@ export function RealtimeNotifications({ userId }: { userId: string }) {
       if (pathname === chatPath) return
 
       const senderName = message.sender?.displayName || message.sender?.email || "Friend"
-      toast(`New message from ${senderName}`, {
-        description: messagePreview(message),
+      toast(`${n.from} ${senderName}`, {
+        description: messagePreview(message, n),
         action: {
-          label: "Open",
+          label: n.open,
           onClick: () => router.push(chatPath),
         },
       })

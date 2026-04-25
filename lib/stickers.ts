@@ -3,7 +3,6 @@ import { randomBytes } from "node:crypto"
 import { prisma } from "@/lib/db"
 import { getAccessLevel } from "@/lib/permissions"
 
-export const STICKER_MAX_SIZE = 5 * 1024 * 1024
 export const STICKER_SCOPES = ["custom", "public"] as const
 
 export const DEFAULT_STICKERS = [
@@ -57,6 +56,16 @@ export function serializeSticker(sticker: {
     ...sticker,
     url: `/api/stickers/${sticker.id}/file`,
   }
+}
+
+export async function isStickerUsed(stickerId: string) {
+  const [chat, channel, comment, guestbook] = await Promise.all([
+    prisma.chatMessage.findFirst({ where: { stickerId }, select: { id: true } }),
+    prisma.channelMessage.findFirst({ where: { stickerId }, select: { id: true } }),
+    prisma.comment.findFirst({ where: { stickerId }, select: { id: true } }),
+    prisma.guestbookMessage.findFirst({ where: { stickerId }, select: { id: true } }),
+  ])
+  return !!(chat || channel || comment || guestbook)
 }
 
 export async function canUseSticker(userId: string, stickerId: string) {

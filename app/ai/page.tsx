@@ -24,7 +24,7 @@ export default async function AIPage() {
               {dict.nav.ai}
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[--color-text-primary]">
-              AI 助手
+              {dict.ai.title}
             </h1>
           </div>
           {normalizedUser?.permissions.manageAI ? (
@@ -32,7 +32,7 @@ export default async function AIPage() {
               href="/admin"
               className="rounded-full border border-[--color-border] bg-[--color-bg-primary] px-4 py-2 text-sm text-[--color-text-secondary] transition-colors hover:border-[--color-border-strong] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary] hover:no-underline"
             >
-              管理 AI 授权
+              {dict.ai.manageAuth}
             </Link>
           ) : null}
         </div>

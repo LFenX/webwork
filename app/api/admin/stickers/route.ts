@@ -1,9 +1,12 @@
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir } from "node:fs/promises"
+import { createWriteStream } from "node:fs"
 import path from "node:path"
+import { Readable } from "node:stream"
+import { pipeline } from "node:stream/promises"
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdminPermission } from "@/lib/admin"
 import { prisma } from "@/lib/db"
-import { STICKER_MAX_SIZE, makeStickerFilename, serializeSticker, stickerStorageRoot } from "@/lib/stickers"
+import { makeStickerFilename, serializeSticker, stickerStorageRoot } from "@/lib/stickers"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -27,10 +30,11 @@ export async function POST(req: NextRequest) {
   const created = []
   for (const file of files) {
     if (!file.type.startsWith("image/")) return NextResponse.json({ error: "表情包只支持图片或 GIF" }, { status: 400, headers: NO_STORE })
-    if (file.size > STICKER_MAX_SIZE) return NextResponse.json({ error: "单个表情包不能超过 5MB" }, { status: 413, headers: NO_STORE })
     const filename = makeStickerFilename(file.name || "sticker")
     const storagePath = path.join("public", filename)
-    await writeFile(path.join(root, filename), Buffer.from(await file.arrayBuffer()))
+    const filePath = path.join(root, filename)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await pipeline(Readable.fromWeb(file.stream() as any), createWriteStream(filePath))
     const sticker = await prisma.stickerAsset.create({
       data: {
         scope: "public",

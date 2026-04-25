@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils"
 import { Inbox } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { getDict } from "@/lib/i18n"
 
 interface EmptyStateProps {
   title?: string
@@ -13,11 +14,14 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({
-  title = "暂无数据",
+  title,
   description,
   action,
   className,
 }: EmptyStateProps) {
+  const dict = getDict()
+  const resolvedTitle = title ?? dict.common.noData
+
   return (
     <div
       className={cn(
@@ -26,7 +30,7 @@ export function EmptyState({
       )}
     >
       <Inbox className="w-10 h-10 text-[--color-text-muted] mb-3" strokeWidth={1.5} />
-      <p className="text-sm font-medium text-[--color-text-secondary]">{title}</p>
+      <p className="text-sm font-medium text-[--color-text-secondary]">{resolvedTitle}</p>
       {description && (
         <p className="text-xs text-[--color-text-muted] mt-1 max-w-xs">{description}</p>
       )}

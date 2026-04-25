@@ -58,16 +58,16 @@ export function CreatorCard({ profile }: { profile: CreatorProfile }) {
   )
 }
 
-export function TocCard({ content }: { content: string }) {
+export function TocCard({ content, dict }: { content: string; dict?: { toc: string; noHeadings: string } }) {
   const toc = extractToc(content)
   return (
     <section className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">目录</h2>
+        <h2 className="text-sm font-semibold">{dict?.toc ?? "目录"}</h2>
         <span className="text-xs text-[--color-text-muted]">{toc.length}</span>
       </div>
       {toc.length === 0 ? (
-        <p className="text-xs text-[--color-text-muted]">暂无标题</p>
+        <p className="text-xs text-[--color-text-muted]">{dict?.noHeadings ?? "暂无标题"}</p>
       ) : (
         <nav className="space-y-2">
           {toc.map((item, index) => (
@@ -86,11 +86,11 @@ export function TocCard({ content }: { content: string }) {
   )
 }
 
-export function ArticleAside({ profile, content }: { profile: CreatorProfile; content: string }) {
+export function ArticleAside({ profile, content, dict }: { profile: CreatorProfile; content: string; dict?: { toc: string; noHeadings: string } }) {
   return (
     <aside className="mt-6 space-y-4 lg:fixed lg:bottom-6 lg:right-[max(1.5rem,calc((100vw-1360px)/2+1.5rem))] lg:top-20 lg:mt-0 lg:w-[300px] lg:overflow-y-auto">
       <CreatorCard profile={profile} />
-      <TocCard content={content} />
+      <TocCard content={content} dict={dict} />
     </aside>
   )
 }
