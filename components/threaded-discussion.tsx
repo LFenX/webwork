@@ -43,20 +43,24 @@ function buildTree(items: ThreadItem[], newestFirst: boolean) {
     else roots.push(node)
   })
 
-  if (newestFirst) roots.reverse()
-  roots.forEach((root) => sortReplies(root, newestFirst))
+  const byTime = (a: ThreadNode, b: ThreadNode) => {
+    const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    return newestFirst ? -diff : diff
+  }
+  roots.sort(byTime)
+  roots.forEach((root) => sortReplies(root, byTime))
   return roots
 }
 
-function sortReplies(node: ThreadNode, newestFirst: boolean) {
-  if (newestFirst) node.replies.reverse()
-  node.replies.forEach((reply) => sortReplies(reply, newestFirst))
+function sortReplies(node: ThreadNode, compareFn: (a: ThreadNode, b: ThreadNode) => number) {
+  node.replies.sort(compareFn)
+  node.replies.forEach((reply) => sortReplies(reply, compareFn))
 }
 
 type ThreadedDiscussionProps = {
   items: ThreadItem[]
   canReply?: boolean
-  canDelete?: (item: ThreadItem) => boolean
+  canDelete?: boolean | ((item: ThreadItem) => boolean)
   onReply: (parentId: string, content: string, sticker?: StickerPick | null) => Promise<void>
   onDelete?: (id: string) => void
   formatTime: (iso: string) => string
@@ -81,7 +85,7 @@ export function ThreadedDiscussion({
           key={node.id}
           node={node}
           canReply={canReply}
-          canDelete={canDelete?.(node) ?? (typeof canDelete === "boolean" ? canDelete : Boolean(onDelete))}
+          canDelete={typeof canDelete === "function" ? canDelete(node) : (canDelete ?? Boolean(onDelete))}
           onReply={onReply}
           onDelete={onDelete}
           formatTime={formatTime}

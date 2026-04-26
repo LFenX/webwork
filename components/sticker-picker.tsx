@@ -517,7 +517,7 @@ export function StickerPicker({ onPick, compact = false, userId }: { onPick: (pi
           </div>
         ) : null}
 
-        <div className="max-h-[420px] overflow-y-auto p-3">
+        <div className="max-h-[420px] overflow-y-auto overscroll-contain p-3" onWheel={(e) => e.stopPropagation()}>
           {tab === "default" ? (
             <div className="grid grid-cols-8 gap-1">
               {defaults.map((emoji) => (

@@ -167,6 +167,7 @@ export const aiProviderConfigSchema = z.object({
   temperature: z.number().min(0).max(2).optional().default(0.7),
   streamEnabled: z.boolean().optional().default(true),
   isEnabled: z.boolean().optional().default(true),
+  modelList: z.array(z.string().trim().min(1).max(120)).optional().default([]),
 })
 
 export const aiProviderConfigUpdateSchema = aiProviderConfigSchema.partial()
@@ -182,7 +183,19 @@ export const aiGrantSchema = z.object({
   model: z.string().trim().min(1).max(120),
   temperature: z.number().min(0).max(2).optional().default(0.7),
   streamEnabled: z.boolean().optional().default(true),
-  status: z.enum(["active", "paused"]).optional().default("active"),
+  status: z.enum(["active", "paused", "revoked", "deprecated"]).optional().default("active"),
+  modelList: z.array(z.string().trim().min(1).max(120)).optional().default([]),
+  requestId: z.string().optional(),
+  note: z.string().trim().max(500).optional(),
+})
+
+export const aiGrantUpsertSchema = aiGrantSchema.extend({
+  apiKey: z.string().trim().max(500).optional(),
+  status: z.enum(["active", "paused", "revoked", "deprecated"]).optional(),
+})
+
+export const aiConfigActivateSchema = z.object({
+  source: z.enum(["self", "admin_grant"]).optional().default("self"),
 })
 
 export const aiRequestReviewSchema = z.object({
@@ -220,6 +233,8 @@ export type AIProviderConfigInput = z.infer<typeof aiProviderConfigSchema>
 export type AIProviderConfigUpdateInput = z.infer<typeof aiProviderConfigUpdateSchema>
 export type AIAccessRequestInput = z.infer<typeof aiAccessRequestSchema>
 export type AIGrantInput = z.infer<typeof aiGrantSchema>
+export type AIGrantUpsertInput = z.infer<typeof aiGrantUpsertSchema>
+export type AIConfigActivateInput = z.infer<typeof aiConfigActivateSchema>
 export type AIRequestReviewInput = z.infer<typeof aiRequestReviewSchema>
 export type AIAttachmentInput = z.infer<typeof aiAttachmentSchema>
 export type AIStreamInput = z.infer<typeof aiStreamSchema>

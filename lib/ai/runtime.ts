@@ -1003,6 +1003,8 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
           },
         })
 
+      let gotFinalAnswer = false
+
       for (let round = 0; round < MAX_AGENT_ROUNDS; round += 1) {
         const reasoningStep = await createStep(
           params,
@@ -1073,7 +1075,8 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
           },
         })
 
-        if (result.toolCalls.length > 0 && executions.length < MAX_TOOL_CALLS) {
+        const wantsTools = result.toolCalls.length > 0 || result.finishReason === "tool_calls"
+        if (wantsTools && executions.length < MAX_TOOL_CALLS) {
           const actor = await createAIToolActor(params.userId)
           const roundToolCalls = result.toolCalls.slice(0, MAX_TOOL_CALLS - executions.length)
           // Build one assistant message with ALL tool_calls for this round (required for parallel tool calls)
@@ -1114,7 +1117,9 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
           continue
         }
 
-        if (result.assistantText) {
+        // Only treat as final answer when there are NO tool calls at all
+        if (result.assistantText && result.toolCalls.length === 0 && result.finishReason !== "tool_calls") {
+          gotFinalAnswer = true
           const stepId = await ensureAssistantStep()
           await completeAIRunStep(stepId, {
             status: "completed",
@@ -1135,6 +1140,61 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
             },
           })
           break
+        }
+      }
+
+      // If the loop exhausted all rounds without a final answer, force one more model call
+      // WITHOUT tools to get a proper summary based on collected tool results
+      if (!gotFinalAnswer && executions.length > 0) {
+        const summaryPrompt: ProviderMessage = {
+          role: "user",
+          content: "请基于以上工具执行结果，用中文给出最终总结回答。不要调用任何工具，直接给出总结。",
+        }
+        conversationMessages.push(summaryPrompt)
+        try {
+          const summaryStep = await createStep(params, state, "reasoning", "生成最终总结", "正在综合工具结果生成最终回答。")
+          await emit(params, "reasoning_started", {
+            stepId: summaryStep.id,
+            title: summaryStep.title,
+            status: "running",
+            summary: summaryStep.summary,
+          })
+          const summaryResult = await requestProviderChat({
+            provider,
+            messages: conversationMessages,
+            stream: true,
+            onAssistantStart: async () => {
+              await ensureAssistantStep()
+            },
+            onAssistantDelta: async (delta) => {
+              contentMarkdown += delta
+              const stepId = await ensureAssistantStep()
+              await params.onToken?.(delta)
+              await emit(params, "assistant_delta", { stepId, delta })
+            },
+            onReasoningStart: async () => {
+              await emit(params, "reasoning_started", { stepId: summaryStep.id, title: summaryStep.title, status: "running", summary: summaryStep.summary })
+            },
+            onReasoningDelta: async (delta) => {
+              reasoningParts.push(delta)
+              await emit(params, "reasoning_delta", { stepId: summaryStep.id, delta })
+            },
+          })
+          await completeAIRunStep(summaryStep.id, {
+            status: "completed",
+            summary: "最终总结已生成。",
+            outputPreview: { contentMarkdown, providerMetadata: summaryResult.providerMetadata ?? null },
+          })
+          await emit(params, "reasoning_completed", {
+            stepId: summaryStep.id,
+            title: summaryStep.title,
+            status: "completed",
+            summary: "最终总结已生成。",
+            outputPreview: { contentMarkdown, providerMetadata: summaryResult.providerMetadata ?? null },
+          })
+          gotFinalAnswer = true
+        } catch {
+          // If summary call fails, fall through to fallback
         }
       }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
-import { createAIAccessRequest, getMyAIAccessRequest } from "@/lib/ai/service"
+import { cancelAIAccessRequest, createAIAccessRequest, getMyAIAccessRequest } from "@/lib/ai/service"
 import { aiAccessRequestSchema } from "@/lib/validators"
 
 export const dynamic = "force-dynamic"
@@ -39,4 +39,20 @@ export async function POST(req: NextRequest) {
       createdAt: created.createdAt.toISOString(),
     },
   }, { status: 201, headers: NO_STORE })
+}
+
+export async function DELETE() {
+  const session = await requireAuth()
+  try {
+    const updated = await cancelAIAccessRequest(session.userId)
+    return NextResponse.json({
+      request: {
+        id: updated.id,
+        status: updated.status,
+      },
+    }, { headers: NO_STORE })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Forbidden"
+    return NextResponse.json({ error: message }, { status: message === "NOT_FOUND" ? 404 : 503, headers: NO_STORE })
+  }
 }

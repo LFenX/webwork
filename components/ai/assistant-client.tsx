@@ -107,17 +107,21 @@ type MessageItem = {
 
 type UserConfigSummary = {
   id: string
+  source?: string
   name: string
   isActive: boolean
   providerLabel: string
   baseUrl: string
   model: string
+  modelList?: string[]
   temperature: number
   streamEnabled: boolean
   isEnabled: boolean
   apiKeyMask: string
+  status?: string
   lastTestStatus: string
   lastTestedAt: string | null
+  grantedByAdminId?: string
 }
 
 type AIStatusResponse = {
@@ -153,6 +157,14 @@ type AIStatusResponse = {
   } | null
   userConfig: (UserConfigSummary & { capabilities?: AIProviderCapabilities | null }) | null
   userConfigs?: UserConfigSummary[]
+  grant?: {
+    id: string
+    status: string
+    providerLabel: string
+    model: string
+    modelList: string[]
+    apiKeyMask: string
+  } | null
 }
 
 const SUGGESTIONS = [
@@ -820,9 +832,17 @@ export function AIAssistantClient() {
   const activeBaseUrl = statusPayload?.status.config?.baseUrl ?? statusPayload?.userConfig?.baseUrl ?? ""
   const activeModelName = selectedModel || configuredModelName
   const capabilities = statusPayload?.status.config?.capabilities ?? statusPayload?.userConfig?.capabilities ?? null
+  const activeConfigSource = statusPayload?.userConfig?.source ?? "self"
 
   useEffect(() => {
     const syncModelCatalog = () => {
+      // For admin grants, use modelList from the config directly
+      if (activeConfigSource === "admin_grant" && statusPayload?.userConfig?.modelList?.length) {
+        setAvailableModels(statusPayload.userConfig.modelList)
+        setSelectedModel(configuredModelName)
+        return
+      }
+      // For self configs, use localStorage model catalog
       const catalog = loadModelCatalog(providerLabel, activeBaseUrl, configuredModelName)
       setAvailableModels(catalog.models)
       setSelectedModel(catalog.selectedModel || configuredModelName)
@@ -845,11 +865,26 @@ export function AIAssistantClient() {
       window.removeEventListener("storage", onStorage)
       window.removeEventListener(AI_MODEL_PRESETS_UPDATED_EVENT, onCatalogUpdated)
     }
-  }, [activeBaseUrl, configuredModelName, providerLabel])
+  }, [activeBaseUrl, configuredModelName, providerLabel, activeConfigSource, statusPayload?.userConfig?.modelList])
 
   async function sendPrompt(nextPrompt?: string) {
     const text = (nextPrompt ?? prompt).trim()
     if ((!text && attachments.length === 0) || sending) return
+
+    // Runtime grant status check
+    if (statusPayload?.status.source === "grant") {
+      const grantStatus = statusPayload?.userConfig?.status
+      if (grantStatus === "paused") {
+        toast.error(dict.ai.adminGrantPausedHint)
+        return
+      }
+      if (grantStatus === "revoked" || grantStatus === "deprecated") {
+        toast.error(dict.ai.adminGrantRevokedHint)
+        // Refresh status to get updated state
+        await loadStatus()
+        return
+      }
+    }
 
     if (!statusPayload?.status.canUseAI) {
       toast.error(dict.ai.noAvailableAiHint)
@@ -1436,8 +1471,8 @@ export function AIAssistantClient() {
               ) : null}
 
               {modelMenuOpen ? (
-                <div className="mb-3 hidden md:flex md:justify-end">
-                  <div className="w-[320px] rounded-[22px] border border-[--color-border] bg-[color:var(--color-bg-surface)] p-3 shadow-[0_18px_36px_rgba(34,27,20,0.1)]">
+                <div className="mb-3 flex justify-end">
+                  <div className="w-full max-w-[320px] rounded-[22px] border border-[--color-border] bg-[color:var(--color-bg-surface)] p-3 shadow-[0_18px_36px_rgba(34,27,20,0.1)]">
                     <div className="space-y-3">
                       <div>
                         <p className="text-sm font-medium text-[--color-text-primary]">Model switch</p>
@@ -1553,6 +1588,15 @@ export function AIAssistantClient() {
 
                   <button
                     type="button"
+                    onClick={() => setModelMenuOpen((current) => !current)}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[--color-text-muted] hover:bg-[--color-bg-hover]"
+                    aria-label={dict.ai.advanced}
+                  >
+                    <Settings2 size={18} />
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => void sendPrompt()}
                     disabled={sending || (!prompt.trim() && attachments.length === 0)}
                     className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white disabled:cursor-not-allowed disabled:bg-black/40"
@@ -1596,22 +1640,30 @@ export function AIAssistantClient() {
                   </div>
                   <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
                     {conversations.map((conversation) => (
-                      <button
-                        key={conversation.id}
-                        type="button"
-                        className={`w-full rounded-[18px] px-4 py-3 text-left transition-colors ${activeConversationId === conversation.id ? "bg-[--color-bg-hover]" : "bg-[color:var(--color-bg-surface)]"}`}
-                        onClick={() => {
-                          void loadMessages(conversation.id).then(() => {
-                            setActiveConversationId(conversation.id)
-                            setMobilePanel(null)
-                          })
-                        }}
-                      >
-                        <p className="line-clamp-2 text-sm font-medium leading-6 text-[--color-text-primary]">{conversation.title}</p>
-                        <p className="mt-1 text-xs text-[--color-text-muted]">
-                          {formatConversationTime(conversation.lastMessageAt)} · {dict.ai.messagesCount(conversation.messageCount)}
-                        </p>
-                      </button>
+                      <div key={conversation.id} className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          className={`flex-1 rounded-[18px] px-4 py-3 text-left transition-colors ${activeConversationId === conversation.id ? "bg-[--color-bg-hover]" : "bg-[color:var(--color-bg-surface)]"}`}
+                          onClick={() => {
+                            void loadMessages(conversation.id).then(() => {
+                              setActiveConversationId(conversation.id)
+                              setMobilePanel(null)
+                            })
+                          }}
+                        >
+                          <p className="line-clamp-2 text-sm font-medium leading-6 text-[--color-text-primary]">{conversation.title}</p>
+                          <p className="mt-1 text-xs text-[--color-text-muted]">
+                            {formatConversationTime(conversation.lastMessageAt)} · {dict.ai.messagesCount(conversation.messageCount)}
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[--color-text-muted] hover:bg-[--color-bg-hover] hover:text-red-600"
+                          onClick={() => void deleteConversation(conversation.id)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1635,6 +1687,24 @@ export function AIAssistantClient() {
                       <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.toolCalling)}`}>{dict.ai.toolCalling}</span>
                       <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.visionInput)}`}>{dict.ai.imageUnderstanding}</span>
                       <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.reasoningStream)}`}>{dict.ai.thinkingStream}</span>
+                    </div>
+                  ) : null}
+
+                  {availableModels.length > 1 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-[--color-text-muted]">{dict.ai.model}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {availableModels.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            className={`rounded-full px-3 py-1.5 text-xs ${m === activeModelName ? "bg-[--color-accent] text-white" : "bg-[--color-bg-hover] text-[--color-text-secondary]"}`}
+                            onClick={() => { setSelectedModel(m); setMobilePanel(null) }}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
 

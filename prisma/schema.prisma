@@ -713,6 +713,7 @@ model AIUserProviderConfig {
   temperature     Float    @default(0.7)
   streamEnabled   Boolean  @default(true)
   isEnabled       Boolean  @default(true)
+  modelList       String   @default("[]")
   lastTestedAt    DateTime?
   lastTestStatus  String   @default("unknown")
   createdAt       DateTime @default(now())
@@ -750,6 +751,7 @@ model AIUsageGrant {
   model           String   @default("")
   temperature     Float    @default(0.7)
   streamEnabled   Boolean  @default(true)
+  modelList       String   @default("[]")
   grantedById     String
   grantedBy       User     @relation("aiGrantCreator", fields: [grantedById], references: [id], onDelete: Restrict)
   updatedById     String?

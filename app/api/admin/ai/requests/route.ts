@@ -19,6 +19,9 @@ export async function GET() {
         reviewedAt: item.reviewedAt?.toISOString() ?? null,
         user: item.user,
         reviewedBy: item.reviewedBy,
+        grant: item.grant
+          ? { id: (item.grant as { id: string }).id, status: (item.grant as { status: string }).status }
+          : null,
       })),
     }, { headers: NO_STORE })
   } catch {

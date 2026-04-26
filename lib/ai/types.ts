@@ -1,5 +1,28 @@
 export type AIProviderSource = "user" | "grant" | "none"
 
+export type AiConfigSource = "self" | "admin_grant"
+
+export type AIUnifiedConfigItem = {
+  id: string
+  source: AiConfigSource
+  name: string
+  isActive: boolean
+  providerLabel: string
+  baseUrl: string
+  model: string
+  modelList: string[]
+  temperature: number
+  streamEnabled: boolean
+  isEnabled: boolean
+  apiKeyMask: string
+  status: string
+  lastTestStatus: string
+  lastTestedAt: string | null
+  createdAt: string
+  updatedAt: string
+  grantedByAdminId?: string
+}
+
 export type AIProviderCapabilities = {
   streamText: boolean
   toolCalling: boolean
@@ -38,6 +61,7 @@ export type AIUserConfigSummary = {
   providerLabel: string
   baseUrl: string
   model: string
+  modelList: string[]
   temperature: number
   streamEnabled: boolean
   isEnabled: boolean

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
 import { withProviderCapabilities } from "@/lib/ai/provider"
-import { createAIUserConfig, getAIUserConfigs } from "@/lib/ai/service"
+import { createAIUserConfig, getAIUnifiedConfigs } from "@/lib/ai/service"
 import { aiProviderConfigSchema } from "@/lib/validators"
 
 export const dynamic = "force-dynamic"
@@ -9,8 +9,9 @@ const NO_STORE = { "Cache-Control": "no-store" }
 
 export async function GET() {
   const session = await requireAuth()
-  const configs = await getAIUserConfigs(session.userId)
-  return NextResponse.json({ configs }, { headers: NO_STORE })
+  const unified = await getAIUnifiedConfigs(session.userId)
+  const allConfigs = [...unified.selfConfigs, ...unified.grantConfigs]
+  return NextResponse.json({ configs: allConfigs }, { headers: NO_STORE })
 }
 
 export async function POST(req: NextRequest) {

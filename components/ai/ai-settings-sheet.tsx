@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { CheckCircle2, KeyRound, PlugZap, Plus, Save, TestTube2, Trash2 } from "lucide-react"
+import { CheckCircle2, KeyRound, PlugZap, Plus, Save, ShieldCheck, TestTube2, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,13 +14,40 @@ import {
   saveModelCatalog,
 } from "@/lib/ai/model-presets"
 import { getDict } from "@/lib/i18n"
-import type { AIUserConfigSummary } from "@/lib/ai/types"
 
 type AIProviderCapabilities = {
   streamText: boolean
   toolCalling: boolean
   visionInput: boolean
   reasoningStream: boolean
+}
+
+type UnifiedConfigItem = {
+  id: string
+  source: "self" | "admin_grant"
+  name: string
+  isActive: boolean
+  providerLabel: string
+  baseUrl: string
+  model: string
+  modelList: string[]
+  temperature: number
+  streamEnabled: boolean
+  isEnabled: boolean
+  apiKeyMask: string
+  status: string
+  lastTestStatus: string
+  lastTestedAt: string | null
+  grantedByAdminId?: string
+}
+
+type AccessRequestInfo = {
+  id: string
+  status: string
+  message: string
+  reviewNote: string
+  createdAt: string
+  reviewedAt: string | null
 }
 
 type ConfigPayload = {
@@ -45,9 +72,9 @@ const DEFAULT_FORM: ConfigPayload = {
   isEnabled: true,
 }
 
-function buildForm(config: AIUserConfigSummary): ConfigPayload {
+function buildForm(config: UnifiedConfigItem): ConfigPayload {
   return {
-    name: config.name || "",
+    name: config.source === "self" ? (config.name || "") : "",
     providerLabel: config.providerLabel,
     baseUrl: config.baseUrl,
     apiKey: "",
@@ -55,6 +82,32 @@ function buildForm(config: AIUserConfigSummary): ConfigPayload {
     temperature: String(config.temperature ?? 0.7),
     streamEnabled: config.streamEnabled,
     isEnabled: config.isEnabled,
+  }
+}
+
+function statusBadge(status: string, dict: ReturnType<typeof getDict>) {
+  switch (status) {
+    case "active":
+      return { label: dict.ai.grantStatusActive, cls: "border-emerald-200 bg-emerald-50 text-emerald-700" }
+    case "paused":
+      return { label: dict.ai.grantStatusPaused, cls: "border-amber-200 bg-amber-50 text-amber-700" }
+    case "revoked":
+      return { label: dict.ai.grantStatusRevoked, cls: "border-red-200 bg-red-50 text-red-700" }
+    case "deprecated":
+      return { label: dict.ai.grantStatusDeprecated, cls: "border-slate-200 bg-slate-100 text-slate-500" }
+    default:
+      return { label: status, cls: "border-slate-200 bg-slate-100 text-slate-500" }
+  }
+}
+
+function requestStatusLabel(status: string, dict: ReturnType<typeof getDict>) {
+  switch (status) {
+    case "pending": return dict.ai.requestStatusPending
+    case "approved": return dict.ai.requestStatusApproved
+    case "configured": return dict.ai.requestStatusConfigured
+    case "rejected": return dict.ai.requestStatusRejected
+    case "cancelled": return dict.ai.requestStatusCancelled
+    default: return status
   }
 }
 
@@ -92,9 +145,10 @@ function AISettingsSheetBody({
   onSaved: () => Promise<void> | void
 }) {
   const dict = getDict()
-  const [configs, setConfigs] = useState<AIUserConfigSummary[]>([])
+  const [configs, setConfigs] = useState<UnifiedConfigItem[]>([])
   const [configsLoading, setConfigsLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingSource, setEditingSource] = useState<"self" | "admin_grant">("self")
   const [form, setForm] = useState<ConfigPayload>(DEFAULT_FORM)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -102,12 +156,18 @@ function AISettingsSheetBody({
   const [testStatus, setTestStatus] = useState<{ status: string; testedAt: string | null } | null>(null)
   const [modelCatalogText, setModelCatalogText] = useState("")
 
+  // Access request state
+  const [accessRequest, setAccessRequest] = useState<AccessRequestInfo | null>(null)
+  const [requestMessage, setRequestMessage] = useState("")
+  const [submittingRequest, setSubmittingRequest] = useState(false)
+  const [cancellingRequest, setCancellingRequest] = useState(false)
+
   const loadConfigs = useCallback(async () => {
     setConfigsLoading(true)
     try {
       const res = await fetch("/api/ai/configs", { cache: "no-store" })
       const data = await res.json().catch(() => null)
-      if (data?.configs) setConfigs(data.configs as AIUserConfigSummary[])
+      if (data?.configs) setConfigs(data.configs as UnifiedConfigItem[])
     } catch {
       // ignore
     } finally {
@@ -115,43 +175,73 @@ function AISettingsSheetBody({
     }
   }, [])
 
+  const loadAccessRequest = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai/access-request", { cache: "no-store" })
+      const data = await res.json().catch(() => null)
+      if (data?.request) setAccessRequest(data.request as AccessRequestInfo)
+      else setAccessRequest(null)
+    } catch {
+      // ignore
+    }
+  }, [])
+
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetching config list on mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetching config and request list on mount
     void loadConfigs()
-  }, [loadConfigs])
+    void loadAccessRequest()
+  }, [loadConfigs, loadAccessRequest])
 
   function resetForm() {
     setForm(DEFAULT_FORM)
     setEditingId(null)
+    setEditingSource("self")
     setTestedCapabilities(null)
     setTestStatus(null)
     setModelCatalogText("")
   }
 
-  function loadConfig(config: AIUserConfigSummary) {
+  function loadConfig(config: UnifiedConfigItem) {
     const f = buildForm(config)
     setForm(f)
     setEditingId(config.id)
+    setEditingSource(config.source)
     setTestedCapabilities(null)
     setTestStatus(config.lastTestedAt ? { status: config.lastTestStatus, testedAt: config.lastTestedAt } : null)
-    const catalog = loadModelCatalog(config.providerLabel, config.baseUrl, config.model)
-    setModelCatalogText(modelCatalogToTextareaValue(catalog.models))
+
+    if (config.source === "admin_grant" && config.modelList.length > 0) {
+      setModelCatalogText(modelCatalogToTextareaValue(config.modelList))
+    } else if (config.source === "self") {
+      const catalog = loadModelCatalog(config.providerLabel, config.baseUrl, config.model)
+      setModelCatalogText(modelCatalogToTextareaValue(catalog.models))
+    } else {
+      setModelCatalogText("")
+    }
   }
 
   async function handleSave() {
-    if (!form.name.trim()) {
+    if (!form.name.trim() && editingSource === "self") {
       toast.error(dict.ai.configNamePlaceholder)
       return
     }
+
+    // Cannot edit admin grants
+    if (editingSource === "admin_grant") {
+      toast.error("管理员授权配置不能编辑，请联系管理员修改")
+      return
+    }
+
     setSaving(true)
     try {
+      const modelList = modelCatalogText
+        .split(/\r?\n|,/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+
       const catalog = saveModelCatalog(
         form.providerLabel,
         form.baseUrl,
-        modelCatalogText
-          .split(/\r?\n|,/)
-          .map((item) => item.trim())
-          .filter(Boolean),
+        modelList,
         form.model,
       )
       setModelCatalogText(modelCatalogToTextareaValue(catalog.models))
@@ -165,6 +255,7 @@ function AISettingsSheetBody({
         temperature: Number(form.temperature || "0.7"),
         streamEnabled: form.streamEnabled,
         isEnabled: form.isEnabled,
+        modelList,
       }
 
       const url = editingId ? `/api/ai/configs/${editingId}` : "/api/ai/configs"
@@ -202,7 +293,7 @@ function AISettingsSheetBody({
         streamEnabled: form.streamEnabled,
         isEnabled: form.isEnabled,
       }
-      if (editingId) body.configId = editingId
+      if (editingId && editingSource === "self") body.configId = editingId
 
       const res = await fetch("/api/ai/config/test", {
         method: "POST",
@@ -239,19 +330,77 @@ function AISettingsSheetBody({
     }
   }
 
-  async function handleActivate(configId: string) {
+  async function handleActivate(configId: string, source: string) {
     try {
-      const res = await fetch(`/api/ai/configs/${configId}/activate`, { method: "POST" })
-      if (!res.ok) throw new Error()
+      const res = await fetch(`/api/ai/configs/${configId}/activate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        if (res.status === 409 && data?.code === "GRANT_PAUSED") {
+          toast.error(dict.ai.adminGrantPausedHint)
+          return
+        }
+        if (res.status === 409 && data?.code === "GRANT_REVOKED") {
+          toast.error(dict.ai.adminGrantRevokedHint)
+          // Remove revoked grant from local list
+          setConfigs((current) => current.filter((c) => !(c.id === configId && c.source === "admin_grant")))
+          return
+        }
+        throw new Error(data?.error ?? dict.ai.activateFailed)
+      }
       toast.success(dict.ai.configActivated)
       await loadConfigs()
       await onSaved()
-    } catch {
-      toast.error(dict.ai.saveConfigFailed)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : dict.ai.saveConfigFailed)
+    }
+  }
+
+  async function handleSubmitAccessRequest() {
+    if (!requestMessage.trim()) return
+    setSubmittingRequest(true)
+    try {
+      const res = await fetch("/api/ai/access-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: requestMessage }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? dict.ai.submitRequestFailed)
+      toast.success(dict.ai.aiRequestSubmitted)
+      setRequestMessage("")
+      await loadAccessRequest()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : dict.ai.submitRequestFailed)
+    } finally {
+      setSubmittingRequest(false)
+    }
+  }
+
+  async function handleCancelAccessRequest() {
+    if (!confirm(dict.ai.cancelRequestConfirm)) return
+    setCancellingRequest(true)
+    try {
+      const res = await fetch("/api/ai/access-request", { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error ?? "Failed to cancel")
+      }
+      toast.success(dict.ai.requestCancelled)
+      await loadAccessRequest()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel")
+    } finally {
+      setCancellingRequest(false)
     }
   }
 
   const activeConfig = configs.find((c) => c.isActive)
+  const selfConfigs = configs.filter((c) => c.source === "self")
+  const grantConfigs = configs.filter((c) => c.source === "admin_grant")
 
   return (
     <SheetContent side="right" className="w-[min(100vw,520px)] sm:max-w-none overflow-y-auto">
@@ -272,6 +421,56 @@ function AISettingsSheetBody({
           </div>
         ) : null}
 
+        {/* Admin Grant Request Section — always visible */}
+        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={16} className="text-[--color-text-muted]" />
+            <span className="text-sm font-medium text-[--color-text-primary]">{dict.ai.adminGrantRequest}</span>
+          </div>
+          <p className="mt-1 text-xs text-[--color-text-muted]">{dict.ai.adminGrantDesc}</p>
+
+          {!accessRequest || accessRequest.status === "rejected" || accessRequest.status === "cancelled" ? (
+            <div className="mt-3 space-y-2">
+              <Textarea
+                value={requestMessage}
+                onChange={(event) => setRequestMessage(event.target.value)}
+                rows={3}
+                placeholder={dict.ai.requestPlaceholder}
+                className="min-h-[80px] resize-y"
+              />
+              <Button size="sm" onClick={() => void handleSubmitAccessRequest()} disabled={submittingRequest || !requestMessage.trim()}>
+                {submittingRequest ? dict.ai.requestingAccess : dict.ai.applyForGrant}
+              </Button>
+            </div>
+          ) : accessRequest.status === "pending" ? (
+            <div className="mt-3 rounded-[--radius-md] border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm font-medium text-amber-800">{dict.ai.requestStatusPending}</p>
+              <p className="mt-1 text-xs text-amber-700">{accessRequest.message}</p>
+              <p className="mt-1 text-xs text-amber-600">
+                {new Date(accessRequest.createdAt).toLocaleString()}
+              </p>
+              <Button size="sm" variant="outline" className="mt-2" onClick={() => void handleCancelAccessRequest()} disabled={cancellingRequest}>
+                <X size={14} className="mr-1" />
+                {dict.ai.cancelRequest}
+              </Button>
+            </div>
+          ) : accessRequest.status === "approved" ? (
+            <div className="mt-3 rounded-[--radius-md] border border-blue-200 bg-blue-50 p-3">
+              <p className="text-sm font-medium text-blue-800">{dict.ai.requestStatusApproved}</p>
+              <p className="mt-1 text-xs text-blue-700">{dict.admin.aiPanel.awaitingConfig}</p>
+            </div>
+          ) : accessRequest.status === "configured" ? (
+            <div className="mt-3 rounded-[--radius-md] border border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-sm font-medium text-emerald-800">{dict.ai.adminGrantConfigured}</p>
+              <p className="mt-1 text-xs text-emerald-700">
+                {grantConfigs.length > 0
+                  ? dict.ai.requestStatusConfigured
+                  : dict.admin.aiPanel.awaitingConfig}
+              </p>
+            </div>
+          ) : null}
+        </div>
+
         {/* Saved configs list */}
         <div>
           <div className="flex items-center justify-between">
@@ -287,45 +486,72 @@ function AISettingsSheetBody({
             <p className="mt-2 text-xs text-[--color-text-muted]">{dict.ai.noSavedConfigs}</p>
           ) : (
             <div className="mt-2 space-y-2">
-              {configs.map((config) => (
-                <div
-                  key={config.id}
-                  className={`rounded-[--radius-lg] border p-3 ${config.isActive ? "border-emerald-300 bg-emerald-50/50" : "border-[--color-border] bg-[--color-bg-surface]"}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium text-[--color-text-primary]">{config.name || config.providerLabel}</span>
-                        {config.isActive ? (
-                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
-                            <CheckCircle2 size={10} />
-                            {dict.ai.activeBadge}
+              {configs.map((config) => {
+                const badge = config.source === "admin_grant" ? statusBadge(config.status, dict) : null
+                return (
+                  <div
+                    key={`${config.source}-${config.id}`}
+                    className={`rounded-[--radius-lg] border p-3 ${config.isActive ? "border-emerald-300 bg-emerald-50/50" : "border-[--color-border] bg-[--color-bg-surface]"}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-medium text-[--color-text-primary]">
+                            {config.name || config.providerLabel}
                           </span>
+                          {config.isActive ? (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                              <CheckCircle2 size={10} />
+                              {dict.ai.activeBadge}
+                            </span>
+                          ) : null}
+                          <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs ${
+                            config.source === "admin_grant"
+                              ? "border border-blue-200 bg-blue-50 text-blue-700"
+                              : "border border-slate-200 bg-slate-100 text-slate-600"
+                          }`}>
+                            {config.source === "admin_grant" ? dict.ai.sourceAdminGrant : dict.ai.sourceSelf}
+                          </span>
+                          {badge ? (
+                            <span className={`inline-flex shrink-0 rounded-full border px-2 py-0.5 text-xs ${badge.cls}`}>
+                              {badge.label}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">
+                          {config.providerLabel} / {config.model || "—"}
+                        </p>
+                        <p className="mt-0.5 text-xs text-[--color-text-muted]">
+                          {config.apiKeyMask}
+                          {config.source === "self" ? (
+                            <> &middot; {dict.ai.lastTest}{config.lastTestStatus}</>
+                          ) : null}
+                        </p>
+                      </div>
+                      <div className="ml-2 flex shrink-0 gap-1">
+                        {!config.isActive && config.source === "self" ? (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => handleActivate(config.id, config.source)} title={dict.ai.activateConfig}>
+                            <CheckCircle2 size={14} />
+                          </Button>
+                        ) : null}
+                        {!config.isActive && config.source === "admin_grant" ? (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => handleActivate(config.id, config.source)} title={dict.ai.activateConfig}>
+                            <CheckCircle2 size={14} />
+                          </Button>
+                        ) : null}
+                        <Button type="button" variant="ghost" size="sm" onClick={() => loadConfig(config)} title={dict.ai.loadConfig}>
+                          <PlugZap size={14} />
+                        </Button>
+                        {config.source === "self" ? (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => handleDeleteConfig(config.id, config.name || config.providerLabel)} title={dict.ai.deleteConfigBtn}>
+                            <Trash2 size={14} />
+                          </Button>
                         ) : null}
                       </div>
-                      <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">
-                        {config.providerLabel} / {config.model || "—"}
-                      </p>
-                      <p className="mt-0.5 text-xs text-[--color-text-muted]">
-                        {config.apiKeyMask} &middot; {dict.ai.lastTest}{config.lastTestStatus}
-                      </p>
-                    </div>
-                    <div className="ml-2 flex shrink-0 gap-1">
-                      {!config.isActive ? (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => handleActivate(config.id)} title={dict.ai.activateConfig}>
-                          <CheckCircle2 size={14} />
-                        </Button>
-                      ) : null}
-                      <Button type="button" variant="ghost" size="sm" onClick={() => loadConfig(config)} title={dict.ai.loadConfig}>
-                        <PlugZap size={14} />
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => handleDeleteConfig(config.id, config.name || config.providerLabel)} title={dict.ai.deleteConfigBtn}>
-                        <Trash2 size={14} />
-                      </Button>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -345,31 +571,68 @@ function AISettingsSheetBody({
                 {testStatus?.testedAt ? ` / ${new Date(testStatus.testedAt).toLocaleString()}` : ""}
               </p>
             ) : null}
+            {editingSource === "admin_grant" ? (
+              <p className="mt-1 text-xs text-blue-700">
+                {dict.ai.sourceAdminGrant} — API Key 不可编辑，如需修改请联系管理员
+              </p>
+            ) : null}
             <CapabilityPills capabilities={testedCapabilities} dict={dict} />
           </div>
         ) : null}
 
-        {/* Form */}
+        {/* Form — only show full edit for self configs */}
         <div className="space-y-3">
           <div>
             <Label className="mb-1 block text-xs">{dict.ai.configName}</Label>
-            <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder={dict.ai.configNamePlaceholder} />
+            <Input
+              value={form.name}
+              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+              placeholder={dict.ai.configNamePlaceholder}
+              disabled={editingSource === "admin_grant"}
+            />
           </div>
           <div>
             <Label className="mb-1 block text-xs">{dict.ai.providerLabel}</Label>
-            <Input value={form.providerLabel} onChange={(event) => setForm((current) => ({ ...current, providerLabel: event.target.value }))} />
+            <Input
+              value={form.providerLabel}
+              onChange={(event) => setForm((current) => ({ ...current, providerLabel: event.target.value }))}
+              disabled={editingSource === "admin_grant"}
+            />
           </div>
           <div>
             <Label className="mb-1 block text-xs">{dict.ai.baseUrl}</Label>
-            <Input value={form.baseUrl} onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.example.com/v1" />
+            <Input
+              name="ai-provider-base-url"
+              autoComplete="off"
+              value={form.baseUrl}
+              onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))}
+              placeholder="例如：https://api.openai.com/v1"
+              disabled={editingSource === "admin_grant"}
+            />
           </div>
           <div>
             <Label className="mb-1 block text-xs">{dict.ai.apiKey}</Label>
-            <Input type="password" value={form.apiKey} onChange={(event) => setForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={dict.ai.apiKeyPlaceholder} />
+            <Input
+              type="password"
+              name="ai-provider-api-key"
+              autoComplete="new-password"
+              data-lpignore="true"
+              value={form.apiKey}
+              onChange={(event) => setForm((current) => ({ ...current, apiKey: event.target.value }))}
+              placeholder={editingSource === "admin_grant" ? "管理员已配置，不可查看" : "请输入 API Key，例如 sk-..."}
+              disabled={editingSource === "admin_grant"}
+            />
           </div>
           <div>
             <Label className="mb-1 block text-xs">{dict.ai.model}</Label>
-            <Input value={form.model} onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))} placeholder={dict.ai.modelPlaceholder} />
+            <Input
+              name="ai-default-model"
+              autoComplete="off"
+              value={form.model}
+              onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))}
+              placeholder="例如：gpt-4.1-mini 或 qwen3.6-plus"
+              disabled={editingSource === "admin_grant"}
+            />
           </div>
           <div>
             <Label className="mb-1 block text-xs">{dict.ai.modelListLabel}</Label>
@@ -379,37 +642,58 @@ function AISettingsSheetBody({
               rows={5}
               placeholder={dict.ai.modelListPlaceholder}
               className="min-h-[132px] resize-y"
+              disabled={editingSource === "admin_grant"}
             />
-            <p className="mt-2 text-xs text-[--color-text-muted]">{dict.ai.modelListHint}</p>
+            <p className="mt-2 text-xs text-[--color-text-muted]">
+              {editingSource === "admin_grant"
+                ? "管理员配置的模型列表（只读）"
+                : dict.ai.modelListHint}
+            </p>
           </div>
           <div>
             <Label className="mb-1 block text-xs">{dict.ai.temperature}</Label>
-            <Input value={form.temperature} onChange={(event) => setForm((current) => ({ ...current, temperature: event.target.value }))} />
+            <Input
+              value={form.temperature}
+              onChange={(event) => setForm((current) => ({ ...current, temperature: event.target.value }))}
+              disabled={editingSource === "admin_grant"}
+            />
           </div>
           <div className="flex items-center justify-between rounded-[--radius-lg] border border-[--color-border] px-3 py-2">
             <div>
               <p className="text-sm font-medium text-[--color-text-primary]">{dict.ai.streamEnabled}</p>
               <p className="text-xs text-[--color-text-muted]">{dict.ai.streamEnabledHint}</p>
             </div>
-            <input type="checkbox" checked={form.streamEnabled} onChange={(event) => setForm((current) => ({ ...current, streamEnabled: event.target.checked }))} />
+            <input
+              type="checkbox"
+              checked={form.streamEnabled}
+              onChange={(event) => setForm((current) => ({ ...current, streamEnabled: event.target.checked }))}
+              disabled={editingSource === "admin_grant"}
+            />
           </div>
           <div className="flex items-center justify-between rounded-[--radius-lg] border border-[--color-border] px-3 py-2">
             <div>
               <p className="text-sm font-medium text-[--color-text-primary]">{dict.ai.enableConfigLabel}</p>
               <p className="text-xs text-[--color-text-muted]">{dict.ai.enableConfigHint}</p>
             </div>
-            <input type="checkbox" checked={form.isEnabled} onChange={(event) => setForm((current) => ({ ...current, isEnabled: event.target.checked }))} />
+            <input
+              type="checkbox"
+              checked={form.isEnabled}
+              onChange={(event) => setForm((current) => ({ ...current, isEnabled: event.target.checked }))}
+              disabled={editingSource === "admin_grant"}
+            />
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={handleTest} disabled={testing}>
-            <TestTube2 size={14} /> {testing ? dict.ai.testingConnection : dict.ai.testConnectionBtn}
-          </Button>
-          <Button type="button" onClick={handleSave} disabled={saving || !storageReady}>
-            <Save size={14} /> {saving ? dict.ai.savingConfig : dict.ai.saveConfigBtn}
-          </Button>
-        </div>
+        {editingSource === "self" ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={handleTest} disabled={testing}>
+              <TestTube2 size={14} /> {testing ? dict.ai.testingConnection : dict.ai.testConnectionBtn}
+            </Button>
+            <Button type="button" onClick={handleSave} disabled={saving || !storageReady}>
+              <Save size={14} /> {saving ? dict.ai.savingConfig : dict.ai.saveConfigBtn}
+            </Button>
+          </div>
+        ) : null}
 
         <div className="rounded-[--radius-lg] border border-dashed border-[--color-border] bg-[--color-bg-hover] p-4 text-sm text-[--color-text-secondary]">
           <div className="flex items-center gap-2 font-medium text-[--color-text-primary]">

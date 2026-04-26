@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useState } from "react"
 import { toast } from "sonner"
 import { StickerPicker, type StickerPick } from "@/components/sticker-picker"
 import { ThreadedDiscussion, type ThreadItem } from "@/components/threaded-discussion"
@@ -45,66 +45,61 @@ export function GuestbookSection({ ownerId, initialMessages, isOwner, canPost }:
   const [sticker, setSticker] = useState<StickerPick | null>(null)
   const [sending, setSending] = useState(false)
 
-  async function handleSubmit() {
+  const handleSubmit = useCallback(async () => {
     if (!content.trim() && !sticker) return
     setSending(true)
     try {
-      const res = await fetch(`/api/guestbook/${ownerId}`, {
+      const res = await fetch("/api/guestbook", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ownerId,
           content: content.trim(),
           stickerId: sticker?.type === "asset" ? sticker.id : null,
           stickerEmoji: sticker?.type === "emoji" ? sticker.emoji : null,
         }),
       })
-      if (!res.ok) throw new Error("Failed to send message")
-      const saved = await res.json()
-      setMessages((prev) => [...prev, saved])
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data.error ?? "留言失败")
+        return
+      }
+      setMessages((prev) => [data as Message, ...prev])
       setContent("")
       setSticker(null)
-    } catch {
-      toast.error("Failed to send message")
     } finally {
       setSending(false)
     }
-  }
+  }, [content, sticker, ownerId])
 
-  async function handleReply(parentId: string, replyContent: string, replySticker?: StickerPick | null) {
-    try {
-      const res = await fetch(`/api/guestbook/${ownerId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: replyContent.trim(),
-          parentId,
-          stickerId: replySticker?.type === "asset" ? replySticker.id : null,
-          stickerEmoji: replySticker?.type === "emoji" ? replySticker.emoji : null,
-        }),
-      })
-      if (!res.ok) throw new Error("Failed to post reply")
-      const saved = await res.json()
-      setMessages((prev) => [...prev, saved])
-    } catch {
-      toast.error("Failed to post reply")
+  const handleReply = useCallback(async (parentId: string, replyContent: string, replySticker?: StickerPick | null) => {
+    const res = await fetch("/api/guestbook", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ownerId,
+        content: replyContent.trim(),
+        parentId,
+        stickerId: replySticker?.type === "asset" ? replySticker.id : null,
+        stickerEmoji: replySticker?.type === "emoji" ? replySticker.emoji : null,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toast.error(data.error ?? "回复失败")
+      throw new Error(data.error ?? "回复失败")
     }
-  }
+    setMessages((prev) => [...prev, data as Message])
+  }, [ownerId])
 
-  async function handleDelete(id: string) {
-    try {
-      const res = await fetch(`/api/guestbook/${ownerId}/${id}`, { method: "DELETE" })
-      if (!res.ok) throw new Error("Failed to delete message")
-      setMessages((prev) => prev.filter((item) => item.id !== id))
-      toast("Message deleted")
-    } catch {
-      toast.error("Failed to delete message")
+  const handleDelete = useCallback(async (id: string) => {
+    const res = await fetch(`/api/guestbook/${id}`, { method: "DELETE" })
+    if (!res.ok) {
+      toast.error("删除失败")
+      return
     }
-  }
-
-  const canDelete = useCallback(
-    (item: ThreadItem) => isOwner || item.author.id === ownerId,
-    [isOwner, ownerId]
-  )
+    setMessages((prev) => prev.filter((item) => item.id !== id))
+  }, [])
 
   function formatRelative(iso: string) {
     const diff = Date.now() - new Date(iso).getTime()
@@ -127,23 +122,23 @@ export function GuestbookSection({ ownerId, initialMessages, isOwner, canPost }:
           <textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            onKeyDown={(event) => handleEnterToSubmit(event, () => void handleSubmit(), { disabled: sending || (!content.trim() && !sticker) })}
+            onKeyDown={(event) => handleEnterToSubmit(event, handleSubmit, { disabled: sending || (!content.trim() && !sticker) })}
             placeholder={gb.placeholder}
             rows={3}
             className="w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-surface] p-3 text-sm outline-none focus:border-[--color-accent]"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2">
             <StickerPicker onPick={setSticker} />
+            {sticker && <SelectedStickerView sticker={sticker} onClear={() => setSticker(null)} />}
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={sending || (!content.trim() && !sticker)}
+              className="inline-flex items-center gap-1.5 rounded-[--radius-sm] bg-[#1A1A1A] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#333] disabled:opacity-50"
+            >
+              {sending ? gb.sending : gb.submit}
+            </button>
           </div>
-          {sticker && <SelectedStickerView sticker={sticker} onClear={() => setSticker(null)} />}
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={sending || (!content.trim() && !sticker)}
-            className="inline-flex items-center gap-1.5 rounded-[--radius-sm] bg-[--color-text-primary] px-4 py-2 text-sm text-[--color-bg-surface] hover:opacity-90 disabled:opacity-50"
-          >
-            {sending ? gb.sending : gb.submit}
-          </button>
         </div>
       )}
 
@@ -153,7 +148,7 @@ export function GuestbookSection({ ownerId, initialMessages, isOwner, canPost }:
         <ThreadedDiscussion
           items={messages}
           canReply={canPost}
-          canDelete={canDelete}
+          canDelete={isOwner}
           onReply={handleReply}
           onDelete={handleDelete}
           formatTime={formatRelative}

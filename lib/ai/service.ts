@@ -24,9 +24,19 @@ import type {
   AIConversationCreateInput,
   AIConversationUpdateInput,
   AIGrantInput,
+  AIGrantUpsertInput,
   AIProviderConfigInput,
   AIProviderConfigUpdateInput,
 } from "@/lib/validators"
+
+function parseModelList(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string" && v.trim().length > 0) : []
+  } catch {
+    return []
+  }
+}
 
 function toSafeConfig(value: {
   providerLabel: string
@@ -111,7 +121,8 @@ function buildConversationTitle(prompt: string) {
 }
 
 function isDefaultConversationTitle(title: string) {
-  return ["New conversation", "新会话", ""].includes(title.trim())
+  const t = title.trim()
+  return t === "" || t === "New conversation" || t === "新会话" || t === "新建对话" || t === "新建会话"
 }
 
 export async function getAIStatusSnapshot(userId: string): Promise<AIStatusSnapshot> {
@@ -216,7 +227,18 @@ export async function getEffectiveProviderConfig(userId: string, modelOverride?:
   }
 
   const grant = await prisma.aIUsageGrant.findUnique({ where: { userId } })
-  if (!grant?.apiKeyEncrypted || grant.status !== "active") return null
+  if (!grant?.apiKeyEncrypted) return null
+  if (grant.status === "paused") {
+    const error: Error & { code?: string } = new Error("管理员已暂停该模型的使用授权")
+    error.code = "GRANT_PAUSED"
+    throw error
+  }
+  if (grant.status === "revoked" || grant.status === "deprecated") {
+    const error: Error & { code?: string } = new Error("管理员已弃用该配置")
+    error.code = "GRANT_REVOKED"
+    throw error
+  }
+  if (grant.status !== "active") return null
   return {
     ...toSafeConfig({ ...grant, model: resolvedModel }),
     source: "grant",
@@ -378,7 +400,7 @@ export async function listRecentConversationHistory(userId: string, conversation
 }
 
 export async function getAIUserConfigs(userId: string) {
-  return prisma.aIUserProviderConfig.findMany({
+  const configs = await prisma.aIUserProviderConfig.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },
     select: {
@@ -388,6 +410,7 @@ export async function getAIUserConfigs(userId: string) {
       providerLabel: true,
       baseUrl: true,
       model: true,
+      modelList: true,
       temperature: true,
       streamEnabled: true,
       isEnabled: true,
@@ -398,10 +421,73 @@ export async function getAIUserConfigs(userId: string) {
       updatedAt: true,
     },
   })
+
+  return configs.map((c) => ({
+    ...c,
+    modelList: parseModelList(c.modelList),
+    lastTestedAt: c.lastTestedAt?.toISOString() ?? null,
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.updatedAt.toISOString(),
+  }))
 }
 
 export async function getAIUserConfigById(configId: string) {
   return prisma.aIUserProviderConfig.findUnique({ where: { id: configId } })
+}
+
+export async function getAIUnifiedConfigs(userId: string) {
+  const [userConfigs, grant] = await Promise.all([
+    getAIUserConfigs(userId),
+    prisma.aIUsageGrant.findUnique({ where: { userId } }),
+  ])
+
+  const selfConfigs = userConfigs.map((c) => ({
+    id: c.id,
+    source: "self" as const,
+    name: c.name,
+    isActive: c.isActive,
+    providerLabel: c.providerLabel,
+    baseUrl: c.baseUrl,
+    model: c.model,
+    modelList: c.modelList,
+    temperature: c.temperature,
+    streamEnabled: c.streamEnabled,
+    isEnabled: c.isEnabled,
+    apiKeyMask: c.apiKeyMask,
+    status: "active",
+    lastTestStatus: c.lastTestStatus,
+    lastTestedAt: c.lastTestedAt,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+    grantedByAdminId: undefined as string | undefined,
+  }))
+
+  const grantConfigs = grant
+    ? [
+        {
+          id: grant.id,
+          source: "admin_grant" as const,
+          name: `管理员授权 - ${grant.providerLabel}`,
+          isActive: !userConfigs.some((c) => c.isActive),
+          providerLabel: grant.providerLabel,
+          baseUrl: grant.baseUrl,
+          model: grant.model,
+          modelList: parseModelList(grant.modelList),
+          temperature: grant.temperature,
+          streamEnabled: grant.streamEnabled,
+          isEnabled: grant.status === "active",
+          apiKeyMask: grant.apiKeyMask,
+          status: grant.status,
+          lastTestStatus: "unknown",
+          lastTestedAt: null,
+          createdAt: grant.createdAt.toISOString(),
+          updatedAt: grant.updatedAt.toISOString(),
+          grantedByAdminId: grant.grantedById,
+        },
+      ]
+    : []
+
+  return { selfConfigs, grantConfigs }
 }
 
 export async function getActiveUserConfig(userId: string) {
@@ -420,6 +506,8 @@ export async function createAIUserConfig(userId: string, input: AIProviderConfig
   const activeCount = await prisma.aIUserProviderConfig.count({ where: { userId, isActive: true } })
   const isActive = activeCount === 0
 
+  const modelListJson = JSON.stringify(input.modelList?.filter(Boolean) ?? [])
+
   const config = await prisma.aIUserProviderConfig.create({
     data: {
       userId,
@@ -434,6 +522,7 @@ export async function createAIUserConfig(userId: string, input: AIProviderConfig
       temperature: input.temperature ?? 0.7,
       streamEnabled: input.streamEnabled ?? true,
       isEnabled: input.isEnabled ?? true,
+      modelList: modelListJson,
     },
   })
 
@@ -465,6 +554,9 @@ export async function updateAIUserConfig(configId: string, input: AIProviderConf
   if (encryptedApiKey) {
     data.apiKeyEncrypted = encryptedApiKey
     data.apiKeyMask = maskApiKey(apiKey!)
+  }
+  if (input.modelList !== undefined) {
+    data.modelList = JSON.stringify(input.modelList.filter(Boolean))
   }
 
   const config = await prisma.aIUserProviderConfig.update({
@@ -527,6 +619,36 @@ export async function setActiveAIUserConfig(configId: string) {
   })
 }
 
+export async function activateAIUnifiedConfig(userId: string, configId: string, source: string) {
+  if (source === "admin_grant") {
+    const grant = await prisma.aIUsageGrant.findUnique({ where: { id: configId } })
+    if (!grant || grant.userId !== userId) throw new Error("NOT_FOUND")
+    if (grant.status === "paused") {
+      const error: Error & { code?: string } = new Error("该模型已被管理员暂停使用，请联系管理员")
+      error.code = "GRANT_PAUSED"
+      throw error
+    }
+    if (grant.status === "revoked" || grant.status === "deprecated") {
+      const error: Error & { code?: string } = new Error("该配置已被管理员弃用")
+      error.code = "GRANT_REVOKED"
+      throw error
+    }
+    // Deactivate all user self configs, grant becomes the effective config
+    await prisma.aIUserProviderConfig.updateMany({
+      where: { userId },
+      data: { isActive: false },
+    })
+    await createAIAuditLog(userId, userId, "ai_grant_activated", "Activated admin grant as AI config", {
+      grantId: configId,
+    })
+    return { success: true }
+  }
+
+  // self config activation
+  await setActiveAIUserConfig(configId)
+  return { success: true }
+}
+
 export async function markAIUserConfigTest(configId: string, status: "passed" | "failed") {
   const config = await prisma.aIUserProviderConfig.findUnique({ where: { id: configId } })
   if (!config) return
@@ -580,13 +702,24 @@ export async function createAIAccessRequest(userId: string, input: AIAccessReque
 }
 
 export async function listAdminAIRequests() {
-  return prisma.aIAccessRequest.findMany({
+  const requests = await prisma.aIAccessRequest.findMany({
     orderBy: { createdAt: "desc" },
     include: {
-      user: { select: { id: true, email: true, displayName: true } },
+      user: {
+        select: {
+          id: true, email: true, displayName: true,
+          aiUsageGrant: { select: { id: true, status: true, providerLabel: true } },
+        },
+      },
       reviewedBy: { select: { id: true, email: true, displayName: true } },
     },
   })
+
+  return requests.map((r) => ({
+    ...r,
+    grant: r.user.aiUsageGrant ?? null,
+    user: { id: r.user.id, email: r.user.email, displayName: r.user.displayName },
+  }))
 }
 
 export async function createAIAuditLog(
@@ -655,41 +788,83 @@ export async function rejectAIAccessRequest(adminId: string, requestId: string, 
   return updated
 }
 
-export async function upsertAIGrant(adminId: string, userId: string, input: AIGrantInput) {
-  const apiKey = input.apiKey.trim()
-  const encryptedApiKey = encryptSecret(apiKey)
+export async function upsertAIGrant(adminId: string, userId: string, input: AIGrantUpsertInput) {
+  const apiKey = (typeof input.apiKey === "string" ? input.apiKey.trim() : "")
+  const hasNewApiKey = apiKey.length > 0
+  const encryptedApiKey = hasNewApiKey ? encryptSecret(apiKey) : undefined
+  const apiKeyMasked = hasNewApiKey ? maskApiKey(apiKey) : undefined
   const normalizedBaseUrl = normalizeBaseUrl(input.baseUrl)
+  const modelListJson = JSON.stringify(input.modelList?.filter(Boolean) ?? [])
 
-  const grant = await prisma.aIUsageGrant.upsert({
-    where: { userId },
-    update: {
-      providerLabel: input.providerLabel.trim(),
-      baseUrl: normalizedBaseUrl,
-      apiKeyEncrypted: encryptedApiKey,
-      apiKeyMask: maskApiKey(apiKey),
-      model: input.model.trim(),
-      temperature: input.temperature ?? 0.7,
-      streamEnabled: input.streamEnabled ?? true,
-      status: input.status ?? "active",
-      updatedById: adminId,
-      revokedAt: null,
-    },
-    create: {
-      userId,
-      providerLabel: input.providerLabel.trim(),
-      baseUrl: normalizedBaseUrl,
-      apiKeyEncrypted: encryptedApiKey,
-      apiKeyMask: maskApiKey(apiKey),
-      model: input.model.trim(),
-      temperature: input.temperature ?? 0.7,
-      streamEnabled: input.streamEnabled ?? true,
-      status: input.status ?? "active",
-      grantedById: adminId,
-      updatedById: adminId,
-    },
-  })
+  // Validate user exists
+  const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } })
+  if (!targetUser) throw new Error("TARGET_USER_NOT_FOUND")
 
-  await createAIAuditLog(adminId, userId, "ai_grant_upserted", "Updated AI usage grant", {
+  // Check if grant already exists to determine create vs update
+  const existingGrant = await prisma.aIUsageGrant.findUnique({ where: { userId } })
+  const isUpdate = Boolean(existingGrant)
+
+  const commonData = {
+    providerLabel: input.providerLabel.trim(),
+    baseUrl: normalizedBaseUrl,
+    model: input.model.trim(),
+    temperature: input.temperature ?? 0.7,
+    streamEnabled: input.streamEnabled ?? true,
+    modelList: modelListJson,
+  }
+
+  const grant = isUpdate
+    ? await prisma.aIUsageGrant.update({
+        where: { userId },
+        data: {
+          ...commonData,
+          ...(hasNewApiKey ? { apiKeyEncrypted: encryptedApiKey!, apiKeyMask: apiKeyMasked! } : {}),
+          status: input.status ?? existingGrant!.status,
+          updatedById: adminId,
+          revokedAt: input.status === "active" ? null : input.status === "revoked" || input.status === "deprecated" ? new Date() : undefined,
+        },
+      })
+    : await prisma.aIUsageGrant.create({
+        data: {
+          ...commonData,
+          userId,
+          apiKeyEncrypted: encryptedApiKey ?? "",
+          apiKeyMask: apiKeyMasked ?? "",
+          status: input.status ?? "active",
+          grantedById: adminId,
+          updatedById: adminId,
+        },
+      })
+
+  // Handle requestId if provided: mark that specific request as configured
+  if (input.requestId) {
+    const request = await prisma.aIAccessRequest.findUnique({ where: { id: input.requestId } })
+    if (request && request.userId === userId && (request.status === "pending" || request.status === "approved")) {
+      await prisma.aIAccessRequest.update({
+        where: { id: input.requestId },
+        data: { status: "configured" },
+      })
+    }
+  } else {
+    // Auto-mark any pending/approved access request as configured (backward-compatible)
+    const pendingRequest = await prisma.aIAccessRequest.findFirst({
+      where: { userId, status: { in: ["pending", "approved"] } },
+      orderBy: { createdAt: "desc" },
+    })
+    if (pendingRequest) {
+      await prisma.aIAccessRequest.update({
+        where: { id: pendingRequest.id },
+        data: { status: "configured" },
+      })
+    }
+  }
+
+  const note = input.note ? ` — ${input.note}` : ""
+  const auditAction = isUpdate ? "ai_grant_updated" : "ai_grant_created"
+  const auditDetail = isUpdate
+    ? `Updated AI usage grant for ${targetUser.email} by admin${note}`
+    : `Created AI usage grant for ${targetUser.email} by admin${note}`
+  await createAIAuditLog(adminId, userId, auditAction, auditDetail, {
     providerLabel: grant.providerLabel,
     model: grant.model,
     status: grant.status,
@@ -698,20 +873,55 @@ export async function upsertAIGrant(adminId: string, userId: string, input: AIGr
   return grant
 }
 
-export async function updateAIGrantStatus(adminId: string, userId: string, status: "paused" | "revoked") {
+export async function updateAIGrantStatus(adminId: string, userId: string, status: string) {
   const grant = await prisma.aIUsageGrant.findUnique({ where: { userId } })
   if (!grant) throw new Error("NOT_FOUND")
 
+  const data: Record<string, unknown> = {
+    status,
+    updatedById: adminId,
+  }
+
+  if (status === "revoked" || status === "deprecated") {
+    data.revokedAt = new Date()
+  } else if (status === "active") {
+    data.revokedAt = null
+  }
+
   const updated = await prisma.aIUsageGrant.update({
     where: { userId },
-    data: {
-      status,
-      updatedById: adminId,
-      revokedAt: status === "revoked" ? new Date() : null,
-    },
+    data,
   })
 
   await createAIAuditLog(adminId, userId, `ai_grant_${status}`, `Marked AI grant as ${status}`, { userId })
+  return updated
+}
+
+export async function deleteAIGrant(adminId: string, userId: string) {
+  const grant = await prisma.aIUsageGrant.findUnique({ where: { userId } })
+  if (!grant) throw new Error("NOT_FOUND")
+
+  await prisma.aIUsageGrant.delete({ where: { userId } })
+
+  await createAIAuditLog(adminId, userId, "ai_grant_deleted", "Deleted AI usage grant", { userId })
+}
+
+export async function cancelAIAccessRequest(userId: string) {
+  const request = await prisma.aIAccessRequest.findFirst({
+    where: { userId, status: "pending" },
+    orderBy: { createdAt: "desc" },
+  })
+  if (!request) throw new Error("NOT_FOUND")
+
+  const updated = await prisma.aIAccessRequest.update({
+    where: { id: request.id },
+    data: { status: "cancelled" },
+  })
+
+  await createAIAuditLog(userId, userId, "ai_request_cancelled", "Cancelled AI access request", {
+    requestId: request.id,
+  })
+
   return updated
 }
 
@@ -747,6 +957,7 @@ export async function getAdminAIOverview() {
       baseUrl: grant.baseUrl,
       apiKeyMask: grant.apiKeyMask,
       model: grant.model,
+      modelList: parseModelList(grant.modelList),
       temperature: grant.temperature,
       streamEnabled: grant.streamEnabled,
       updatedAt: grant.updatedAt.toISOString(),

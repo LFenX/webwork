@@ -267,7 +267,12 @@ type Dictionary = {
       noGrants: string
       configGrant: string
       targetAdmin: string
+      targetUser: string
       selectOne: string
+      searchUserPlaceholder: string
+      noUsersAvailable: string
+      noMatchingUsers: string
+      configGrantDesc: string
       providerLabel: string
       baseUrl: string
       apiKey: string
@@ -292,6 +297,31 @@ type Dictionary = {
       grantRevoked: string
       requestApproved: string
       requestRejected: string
+      restore: string
+      deleteGrant: string
+      deleteGrantConfirm: string
+      grantDeleted: string
+      grantRestored: string
+      grantDeprecated: string
+      modelListLabel: string
+      modelListHint: string
+      statusActive: string
+      statusPaused: string
+      statusRevoked: string
+      statusDeprecated: string
+      statusConfigured: string
+      statusCancelled: string
+      statusApproved: string
+      statusRejected: string
+      awaitingConfig: string
+      configured: string
+      editGrantTitle: string
+      editGrantDesc: string
+      saveEdit: string
+      savedEdit: string
+      apiKeyEditPlaceholder: string
+      grantUserInfo: string
+      grantStatusLabel: string
     }
   }
   auth: {
@@ -587,6 +617,28 @@ type Dictionary = {
     reasonConfigurePersonalApi: string
     reasonRequestAccess: string
     reasonUnavailable: string
+    adminGrantRequest: string
+    adminGrantDesc: string
+    applyForGrant: string
+    cancelRequest: string
+    cancelRequestConfirm: string
+    requestCancelled: string
+    adminGrantConfigured: string
+    adminGrantActive: string
+    adminGrantPausedHint: string
+    adminGrantRevokedHint: string
+    sourceSelf: string
+    sourceAdminGrant: string
+    requestStatusPending: string
+    requestStatusApproved: string
+    requestStatusRejected: string
+    requestStatusCancelled: string
+    requestStatusConfigured: string
+    grantStatusActive: string
+    grantStatusPaused: string
+    grantStatusRevoked: string
+    grantStatusDeprecated: string
+    activateFailed: string
   }
   comments: {
     title: string
@@ -1062,7 +1114,12 @@ const zhCN: Dictionary = {
       noGrants: "暂无系统授权。",
       configGrant: "配置 AI 授权",
       targetAdmin: "目标管理员",
+      targetUser: "授权对象",
       selectOne: "请选择",
+      searchUserPlaceholder: "搜索或选择用户...",
+      noUsersAvailable: "暂无可授权用户",
+      noMatchingUsers: "没有匹配用户",
+      configGrantDesc: "选择要获得该 AI 配置授权的用户。保存后，该用户可在自己的 AI 助手配置中选择并使用此模型；你仍可在管理员后台暂停、恢复或弃用该授权。",
       providerLabel: "提供商标签",
       baseUrl: "Base URL",
       apiKey: "API Key",
@@ -1087,6 +1144,31 @@ const zhCN: Dictionary = {
       grantRevoked: "授权已撤销",
       requestApproved: "AI 请求已通过",
       requestRejected: "AI 请求已拒绝",
+      restore: "恢复",
+      deleteGrant: "删除记录",
+      deleteGrantConfirm: "确认删除此授权记录？删除后用户将无法使用此授权。",
+      grantDeleted: "授权记录已删除",
+      grantRestored: "授权已恢复",
+      grantDeprecated: "授权已弃用",
+      modelListLabel: "模型列表",
+      modelListHint: "每行一个模型名称。用户只能在列表范围内切换模型。",
+      statusActive: "活跃",
+      statusPaused: "已暂停",
+      statusRevoked: "已弃用",
+      statusDeprecated: "已弃用",
+      statusConfigured: "已配置",
+      statusCancelled: "已撤回",
+      statusApproved: "已通过",
+      statusRejected: "已拒绝",
+      awaitingConfig: "待配置授权",
+      configured: "已配置",
+      editGrantTitle: "编辑 AI 授权",
+      editGrantDesc: "修改该用户的 AI 模型授权配置。API Key 留空则不修改原有密钥。",
+      saveEdit: "保存修改",
+      savedEdit: "AI 授权已更新",
+      apiKeyEditPlaceholder: "留空则不修改原有密钥",
+      grantUserInfo: "授权用户",
+      grantStatusLabel: "授权状态",
     },
   },
   auth: {
@@ -1382,6 +1464,28 @@ const zhCN: Dictionary = {
     reasonConfigurePersonalApi: "请先配置个人 API",
     reasonRequestAccess: "请先申请访问权限",
     reasonUnavailable: "暂时不可用",
+    adminGrantRequest: "向管理员申请免费使用",
+    adminGrantDesc: "如果你暂时不想使用自己的 API，也可以向管理员申请一个免费模型授权。",
+    applyForGrant: "提交申请",
+    cancelRequest: "撤回申请",
+    cancelRequestConfirm: "确定要撤回申请吗？",
+    requestCancelled: "申请已撤回",
+    adminGrantConfigured: "管理员已为你配置模型",
+    adminGrantActive: "管理员授权的模型配置",
+    adminGrantPausedHint: "该模型已被管理员暂停使用，请联系管理员",
+    adminGrantRevokedHint: "该配置已被管理员弃用",
+    sourceSelf: "自行配置",
+    sourceAdminGrant: "管理员授权",
+    requestStatusPending: "审核中",
+    requestStatusApproved: "已通过",
+    requestStatusRejected: "已拒绝",
+    requestStatusCancelled: "已撤回",
+    requestStatusConfigured: "已配置",
+    grantStatusActive: "活跃",
+    grantStatusPaused: "管理员已暂停",
+    grantStatusRevoked: "管理员已弃用",
+    grantStatusDeprecated: "管理员已弃用",
+    activateFailed: "激活失败",
   },
   comments: {
     title: "评论",
@@ -1865,7 +1969,12 @@ const enUS: Dictionary = {
       noGrants: "No system grants.",
       configGrant: "Configure AI Grant",
       targetAdmin: "Target admin",
+      targetUser: "Target user",
       selectOne: "Select one",
+      searchUserPlaceholder: "Search or select user...",
+      noUsersAvailable: "No users available for authorization",
+      noMatchingUsers: "No matching users",
+      configGrantDesc: "Select the user to receive this AI configuration. Once saved, the user can select and use this model in their AI assistant settings; you can still pause, resume, or revoke this grant from the admin panel.",
       providerLabel: "Provider label",
       baseUrl: "Base URL",
       apiKey: "API key",
@@ -1890,6 +1999,31 @@ const enUS: Dictionary = {
       grantRevoked: "Grant revoked",
       requestApproved: "AI request approved",
       requestRejected: "AI request rejected",
+      restore: "Restore",
+      deleteGrant: "Delete",
+      deleteGrantConfirm: "Delete this grant record? The user will lose access to this grant.",
+      grantDeleted: "Grant deleted",
+      grantRestored: "Grant restored",
+      grantDeprecated: "Grant deprecated",
+      modelListLabel: "Model List",
+      modelListHint: "One model per line. Users can only switch within this list.",
+      statusActive: "Active",
+      statusPaused: "Paused",
+      statusRevoked: "Revoked",
+      statusDeprecated: "Deprecated",
+      statusConfigured: "Configured",
+      statusCancelled: "Cancelled",
+      statusApproved: "Approved",
+      statusRejected: "Rejected",
+      awaitingConfig: "Awaiting config",
+      configured: "Configured",
+      editGrantTitle: "Edit AI Grant",
+      editGrantDesc: "Modify the AI model grant configuration for this user. Leave the API key empty to keep the existing key.",
+      saveEdit: "Save changes",
+      savedEdit: "AI grant updated",
+      apiKeyEditPlaceholder: "Leave empty to keep existing key",
+      grantUserInfo: "Grant user",
+      grantStatusLabel: "Grant status",
     },
   },
   auth: {
@@ -2185,6 +2319,28 @@ const enUS: Dictionary = {
     reasonConfigurePersonalApi: "Please configure a personal API",
     reasonRequestAccess: "Please request access first",
     reasonUnavailable: "Temporarily unavailable",
+    adminGrantRequest: "Apply for admin grant",
+    adminGrantDesc: "If you prefer not to use your own API key, you can request a free model grant from the admin.",
+    applyForGrant: "Submit request",
+    cancelRequest: "Cancel request",
+    cancelRequestConfirm: "Cancel this access request?",
+    requestCancelled: "Request cancelled",
+    adminGrantConfigured: "Admin has configured a model for you",
+    adminGrantActive: "Admin granted model config",
+    adminGrantPausedHint: "This model has been paused by the admin. Please contact the admin.",
+    adminGrantRevokedHint: "This configuration has been revoked by the admin.",
+    sourceSelf: "Self-configured",
+    sourceAdminGrant: "Admin grant",
+    requestStatusPending: "Pending",
+    requestStatusApproved: "Approved",
+    requestStatusRejected: "Rejected",
+    requestStatusCancelled: "Cancelled",
+    requestStatusConfigured: "Configured",
+    grantStatusActive: "Active",
+    grantStatusPaused: "Paused by admin",
+    grantStatusRevoked: "Revoked by admin",
+    grantStatusDeprecated: "Deprecated by admin",
+    activateFailed: "Activation failed",
   },
   comments: {
     title: "Comments",

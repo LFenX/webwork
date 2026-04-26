@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useEffect, useRef, useState } from "react"
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { StickerPicker, type StickerPick } from "@/components/sticker-picker"
@@ -11,33 +11,6 @@ import { formatChinaDateTime } from "@/lib/time"
 
 interface CommentItem extends ThreadItem {
   author: { id: string; displayName: string; email: string; avatarText?: string | null; avatarUrl?: string | null }
-}
-
-function removeWithChildren(items: CommentItem[], id: string) {
-  const removed = new Set([id])
-  let changed = true
-  while (changed) {
-    changed = false
-    items.forEach((item) => {
-      if (item.parentId && removed.has(item.parentId) && !removed.has(item.id)) {
-        removed.add(item.id)
-        changed = true
-      }
-    })
-  }
-  return items.filter((item) => !removed.has(item.id))
-}
-
-function SelectedSticker({ sticker, onClear }: { sticker: StickerPick; onClear: () => void }) {
-  return (
-    <div className="inline-flex items-center gap-2 rounded border border-[--color-border] bg-[--color-bg-surface] px-2 py-1">
-      {sticker.type === "emoji" ? <span className="text-2xl">{sticker.emoji}</span> : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={sticker.url} alt={sticker.name} className="h-10 w-10 object-contain" />
-      )}
-      <button type="button" onClick={onClear} className="text-[--color-text-muted] hover:text-[--color-danger]">×</button>
-    </div>
-  )
 }
 
 export function CommentsSection({ postId }: { postId: string }) {
@@ -86,42 +59,41 @@ export function CommentsSection({ postId }: { postId: string }) {
       setContent("")
       setSticker(null)
     } catch {
-      toast.error("Failed to post comment")
+      toast.error("评论失败")
     } finally {
       setSaving(false)
     }
   }
 
-  async function handleDelete(id: string) {
+  const handleDelete = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`/api/posts/${postId}/comments/${id}`, { method: "DELETE" })
+      const res = await fetch(`/api/posts/comments/${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Failed to delete comment")
-      setComments((prev) => removeWithChildren(prev, id))
+      setComments((prev) => prev.filter((item) => item.id !== id))
       toast(cm.deleted)
     } catch {
-      toast.error("Failed to delete comment")
+      toast.error("删除失败")
     }
-  }
+  }, [cm.deleted])
 
-  async function handleReply(parentId: string, replyContent: string, replySticker?: StickerPick | null) {
-    try {
-      const res = await fetch(`/api/posts/${postId}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: replyContent.trim(),
-          parentId,
-          stickerId: replySticker?.type === "asset" ? replySticker.id : null,
-          stickerEmoji: replySticker?.type === "emoji" ? replySticker.emoji : null,
-        }),
-      })
-      if (!res.ok) throw new Error("Failed to post reply")
-      const saved = await res.json()
-      setComments((prev) => [...prev, saved])
-    } catch {
-      toast.error("Failed to post reply")
+  const handleReply = useCallback(async (parentId: string, replyContent: string, replySticker?: StickerPick | null) => {
+    const res = await fetch(`/api/posts/${postId}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: replyContent.trim(),
+        parentId,
+        stickerId: replySticker?.type === "asset" ? replySticker.id : null,
+        stickerEmoji: replySticker?.type === "emoji" ? replySticker.emoji : null,
+      }),
+    })
+    if (!res.ok) {
+      toast.error("回复失败")
+      throw new Error("回复失败")
     }
-  }
+    const saved = await res.json()
+    setComments((prev) => [...prev, saved])
+  }, [postId])
 
   return (
     <section>
@@ -136,13 +108,21 @@ export function CommentsSection({ postId }: { postId: string }) {
           rows={3}
           className="w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-surface] p-3 text-sm outline-none focus:border-[--color-accent]"
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           <StickerPicker onPick={setSticker} />
+          {sticker && (
+            <div className="inline-flex items-center gap-2 rounded border border-[--color-border] bg-[--color-bg-surface] px-2 py-1">
+              {sticker.type === "emoji" ? <span className="text-2xl">{sticker.emoji}</span> : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={sticker.url} alt={sticker.name} className="h-10 w-10 object-contain" />
+              )}
+              <button type="button" onClick={() => setSticker(null)} className="text-[--color-text-muted] hover:text-[--color-danger]">×</button>
+            </div>
+          )}
+          <Button type="submit" disabled={saving || (!content.trim() && !sticker)} size="sm">
+            {saving ? cm.sending : cm.post}
+          </Button>
         </div>
-        {sticker && <SelectedSticker sticker={sticker} onClear={() => setSticker(null)} />}
-        <Button type="submit" disabled={saving || (!content.trim() && !sticker)} size="sm">
-          {saving ? cm.sending : cm.post}
-        </Button>
       </form>
 
       {loading ? (
@@ -152,9 +132,12 @@ export function CommentsSection({ postId }: { postId: string }) {
       ) : (
         <ThreadedDiscussion
           items={comments}
-          onDelete={handleDelete}
+          canReply
+          canDelete
           onReply={handleReply}
+          onDelete={handleDelete}
           formatTime={formatChinaDateTime}
+          newestFirst
         />
       )}
     </section>
