@@ -80,13 +80,17 @@ function ToolBtn({
   title?: string
   children: React.ReactNode
 }) {
+  function handleActivate(event: React.MouseEvent | React.TouchEvent) {
+    event.preventDefault()
+    event.stopPropagation()
+    onClick?.()
+  }
   return (
     <button
       type="button"
-      onMouseDown={(event) => {
-        event.preventDefault()
-        onClick?.()
-      }}
+      onMouseDown={handleActivate}
+      onTouchStart={handleActivate}
+      onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation() }}
       disabled={disabled}
       title={title}
       className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded transition-colors ${
@@ -785,29 +789,41 @@ export function EditorToolbar({
 
   return (
     <>
-      <div className="editor-toolbar relative z-[1000] hidden w-full min-w-0 max-w-full flex-wrap items-center gap-0.5 overflow-visible rounded-t-[--radius-md] border-b border-[--color-border] bg-[--color-bg-primary] px-2 py-1.5 md:flex">
+      <div className="editor-toolbar relative z-40 hidden w-full min-w-0 max-w-full flex-wrap items-center gap-0.5 overflow-visible rounded-t-[--radius-md] border-b border-[--color-border] bg-[--color-bg-primary] px-2 py-1.5 md:flex">
         {primaryTools}
         <Separator />
         {secondaryTools}
       </div>
-      <div className="editor-toolbar relative z-[1000] flex w-full min-w-0 max-w-full items-center gap-0.5 rounded-t-[--radius-md] border-b border-[--color-border] bg-[--color-bg-primary] px-2 py-1.5 md:hidden">
+      <div className="relative z-40 flex w-full min-w-0 max-w-full flex-nowrap items-center gap-px overflow-visible rounded-t-[--radius-md] border-b border-[--color-border] bg-[--color-bg-primary] px-1.5 py-1 md:hidden">
         {primaryTools}
-        <div className="ml-auto">
-          <ToolBtn onClick={() => setMoreOpen((open) => !open)} title="更多工具">
-            <MoreHorizontal size={15} />
+        <div className="ml-auto shrink-0">
+          <ToolBtn onClick={() => setMoreOpen((open) => !open)} title="更多工具" active={moreOpen}>
+            <MoreHorizontal size={14} />
           </ToolBtn>
         </div>
         {moreOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
-            <div className="absolute left-2 right-2 top-full z-50 mt-1 max-h-[70vh] overflow-y-auto rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-3 shadow-lg">
-              <div className="grid grid-cols-6 gap-1.5">
-                {secondaryTools}
-              </div>
+          <div
+            className="absolute left-0 right-0 top-full z-[3000] mt-1 max-h-[60vh] overflow-y-auto rounded-[--radius-lg] border border-[rgba(15,23,42,0.12)] bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.15)]"
+            style={{ isolation: "isolate" }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <div className="grid grid-cols-5 gap-2.5">
+              {secondaryTools}
             </div>
-          </>
+            <button
+              type="button"
+              onClick={() => setMoreOpen(false)}
+              className="mt-3 w-full rounded-full border border-[--color-border] py-1.5 text-xs text-[--color-text-muted] hover:bg-[--color-bg-hover]"
+            >
+              关闭
+            </button>
+          </div>
         )}
       </div>
+      {moreOpen && (
+        <div className="fixed inset-0 z-[2999] md:hidden" onClick={() => setMoreOpen(false)} />
+      )}
     </>
   )
 }

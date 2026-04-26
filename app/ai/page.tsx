@@ -16,21 +16,20 @@ export default async function AIPage() {
   const normalizedUser = user ? await normalizeUserRole(user) : null
 
   return (
-    <div className="h-[calc(var(--app-viewport-height)-3rem)] overflow-hidden bg-[linear-gradient(180deg,var(--color-bg-primary)_0%,#f7f3ec_100%)] md:h-[calc(100vh-3rem)]">
-      <div className="mx-auto flex h-full w-full max-w-[1680px] flex-col px-0 py-0 md:px-5 md:py-5 sm:px-6 xl:px-8">
-        <div className="mb-5 hidden items-center justify-between gap-3 rounded-[--radius-lg] border border-[--color-border] bg-[color:var(--color-bg-surface)] px-5 py-4 shadow-[0_14px_34px_rgba(34,27,20,0.05)] md:flex">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-[--color-text-muted]">
-              {dict.nav.ai}
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[--color-text-primary]">
+    <div className="h-[calc(var(--app-viewport-height)-3.5rem)] overflow-hidden md:h-[calc(100vh-3.5rem)]">
+      <div className="mx-auto flex h-full w-full max-w-[1680px] flex-col px-0 py-0 md:px-5 md:pt-4 md:pb-5 sm:px-6 xl:px-8">
+        {/* Compact page title bar */}
+        <div className="relative mb-4 hidden md:flex md:items-center md:justify-center">
+          <div className="flex flex-col items-center">
+            <h1 className="ai-page-title text-xl font-bold tracking-tight">
               {dict.ai.title}
             </h1>
+            <div className="ai-page-title-line" />
           </div>
           {normalizedUser?.permissions.manageAI ? (
             <Link
               href="/admin"
-              className="rounded-full border border-[--color-border] bg-[--color-bg-primary] px-4 py-2 text-sm text-[--color-text-secondary] transition-colors hover:border-[--color-border-strong] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary] hover:no-underline"
+              className="absolute right-0 rounded-full px-3 py-1.5 text-xs font-medium text-[--color-text-muted] transition-all duration-200 hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline"
             >
               {dict.ai.manageAuth}
             </Link>

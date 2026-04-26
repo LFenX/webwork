@@ -1,16 +1,18 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Eye, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+import type { Editor } from "@tiptap/core"
 import { ArticleAside } from "@/components/article-sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MarkdownEditor } from "@/components/markdown-editor"
 import { MarkdownContent } from "@/components/markdown-content"
+import { MobileFloatingToolbar } from "@/components/mobile-floating-toolbar"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 import { getDict } from "@/lib/i18n"
 import {
@@ -105,6 +107,26 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [editType, setEditType] = useState<"wysiwyg" | "markdown">("wysiwyg")
+  const editorRef = useRef<Editor | null>(null)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    setMounted(true)
+    window.addEventListener("resize", check)
+    return () => window.removeEventListener("resize", check)
+  }, [])
+
+  const handleEditorReady = useCallback((editor: Editor) => {
+    editorRef.current = editor
+  }, [])
+
+  const handleToggleEditType = useCallback(() => {
+    setEditType((prev) => prev === "wysiwyg" ? "markdown" : "wysiwyg")
+  }, [])
 
   useEffect(() => {
     const draft = readUserStorage<Partial<EditorDraft>>({
@@ -252,7 +274,63 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
 
   const backHref = mode === "edit" && initialData ? `${base}/${initialData.slug}` : base
 
-  return (
+  // ── Shared meta fields ──────────────────────────────────────────────────────
+  const metaFieldsContent = (
+    <>
+      {/* Title */}
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder={dict.editor.titlePlaceholder}
+        className="mobile-editor-title-input"
+      />
+      {/* Summary */}
+      <input
+        value={summary}
+        onChange={(e) => setSummary(e.target.value)}
+        placeholder={dict.editor.summaryPlaceholder}
+        className="mobile-editor-meta-input"
+      />
+      {/* Date + visibility row */}
+      <div className="mobile-editor-meta-row">
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="mobile-editor-date-input"
+        />
+        <select
+          value={visibility === "friends" ? "friends" : "private"}
+          onChange={(event) => setVisibility(event.target.value)}
+          className="mobile-editor-select"
+        >
+          <option value="private">{dict.article.visibilityPrivate}</option>
+          <option value="friends">{dict.article.visibilityFriends}</option>
+        </select>
+      </div>
+      {/* Tags */}
+      <input
+        value={tagsRaw}
+        onChange={(e) => setTagsRaw(e.target.value)}
+        placeholder={dict.editor.tagsPlaceholder}
+        className="mobile-editor-meta-input"
+      />
+      {/* Folder */}
+      <select
+        value={folderId}
+        onChange={(event) => setFolderId(event.target.value)}
+        className="mobile-editor-select"
+      >
+        <option value="">{dict.editor.folderUncategorized}</option>
+        {folders.map((folder) => (
+          <option key={folder.id} value={folder.id}>{folder.name}</option>
+        ))}
+      </select>
+    </>
+  )
+
+  // ── Desktop layout (unchanged) ──────────────────────────────────────────────
+  const desktopLayout = (
     <div className="mx-auto grid w-full max-w-[1360px] grid-cols-1 gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_300px]">
       <section className="min-w-0">
         <div className="mb-5 flex items-center justify-between gap-4">
@@ -282,7 +360,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
           </div>
         </div>
 
-        <div className="min-w-0 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5 shadow-sm">
+        <div className="min-w-0 overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5 shadow-sm">
           <div className="grid min-w-0 gap-4">
             <div>
               <Label className="mb-1 block text-xs">{dict.editor.title} *</Label>
@@ -290,45 +368,45 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={dict.editor.titlePlaceholder}
-                className="h-11 text-lg font-semibold"
+                className="h-11 w-full min-w-0 text-lg font-semibold"
               />
             </div>
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
-              <div>
+            <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="min-w-0">
                 <Label className="mb-1 block text-xs">{dict.editor.summary}</Label>
                 <Input
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
                   placeholder={dict.editor.summaryPlaceholder}
-                  className="h-9 text-sm"
+                  className="h-9 w-full min-w-0 text-sm"
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="mb-1 block text-xs">{dict.editor.date}</Label>
-                <Input
+                <input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="h-9 text-sm font-mono"
+                  className="h-9 w-full rounded-[10px] border border-input bg-background px-4 py-2 text-sm font-mono transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/30 focus-visible:ring-offset-2 focus-visible:border-[--color-brand]"
                 />
               </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_150px]">
-              <div>
+            <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_150px]">
+              <div className="min-w-0">
                 <Label className="mb-1 block text-xs">{dict.editor.tags}</Label>
                 <Input
                   value={tagsRaw}
                   onChange={(e) => setTagsRaw(e.target.value)}
                   placeholder={dict.editor.tagsPlaceholder}
-                  className="h-9 text-sm"
+                  className="h-9 w-full min-w-0 text-sm"
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="mb-1 block text-xs">{dict.editor.visibility}</Label>
                 <select
                   value={visibility === "friends" ? "friends" : "private"}
                   onChange={(event) => setVisibility(event.target.value)}
-                  className="h-9 w-full rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-surface] px-2.5 text-sm text-[--color-text-primary] outline-none hover:bg-[--color-bg-hover] focus:border-[--color-text-primary]"
+                  className="h-9 w-full min-w-0 rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-surface] px-2.5 text-sm text-[--color-text-primary] outline-none hover:bg-[--color-bg-hover] focus:border-[--color-text-primary]"
                 >
                   <option value="private">{dict.article.visibilityPrivate}</option>
                   <option value="friends">{dict.article.visibilityFriends}</option>
@@ -362,6 +440,94 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
       </section>
 
       {creator && <ArticleAside profile={creator} content={content} />}
+    </div>
+  )
+
+  // ── Mobile layout ───────────────────────────────────────────────────────────
+  const mobileLayout = (
+    <div className="mobile-editor-layout">
+      {/* Top bar */}
+      <div className="mobile-editor-topbar">
+        <Link
+          href={backHref}
+          className="inline-flex items-center gap-1 text-sm text-[--color-text-muted] hover:text-[--color-text-primary] hover:no-underline shrink-0"
+        >
+          <ArrowLeft size={16} />
+        </Link>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPreviewOpen(true)}
+            className="gap-1.5"
+          >
+            <Eye size={14} /> {dict.editor.preview}
+          </Button>
+          {mode === "edit" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="gap-1.5 text-[--color-danger]"
+            >
+              <Trash2 size={14} /> {dict.editor.delete}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={saving}
+            className="h-8 gap-1 rounded-full px-3 text-xs"
+          >
+            {saving ? dict.editor.saving : mode === "create" ? dict.editor.publish : dict.editor.save}
+          </Button>
+        </div>
+      </div>
+
+      {/* Meta fields — Notion style */}
+      <div className="mobile-editor-meta">
+        {metaFieldsContent}
+      </div>
+
+      {/* Content area */}
+      <div className="mobile-editor-content-area">
+        <MarkdownEditor
+          value={content}
+          onChange={setContent}
+          height={typeof window !== "undefined" ? Math.max(400, window.innerHeight - 220) : 600}
+          postId={initialData?.id}
+          hideToolbar
+          onEditorReady={handleEditorReady}
+          editType={editType}
+          onToggleEditType={handleToggleEditType}
+        />
+      </div>
+
+      {/* Floating toolbar */}
+      {mounted && isMobile && editorRef.current && (
+        <MobileFloatingToolbar
+          editor={editorRef.current}
+          postId={initialData?.id}
+          onOpenImageManager={() => {
+            // Image manager is handled within the toolbar via the more panel
+          }}
+          editType={editType}
+          onToggleEditType={handleToggleEditType}
+        />
+      )}
+    </div>
+  )
+
+  return (
+    <>
+      {!mounted && desktopLayout}
+      {mounted && (
+        <>
+          <div className={isMobile ? "hidden" : ""}>{desktopLayout}</div>
+          {isMobile && mobileLayout}
+        </>
+      )}
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -373,6 +539,6 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }

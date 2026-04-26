@@ -222,16 +222,16 @@ export function InterviewsClient() {
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto px-6 py-10">
-      <div className="mb-8">
+    <div className="max-w-[1200px] mx-auto px-6 pt-4 pb-10">
+      <div className="mb-6">
         <h1 className="text-xl font-semibold mb-1">{dict.interviews.title}</h1>
-        <p className="text-sm text-[--color-text-muted]">{dict.nav.interviews}</p>
+        <p className="text-sm text-[--color-text-muted]">{dict.interviews.description}</p>
       </div>
 
       {/* Stats */}
       {stats && (
         <section className="mb-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-3 mb-6 rounded-[--radius-lg] bg-[--color-bg-surface]/60 p-3 sm:p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
             <StatsCard title={dict.interviews.total} value={stats.total} sub={dict.interviews.total} />
             <StatsCard
               title={dict.interviews.passRate}
@@ -244,16 +244,16 @@ export function InterviewsClient() {
 
           {stats.total > 0 && (
             <div className="grid md:grid-cols-3 gap-4">
-              <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
+              <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
                 <p className="text-xs text-[--color-text-muted] mb-3">{dict.interviews.formatChart}</p>
                 <SimplePieChart data={stats.formatDist} height={180} />
               </div>
-              <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
+              <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
                 <p className="text-xs text-[--color-text-muted] mb-3">{dict.interviews.roundChart}</p>
                 <SimpleBarChart data={stats.roundDist} height={180} />
               </div>
               {stats.companyDist.length > 0 && (
-                <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-4">
+                <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
                   <p className="text-xs text-[--color-text-muted] mb-3">{dict.interviews.companyChart}</p>
                   <SimpleBarChart data={stats.companyDist} height={180} />
                 </div>

@@ -278,6 +278,54 @@ async function buildHeuristicPlan(prompt: string, actorUserId: string): Promise<
     })
   }
 
+  // Content management intent: create / edit / move / folder
+  const wantsCreateArticle = /(创建|新建|写一篇|写个|写一篇|撰写|发布).*(文章|博客|日常|心得|笔记|blog|daily|note|reflection|post)/i.test(prompt)
+  const wantsEditArticle = /(修改|编辑|更新|改).*(文章|博客|日常|心得|笔记|标题|正文|内容)/i.test(prompt)
+  const wantsListForEdit = /(列出|查看|找).*(我的|自己).*(文章|博客|日常|心得|笔记).*(编辑|修改|管理)/i.test(prompt)
+  const wantsCreateFolder = /(创建|新建|加个|建个).*(文件夹|分类|目录)/i.test(prompt)
+  const wantsListFolder = /(列出|查看).*(文件夹|分类|目录)/i.test(prompt)
+  const wantsMoveArticle = /(移动|移|搬).*(文章|博客|日常|心得|笔记).*(到|至|文件夹|模块)/i.test(prompt)
+
+  if (wantsCreateFolder || /^只?(创建|新建|建|加).*(文件夹|分类)/i.test(prompt)) {
+    steps.push({
+      toolName: "create_content_folder",
+      reason: "用户要求创建内容文件夹。",
+      input: null,
+    })
+  }
+
+  if (wantsListFolder || wantsListForEdit) {
+    steps.push({
+      toolName: "list_content_folders",
+      reason: "用户要求列出文件夹或查找可编辑文章。",
+      input: null,
+    })
+  }
+
+  if (wantsCreateArticle) {
+    steps.push({
+      toolName: "create_markdown_article",
+      reason: "用户要求创建新文章。",
+      input: null,
+    })
+  }
+
+  if (wantsEditArticle) {
+    steps.push({
+      toolName: /^(列出|找|查看|搜索)/i.test(prompt) ? "list_markdown_articles" : "get_markdown_article_detail",
+      reason: "用户要求编辑文章，先读取当前内容。",
+      input: null,
+    })
+  }
+
+  if (wantsMoveArticle) {
+    steps.push({
+      toolName: "move_article_to_folder",
+      reason: "用户要求移动文章。",
+      input: null,
+    })
+  }
+
   if (steps.length === 0) {
     steps.push({
       toolName: "get_my_profile",
@@ -362,6 +410,9 @@ function buildRuntimeSystemPrompt(params: {
       ? "如果你会生成 reasoning 或 summary，请保持简洁，不要输出敏感隐藏推理。"
       : "如果没有 reasoning 能力，请直接给出结论。",
     "如果好友内容或后台数据没有权限，就明确说明无权访问，不要继续猜测。",
+    "你可以帮助用户管理其自己的 Markdown 内容（博客/日常/心得/笔记）：创建文章、修改文章、创建文件夹、移动文章。只能操作用户自己的内容，不能跨用户操作。",
+    "跨模块移动文章前必须先得到用户明确确认（confirmedByUser=true），不得直接执行。不允许删除文章或文件夹。修改文章时不允许清空正文。",
+    "高风险写入操作前应简要告知用户将要执行的操作，让用户有机会纠正。",
     "回答必须可信、简洁、结构化，且不得虚构工具结果。",
   ].join(" ")
 }
@@ -542,6 +593,95 @@ function toolParametersSchema(toolName: string) {
           limit: { type: "integer", minimum: 1, maximum: 50 },
           cursor: { type: "string" },
         },
+        additionalProperties: false,
+      }
+    case "create_markdown_article":
+      return {
+        type: "object",
+        properties: {
+          module: { type: "string", enum: ["blog", "daily", "reflections", "notes"], description: "Content module." },
+          title: { type: "string", description: "Article title. Required, non-empty." },
+          content: { type: "string", description: "Markdown body content." },
+          summary: { type: "string", description: "Short summary." },
+          tags: { type: "array", items: { type: "string" }, description: "Tags array." },
+          folderId: { type: "string", description: "Optional folder id. Omit or pass null for root." },
+          visibility: { type: "string", enum: ["private", "friends"], description: "Visibility, defaults to private." },
+          date: { type: "string", description: "ISO date string." },
+        },
+        required: ["module", "title"],
+        additionalProperties: false,
+      }
+    case "update_markdown_article":
+      return {
+        type: "object",
+        properties: {
+          module: { type: "string", enum: ["blog", "daily", "reflections", "notes"], description: "Content module the article belongs to." },
+          articleId: { type: "string", description: "Article id to update." },
+          title: { type: "string", description: "New title." },
+          content: { type: "string", description: "New body content. Must not be empty string." },
+          summary: { type: "string", description: "New summary." },
+          tags: { type: "array", items: { type: "string" }, description: "New tags array." },
+          folderId: { type: "string", description: "Move to folder id. Pass null to move to root. Omit to leave unchanged." },
+          visibility: { type: "string", enum: ["private", "friends"], description: "New visibility." },
+          date: { type: "string", description: "New ISO date string." },
+        },
+        required: ["module", "articleId"],
+        additionalProperties: false,
+      }
+    case "get_markdown_article_detail":
+      return {
+        type: "object",
+        properties: {
+          module: { type: "string", enum: ["blog", "daily", "reflections", "notes"], description: "Content module." },
+          articleId: { type: "string", description: "Article id." },
+          slug: { type: "string", description: "Article slug." },
+        },
+        required: ["module"],
+        additionalProperties: false,
+      }
+    case "list_markdown_articles":
+      return {
+        type: "object",
+        properties: {
+          module: { type: "string", enum: ["blog", "daily", "reflections", "notes"], description: "Content module." },
+          folderId: { type: "string", description: "Optional folder id filter. Omit to list all, null for root." },
+          keyword: { type: "string", description: "Optional keyword search." },
+          limit: { type: "integer", minimum: 1, maximum: 30 },
+        },
+        required: ["module"],
+        additionalProperties: false,
+      }
+    case "create_content_folder":
+      return {
+        type: "object",
+        properties: {
+          module: { type: "string", enum: ["blog", "daily", "reflections", "notes"], description: "Content module." },
+          name: { type: "string", description: "Folder name. Required, non-empty." },
+          description: { type: "string", description: "Optional folder description." },
+        },
+        required: ["module", "name"],
+        additionalProperties: false,
+      }
+    case "list_content_folders":
+      return {
+        type: "object",
+        properties: {
+          module: { type: "string", enum: ["blog", "daily", "reflections", "notes"], description: "Content module." },
+        },
+        required: ["module"],
+        additionalProperties: false,
+      }
+    case "move_article_to_folder":
+      return {
+        type: "object",
+        properties: {
+          sourceModule: { type: "string", enum: ["blog", "daily", "reflections", "notes"], description: "The module the article currently belongs to." },
+          articleId: { type: "string", description: "Article id to move." },
+          targetModule: { type: "string", enum: ["blog", "daily", "reflections", "notes"], description: "Target module. Defaults to sourceModule for same-module moves." },
+          targetFolderId: { type: "string", description: "Target folder id. Pass null to move to root. Omit to keep current folder." },
+          confirmedByUser: { type: "boolean", description: "Required to be true for cross-module moves (sourceModule !== targetModule)." },
+        },
+        required: ["sourceModule", "articleId"],
         additionalProperties: false,
       }
     default:

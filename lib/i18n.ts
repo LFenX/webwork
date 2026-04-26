@@ -703,6 +703,7 @@ type Dictionary = {
   }
   jobs: {
     title: string
+    description: string
     total: string
     replied: string
     interviewRate: string
@@ -737,6 +738,7 @@ type Dictionary = {
   }
   interviews: {
     title: string
+    description: string
     total: string
     passed: string
     failed: string
@@ -1550,6 +1552,7 @@ const zhCN: Dictionary = {
   },
   jobs: {
     title: "求职",
+    description: "记录投递进度、回复状态和求职渠道，帮助你追踪每一次求职机会。",
     total: "总投递",
     replied: "有回复",
     interviewRate: "面试率",
@@ -1584,6 +1587,7 @@ const zhCN: Dictionary = {
   },
   interviews: {
     title: "面试",
+    description: "管理面试安排、面试结果和复盘记录，帮助你沉淀求职经验。",
     total: "总面试",
     passed: "已通过",
     failed: "未通过",
@@ -2405,6 +2409,7 @@ const enUS: Dictionary = {
   },
   jobs: {
     title: "Jobs",
+    description: "Track your applications, reply statuses, and job channels to follow every opportunity.",
     total: "Total",
     replied: "Replied",
     interviewRate: "Interview rate",
@@ -2439,6 +2444,7 @@ const enUS: Dictionary = {
   },
   interviews: {
     title: "Interviews",
+    description: "Manage interview schedules, results, and review notes to build your career experience.",
     total: "Total",
     passed: "Passed",
     failed: "Failed",

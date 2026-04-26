@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
 import { canViewModule, getAccessLevel, recordVisit, visibleTo, type ModuleKey } from "@/lib/permissions"
-import { ActivityHeatmap } from "@/components/activity-heatmap"
+import { ContributionActivityPanel } from "@/components/contribution-activity-panel"
 import { FunnelChart } from "@/components/funnel-chart"
 import { GuestbookSection } from "@/components/guestbook-section"
 import { StatsCard } from "@/components/stats-card"
@@ -142,7 +142,7 @@ async function getWritingStats(userId: string, enabledTypes: string[], visibilit
 }
 
 function ModuleLink({ href, label, visible, icon: Icon }: { href: string; label: string; visible: boolean; icon: LucideIcon }) {
-  const className = "inline-flex items-center gap-1.5 rounded-[--radius-sm] border border-[--color-border-strong] px-3 py-1.5 text-sm transition-colors hover:no-underline"
+  const className = "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 hover:no-underline bg-[--color-bg-hover] text-[--color-text-secondary] hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:-translate-y-px"
   if (!visible) {
     return (
       <span className={`${className} cursor-not-allowed text-[--color-text-muted] opacity-50`} title="该模块暂未对好友开放">
@@ -160,9 +160,9 @@ function ModuleLink({ href, label, visible, icon: Icon }: { href: string; label:
 function SectionTitle({ title, href, visible = true }: { title: string; href?: string; visible?: boolean }) {
   return (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-text-muted]">{title}</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-[--color-text-muted]">{title}</h2>
       {href && visible && (
-        <Link href={href} className="flex items-center gap-1 text-xs text-[--color-text-muted] hover:text-[--color-link] hover:no-underline">
+        <Link href={href} className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium text-[--color-text-muted] transition-colors hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline">
           全部 <ArrowRight size={12} />
         </Link>
       )}
@@ -251,19 +251,19 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
   ]
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10">
-      <header className="mb-10">
+    <div className="mx-auto max-w-[1200px] px-6 pt-6 pb-10">
+      <header className="mb-8">
         {level === "friend" && (
-          <Link href="/friends" className="mb-4 inline-flex items-center gap-1.5 text-xs text-[--color-text-muted] hover:text-[--color-accent] hover:no-underline">
+          <Link href="/friends" className="mb-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-[--color-text-muted] transition-colors hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline">
             <ArrowLeft size={13} /> 返回好友
           </Link>
         )}
-        <div className="flex items-start gap-4">
-          <UserAvatar name={displayName} email={owner.email} avatarText={owner.avatarText} avatarUrl={owner.avatarUrl} size="xl" className="mt-0.5" />
-          <div className="min-w-0">
-            <h1 className="mb-1 text-2xl font-semibold">{displayName}</h1>
-            <p className="text-sm text-[--color-text-muted]">{owner.email}</p>
-            {owner.bio && <p className="mt-2 text-sm text-[--color-text-muted]">{owner.bio}</p>}
+        <div className="flex items-start gap-5 rounded-[--radius-xl] bg-[linear-gradient(135deg,rgba(37,99,235,0.04)_0%,rgba(255,255,255,0.6)_40%,rgba(255,255,255,0.82)_100%)] px-6 py-5 shadow-[--shadow-sm] ring-1 ring-[--color-border]">
+          <UserAvatar name={displayName} email={owner.email} avatarText={owner.avatarText} avatarUrl={owner.avatarUrl} size="md" className="mt-0.5" />
+          <div className="min-w-0 space-y-1">
+            <h1 className="text-lg font-bold tracking-tight text-[--color-text-primary]">{displayName}</h1>
+            {owner.bio && <p className="line-clamp-2 text-sm leading-relaxed text-[--color-text-secondary]">{owner.bio}</p>}
+            <p className="break-all text-xs text-[--color-text-muted]">{owner.email}</p>
           </div>
         </div>
         {!showHomeContent && <p className="mt-4 text-sm text-[--color-text-muted]">主页内容暂未对好友开放。</p>}
@@ -271,9 +271,9 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
 
       {showHomeContent && (
         <>
-          <section className="mb-10">
+          <section className="mb-10 border-b border-[rgba(15,23,42,0.06)] pb-10">
             <SectionTitle title="写作统计" />
-            <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="mb-6 grid grid-cols-4 gap-1.5 sm:gap-3">
               <StatsCard title="累计文章" value={writingStats.total} sub="篇" />
               <StatsCard title="总字数" value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
               <StatsCard title="连续写作" value={writingStats.streak} sub="天" trend={writingStats.streak > 0 ? "up" : "neutral"} />
@@ -281,7 +281,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
             </div>
           </section>
 
-          <div className="mb-10 grid min-w-0 gap-8 md:grid-cols-2">
+          <div className="mb-10 grid min-w-0 gap-8 border-b border-[rgba(15,23,42,0.06)] pb-10 md:grid-cols-2">
             <section className="min-w-0">
               <SectionTitle title="最近文章" href={`/u/${ownerId}/blog`} visible={modules.blog} />
               {allPosts.length === 0 ? (
@@ -289,7 +289,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
               ) : (
                 allPosts.map((post) => (
                   <Link key={`${post.type}-${post.slug}`} href={`/u/${ownerId}/${post.type}/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                    <div className="flex min-w-0 items-start gap-2 border-b border-[--color-border] py-2.5 sm:gap-3">
+                    <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
                       <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
@@ -309,7 +309,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
               ) : (
                 recentDaily.slice(0, 5).map((post) => (
                   <Link key={post.slug} href={`/u/${ownerId}/daily/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                    <div className="flex min-w-0 items-start gap-2 border-b border-[--color-border] py-2.5 sm:gap-3">
+                    <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
                       <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
@@ -322,47 +322,38 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
             </section>
           </div>
 
-          <section className="mb-10 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-            <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周文章热力图</p>
-            <ActivityHeatmap data={articleActivityData} />
-          </section>
-
-          <section className="mb-10">
+          <section className="mb-10 border-b border-[rgba(15,23,42,0.06)] pb-10">
             <SectionTitle title="聊天活跃度" />
-            <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-3">
               <StatsCard title="单聊参与" value={chatActivity.directCount} sub="次" />
               <StatsCard title="群聊发言" value={chatActivity.channelCount} sub="次" />
               <StatsCard title="总互动" value={chatActivity.directCount + chatActivity.channelCount} sub="次" />
               <StatsCard title="本周活跃" value={chatActivity.weeklyActive} sub="次" />
             </div>
-            <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-              <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周聊天热力图</p>
-              <ActivityHeatmap data={chatActivity.heatmap} />
-            </div>
           </section>
 
-          <section className="mb-10">
+          <section className="mb-10 border-b border-[rgba(15,23,42,0.06)] pb-10">
             <SectionTitle title="求职漏斗" href={`/u/${ownerId}/jobs`} visible={modules.jobs} />
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="grid grid-cols-2 gap-3">
-                <StatsCard title="累计投递" value={stats.total} sub="家公司" />
-                <StatsCard title="回复率" value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
-                <StatsCard title="面试机会" value={stats.hasInterview} sub="次" />
-                <StatsCard title="Offer 数" value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
-              </div>
-              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                <p className="mb-3 text-xs text-[--color-text-muted]">投递转化漏斗</p>
+            <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-3">
+              <StatsCard title="累计投递" value={stats.total} sub="家公司" />
+              <StatsCard title="回复率" value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
+              <StatsCard title="面试机会" value={stats.hasInterview} sub="次" />
+              <StatsCard title="Offer 数" value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
+            </div>
+            {stats.total > 0 && (
+              <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
+                <p className="mb-3 text-xs font-medium text-[--color-text-muted]">投递转化漏斗</p>
                 <FunnelChart steps={funnelSteps} />
               </div>
-            </div>
+            )}
           </section>
 
-          <section className="mb-10">
+          <section className="mb-10 border-b border-[rgba(15,23,42,0.06)] pb-10">
             <SectionTitle title="最近求职动态" href={`/u/${ownerId}/jobs`} visible={modules.jobs} />
             {recentJobs.length === 0 ? (
               <p className="text-sm text-[--color-text-muted]">暂无可见求职动态</p>
             ) : (
-              <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+              <div className="overflow-hidden rounded-[--radius-lg] bg-[--color-bg-surface] shadow-[--shadow-sm] ring-1 ring-[--color-border]">
                 {recentJobs.map((job, index) => (
                   <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${index < recentJobs.length - 1 ? "border-b border-[--color-border]" : ""}`}>
                     <div className="min-w-0 flex-1">
@@ -377,17 +368,12 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
             )}
           </section>
 
-          <section className="mb-10 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-            <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周求职投递热力图</p>
-            <ActivityHeatmap data={jobActivityData} />
-          </section>
-
           <VisitStatsPanel userId={ownerId} />
         </>
       )}
 
-      <section className="mt-10 border-t border-[--color-border] pt-8">
-        <div className="flex flex-wrap gap-3">
+      <section className="mt-10 border-t border-[rgba(15,23,42,0.06)] pt-8">
+        <div className="flex flex-wrap gap-2">
           <ModuleLink href={`/u/${ownerId}/resume`} label="查看简历" visible={modules.resume} icon={FileText} />
           <ModuleLink href={`/u/${ownerId}/blog`} label="读博客" visible={modules.blog} icon={BookOpen} />
           <ModuleLink href={`/u/${ownerId}/daily`} label="看日常" visible={modules.daily} icon={CalendarDays} />
@@ -398,7 +384,23 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
         </div>
       </section>
 
-      <GuestbookSection ownerId={ownerId} initialMessages={guestbookMessages} isOwner={level === "self"} canPost={level === "friend"} />
+      {showHomeContent && (
+        <div className="mt-10 border-t border-[rgba(15,23,42,0.06)] pt-10">
+          <ContributionActivityPanel
+            contentData={articleActivityData}
+            chatData={chatActivity.heatmap}
+            careerData={jobActivityData}
+            recentPosts={allPosts}
+            recentDaily={recentDaily}
+            recentJobs={recentJobs}
+            chatActivity={chatActivity}
+          />
+        </div>
+      )}
+
+      <div className="mt-10 border-t border-[rgba(15,23,42,0.06)] pt-10">
+        <GuestbookSection ownerId={ownerId} initialMessages={guestbookMessages} isOwner={level === "self"} canPost={level === "friend"} />
+      </div>
     </div>
   )
 }

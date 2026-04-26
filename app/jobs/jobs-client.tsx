@@ -236,15 +236,15 @@ export function JobsClient() {
   })) ?? [], [stats])
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10">
-      <div className="mb-8">
+    <div className="mx-auto max-w-[1200px] px-6 pt-4 pb-10">
+      <div className="mb-6">
         <h1 className="mb-1 text-xl font-semibold">{dict.jobs.title}</h1>
-        <p className="text-sm text-[--color-text-muted]">{dict.nav.jobs}</p>
+        <p className="text-sm text-[--color-text-muted]">{dict.jobs.description}</p>
       </div>
 
       {stats && (
         <section className="mb-8">
-          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="mb-6 grid grid-cols-4 gap-1.5 sm:gap-3 rounded-[--radius-lg] bg-[--color-bg-surface]/60 p-3 sm:p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
             <StatsCard title={dict.jobs.total} value={stats.total} sub={dict.jobs.total} />
             <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? dict.jobs.replied : dict.jobs.replyRate} trend={stats.replyRate > 50 ? "up" : "neutral"} />
             <StatsCard title={dict.jobs.interviewRate} value={`${stats.interviewRate}%`} sub={dict.jobs.interviewRate} />
@@ -253,16 +253,16 @@ export function JobsClient() {
 
           {stats.total > 0 && (
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+              <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
                 <p className="mb-3 text-xs text-[--color-text-muted]">{dict.jobs.statusChart}</p>
                 <SimpleBarChart data={statusDist} height={Math.max(120, statusDist.length * 32)} />
               </div>
-              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+              <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
                 <p className="mb-3 text-xs text-[--color-text-muted]">{dict.jobs.channelChart}</p>
                 <SimpleBarChart data={stats.channelDist} height={Math.max(120, stats.channelDist.length * 32)} />
               </div>
               {stats.monthlyTrend.length > 1 && (
-                <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+                <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
                   <p className="mb-3 text-xs text-[--color-text-muted]">{dict.jobs.trendChart}</p>
                   <SimpleLineChart data={stats.monthlyTrend} height={180} />
                 </div>

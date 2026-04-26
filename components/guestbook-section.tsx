@@ -125,7 +125,7 @@ export function GuestbookSection({ ownerId, initialMessages, isOwner, canPost }:
             onKeyDown={(event) => handleEnterToSubmit(event, handleSubmit, { disabled: sending || (!content.trim() && !sticker) })}
             placeholder={gb.placeholder}
             rows={3}
-            className="w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-surface] p-3 text-sm outline-none focus:border-[--color-accent]"
+            className="w-full rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-3 text-sm outline-none transition-colors focus:border-[--color-brand] focus:ring-1 focus:ring-[--color-brand]/20"
           />
           <div className="flex items-center justify-end gap-2">
             <StickerPicker onPick={setSticker} />
@@ -134,7 +134,7 @@ export function GuestbookSection({ ownerId, initialMessages, isOwner, canPost }:
               type="button"
               onClick={handleSubmit}
               disabled={sending || (!content.trim() && !sticker)}
-              className="inline-flex items-center gap-1.5 rounded-[--radius-sm] bg-[#1A1A1A] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#333] disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[--color-brand] px-5 py-2 text-sm font-medium text-white shadow-[0_4px_12px_rgba(37,99,235,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(37,99,235,0.3)] active:scale-95 disabled:opacity-50"
             >
               {sending ? gb.sending : gb.submit}
             </button>

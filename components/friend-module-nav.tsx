@@ -13,10 +13,10 @@ const MODULE_LABEL: Record<FriendModuleNavKey, string> = {
 }
 
 function moduleLinkClass(active: boolean) {
-  return `inline-flex h-7 items-center border-b px-0.5 text-sm leading-none transition-colors hover:text-[--color-link] hover:no-underline ${
+  return `inline-flex h-7 items-center rounded-full px-3 text-sm font-medium leading-none transition-all duration-200 hover:no-underline ${
     active
-      ? "border-[--color-link] text-[--color-text-secondary]"
-      : "border-transparent text-[--color-text-secondary]"
+      ? "bg-[--color-brand] text-white shadow-[0_4px_12px_rgba(37,99,235,0.2)]"
+      : "text-[--color-text-secondary] hover:bg-[--color-brand-soft] hover:text-[--color-brand]"
   }`
 }
 
@@ -37,7 +37,7 @@ export function FriendModuleNav({
     <nav className="mb-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
       <Link
         href={`/u/${ownerId}`}
-        className="inline-flex h-7 items-center gap-1.5 border-b border-transparent px-0.5 text-[--color-text-secondary] transition-colors hover:text-[--color-link] hover:no-underline"
+        className="inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-[--color-text-secondary] transition-all duration-200 hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline"
       >
         <ArrowLeft size={13} /> {displayName}
       </Link>

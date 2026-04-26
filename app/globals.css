@@ -6,20 +6,25 @@
 
 @theme inline {
   /* Design tokens */
-  --color-bg-primary: #FAF9F5;
+  --color-bg-primary: #F7F4EC;
+  --color-bg-soft: #FBFAF7;
   --color-bg-surface: #FFFFFF;
-  --color-bg-hover: #F4F3EC;
+  --color-bg-surface-glass: rgba(255, 255, 255, 0.82);
+  --color-bg-hover: #F3F1EA;
   --color-text-primary: #1A1A1A;
   --color-text-secondary: #6B6B6B;
   --color-text-muted: #9A9A9A;
-  --color-border: #E5E3DC;
-  --color-border-strong: #D4D1C7;
+  --color-border: rgba(15, 23, 42, 0.08);
+  --color-border-strong: rgba(15, 23, 42, 0.14);
   --color-accent: #C96442;
-  --color-link: #0969DA;
+  --color-brand: #2563EB;
+  --color-brand-soft: rgba(37, 99, 235, 0.08);
+  --color-brand-border: rgba(37, 99, 235, 0.22);
+  --color-link: #2563EB;
   --color-success: #3A7D5C;
   --color-warning: #B8902D;
   --color-danger: #A8463A;
-  --color-success-bg: #F0F8F4;
+  --color-success-bg: #EDF7F2;
   --color-warning-bg: #FDF8EE;
   --color-danger-bg: #FDF1F0;
 
@@ -28,25 +33,31 @@
   --font-mono: var(--font-geist-mono);
 
   /* Radius */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  /* Shadows */
+  --shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 18px 50px rgba(15, 23, 42, 0.09);
+  --shadow-lg: 0 28px 64px rgba(15, 23, 42, 0.12);
 
   /* Shadcn compat */
   --color-background: var(--color-bg-primary);
   --color-foreground: var(--color-text-primary);
-  --color-primary: var(--color-text-primary);
+  --color-primary: var(--color-brand);
   --color-primary-foreground: #FFFFFF;
   --color-secondary: var(--color-bg-hover);
   --color-secondary-foreground: var(--color-text-primary);
   --color-muted: var(--color-bg-hover);
   --color-muted-foreground: var(--color-text-secondary);
-  --color-accent-color: var(--color-bg-hover);
-  --color-accent-foreground: var(--color-text-primary);
+  --color-accent-color: var(--color-brand-soft);
+  --color-accent-foreground: var(--color-brand);
   --color-destructive: var(--color-danger);
   --color-border-color: var(--color-border);
   --color-input: var(--color-border);
-  --color-ring: var(--color-border-strong);
+  --color-ring: var(--color-brand);
   --color-card: var(--color-bg-surface);
   --color-card-foreground: var(--color-text-primary);
   --color-popover: var(--color-bg-surface);
@@ -65,9 +76,9 @@
   --muted-foreground: var(--color-text-secondary);
   --border: var(--color-border);
   --input: var(--color-border);
-  --ring: var(--color-border-strong);
-  --accent: var(--color-bg-hover);
-  --accent-foreground: var(--color-text-primary);
+  --ring: var(--color-brand);
+  --accent: var(--color-brand-soft);
+  --accent-foreground: var(--color-brand);
   --app-viewport-height: 100vh;
   --app-viewport-offset-top: 0px;
   --keyboard-inset-bottom: 0px;
@@ -86,6 +97,11 @@
 
 .editor-toolbar {
   isolation: isolate;
+}
+
+/* Mobile toolbar needs stacking context loosened so popovers escape the editor */
+.editor-toolbar-mobile {
+  isolation: auto;
 }
 
 .tiptap-code-block {
@@ -130,13 +146,115 @@ html {
 }
 
 body {
-  background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   font-family: var(--font-sans), system-ui, sans-serif;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   min-height: var(--app-viewport-height);
   overflow-x: hidden;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(96, 165, 250, 0.10), transparent 30%),
+    radial-gradient(circle at 82% 0%, rgba(251, 191, 36, 0.09), transparent 28%),
+    linear-gradient(180deg, var(--color-bg-soft) 0%, var(--color-bg-primary) 100%);
+  background-attachment: fixed;
+}
+
+/* Unified page container */
+.app-shell {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 32px 0 80px;
+}
+
+@media (max-width: 768px) {
+  .app-shell {
+    width: min(100% - 24px, 1180px);
+    padding-top: 20px;
+    padding-bottom: 60px;
+  }
+}
+
+/* Card utility — available for ad-hoc usage alongside the inline pattern */
+.card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.card-interactive:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-brand-border);
+  box-shadow: var(--shadow-md);
+}
+
+/* Surface glass variant */
+.card-glass {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* AI page title — compact centered bar with gradient text */
+.ai-page-title {
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 55%, #6366f1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: ai-title-fade-in 0.4s ease-out both;
+}
+
+.ai-page-title-line {
+  width: 40px;
+  height: 2px;
+  border-radius: 999px;
+  margin: 8px auto 0;
+  background: linear-gradient(90deg, #3b82f6, #818cf8);
+  animation: ai-line-appear 0.45s 0.08s ease-out both;
+}
+
+@keyframes ai-title-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ai-line-appear {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+  to {
+    width: 40px;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-page-title,
+  .ai-page-title-line {
+    animation: none;
+  }
+}
+
+/* AI send button — icon must always be visible */
+.ai-send-btn svg {
+  display: block !important;
+  flex-shrink: 0;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 @media (max-width: 767px) {
@@ -916,6 +1034,252 @@ a:hover {
     min-width: 2rem;
     min-height: 2rem;
   }
+}
+
+/* ─── Mobile article editor ────────────────────────────────────────────────── */
+
+.mobile-editor-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: var(--app-viewport-height);
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding-bottom: 80px; /* space for floating toolbar */
+}
+
+.mobile-editor-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--color-bg-primary) 96%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.mobile-editor-meta {
+  padding: 0.5rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.mobile-editor-title-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border: none;
+  background: transparent;
+  font-size: max(1.5rem, 20px);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  padding: 0.5rem 0;
+  outline: none;
+  line-height: 1.35;
+}
+
+.mobile-editor-title-input::placeholder {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.mobile-editor-meta-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  font-size: max(0.9375rem, 16px);
+  color: var(--color-text-secondary);
+  padding: 0.5rem 0;
+  outline: none;
+  border-radius: 0;
+  transition: border-color 0.15s;
+}
+
+.mobile-editor-meta-input:focus {
+  border-bottom-color: var(--color-text-muted);
+}
+
+.mobile-editor-meta-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.mobile-editor-meta-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mobile-editor-date-input {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  font-size: max(0.9375rem, 16px);
+  color: var(--color-text-secondary);
+  padding: 0.5rem 0;
+  outline: none;
+  border-radius: 0;
+  font-family: inherit;
+  -webkit-appearance: none;
+}
+
+.mobile-editor-date-input:focus {
+  border-bottom-color: var(--color-text-muted);
+}
+
+.mobile-editor-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  font-size: max(0.9375rem, 16px);
+  color: var(--color-text-secondary);
+  padding: 0.5rem 0;
+  outline: none;
+  border-radius: 0;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239A9A9A'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  padding-right: 20px;
+}
+
+.mobile-editor-select:focus {
+  border-bottom-color: var(--color-text-muted);
+}
+
+.mobile-editor-content-area {
+  flex: 1;
+  min-width: 0;
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding: 0 0.25rem;
+}
+
+.mobile-editor-content-area .tiptap-wrapper {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.mobile-editor-content-area .tiptap-content .ProseMirror {
+  padding: 0.5rem 0.75rem;
+  font-size: 16px;
+  line-height: 1.8;
+  min-height: 60vh;
+}
+
+/* ─── Mobile editor FAB + floating toolbar pill ───────────────────────────── */
+
+.mobile-editor-fab {
+  position: fixed;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.10), 0 0 0 0.5px rgba(15, 23, 42, 0.04);
+  color: var(--color-text-secondary);
+  cursor: grab;
+  touch-action: none;
+  transition: box-shadow 0.2s, transform 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mobile-editor-fab:active {
+  cursor: grabbing;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.16), 0 0 0 0.5px rgba(15, 23, 42, 0.06);
+}
+
+.mobile-editor-fab.toolbar-open {
+  background: var(--color-text-primary);
+  color: #fff;
+}
+
+.mobile-fab-toolbar-pill {
+  position: fixed;
+  z-index: 46;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 2px 16px rgba(15, 23, 42, 0.10), 0 0 0 0.5px rgba(15, 23, 42, 0.04);
+  padding: 4px 4px;
+  max-width: calc(100vw - 64px);
+  overflow: hidden;
+  animation: toolbar-pill-in 0.15s ease-out;
+}
+
+@keyframes toolbar-pill-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ─── Mobile more tools bottom sheet ───────────────────────────────────────── */
+
+.mobile-more-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  animation: mobile-overlay-in 0.2s ease-out;
+}
+
+@keyframes mobile-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mobile-more-sheet {
+  width: 100%;
+  max-height: 70vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 1rem 1rem max(1.5rem, calc(env(safe-area-inset-bottom) + 0.75rem));
+  animation: mobile-sheet-up 0.25s ease-out;
+}
+
+@keyframes mobile-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.mobile-more-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: rgba(15, 23, 42, 0.15);
+  border-radius: 999px;
+  margin: 0 auto 0.75rem;
 }
 
 /* KaTeX display math centering */

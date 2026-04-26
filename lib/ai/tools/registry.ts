@@ -58,6 +58,15 @@ import {
   getAdminOverviewTool,
 } from "@/lib/ai/tools/admin-read-tools"
 import { getVisibleUserPageOverviewTool } from "@/lib/ai/tools/get-visible-user-page-overview"
+import {
+  createMarkdownArticleTool,
+  updateMarkdownArticleTool,
+  getMarkdownArticleDetailTool,
+  listMarkdownArticlesTool,
+  createContentFolderTool,
+  listContentFoldersTool,
+  moveArticleToFolderTool,
+} from "@/lib/ai/tools/markdown-content-tools"
 import type { AIToolDescriptor } from "@/lib/ai/types"
 
 function defineTool<TInput extends Record<string, unknown> | void>(
@@ -597,6 +606,81 @@ export const AI_TOOLS_REGISTRY = [
     whenNotToUse: "不要替代具体列表或详情工具。",
     argumentHints: [],
     returns: "后台总览统计。",
+  }),
+  defineTool(createMarkdownArticleTool, {
+    scope: "self",
+    inputSchemaSummary: "module: string, title: string, content?: string, summary?: string, tags?: string[], folderId?: string, visibility?: string, date?: string",
+    sensitivity: "high",
+    auditLabel: "create_markdown_article",
+    whenToUse: "当用户要求创建一篇博客、日常、心得或笔记文章时使用。",
+    whenNotToUse: "不要用于删除文章、读取他人文章或清空文章内容。不允许删除操作。",
+    argumentHints: ["module 必填，可选值：blog/daily/reflections/notes", "title 必填", "visibility 默认 private", "folderId 可选，传 null 表示根目录"],
+    returns: "articleId, slug, title, module, folderId, visibility, date",
+  }),
+  defineTool(updateMarkdownArticleTool, {
+    scope: "self",
+    inputSchemaSummary: "module: string, articleId: string, title?: string, content?: string, summary?: string, tags?: string[], folderId?: string, visibility?: string, date?: string",
+    sensitivity: "high",
+    auditLabel: "update_markdown_article",
+    whenToUse: "当用户要求修改自己的某篇文章的标题、正文、摘要、标签、可见性或移动文章到其他文件夹时使用。",
+    whenNotToUse: "不要用于删除文章、清空正文内容或修改他人文章。不允许将 content 设为空字符串。",
+    argumentHints: ["module 和 articleId 必填", "只修改提供的字段", "content 不能为空字符串", "folderId 传 null 表示移至根目录"],
+    returns: "articleId, slug, title, module, folderId, visibility, updatedAt",
+  }),
+  defineTool(getMarkdownArticleDetailTool, {
+    scope: "self",
+    inputSchemaSummary: "module: string, articleId?: string, slug?: string",
+    sensitivity: "medium",
+    auditLabel: "read_markdown_article_detail",
+    whenToUse: "当需要读取某篇文章的完整详情（包括正文）以便编辑或参考时使用。",
+    whenNotToUse: "不要用于列表浏览或搜索场景，那些用 list_markdown_articles。",
+    argumentHints: ["articleId 和 slug 至少提供一个", "module 必填"],
+    returns: "文章完整详情，含正文。",
+  }),
+  defineTool(listMarkdownArticlesTool, {
+    scope: "self",
+    inputSchemaSummary: "module: string, folderId?: string, keyword?: string, limit?: number",
+    sensitivity: "low",
+    auditLabel: "list_markdown_articles",
+    whenToUse: "当需要列出某个模块下的文章列表、按文件夹筛选或按关键词查找时使用。",
+    whenNotToUse: "不要用于读取文章全文，全文用 get_markdown_article_detail。",
+    argumentHints: ["module 必填", "limit 默认 10，最大 30", "folderId 为 null 时列出根目录文章"],
+    returns: "文章摘要列表，不含正文。",
+  }),
+  defineTool(createContentFolderTool, {
+    scope: "self",
+    inputSchemaSummary: "module: string, name: string, description?: string",
+    sensitivity: "medium",
+    auditLabel: "create_content_folder",
+    whenToUse: "当用户要求在 blog/daily/reflections/notes 模块中创建文件夹/分类器时使用。",
+    whenNotToUse: "不要用于删除文件夹或跨用户创建文件夹。本系统不支持多级文件夹。",
+    argumentHints: ["module 必填", "name 必填", "同名文件夹会自动复用已有文件夹"],
+    returns: "folderId, name, module, description",
+  }),
+  defineTool(listContentFoldersTool, {
+    scope: "self",
+    inputSchemaSummary: "module: string",
+    sensitivity: "low",
+    auditLabel: "list_content_folders",
+    whenToUse: "当需要列出某个模块下的所有文件夹及其文章数量时使用。",
+    whenNotToUse: "不要用于创建或删除文件夹。",
+    argumentHints: ["module 必填"],
+    returns: "文件夹列表，含 articleCount。",
+  }),
+  defineTool(moveArticleToFolderTool, {
+    scope: "self",
+    inputSchemaSummary: "sourceModule: string, articleId: string, targetModule?: string, targetFolderId?: string, confirmedByUser?: boolean",
+    sensitivity: "high",
+    auditLabel: "move_article_to_folder",
+    whenToUse: "当用户要求将文章移动到某个文件夹、移动到根目录或跨模块移动时使用。",
+    whenNotToUse: "不要在没有用户确认的情况下跨模块移动文章。跨模块移动时必须先得到 confirmedByUser=true。",
+    argumentHints: [
+      "sourceModule 和 articleId 必填",
+      "targetModule 默认等于 sourceModule（同模块移动）",
+      "targetFolderId 传 null 表示移至根目录",
+      "跨模块移动（sourceModule !== targetModule）时 confirmedByUser 必须为 true，否则只返回确认提示",
+    ],
+    returns: "articleId, title, sourceModule, targetModule, folderId, slug, slugChanged, updatedAt",
   }),
 ] as const
 

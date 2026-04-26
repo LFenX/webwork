@@ -77,7 +77,7 @@ export default async function RootLayout({
           avatarUrl={profile?.avatarUrl}
           displayName={profile?.displayName}
         />
-        <main key={session?.userId ?? "guest"} className="flex-1 pt-12">
+        <main key={session?.userId ?? "guest"} className="flex-1 pt-14">
           {children}
         </main>
         <SiteFooter />

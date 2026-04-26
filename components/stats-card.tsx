@@ -12,18 +12,18 @@ export function StatsCard({ title, value, sub, trend, className }: StatsCardProp
   return (
     <div
       className={cn(
-        "bg-[--color-bg-surface] border border-[--color-border] rounded-[--radius-lg] p-5",
+        "rounded-[--radius-lg] bg-[--color-bg-surface] p-3 sm:p-5 shadow-[--shadow-sm] ring-1 ring-[--color-border] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[--shadow-md]",
         className
       )}
     >
-      <p className="text-xs text-[--color-text-muted] mb-1">{title}</p>
-      <p className="text-2xl font-semibold text-[--color-text-primary] font-mono leading-none">
+      <p className="mb-0.5 sm:mb-1 text-[10px] sm:text-xs font-medium text-[--color-text-muted] truncate">{title}</p>
+      <p className="text-xl sm:text-[1.75rem] font-bold text-[--color-text-primary] font-mono leading-none tracking-tight">
         {value}
       </p>
       {sub && (
         <p
           className={cn(
-            "text-xs mt-1.5",
+            "mt-1.5 text-xs font-medium",
             trend === "up" && "text-[--color-success]",
             trend === "down" && "text-[--color-danger]",
             (!trend || trend === "neutral") && "text-[--color-text-muted]"

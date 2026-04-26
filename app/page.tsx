@@ -4,8 +4,8 @@ import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { requireAuth } from "@/lib/auth"
 import { getAnnouncementFeed } from "@/lib/announcement-feed"
-import { ActivityHeatmap } from "@/components/activity-heatmap"
 import { AnnouncementChannelBar } from "@/components/announcement-channel-bar"
+import { ContributionActivityPanel } from "@/components/contribution-activity-panel"
 import { FunnelChart } from "@/components/funnel-chart"
 import { GuestbookSection } from "@/components/guestbook-section"
 import { HomeLayoutBoard } from "@/components/home-layout-board"
@@ -55,7 +55,7 @@ async function getRecentJobs(userId: string) {
   return prisma.jobApplication.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },
-    take: 3,
+    take: 200,
   })
 }
 
@@ -154,9 +154,9 @@ async function getProfile(userId: string) {
 function SectionTitle({ title, href, allLabel }: { title: string; href?: string; allLabel?: string }) {
   return (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-text-muted]">{title}</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-[--color-text-muted]">{title}</h2>
       {href && (
-        <Link href={href} className="flex items-center gap-1 text-xs text-[--color-text-muted] hover:text-[--color-link] hover:no-underline">
+        <Link href={href} className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium text-[--color-text-muted] transition-colors hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline">
           {allLabel ?? "全部"} <ArrowRight size={12} />
         </Link>
       )}
@@ -223,6 +223,7 @@ export default async function HomePage() {
   ])
 
   const allPosts = articleGroups.flat().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 5)
+  const allPostsFull = articleGroups.flat().sort((a, b) => (a.date < b.date ? 1 : -1))
   const funnelSteps = [
     { label: "累计投递", value: stats.total, color: "#9A9A9A" },
     { label: "收到回复", value: stats.replied, color: "#B8902D" },
@@ -235,7 +236,7 @@ export default async function HomePage() {
       content: (
         <section>
           <SectionTitle title="写作统计" />
-          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="mb-6 grid grid-cols-4 gap-1.5 sm:gap-3">
             <StatsCard title="累计文章" value={writingStats.total} sub="篇" />
             <StatsCard title={dict.article.wordCount} value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
             <StatsCard title="连续写作" value={writingStats.streak} sub="天" trend={writingStats.streak > 0 ? "up" : "neutral"} />
@@ -244,7 +245,7 @@ export default async function HomePage() {
           {writingStats.topTags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {writingStats.topTags.map(({ tag, count }) => (
-                <span key={tag} className="inline-flex items-center gap-1 rounded border border-[--color-border] bg-[--color-bg-hover] px-2 py-0.5 text-xs text-[--color-text-secondary]">
+                <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[--color-bg-hover] px-2.5 py-0.5 text-xs font-medium text-[--color-text-secondary]">
                   {tag}
                   <span className="font-mono text-[--color-text-muted]">{count}</span>
                 </span>
@@ -266,7 +267,7 @@ export default async function HomePage() {
               ) : (
                 allPosts.map((post) => (
                   <Link key={`${post.type}-${post.slug}`} href={`/${post.type}/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                    <div className="flex min-w-0 items-start gap-2 border-b border-[--color-border] py-2.5 sm:gap-3">
+                    <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
                       <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
@@ -287,7 +288,7 @@ export default async function HomePage() {
               ) : (
                 recentDaily.slice(0, 5).map((post) => (
                   <Link key={post.slug} href={`/daily/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                    <div className="flex min-w-0 items-start gap-2 border-b border-[--color-border] py-2.5 sm:gap-3">
+                    <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
                       <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
@@ -303,28 +304,15 @@ export default async function HomePage() {
       ),
     },
     {
-      id: "writingHeatmap" as const,
-      content: (
-        <section className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周文章热力图</p>
-          <ActivityHeatmap data={articleActivityData} />
-        </section>
-      ),
-    },
-    {
       id: "chatActivity" as const,
       content: (
         <section>
           <SectionTitle title="聊天活跃度" />
-          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-3">
             <StatsCard title="单聊参与" value={chatActivity.directCount} sub="次" />
             <StatsCard title="群聊发言" value={chatActivity.channelCount} sub="次" />
             <StatsCard title="总互动" value={chatActivity.directCount + chatActivity.channelCount} sub="次" />
             <StatsCard title="本周活跃" value={chatActivity.weeklyActive} sub="次" />
-          </div>
-          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-            <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周聊天热力图</p>
-            <ActivityHeatmap data={chatActivity.heatmap} />
           </div>
         </section>
       ),
@@ -334,20 +322,18 @@ export default async function HomePage() {
       content: (
         <section>
           <SectionTitle title="求职漏斗" href="/jobs" allLabel={dict.common.all} />
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="grid grid-cols-2 gap-3">
-              <StatsCard title="累计投递" value={stats.total} sub="家公司" />
-              <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
-              <StatsCard title={dict.home.interviews} value={stats.hasInterview} sub="次" />
-              <StatsCard title={dict.home.offers} value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
-            </div>
-            {stats.total > 0 && (
-              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                <p className="mb-3 text-xs text-[--color-text-muted]">投递转化漏斗</p>
-                <FunnelChart steps={funnelSteps} />
-              </div>
-            )}
+          <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-3">
+            <StatsCard title="累计投递" value={stats.total} sub="家公司" />
+            <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
+            <StatsCard title={dict.home.interviews} value={stats.hasInterview} sub="次" />
+            <StatsCard title={dict.home.offers} value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
           </div>
+          {stats.total > 0 && (
+            <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
+              <p className="mb-3 text-xs font-medium text-[--color-text-muted]">投递转化漏斗</p>
+              <FunnelChart steps={funnelSteps} />
+            </div>
+          )}
         </section>
       ),
     },
@@ -360,8 +346,8 @@ export default async function HomePage() {
             <p className="text-sm text-[--color-text-muted]">{dict.common.noData}</p>
           ) : (
             <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-              {recentJobs.map((job, index) => (
-                <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${index < recentJobs.length - 1 ? "border-b border-[--color-border]" : ""}`}>
+              {recentJobs.slice(0, 5).map((job, index) => (
+                <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${index < Math.min(recentJobs.length, 5) - 1 ? "border-b border-[--color-border]" : ""}`}>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{job.company}</p>
                     <p className="truncate text-xs text-[--color-text-secondary] sm:text-sm">{job.position}</p>
@@ -375,21 +361,11 @@ export default async function HomePage() {
         </section>
       ),
     },
-    {
-      id: "jobHeatmap" as const,
-      content: (
-        <section className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周求职投递热力图</p>
-          <ActivityHeatmap data={jobActivityData} />
-        </section>
-      ),
-    },
     { id: "visitStats" as const, content: <VisitStatsPanel userId={userId} /> },
-    { id: "guestbook" as const, content: <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={true} /> },
   ]
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 pb-10 pt-4">
+    <div className="mx-auto max-w-[1200px] px-6 pb-10 pt-6">
       <AnnouncementChannelBar
         initialAnnouncements={announcements}
         userId={userId}
@@ -404,15 +380,17 @@ export default async function HomePage() {
       />
 
       {profile && (
-        <section className="mb-6 flex items-center gap-4 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] px-4 py-4">
+        <section className="mb-8 flex items-center gap-5 rounded-[--radius-xl] bg-[linear-gradient(135deg,rgba(37,99,235,0.04)_0%,rgba(255,255,255,0.6)_40%,rgba(255,255,255,0.82)_100%)] px-6 py-5 shadow-[--shadow-sm] ring-1 ring-[--color-border]">
           <UserAvatar size="md" name={profile.displayName} email={profile.email} avatarText={profile.avatarText} avatarUrl={profile.avatarUrl} />
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h1 className="text-base font-semibold text-[--color-text-primary]">{profile.displayName || profile.email}</h1>
-              {profile.location && <span className="text-xs text-[--color-text-muted]">{profile.location}</span>}
+              <h1 className="text-lg font-bold tracking-tight text-[--color-text-primary]">{profile.displayName || profile.email}</h1>
+              {profile.location && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[--color-bg-hover] px-2.5 py-0.5 text-xs text-[--color-text-secondary]">{profile.location}</span>
+              )}
             </div>
-            {profile.bio && <p className="line-clamp-2 text-sm text-[--color-text-secondary]">{profile.bio}</p>}
-            <p className="break-all font-mono text-xs text-[--color-text-muted]">{profile.email}</p>
+            {profile.bio && <p className="line-clamp-2 text-sm leading-relaxed text-[--color-text-secondary]">{profile.bio}</p>}
+            <p className="break-all text-xs text-[--color-text-muted]">{profile.email}</p>
           </div>
         </section>
       )}
@@ -421,6 +399,22 @@ export default async function HomePage() {
         initialLayout={homeLayout}
         editable
       />
+
+      <div className="mt-8">
+        <ContributionActivityPanel
+          contentData={articleActivityData}
+          chatData={chatActivity.heatmap}
+          careerData={jobActivityData}
+          recentPosts={allPostsFull}
+          recentDaily={recentDaily}
+          recentJobs={recentJobs}
+          chatActivity={chatActivity}
+        />
+      </div>
+
+      <div className="mt-10">
+        <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={true} />
+      </div>
 
       <div className="hidden">
 
@@ -435,7 +429,7 @@ export default async function HomePage() {
         {writingStats.topTags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {writingStats.topTags.map(({ tag, count }) => (
-              <span key={tag} className="inline-flex items-center gap-1 rounded border border-[--color-border] bg-[--color-bg-hover] px-2 py-0.5 text-xs text-[--color-text-secondary]">
+              <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[--color-bg-hover] px-2.5 py-0.5 text-xs font-medium text-[--color-text-secondary]">
                 {tag}
                 <span className="font-mono text-[--color-text-muted]">{count}</span>
               </span>
@@ -452,10 +446,6 @@ export default async function HomePage() {
           <StatsCard title="总互动" value={chatActivity.directCount + chatActivity.channelCount} sub="次" />
           <StatsCard title="本周活跃" value={chatActivity.weeklyActive} sub="次" />
         </div>
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周聊天热力图</p>
-          <ActivityHeatmap data={chatActivity.heatmap} />
-        </div>
       </section>
 
       <div className="mb-10 grid min-w-0 gap-8 md:grid-cols-2">
@@ -467,7 +457,7 @@ export default async function HomePage() {
             ) : (
               allPosts.map((post) => (
                 <Link key={`${post.type}-${post.slug}`} href={`/${post.type}/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                  <div className="flex min-w-0 items-start gap-2 border-b border-[--color-border] py-2.5 sm:gap-3">
+                  <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
                     <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
@@ -489,7 +479,7 @@ export default async function HomePage() {
             ) : (
               recentDaily.slice(0, 5).map((post) => (
                 <Link key={post.slug} href={`/daily/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                  <div className="flex min-w-0 items-start gap-2 border-b border-[--color-border] py-2.5 sm:gap-3">
+                  <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
                     <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
@@ -502,11 +492,6 @@ export default async function HomePage() {
           </div>
         </section>
       </div>
-
-      <section className="mb-10 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-        <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周文章热力图</p>
-        <ActivityHeatmap data={articleActivityData} />
-      </section>
 
       <section className="mb-10">
         <SectionTitle title="求职漏斗" href="/jobs" allLabel={dict.common.all} />
@@ -530,8 +515,8 @@ export default async function HomePage() {
         <section className="mb-10">
           <SectionTitle title="最近求职动态" href="/jobs" allLabel={dict.common.all} />
           <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-            {recentJobs.map((job, index) => (
-              <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${index < recentJobs.length - 1 ? "border-b border-[--color-border]" : ""}`}>
+            {recentJobs.slice(0, 5).map((job, index) => (
+              <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${index < Math.min(recentJobs.length, 5) - 1 ? "border-b border-[--color-border]" : ""}`}>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{job.company}</p>
                   <p className="truncate text-xs text-[--color-text-secondary] sm:text-sm">{job.position}</p>
@@ -544,12 +529,6 @@ export default async function HomePage() {
         </section>
       )}
 
-      <section className="mb-10 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-        <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周求职投递热力图</p>
-        <ActivityHeatmap data={jobActivityData} />
-      </section>
-
-      <VisitStatsPanel userId={userId} />
 
       <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={true} />
       </div>

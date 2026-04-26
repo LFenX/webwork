@@ -120,7 +120,7 @@ export function FriendJobsClient({
   return (
     <>
       <section className="mb-8">
-        <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="mb-6 grid grid-cols-4 gap-1.5 sm:gap-3">
           <StatsCard title="累计投递" value={stats.total} sub="家公司" />
           <StatsCard title="回复率" value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
           <StatsCard title="面试转化率" value={`${stats.interviewRate}%`} sub="进入面试" />
@@ -129,11 +129,11 @@ export function FriendJobsClient({
 
         {stats.total > 0 && (
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+            <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
               <p className="mb-3 text-xs text-[--color-text-muted]">按状态分布</p>
               <SimpleBarChart data={stats.statusDist} height={Math.max(120, stats.statusDist.length * 32)} />
             </div>
-            <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+            <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
               <p className="mb-3 text-xs text-[--color-text-muted]">按渠道分布</p>
               <SimpleBarChart data={stats.channelDist} height={Math.max(120, stats.channelDist.length * 32)} />
             </div>

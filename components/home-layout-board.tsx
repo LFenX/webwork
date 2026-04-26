@@ -13,13 +13,19 @@ export function HomeLayoutBoard({
   initialLayout,
   editable = false,
   toolbar,
+  editing: externalEditing,
+  onEditingChange,
 }: {
   widgets: Widget[]
   initialLayout: HomeWidgetLayout[]
   editable?: boolean
   toolbar?: ReactNode
+  editing?: boolean
+  onEditingChange?: (v: boolean) => void
 }) {
-  const [editing, setEditing] = useState(false)
+  const [internalEditing, setInternalEditing] = useState(false)
+  const editing = externalEditing !== undefined ? externalEditing : internalEditing
+  const setEditing = onEditingChange || setInternalEditing
   const [layout, setLayout] = useState(initialLayout)
   const [dragging, setDragging] = useState<HomeWidgetId | null>(null)
   const longPressTimerRef = useRef<number | null>(null)
@@ -83,11 +89,11 @@ export function HomeLayoutBoard({
 
   return (
     <div>
-      {(editable || toolbar) && (
-        <div className="mb-8 flex items-center justify-end gap-2">
+      {(!onEditingChange && (editable || toolbar)) && (
+        <div className="mb-2 flex items-center justify-end gap-2">
           {editable && (
             <>
-              <Button type="button" size="icon" variant="outline" title="调整首页布局" onClick={() => setEditing((value) => !value)}>
+              <Button type="button" size="icon" variant="outline" title="调整首页布局" onClick={() => setEditing(!editing)}>
                 <LayoutGrid size={15} />
               </Button>
               {editing && (
@@ -140,7 +146,9 @@ export function HomeLayoutBoard({
               }
             }}
             onPointerCancel={clearLongPressTimer}
-            className={editing ? `relative rounded-[--radius-lg] outline outline-1 outline-dashed ${dragging === item.id ? "outline-[--color-link] bg-[--color-bg-hover]" : "outline-[--color-accent]"}` : ""}
+            className={editing
+              ? `relative rounded-[--radius-lg] outline outline-1 outline-dashed ${dragging === item.id ? "outline-[--color-link] bg-[--color-bg-hover]" : "outline-[--color-accent]"}`
+              : "border-b border-[rgba(15,23,42,0.06)] pb-8"}
             style={{ gridColumn: `span ${Math.min(12, Math.max(1, item.w))} / span ${Math.min(12, Math.max(1, item.w))}`, minHeight: editing ? `${Math.max(1, item.h) * 72}px` : undefined }}
           >
             {editing && (

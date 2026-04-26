@@ -13,6 +13,10 @@ interface MarkdownEditorProps {
   height?: number
   initialEditType?: "wysiwyg" | "markdown"
   postId?: string
+  hideToolbar?: boolean
+  onEditorReady?: (editor: import("@tiptap/core").Editor) => void
+  editType?: "wysiwyg" | "markdown"
+  onToggleEditType?: () => void
 }
 
 export function MarkdownEditor(props: MarkdownEditorProps) {

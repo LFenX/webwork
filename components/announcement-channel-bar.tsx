@@ -315,8 +315,8 @@ export function AnnouncementChannelBar({
   return (
     <section className="mb-8 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
       <div className="flex min-w-0 items-center gap-3 px-3 py-2">
-        <Button asChild size="sm" className="h-9 shrink-0 gap-1.5 text-primary-foreground hover:text-primary-foreground md:hidden">
-          <Link href="/channels">
+        <Button asChild size="sm" className="h-9 shrink-0 gap-1.5 md:hidden">
+          <Link href="/channels" className="!text-primary-foreground hover:!text-primary-foreground">
             <MessageCircle size={14} />
             {dict.channels.channels}
           </Link>

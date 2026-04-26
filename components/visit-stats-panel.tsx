@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db"
-import { ActivityHeatmap } from "@/components/activity-heatmap"
-import { formatChinaDateTime, formatDateKey } from "@/lib/time"
+import { formatChinaDateTime } from "@/lib/time"
 
 const MODULE_LABEL: Record<string, string> = {
   home: "首页",
@@ -14,7 +13,7 @@ const MODULE_LABEL: Record<string, string> = {
 }
 
 export async function VisitStatsPanel({ userId }: { userId: string }) {
-  const [total, byModule, recent, homeVisits] = await Promise.all([
+  const [total, byModule, recent] = await Promise.all([
     prisma.visitLog.count({ where: { ownerId: userId, module: "home" } }),
     prisma.visitLog.groupBy({
       by: ["module"],
@@ -28,19 +27,7 @@ export async function VisitStatsPanel({ userId }: { userId: string }) {
       take: 20,
       include: { visitor: { select: { displayName: true, email: true } } },
     }),
-    prisma.visitLog.findMany({
-      where: { ownerId: userId, module: "home" },
-      orderBy: { createdAt: "desc" },
-      take: 1000,
-      select: { createdAt: true },
-    }),
   ])
-
-  const heatmapData = homeVisits.reduce<Record<string, number>>((acc, visit) => {
-    const key = formatDateKey(visit.createdAt)
-    acc[key] = (acc[key] ?? 0) + 1
-    return acc
-  }, {})
 
   return (
     <section className="mb-10">
@@ -52,11 +39,6 @@ export async function VisitStatsPanel({ userId }: { userId: string }) {
             主页访问次数。好友在同一次访问中浏览模块，会进入明细但不重复计入主页总数。
           </p>
         </div>
-      </div>
-
-      <div className="mb-4 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-        <p className="mb-3 text-xs text-[--color-text-muted]">最近 26 周主页访问热力图</p>
-        <ActivityHeatmap data={heatmapData} />
       </div>
 
       <details className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">

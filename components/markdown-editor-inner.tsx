@@ -342,6 +342,10 @@ interface MarkdownEditorInnerProps {
   height?: number
   initialEditType?: "wysiwyg" | "markdown"
   postId?: string
+  hideToolbar?: boolean
+  onEditorReady?: (editor: import("@tiptap/core").Editor) => void
+  editType?: "wysiwyg" | "markdown"
+  onToggleEditType?: () => void
 }
 
 async function uploadImageFile(file: File, postId?: string): Promise<string | null> {
@@ -485,8 +489,15 @@ export function MarkdownEditorInner({
   height = 600,
   initialEditType = "wysiwyg",
   postId,
+  hideToolbar = false,
+  onEditorReady,
+  editType: controlledEditType,
+  onToggleEditType: controlledToggleEditType,
 }: MarkdownEditorInnerProps) {
-  const [editType, setEditType] = useState<"wysiwyg" | "markdown">(initialEditType)
+  const isControlled = controlledEditType !== undefined
+  const [internalEditType, setInternalEditType] = useState<"wysiwyg" | "markdown">(initialEditType)
+  const editType = isControlled ? controlledEditType : internalEditType
+  const prevControlledEditType = useRef(controlledEditType)
   const [imgManagerOpen, setImgManagerOpen] = useState(false)
   const [markdownSource, setMarkdownSource] = useState(value)
   const markdownRef = useRef(value)
@@ -573,13 +584,34 @@ export function MarkdownEditorInner({
     },
   })
 
+  useEffect(() => {
+    if (editor && onEditorReady) onEditorReady(editor)
+  }, [editor, onEditorReady])
+
+  // When controlled editType changes externally, sync the editor
+  useEffect(() => {
+    if (!isControlled || !editor) return
+    if (controlledEditType === prevControlledEditType.current) return
+    prevControlledEditType.current = controlledEditType
+
+    if (controlledEditType === "markdown") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      markdownRef.current = (editor.storage as any).markdown.getMarkdown() as string
+      setMarkdownSource(markdownRef.current)
+    } else {
+      isInternalChange.current = true
+      editor.commands.setContent(normalizeMarkdownForEditor(markdownRef.current))
+      isInternalChange.current = false
+    }
+  }, [controlledEditType, isControlled, editor])
+
   function switchToMarkdown() {
     if (editor) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       markdownRef.current = (editor.storage as any).markdown.getMarkdown() as string
       setMarkdownSource(markdownRef.current)
     }
-    setEditType("markdown")
+    setInternalEditType("markdown")
   }
 
   function switchToWysiwyg() {
@@ -588,10 +620,14 @@ export function MarkdownEditorInner({
       editor.commands.setContent(normalizeMarkdownForEditor(markdownRef.current))
       isInternalChange.current = false
     }
-    setEditType("wysiwyg")
+    setInternalEditType("wysiwyg")
   }
 
   function handleToggleEditType() {
+    if (isControlled && controlledToggleEditType) {
+      controlledToggleEditType()
+      return
+    }
     if (editType === "wysiwyg") switchToMarkdown()
     else switchToWysiwyg()
   }
@@ -614,14 +650,16 @@ export function MarkdownEditorInner({
   const editorMinHeight = Math.max(300, height)
 
   return (
-    <div className="tiptap-wrapper flex w-full min-w-0 max-w-full flex-col rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface]">
-      <EditorToolbar
-        editor={editor}
-        postId={postId}
-        onOpenImageManager={() => setImgManagerOpen(true)}
-        editType={editType}
-        onToggleEditType={handleToggleEditType}
-      />
+    <div className={`tiptap-wrapper flex w-full min-w-0 max-w-full flex-col rounded-[--radius-md] ${hideToolbar ? "" : "border border-[--color-border]"} bg-[--color-bg-surface]`}>
+      {!hideToolbar && (
+        <EditorToolbar
+          editor={editor}
+          postId={postId}
+          onOpenImageManager={() => setImgManagerOpen(true)}
+          editType={editType}
+          onToggleEditType={handleToggleEditType}
+        />
+      )}
 
       <div className="min-w-0 max-w-full" style={{ minHeight: editorMinHeight }}>
         {editType === "wysiwyg" ? (

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  ArrowUp,
   CheckCircle2,
   ChevronDown,
   Copy,
@@ -237,15 +236,15 @@ function compactJson(value: unknown) {
 }
 
 function statusChip(status: string) {
-  if (status === "failed") return "border-red-200 bg-red-50 text-red-700"
-  if (status === "running" || status === "streaming") return "border-amber-200 bg-amber-50 text-amber-700"
-  return "border-emerald-200 bg-emerald-50 text-emerald-700"
+  if (status === "failed") return "bg-red-50 text-red-700"
+  if (status === "running" || status === "streaming") return "bg-blue-50 text-blue-700"
+  return "bg-emerald-50 text-emerald-700"
 }
 
 function capabilityTone(supported: boolean) {
   return supported
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-    : "border-slate-200 bg-slate-100 text-slate-500"
+    ? "bg-emerald-50 text-emerald-700"
+    : "bg-[--color-bg-hover] text-[--color-text-muted]"
 }
 
 function stepKindLabel(dict: Dictionary, type: string) {
@@ -499,12 +498,11 @@ function AssistantMessageCard({ message, run, dict }: { message: MessageItem; ru
     : (message.contentMarkdown ?? "")
 
   return (
-    <article className="mr-auto w-full max-w-[1180px]">
+    <article className="mr-auto w-full max-w-[1180px] rounded-[--radius-lg] bg-[--color-bg-surface]/60 px-5 py-4">
       <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-sm font-semibold text-[--color-text-primary]">{dict.ai.title}</span>
         <span className="text-xs text-[--color-text-muted]">{formatMessageTime(message.createdAt)}</span>
         {modelName ? (
-          <span className="rounded-full bg-[--color-bg-hover] px-2.5 py-1 text-[11px] text-[--color-text-muted]">{modelName}</span>
+          <span className="rounded-full bg-[--color-brand-soft] px-2.5 py-1 text-[11px] font-medium text-[--color-brand]">{modelName}</span>
         ) : null}
         {message.runMode ? (
           <span className="rounded-full bg-[--color-bg-hover] px-2.5 py-1 text-[11px] text-[--color-text-muted]">{modeLabel(dict, message.runMode)}</span>
@@ -560,7 +558,7 @@ function AssistantMessageCard({ message, run, dict }: { message: MessageItem; ru
 
         {/* Thinking & tool call trace — two independent sections */}
         {(reasoningSteps.length > 0 || toolSteps.length > 0) ? (
-          <div className="rounded-2xl bg-[--color-bg-hover]/40 px-4 py-2">
+          <div className="rounded-[--radius-md] bg-[--color-bg-hover]/70 px-5 py-3">
             <TraceSection
               title={dict.ai.thinkingProcess}
               steps={reasoningSteps}
@@ -618,6 +616,7 @@ export function AIAssistantClient() {
   const attachmentInputRef = useRef<HTMLInputElement | null>(null)
   const desktopPromptInputRef = useRef<HTMLTextAreaElement | null>(null)
   const mobilePromptInputRef = useRef<HTMLTextAreaElement | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   async function loadRun(messageId: string) {
     const res = await fetch(`/api/ai/runs/${messageId}?includeSteps=true`, { cache: "no-store" })
@@ -867,6 +866,13 @@ export function AIAssistantClient() {
     }
   }, [activeBaseUrl, configuredModelName, providerLabel, activeConfigSource, statusPayload?.userConfig?.modelList])
 
+  function stopGeneration() {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+  }
+
   async function sendPrompt(nextPrompt?: string) {
     const text = (nextPrompt ?? prompt).trim()
     if ((!text && attachments.length === 0) || sending) return
@@ -940,6 +946,10 @@ export function AIAssistantClient() {
     setPrompt("")
     setAttachments([])
 
+    // Create abort controller for stopping generation
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     try {
       const res = await fetch("/api/ai/stream", {
         method: "POST",
@@ -950,6 +960,7 @@ export function AIAssistantClient() {
           attachments: outgoingAttachments,
           modelOverride: activeModelName || undefined,
         }),
+        signal: controller.signal,
       })
 
       if (!res.ok || !res.body) {
@@ -1143,14 +1154,24 @@ export function AIAssistantClient() {
         await loadMessages(resolvedConversationId)
       }
     } catch (error) {
-      patchAssistantMessage(currentAssistantId, (item) => ({
-        ...item,
-        status: "failed",
-        runStatus: "failed",
-        contentMarkdown: error instanceof Error ? error.message : dict.ai.sendFailed,
-      }))
-      toast.error(error instanceof Error ? error.message : dict.ai.sendFailed)
+      if (error instanceof DOMException && error.name === "AbortError") {
+        // User stopped generation — mark message as completed with current content
+        patchAssistantMessage(currentAssistantId, (item) => ({
+          ...item,
+          status: "completed",
+          runStatus: "completed",
+        }))
+      } else {
+        patchAssistantMessage(currentAssistantId, (item) => ({
+          ...item,
+          status: "failed",
+          runStatus: "failed",
+          contentMarkdown: error instanceof Error ? error.message : dict.ai.sendFailed,
+        }))
+        toast.error(error instanceof Error ? error.message : dict.ai.sendFailed)
+      }
     } finally {
+      abortControllerRef.current = null
       setSending(false)
     }
   }
@@ -1164,23 +1185,27 @@ export function AIAssistantClient() {
   return (
     <>
       <div className="grid h-full min-h-0 grid-cols-1 gap-0 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-6">
-        <aside className="hidden min-h-0 rounded-[28px] bg-[color:var(--color-bg-surface)] p-4 shadow-[0_16px_34px_rgba(34,27,20,0.05)] lg:flex lg:flex-col">
+        <aside className="hidden min-h-0 rounded-[--radius-xl] bg-[--color-bg-surface-glass] p-4 shadow-[--shadow-sm] ring-1 ring-[--color-border] backdrop-blur-[16px] [-webkit-backdrop-filter:blur(16px)] lg:flex lg:flex-col">
           <div className="flex items-center justify-between gap-3 px-1 pb-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[--color-text-muted]">Conversations</p>
-              <p className="mt-1 text-lg font-semibold text-[--color-text-primary]">{dict.ai.title}</p>
-            </div>
-            <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void createConversation()}>
+            <p className="text-lg font-semibold text-[--color-text-primary]">{dict.ai.conversations}</p>
+            <Button size="sm" variant="ghost" className="rounded-full" onClick={() => void createConversation()}>
               <MessageSquarePlus size={14} />
               {dict.ai.newChat}
             </Button>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+          <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
             {conversations.map((conversation) => (
               <div
                 key={conversation.id}
-                className={`rounded-[20px] px-4 py-3 transition-colors ${activeConversationId === conversation.id ? "bg-[--color-bg-hover]" : "bg-transparent hover:bg-[--color-bg-hover]"}`}
+                className={`relative rounded-[--radius-md] px-4 py-3 transition-all duration-200 ${
+                  activeConversationId === conversation.id
+                    ? "bg-[--color-brand-soft]"
+                    : "hover:bg-[--color-bg-hover]"
+                }`}
+                style={activeConversationId === conversation.id ? {
+                  boxShadow: "inset 3px 0 0 rgba(37, 99, 235, 0.45)",
+                } : undefined}
               >
                 {renamingId === conversation.id ? (
                   <div className="space-y-2">
@@ -1241,55 +1266,51 @@ export function AIAssistantClient() {
           </div>
         </aside>
 
-        <section className="relative flex min-h-0 flex-col overflow-hidden rounded-none bg-transparent md:rounded-[28px] md:bg-[color:var(--color-bg-surface)] md:shadow-[0_16px_34px_rgba(34,27,20,0.05)]">
-          <div className="border-b border-[--color-border] px-4 py-4 md:hidden">
+        <section className="relative flex min-h-0 flex-col overflow-hidden rounded-none bg-transparent md:rounded-[--radius-xl] md:bg-[--color-bg-surface-glass] md:shadow-[--shadow-sm] md:ring-1 md:ring-[--color-border] md:backdrop-blur-[16px] md:[-webkit-backdrop-filter:blur(16px)]">
+          <div className="px-4 py-3 md:hidden">
             <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
-                className="inline-flex h-10 items-center gap-2 rounded-full border border-[--color-border] bg-[color:var(--color-bg-surface)] px-4 text-sm text-[--color-text-primary]"
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-[--color-bg-hover] px-4 text-sm font-medium text-[--color-text-secondary]"
                 onClick={() => setMobilePanel("conversations")}
               >
                 {dict.ai.conversations}
               </button>
-              <p className="truncate text-base font-semibold text-[--color-text-primary]">{activeConversation?.title || dict.ai.title}</p>
+              <p className="truncate text-base font-semibold text-[--color-text-primary]">{activeConversation?.title || dict.ai.conversations}</p>
               <button
                 type="button"
-                className="inline-flex h-10 items-center gap-2 rounded-full border border-[--color-border] bg-[color:var(--color-bg-surface)] px-4 text-sm text-[--color-text-primary]"
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-[--color-bg-hover] px-4 text-sm font-medium text-[--color-text-secondary]"
                 onClick={() => setMobilePanel("controls")}
               >
                 {dict.ai.more}
               </button>
             </div>
           </div>
+          <div className="mx-4 h-px bg-[--color-border] md:hidden" />
 
-          <div className="hidden border-b border-[--color-border] px-8 py-4 md:block">
+          <div className="hidden px-8 py-4 md:block">
             <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0 max-w-3xl [&>h2]:hidden [&>p:last-child]:hidden">
-                <p className="truncate text-sm leading-7 text-[--color-text-secondary]">Agent Runtime: stream output, tool traces, and image understanding stay in one conversation view.</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[--color-text-primary]">{dict.ai.codexViewTitle}</h2>
-                <p className="mt-3 max-w-3xl text-base leading-8 text-[--color-text-secondary]">
-                  {dict.ai.codexViewDescription}
-                </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {capabilities ? (
+                  <>
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs ${capabilityTone(capabilities.streamText)}`}>{dict.ai.streaming}</span>
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs ${capabilityTone(capabilities.toolCalling)}`}>{dict.ai.toolCalling}</span>
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs ${capabilityTone(capabilities.visionInput)}`}>{dict.ai.imageUnderstanding}</span>
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs ${capabilityTone(capabilities.reasoningStream)}`}>{dict.ai.thinkingStream}</span>
+                  </>
+                ) : null}
               </div>
               <div className="flex items-center gap-2">
-                {providerLabel ? <span className="rounded-full border border-[--color-border] px-4 py-2 text-sm text-[--color-text-primary]">{providerLabel}</span> : null}
-                {activeModelName ? <span className="rounded-full border border-[--color-border] px-4 py-2 text-sm text-[--color-text-primary]">{activeModelName}</span> : null}
-                <Button variant="outline" className="rounded-full border-[--color-border] bg-[color:var(--color-bg-surface)] px-4 shadow-none hover:bg-[--color-bg-hover]" onClick={() => setSettingsOpen(true)}>
+                {providerLabel ? <span className="rounded-full bg-[--color-bg-hover] px-3 py-1.5 text-xs font-medium text-[--color-text-secondary]">{providerLabel}</span> : null}
+                {activeModelName ? <span className="rounded-full bg-[--color-brand-soft] px-3 py-1.5 text-xs font-medium text-[--color-brand]">{activeModelName}</span> : null}
+                <Button variant="ghost" size="sm" className="rounded-full" onClick={() => setSettingsOpen(true)}>
                   <Settings2 size={14} />
-                  {dict.ai.settings}
                 </Button>
               </div>
             </div>
-
-            {capabilities ? (
-              <div className="mt-4 hidden flex-wrap items-center gap-2">
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.streamText)}`}>{dict.ai.streaming}</span>
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.toolCalling)}`}>{dict.ai.toolCalling}</span>
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.visionInput)}`}>{dict.ai.imageUnderstanding}</span>
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${capabilityTone(capabilities.reasoningStream)}`}>{dict.ai.thinkingStream}</span>
-              </div>
-            ) : null}
           </div>
+          {/* Soft divider between toolbar and messages */}
+          <div className="hidden md:block mx-8 h-px bg-[--color-border]" />
 
           <div className="min-h-0 flex-1 overflow-y-auto">
             {loading ? (
@@ -1300,7 +1321,7 @@ export function AIAssistantClient() {
             ) : (
               <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 md:gap-8 md:py-7">
                 {!canUseAI ? (
-                  <div className="rounded-[20px] border border-[color:color-mix(in_srgb,var(--color-warning)_24%,white)] bg-[linear-gradient(180deg,#fffdf7_0%,#fbf5ea_100%)] p-6 shadow-[0_16px_36px_rgba(184,144,45,0.08)]">
+                  <div className="rounded-[--radius-lg] bg-[--color-warning-bg]/60 p-6">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[--color-warning-bg] text-[--color-warning]">
                         <Sparkles size={18} />
@@ -1327,7 +1348,7 @@ export function AIAssistantClient() {
                         onChange={(event) => setRequestMessage(event.target.value)}
                         rows={3}
                         placeholder={dict.ai.requestPlaceholder}
-                        className="rounded-[16px] border-[color:color-mix(in_srgb,var(--color-warning)_24%,white)] bg-[color:var(--color-bg-surface)] px-4 py-3 shadow-none"
+                        className="rounded-[--radius-md] border-[--color-border] bg-[--color-bg-surface] px-4 py-3 shadow-none"
                       />
                       <div className="flex gap-2 sm:flex-col">
                         <Button className="rounded-full px-5 shadow-none" onClick={() => void submitAccessRequest()}>
@@ -1357,11 +1378,11 @@ export function AIAssistantClient() {
                           key={item}
                           type="button"
                           onClick={() => void sendPrompt(item)}
-                          className="group rounded-[18px] bg-[color:var(--color-bg-surface)] px-4 py-4 text-left transition-all hover:-translate-y-0.5 hover:bg-[--color-bg-hover]"
+                          className="group rounded-[--radius-lg] bg-[--color-bg-surface] px-5 py-5 text-left shadow-[--shadow-sm] transition-all duration-200 hover:-translate-y-1 hover:shadow-[--shadow-md]"
                         >
                           <div className="flex items-start gap-3">
-                            <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-[12px] bg-[color:color-mix(in_srgb,var(--color-accent)_12%,white)] text-[--color-accent]">
-                              <Sparkles size={16} />
+                            <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-[14px] bg-[--color-brand-soft] text-[--color-brand]">
+                              <Sparkles size={18} />
                             </div>
                             <div>
                               <p className="text-sm font-medium leading-7 text-[--color-text-primary]">{item}</p>
@@ -1379,7 +1400,7 @@ export function AIAssistantClient() {
                         <AssistantMessageCard key={message.id} message={message} run={runsByMessageId[message.id]} dict={dict} />
                       ) : (
                         <article key={message.id} className="ml-auto max-w-[88%] lg:max-w-[76%]">
-                          <div className="rounded-[18px] bg-[linear-gradient(180deg,#fbf5ef_0%,#f7efe7_100%)] px-5 py-4 text-[15px] leading-8 text-[--color-text-primary] shadow-[0_10px_24px_rgba(201,100,66,0.08)]">
+                          <div className="rounded-[20px] bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)] px-5 py-4 text-[15px] leading-8 text-[--color-text-primary] shadow-[0_4px_16px_rgba(37,99,235,0.08)]">
                             <div className="mb-1 text-xs text-[--color-text-muted]">{formatMessageTime(message.createdAt)}</div>
                             {message.attachments.length > 0 ? (
                               <div className="mb-3 flex flex-wrap gap-3">
@@ -1409,7 +1430,8 @@ export function AIAssistantClient() {
             )}
           </div>
 
-          <div className="bg-[linear-gradient(180deg,rgba(250,247,240,0)_0%,rgba(255,255,255,0.88)_28%)] px-4 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] pt-3 backdrop-blur sm:px-7 sm:pb-6 sm:pt-4">
+          <div className="px-4 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] pt-2 sm:px-7 sm:pb-6 sm:pt-4">
+            <div className="mx-auto mb-3 h-px w-full max-w-[1480px] bg-[--color-border]" />
             <div className="mx-auto w-full max-w-[1480px]">
               <input
                 ref={attachmentInputRef}
@@ -1431,16 +1453,16 @@ export function AIAssistantClient() {
               />
 
               <div className="hidden flex-wrap items-center gap-2 px-1 pb-3 md:flex">
-                <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+                <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs font-medium text-[--color-text-secondary]">
                   {sourceLabel(dict, statusPayload?.status.source ?? "none")}
                 </span>
                 {providerLabel ? (
-                  <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+                  <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs font-medium text-[--color-text-secondary]">
                     {providerLabel}
                   </span>
                 ) : null}
                 {activeModelName ? (
-                  <span className="inline-flex rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs text-[--color-text-secondary]">
+                  <span className="inline-flex rounded-full bg-[--color-brand-soft] px-3 py-1 text-xs font-medium text-[--color-brand]">
                     {activeModelName}
                   </span>
                 ) : null}
@@ -1472,7 +1494,7 @@ export function AIAssistantClient() {
 
               {modelMenuOpen ? (
                 <div className="mb-3 flex justify-end">
-                  <div className="w-full max-w-[320px] rounded-[22px] border border-[--color-border] bg-[color:var(--color-bg-surface)] p-3 shadow-[0_18px_36px_rgba(34,27,20,0.1)]">
+                  <div className="w-full max-w-[320px] rounded-[--radius-lg] border border-[--color-border] bg-popover p-4 shadow-[--shadow-md]">
                     <div className="space-y-3">
                       <div>
                         <p className="text-sm font-medium text-[--color-text-primary]">Model switch</p>
@@ -1553,15 +1575,42 @@ export function AIAssistantClient() {
                     <ChevronDown size={16} />
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => void sendPrompt()}
-                    disabled={sending || (!prompt.trim() && attachments.length === 0)}
-                    className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-black/40"
-                    aria-label={sending ? dict.ai.generating : dict.ai.sendMessage}
-                  >
-                    {sending ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={22} strokeWidth={2.4} />}
-                  </button>
+                  {sending ? (
+                    <button
+                      type="button"
+                      onClick={stopGeneration}
+                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#A8463A] shadow-[0_8px_22px_rgba(168,70,58,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(168,70,58,0.36)] active:scale-95"
+                      aria-label="停止生成"
+                    >
+                      <svg width="22" height="22" viewBox="0 0 24 24" className="block shrink-0">
+                        <rect x="6" y="6" width="12" height="12" rx="2" fill="#ffffff" />
+                      </svg>
+                    </button>
+                  ) : prompt.trim() || attachments.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => void sendPrompt()}
+                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#2563EB] shadow-[0_8px_22px_rgba(37,99,235,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(37,99,235,0.36)] active:scale-95"
+                      aria-label={dict.ai.sendMessage}
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" className="block shrink-0">
+                        <line x1="12" y1="19" x2="12" y2="5" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" />
+                        <polyline points="5 12 12 5 19 12" fill="none" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F3F1EA] shadow-none cursor-not-allowed"
+                      aria-label={dict.ai.sendMessage}
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" className="block shrink-0">
+                        <line x1="12" y1="19" x2="12" y2="5" stroke="#9A9A9A" strokeWidth="2.4" strokeLinecap="round" />
+                        <polyline points="5 12 12 5 19 12" fill="none" stroke="#9A9A9A" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1595,23 +1644,56 @@ export function AIAssistantClient() {
                     <Settings2 size={18} />
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => void sendPrompt()}
-                    disabled={sending || (!prompt.trim() && attachments.length === 0)}
-                    className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white disabled:cursor-not-allowed disabled:bg-black/40"
-                    aria-label={sending ? dict.ai.generating : dict.ai.sendMessage}
-                  >
-                    {sending ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={22} strokeWidth={2.4} />}
-                  </button>
+                  {sending ? (
+                    <button
+                      type="button"
+                      onClick={stopGeneration}
+                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#A8463A] shadow-[0_8px_22px_rgba(168,70,58,0.28)] transition-all duration-200 active:scale-95"
+                      aria-label="停止生成"
+                    >
+                      <svg width="22" height="22" viewBox="0 0 24 24" className="block shrink-0">
+                        <rect x="6" y="6" width="12" height="12" rx="2" fill="#ffffff" />
+                      </svg>
+                    </button>
+                  ) : prompt.trim() || attachments.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => void sendPrompt()}
+                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#2563EB] shadow-[0_8px_22px_rgba(37,99,235,0.28)] transition-all duration-200 active:scale-95"
+                      aria-label={dict.ai.sendMessage}
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" className="block shrink-0">
+                        <line x1="12" y1="19" x2="12" y2="5" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" />
+                        <polyline points="5 12 12 5 19 12" fill="none" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F3F1EA] shadow-none cursor-not-allowed"
+                      aria-label={dict.ai.sendMessage}
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" className="block shrink-0">
+                        <line x1="12" y1="19" x2="12" y2="5" stroke="#9A9A9A" strokeWidth="2.4" strokeLinecap="round" />
+                        <polyline points="5 12 12 5 19 12" fill="none" stroke="#9A9A9A" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
           </div>
 
           {mobilePanel ? (
-            <div className="absolute inset-0 z-20 flex flex-col bg-[color:var(--color-bg-surface)] md:hidden">
-              <div className="flex items-center justify-between border-b border-[--color-border] px-4 py-3">
+            <>
+              {/* Backdrop overlay */}
+              <div
+                className="absolute inset-0 z-20 bg-black/20 backdrop-blur-sm md:hidden"
+                onClick={() => setMobilePanel(null)}
+              />
+              <div className="absolute inset-0 z-30 flex flex-col bg-[--color-bg-surface] shadow-[--shadow-md] md:hidden">
+                <div className="flex items-center justify-between border-b border-[--color-border] px-4 py-3">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.22em] text-[--color-text-muted]">
                     {mobilePanel === "conversations" ? "Conversations" : "Controls"}
@@ -1722,6 +1804,7 @@ export function AIAssistantClient() {
                 </div>
               )}
             </div>
+          </>
           ) : null}
         </section>
       </div>
