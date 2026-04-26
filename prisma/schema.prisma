@@ -28,6 +28,7 @@ model User {
   interviews   InterviewRecord[]
   resume       Resume?
   settings     SiteSettings?
+  profile      AgentProfile?
   moduleVisibilities ModuleVisibility[]
   visitsOwned  VisitLog[] @relation("visitOwner")
   visitsMade   VisitLog[] @relation("visitVisitor")
@@ -600,6 +601,27 @@ model SiteSettings {
   heroTagline String   @default("这里是我的个人空间，记录博客、日常、心得，以及正在进行中的求职旅程。")
   language    String   @default("zh-CN")
   updatedAt   DateTime @updatedAt
+}
+
+model AgentProfile {
+  userId            String   @id
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled           Boolean  @default(true)
+
+  soulContent       String   @default("")
+  soulVersion       Int      @default(1)
+
+  identityContent   String   @default("")
+  identityVersion   Int      @default(1)
+
+  userContextContent String  @default("")
+  userContextVersion Int     @default(1)
+
+  rulesContent      String   @default("")
+  rulesVersion      Int      @default(1)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model GuestbookMessage {

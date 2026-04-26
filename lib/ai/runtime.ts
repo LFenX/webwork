@@ -16,6 +16,7 @@ import { requestProviderChat, type ProviderMessage, type ProviderToolCall, type 
 import { AI_TOOL_MAP, AI_TOOLS_REGISTRY } from "@/lib/ai/tools/registry"
 import { buildAIToolContext, compactText, createAIToolActor } from "@/lib/ai/tools/context"
 import { isStructuredToolResult, resolveUserReference } from "@/lib/ai/tools/helpers"
+import { loadAgentPersonaContext, buildAgentPersonaPrompt } from "@/lib/ai/agent-profile-service"
 import type {
   AIConversationHistoryEntry,
   AIProviderCapabilities,
@@ -394,9 +395,10 @@ function buildRuntimeSystemPrompt(params: {
   capabilities: AIProviderCapabilities
   canUseTools: boolean
   canUseVision: boolean
+  personaPrompt?: string
 }) {
-  return [
-    "你是站内 AI 助手。",
+  const platformRules = [
+    "你是蝶灵（SoulWing），当前用户的专属 AI 助手。",
     "优先直接回答通用问题；只有当问题需要站内私有数据时，才调用工具。",
     "如果问题依赖站内数据，优先遵循：先判断权限，再看概览，再取列表，再读详情或全文。",
     "如果用户上传了图片，先描述你真正看到的图像，再结合问题作答。",
@@ -414,7 +416,13 @@ function buildRuntimeSystemPrompt(params: {
     "跨模块移动文章前必须先得到用户明确确认（confirmedByUser=true），不得直接执行。不允许删除文章或文件夹。修改文章时不允许清空正文。",
     "高风险写入操作前应简要告知用户将要执行的操作，让用户有机会纠正。",
     "回答必须可信、简洁、结构化，且不得虚构工具结果。",
-  ].join(" ")
+  ]
+
+  if (params.personaPrompt) {
+    platformRules.push(params.personaPrompt)
+  }
+
+  return platformRules.join(" ")
 }
 
 function buildProviderTools(): ProviderToolSpec[] {
@@ -1007,6 +1015,22 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
 
   const history = await listRecentConversationHistory(params.userId, params.conversationId, 10)
   const provider = await getEffectiveProviderConfig(params.userId, params.modelOverride)
+
+  // Load per-user Agent Persona (蝶灵 SoulWing)
+  let personaPrompt = ""
+  try {
+    const persona = await loadAgentPersonaContext(params.userId)
+    personaPrompt = buildAgentPersonaPrompt(persona)
+  } catch {
+    // Fallback: use minimal identity if persona loading fails
+    personaPrompt = buildAgentPersonaPrompt({
+      identity: "你是蝶灵（SoulWing），当前用户的专属 AI 助手。",
+      soul: "",
+      userContext: "",
+      rules: "",
+    })
+  }
+
   const executions: AIToolExecutionRecord[] = []
   const reasoningParts: string[] = []
   let finalPlan: AIRuntimePlan = buildPlan("self", "模型将根据问题自行判断是否需要调用工具。", [])
@@ -1092,6 +1116,7 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
             capabilities,
             canUseTools: capabilities.toolCalling,
             canUseVision,
+            personaPrompt,
           }),
         },
         ...buildHistoryMessages(history),
