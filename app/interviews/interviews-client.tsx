@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import { Plus, Trash2, Star, ChevronDown } from "lucide-react"
+import { Eye, Pencil, Plus, Trash2, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -18,6 +18,7 @@ import { INTERVIEW_ROUNDS, INTERVIEW_FORMATS, INTERVIEW_RESULTS } from "@/lib/en
 import { apiFetch, apiPost, apiPatch, apiDelete } from "@/lib/api-client"
 import { formatChinaDate, formatChinaDateTime } from "@/lib/time"
 import { getDict } from "@/lib/i18n"
+import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 
 interface Interview {
   id: string
@@ -90,7 +91,7 @@ function StarRating({ value, onChange }: { value: number | null; onChange: (v: n
   )
 }
 
-export function InterviewsClient() {
+export function InterviewsClient({ initialVisibility }: { initialVisibility?: "private" | "friends" }) {
   const dict = getDict()
 
   const [interviews, setInterviews] = useState<Interview[]>([])
@@ -223,15 +224,20 @@ export function InterviewsClient() {
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 pt-4 pb-10">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold mb-1">{dict.interviews.title}</h1>
-        <p className="text-sm text-[--color-text-muted]">{dict.interviews.description}</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="mb-1 text-xl font-semibold">{dict.interviews.title}</h1>
+          <p className="text-sm text-[--color-text-muted]">{dict.interviews.description}</p>
+        </div>
+        {initialVisibility !== undefined && (
+          <ModuleVisibilitySelect module="interviews" initialVisibility={initialVisibility} />
+        )}
       </div>
 
       {/* Stats */}
       {stats && (
         <section className="mb-8">
-          <div className="grid grid-cols-4 gap-1.5 sm:gap-3 mb-6 rounded-[--radius-lg] bg-[--color-bg-surface]/60 p-3 sm:p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
+          <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3 rounded-[--radius-lg] bg-[--color-bg-surface]/60 p-3 sm:p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
             <StatsCard title={dict.interviews.total} value={stats.total} sub={dict.interviews.total} />
             <StatsCard
               title={dict.interviews.passRate}
@@ -305,7 +311,8 @@ export function InterviewsClient() {
                     {interviews.map((item) => (
                       <tr
                         key={item.id}
-                        className="group transition-colors hover:bg-[--color-bg-hover]"
+                        className="group cursor-pointer transition-colors hover:bg-[--color-bg-hover]"
+                        onClick={() => openDetail(item)}
                       >
                         <td className="w-[130px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-medium group-hover:bg-[--color-bg-hover]">{item.company}</td>
                         <td className="w-[180px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-[--color-text-secondary] group-hover:bg-[--color-bg-hover]">{item.position}</td>
@@ -336,27 +343,28 @@ export function InterviewsClient() {
                         <td className="w-[200px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">
                           {item.feedback}
                         </td>
-                        <td className="w-[90px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]">
+                        <td className="w-[90px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]" onClick={(e) => e.stopPropagation()}>
                           <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                             <button
                               onClick={() => openDetail(item)}
                               className="p-1 text-[--color-text-muted] hover:text-[--color-link]"
-                              title={dict.jobs.detail}
+                              title={dict.interviews.title}
                             >
-                              <ChevronDown size={14} />
+                              <Eye size={13} />
                             </button>
                             <button
                               onClick={() => openEdit(item)}
-                              className="p-1 text-xs text-[--color-text-muted] hover:text-[--color-text-primary]"
+                              className="p-1 text-[--color-text-muted] hover:text-[--color-text-primary]"
                               title={dict.common.edit}
                             >
-                              {dict.common.edit}
+                              <Pencil size={13} />
                             </button>
                             <button
                               onClick={() => handleDelete(item.id)}
                               className="p-1 text-[--color-text-muted] hover:text-[--color-danger]"
+                              title={dict.common.delete}
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={13} />
                             </button>
                           </div>
                         </td>

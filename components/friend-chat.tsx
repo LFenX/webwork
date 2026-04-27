@@ -786,6 +786,7 @@ export function ChatPanel({
   onDiscardMessage,
   className = "",
   headerPrefix,
+  composerExtra,
   userId,
 }: {
   friend: ChatFriend | null
@@ -811,6 +812,7 @@ export function ChatPanel({
   onDiscardMessage?: (messageId: string) => void
   className?: string
   headerPrefix?: ReactNode
+  composerExtra?: ReactNode
   userId?: string
 }) {
   const labels = getLabels()
@@ -1143,6 +1145,7 @@ export function ChatPanel({
             <Button type="button" variant="ghost" size="sm" onClick={() => inputRef.current?.click()} className="h-9 w-9 shrink-0 px-0 text-[--color-text-secondary] hover:bg-[#ededed]">
               <Paperclip size={18} />
             </Button>
+            {composerExtra}
             <div className="flex-1" />
             <Button type="submit" size="sm" disabled={sending || (!text.trim() && files.length === 0 && !sticker)} className="h-9 shrink-0 rounded-md bg-[#f0f0f0] px-5 text-sm font-normal text-[#9b9b9b] shadow-none hover:bg-[#e8e8e8] enabled:bg-[#3b82f6] enabled:text-white">
               <Send size={14} className="sm:hidden" />

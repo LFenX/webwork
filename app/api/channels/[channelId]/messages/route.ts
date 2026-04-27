@@ -18,6 +18,7 @@ import { publishChannelMessage } from "@/lib/channel-events"
 import { publishRealtime } from "@/lib/realtime-events"
 import { getSession } from "@/lib/session"
 import { canUseSticker } from "@/lib/stickers"
+import { maybeRunSoulWingAutoReply } from "@/lib/ai/chat-reply/soulwing-auto-reply-service"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -210,6 +211,19 @@ export async function POST(
       select: { userId: true },
     })
     publishRealtime(members.map((member) => member.userId), { type: "channel:message", data: payload })
+
+    // Fire-and-forget: check if any member has group auto-reply enabled (gated by SOULWING_AUTO_REPLY_ENABLED)
+    for (const member of members) {
+      if (member.userId !== session.userId) {
+        void maybeRunSoulWingAutoReply({
+          userId: member.userId,
+          chatType: "group",
+          conversationId: channelId,
+          newMessageId: message.id,
+          senderUserId: session.userId,
+        })
+      }
+    }
   }
 
   return NextResponse.json(payload, { status: 201, headers: NO_STORE })

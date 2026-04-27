@@ -9,6 +9,7 @@ import {
   getAIStatusSnapshot,
 } from "@/lib/ai/service"
 import { aiStreamSchema } from "@/lib/validators"
+import { archiveConversation } from "@/lib/ai/memory/memory-service"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -80,6 +81,17 @@ export async function POST(req: NextRequest) {
             toolTraceSummary: runtimeResult.toolTraceSummary,
             modelName: runtimeResult.modelName,
           })
+
+          // Async memory archive — must not block the SSE stream
+          if (runtimeResult.contentMarkdown) {
+            void archiveConversation(session.userId, {
+              conversationId: conversation.id,
+              messageId: assistantMessage.id,
+              userPrompt: parsed.data.prompt,
+              assistantContent: runtimeResult.contentMarkdown,
+              toolExecutions: runtimeResult.toolExecutions?.map((t) => ({ name: t.name, title: t.title })),
+            }).catch(() => { /* archive failure must not affect the response */ })
+          }
 
           write("run_completed", {
             conversationId: conversation.id,

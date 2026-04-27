@@ -26,14 +26,22 @@ export default async function AIPage() {
             </h1>
             <div className="ai-page-title-line" />
           </div>
-          {normalizedUser?.permissions.manageAI ? (
+          <div className="absolute right-0 flex items-center gap-2">
             <Link
-              href="/admin"
-              className="absolute right-0 rounded-full px-3 py-1.5 text-xs font-medium text-[--color-text-muted] transition-all duration-200 hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline"
+              href="/ai/soulwing"
+              className="rounded-full px-3 py-1.5 text-xs font-medium text-[--color-text-muted] transition-all duration-200 hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline"
             >
-              {dict.ai.manageAuth}
+              蝶灵设置
             </Link>
-          ) : null}
+            {normalizedUser?.permissions.manageAI ? (
+              <Link
+                href="/admin"
+                className="rounded-full px-3 py-1.5 text-xs font-medium text-[--color-text-muted] transition-all duration-200 hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline"
+              >
+                {dict.ai.manageAuth}
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         <div className="min-h-0 flex-1">

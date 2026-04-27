@@ -15,6 +15,7 @@ import { GroupAvatar } from "@/components/group-avatar"
 import { deleteChatOutboxItem, listChatOutboxItems, saveChatOutboxItem, type ChatOutboxItem } from "@/lib/chat-outbox"
 import { copyImageToClipboard, getClipboardImageFiles, saveStickerToCustomLibrary, triggerBrowserDownload } from "@/lib/chat-media-actions"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
+import { SoulWingReplyButton } from "@/components/chat/soulwing-reply-button"
 import { getDict, type AppLocale } from "@/lib/i18n"
 import { handleEnterToSubmit } from "@/lib/keyboard"
 
@@ -943,6 +944,11 @@ export function GroupChatClient({
               <Button type="button" size="sm" variant="ghost" className="h-9 w-9 shrink-0 px-0 text-[--color-text-secondary] hover:bg-[#ededed]" onClick={() => inputRef.current?.click()}>
                 <Paperclip size={18} />
               </Button>
+              <SoulWingReplyButton
+                chatType="group"
+                conversationId={selectedId}
+                onInsertDraft={(reply) => setText(reply)}
+              />
               {isWorld && (
                 <button
                   type="button"

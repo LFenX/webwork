@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import {
-  BookOpen, Briefcase, Calendar, FileText, Home, Lightbulb,
+  BookOpen, Briefcase, Calendar, FileText, Globe, Home, Lightbulb,
   LogIn, LogOut, Menu, MessageSquare, Settings, Shield,
   Sparkles, StickyNote, Users, Video, X,
 } from "lucide-react"
@@ -18,6 +18,7 @@ import type { AppLocale } from "@/lib/i18n"
 // Shared nav config with icons for desktop and mobile
 const NAV_ICONS: Record<string, React.ReactNode> = {
   "/": <Home size={16} />,
+  "/community": <Globe size={16} />,
   "/resume": <FileText size={16} />,
   "/blog": <BookOpen size={16} />,
   "/daily": <Calendar size={16} />,
@@ -37,6 +38,7 @@ interface SiteHeaderProps {
   locale: AppLocale
   navDict: {
     home: string
+    community: string
     resume: string
     blog: string
     daily: string
@@ -77,6 +79,7 @@ export function SiteHeader({
 
   const navItems = [
     { href: "/", label: navDict.home },
+    { href: "/community", label: navDict.community },
     { href: "/resume", label: navDict.resume },
     { href: "/blog", label: navDict.blog },
     { href: "/daily", label: navDict.daily },

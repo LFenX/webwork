@@ -26,6 +26,8 @@ export type AIToolDefinition<TInput extends Record<string, unknown> | void = voi
   whenNotToUse?: string
   argumentHints?: string[]
   returns?: string
+  deprecated?: boolean
+  parameterSchema?: Record<string, unknown>
   execute: (ctx: AIToolContext & (TInput extends void ? Record<string, never> : TInput)) => Promise<unknown>
 }
 

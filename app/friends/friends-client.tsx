@@ -7,6 +7,7 @@ import { Check, Clock, MessageCircle, UserMinus, UserPlus, Users, X } from "luci
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ChatPanel, type ChatFriend, type ChatSummary, messagePreview, presenceLabel, useChatSession } from "@/components/friend-chat"
+import { SoulWingReplyButton } from "@/components/chat/soulwing-reply-button"
 import { UserAvatar } from "@/components/user-avatar"
 import { getActiveChatContext, subscribeActiveChatContext } from "@/lib/active-chat"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
@@ -746,6 +747,14 @@ function ChatWorkspace({
             onDiscardMessage={chat.discardMessage}
             userId={userId}
             className="min-h-0 flex-1"
+            composerExtra={
+              <SoulWingReplyButton
+                chatType="direct"
+                conversationId={selectedFriend?.id ?? ""}
+                onInsertDraft={(text) => chat.setText(text)}
+                onSend={undefined}
+              />
+            }
           />
           <button
             type="button"

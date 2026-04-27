@@ -142,7 +142,7 @@ export const createMarkdownArticleTool = {
       },
     })
 
-    buildMemoryCandidate({
+    const memoryCandidate = buildMemoryCandidate({
       action: "create_article",
       module,
       title: post.title,
@@ -158,6 +158,7 @@ export const createMarkdownArticleTool = {
       folderId: post.folderId,
       visibility: post.visibility,
       date: post.date.toISOString().slice(0, 10),
+      memoryCandidate,
     })
   },
 }
@@ -306,7 +307,7 @@ export const updateMarkdownArticleTool = {
       },
     })
 
-    buildMemoryCandidate({
+    const memoryCandidate = buildMemoryCandidate({
       action: "update_article",
       module,
       title: updated.title,
@@ -325,6 +326,7 @@ export const updateMarkdownArticleTool = {
         folderId: updated.folderId,
         visibility: updated.visibility,
         updatedAt: updated.updatedAt.toISOString(),
+        memoryCandidate,
       },
     )
   },
@@ -530,7 +532,7 @@ export const createContentFolderTool = {
     })
 
     if (existing) {
-      buildMemoryCandidate({
+      const memoryCandidate = buildMemoryCandidate({
         action: "create_folder_duplicate",
         module,
         folderName: name.trim(),
@@ -545,6 +547,7 @@ export const createContentFolderTool = {
           module: existing.type,
           description: existing.description,
           alreadyExisted: true,
+          memoryCandidate,
         },
       )
     }
@@ -564,7 +567,7 @@ export const createContentFolderTool = {
       },
     })
 
-    buildMemoryCandidate({
+    const memoryCandidate = buildMemoryCandidate({
       action: "create_folder",
       module,
       folderName: folder.name,
@@ -576,6 +579,7 @@ export const createContentFolderTool = {
       name: folder.name,
       module: folder.type,
       description: folder.description,
+      memoryCandidate,
     })
   },
 }
@@ -761,7 +765,7 @@ export const moveArticleToFolderTool = {
       },
     })
 
-    buildMemoryCandidate({
+    const memoryCandidate = buildMemoryCandidate({
       action: isCrossModule ? "cross_module_move" : "same_module_move",
       module: updated.type,
       title: updated.title,
@@ -787,6 +791,7 @@ export const moveArticleToFolderTool = {
         slug: updated.slug,
         slugChanged,
         updatedAt: updated.updatedAt.toISOString(),
+        memoryCandidate,
       },
     )
   },

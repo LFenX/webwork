@@ -17,6 +17,8 @@ import { AI_TOOL_MAP, AI_TOOLS_REGISTRY } from "@/lib/ai/tools/registry"
 import { buildAIToolContext, compactText, createAIToolActor } from "@/lib/ai/tools/context"
 import { isStructuredToolResult, resolveUserReference } from "@/lib/ai/tools/helpers"
 import { loadAgentPersonaContext, buildAgentPersonaPrompt } from "@/lib/ai/agent-profile-service"
+import { buildMemoryContext, saveToolMemoryCandidate } from "@/lib/ai/memory/memory-service"
+import { buildCapabilitySummaryText } from "@/lib/ai/capability-map"
 import type {
   AIConversationHistoryEntry,
   AIProviderCapabilities,
@@ -66,6 +68,22 @@ function compactJson(value: unknown) {
   } catch {
     return String(value)
   }
+}
+
+function formatToolResultForLLM(result: unknown): string {
+  if (isStructuredToolResult(result)) {
+    const parts: string[] = [`[结果] ${result.summary}`]
+    if (result.reason) parts.push(`[原因] ${result.reason}`)
+    if (result.data !== null && result.data !== undefined) {
+      try {
+        parts.push(JSON.stringify(result.data))
+      } catch {
+        parts.push(String(result.data))
+      }
+    }
+    return parts.join("\n")
+  }
+  return compactJson(result)
 }
 
 function chunkText(value: string, size = 100) {
@@ -181,30 +199,90 @@ async function buildHeuristicPlan(prompt: string, actorUserId: string): Promise<
     ], targetUserId)
   }
 
+  // ── AI conversation history intent detection (BEFORE friend chat routing) ──
+  const aiConversationPatterns = [
+    /(?:我跟?你|你和?我|我们之间|我们俩|我们先前|咱们).*(?:聊|对话|消息|问过|说过|交流|沟通)/,
+    /(?:和|跟)蝶灵.*(?:聊|对话|消息|问过)/,
+    /(?:和|跟)(?:AI|人工智能|助手|SoulWing|soulwing).*(?:聊|对话)/,
+    /我(?:之前|上次|昨天|今天|刚才|最近).*(?:问过你|和你聊|跟你聊|问你的)/,
+    /你.*记.*我.*(?:问过|说过|聊过)/,
+    /(?:我们|之前).*(?:聊了什么|聊过什么|聊过哪些|说过什么|谈了什么)/,
+    /(?:和|跟)(?:你的|您的).*(?:对话|聊天|交流)/,
+  ]
+
+  const isAiConversationQuery = aiConversationPatterns.some((p) => p.test(prompt))
+
+  // ── Follow-up detection: short time-range question (e.g. "那过去一天呢？") ──
+  const isFollowUpWithTime = /^那.?|^那?(?:过去)?(?:最近|这|上|过去).*(?:呢|吗|啊)?$/.test(prompt.trim())
+    && /(?:天|小时|周|月)/.test(prompt)
+    && !/(?:好友|朋友|群里|群聊|频道)/.test(prompt)
+
   const steps: AIRuntimePlanStep[] = []
 
-  if (/(搜索|查找|检索|find|search)/i.test(normalized) && /(聊天|消息|chat)/i.test(normalized)) {
+  if (isAiConversationQuery) {
+    let mode = "topics"
+    if (/(几[次回个条遍]|多少[次回个条遍]|次数|频率|统计)/.test(prompt)) {
+      mode = "count"
+    } else if (/(写了什么|回了什么|说[了什么]|消息|内容|原文)/.test(prompt)) {
+      mode = "messages"
+    } else if (/(摘要|总结|概括|重点)/.test(prompt)) {
+      mode = "summary"
+    }
+
+    let timeRange = "all"
+    if (/(刚才|刚刚|最近|一会儿)/.test(prompt) && !/(天|周|月|星期)/.test(prompt)) timeRange = "2h"
+    if (/(最近.*小时|小时.*前|小时.*内)/.test(prompt)) {
+      const m = prompt.match(/(\d+)\s*个?\s*(?:小时|h)/)
+      if (m) timeRange = `${m[1]}h`
+      else timeRange = "2h"
+    }
+    if (/(今天|过去.*一天|一天.*前|24.*小时|昨天)/.test(prompt)) timeRange = "24h"
+    if (/(过去.*(?:一周|7天)|上周|七天|7天|周)/.test(prompt)) timeRange = "7d"
+    if (/(过去.*(?:一个月|30天)|上月|30天|月)/.test(prompt)) timeRange = "30d"
+
     steps.push({
-      toolName: "search_my_chat_messages",
-      reason: "问题是在当前用户聊天记录里做搜索。",
-      input: {
-        query: prompt.replace(/.*?(搜索|查找|检索)/i, "").trim() || prompt,
-        peerHint: targetHint ?? undefined,
-        limit: 10,
-      },
+      toolName: "search_soulwing_conversations",
+      reason: `用户询问与蝶灵的 AI 对话历史（mode=${mode}, timeRange=${timeRange}）。`,
+      input: { mode, timeRange, limit: mode === "count" ? undefined : 10 },
     })
-  } else if ((/(聊天记录|会话消息|thread)/i.test(normalized) || /和谁聊|跟谁聊/.test(prompt)) && targetHint) {
+  } else if (isFollowUpWithTime) {
+    let timeRange = "all"
+    if (/(小时|h)/.test(prompt)) timeRange = "2h"
+    if (/(?:一天|24|今天|昨天)/.test(prompt)) timeRange = "24h"
+    if (/(?:周|7天|七天)/.test(prompt)) timeRange = "7d"
+    if (/(?:月|30天)/.test(prompt)) timeRange = "30d"
+
     steps.push({
-      toolName: "get_my_chat_thread_messages",
-      reason: "问题指向某个聊天对象的消息内容。",
-      input: { peerHint: targetHint, limit: 12 },
+      toolName: "search_soulwing_conversations",
+      reason: "追问时间范围，沿用 AI 对话历史数据源。",
+      input: { mode: "count", timeRange, limit: undefined },
     })
-  } else if (/(聊天|消息|chat)/i.test(normalized)) {
-    steps.push({
-      toolName: "get_my_chat_threads_overview",
-      reason: "问题涉及聊天概况或聊天对象排行。",
-      input: null,
-    })
+  }
+
+  if (!isAiConversationQuery && !isFollowUpWithTime) {
+    if (/(搜索|查找|检索|find|search)/i.test(normalized) && /(聊天|消息|chat)/i.test(normalized)) {
+      steps.push({
+        toolName: "search_my_chat_messages",
+        reason: "问题是在当前用户聊天记录里做搜索。",
+        input: {
+          query: prompt.replace(/.*?(搜索|查找|检索)/i, "").trim() || prompt,
+          peerHint: targetHint ?? undefined,
+          limit: 10,
+        },
+      })
+    } else if ((/(聊天记录|会话消息|thread)/i.test(normalized) || /和谁聊|跟谁聊/.test(prompt)) && targetHint) {
+      steps.push({
+        toolName: "get_my_chat_thread_messages",
+        reason: "问题指向某个聊天对象的消息内容。",
+        input: { peerHint: targetHint, limit: 12 },
+      })
+    } else if (/(聊天|消息|chat)/i.test(normalized)) {
+      steps.push({
+        toolName: "get_my_chat_threads_overview",
+        reason: "问题涉及聊天概况或聊天对象排行。",
+        input: null,
+      })
+    }
   }
 
   if (/(好友|朋友|friend)/i.test(normalized)) {
@@ -215,7 +293,7 @@ async function buildHeuristicPlan(prompt: string, actorUserId: string): Promise<
     })
   }
 
-  if (/(登录|ip|设备|session|会话|安全)/i.test(normalized)) {
+  if (!isAiConversationQuery && !isFollowUpWithTime && /(登录|ip|设备|session|会话|安全)/i.test(normalized)) {
     steps.push({
       toolName: "get_my_sessions_overview",
       reason: "问题涉及当前用户会话和登录设备。",
@@ -223,7 +301,7 @@ async function buildHeuristicPlan(prompt: string, actorUserId: string): Promise<
     })
   }
 
-  if (/(活动|日志|记录|行为)/i.test(normalized) && !/(聊天|消息)/i.test(normalized)) {
+  if (!isAiConversationQuery && !isFollowUpWithTime && /(活动|日志|记录|行为)/i.test(normalized) && !/(聊天|消息)/i.test(normalized)) {
     steps.push({
       toolName: "get_my_activity_log",
       reason: "问题涉及当前用户活动日志。",
@@ -399,47 +477,60 @@ function buildRuntimeSystemPrompt(params: {
 }) {
   const platformRules = [
     "你是蝶灵（SoulWing），当前用户的专属 AI 助手。",
-    "优先直接回答通用问题；只有当问题需要站内私有数据时，才调用工具。",
-    "如果问题依赖站内数据，优先遵循：先判断权限，再看概览，再取列表，再读详情或全文。",
-    "如果用户上传了图片，先描述你真正看到的图像，再结合问题作答。",
     params.canUseTools
-      ? "你可以按需调用工具。调用前先判断是否真的需要，避免无意义调用。"
+      ? `你拥有工具调用能力（每次对话最多 ${MAX_TOOL_CALLS} 次工具调用、${MAX_AGENT_ROUNDS} 轮推理）。凡是涉及站内私有数据的问题，必须先调用合适工具获取数据，再作答。不要用"我无法获取"或"我不知道"搪塞可以通过工具解决的问题。`
       : "当前 provider 不支持原生工具调用。你不能假装读取了站内私有数据；如确需私有数据，应明确说明能力受限。",
+    "通用知识/逻辑问题直接回答，无需调用工具。判断依据：问题是否需要当前用户的站内私有数据？需要则调工具，不需要则直接作答。",
+    "数据源区分：当用户说【我跟你】【我和你】【我们之前】【你记得吗】【我问过你什么】【和蝶灵聊了什么】时，默认指用户与蝶灵（SoulWing）的 AI 对话历史。不要将其理解为好友聊天、群聊或系统操作日志。",
+    "AI 对话历史查询：遇到【我和你聊了几次/聊了什么/聊了什么主题/之前问过你什么】等问题时，优先调用 search_soulwing_conversations。如果该工具查不到结果，再说明没有查到历史记录。决不允许在未调用工具前说【我只能看到当前对话】或【我无法获取过去的聊天记录】。",
+    "如果用户问题有歧义（可能指 AI 对话，也可能指好友聊天），应简要说明你理解的口径（【我理解你是在问我们之间的 AI 对话历史】），然后调用对应工具。如果追问中省略主语（如【那过去一天呢】），沿用上一个问题的数据源——如果上一个问题是 AI 对话，继续使用 search_soulwing_conversations。",
+    "数据源优先级：当问题可能属于多个数据源时，按以下优先级选择：1. AI 对话历史（search_soulwing_conversations / search_user_memory 中的 event）；2. 长期记忆（search_user_memory 中的 fact）；3. 好友聊天（search_my_chat_messages 等）；4. 群聊（get_channel_messages）；5. 系统操作日志（get_my_activity_log）。选择最贴合用户语义的那一个，不要同时调用多个不相关的数据源工具。",
+    "当需要站内数据时，优先遵循：先判断权限，再看概览，再取列表，再读详情或全文。",
     params.canUseVision
-      ? "当前请求支持视觉输入。"
-      : "当前请求不支持视觉输入。不要假装看到了图片内容。",
+      ? "当前请求支持视觉输入；如果用户上传了图片，先描述图像内容，再结合问题作答。"
+      : "当前请求不支持视觉输入，不要假装看到了图片内容。",
     params.capabilities.reasoningStream
-      ? "如果你会生成 reasoning 或 summary，请保持简洁，不要输出敏感隐藏推理。"
-      : "如果没有 reasoning 能力，请直接给出结论。",
-    "如果好友内容或后台数据没有权限，就明确说明无权访问，不要继续猜测。",
+      ? "如生成推理过程，请保持简洁，不要输出敏感隐藏推理。"
+      : "",
+    "如果好友内容或后台数据没有权限，明确说明无权访问，不要继续猜测。",
     "你可以帮助用户管理其自己的 Markdown 内容（博客/日常/心得/笔记）：创建文章、修改文章、创建文件夹、移动文章。只能操作用户自己的内容，不能跨用户操作。",
+    "你可以管理用户的长期记忆：当用户明确说'记住……'时保存记忆；当用户说'忘掉……'时删除记忆（需要确认）；需要参考历史偏好或决策时主动搜索记忆。不要自动保存所有聊天内容为记忆，不要保存敏感信息或文章全文。",
+    "你还可以更新自己的长期人格配置 update_agent_profile：当用户说'以后你回答风格要……''以后我叫你……''我正在做的长期项目是……''以后必须遵守……'时，更新对应分区（identity/soul/user/rules）。append 默认可用，rewrite 和 rules 修改需要确认。不要因为一句情绪化吐槽就自动改人格。",
     "跨模块移动文章前必须先得到用户明确确认（confirmedByUser=true），不得直接执行。不允许删除文章或文件夹。修改文章时不允许清空正文。",
     "高风险写入操作前应简要告知用户将要执行的操作，让用户有机会纠正。",
     "回答必须可信、简洁、结构化，且不得虚构工具结果。",
-  ]
+  ].filter(Boolean)
 
-  if (params.personaPrompt) {
-    platformRules.push(params.personaPrompt)
+  const parts: string[] = [platformRules.join(" ")]
+
+  if (params.canUseTools) {
+    parts.push(buildCapabilitySummaryText())
   }
 
-  return platformRules.join(" ")
+  if (params.personaPrompt) {
+    parts.push(params.personaPrompt)
+  }
+
+  return parts.join("\n\n")
 }
 
 function buildProviderTools(): ProviderToolSpec[] {
-  return AI_TOOLS_REGISTRY.map((tool) => ({
-    type: "function",
-    function: {
-      name: tool.name,
-      description: [
-        tool.description,
-        tool.whenToUse ? `Use when: ${tool.whenToUse}` : "",
-        tool.whenNotToUse ? `Avoid when: ${tool.whenNotToUse}` : "",
-        tool.argumentHints?.length ? `Arguments: ${tool.argumentHints.join("; ")}` : "",
-        tool.returns ? `Returns: ${tool.returns}` : "",
-      ].filter(Boolean).join(" "),
-      parameters: toolParametersSchema(tool.name),
-    },
-  }))
+  return AI_TOOLS_REGISTRY
+    .filter((tool) => !tool.deprecated)
+    .map((tool) => ({
+      type: "function",
+      function: {
+        name: tool.name,
+        description: [
+          tool.description,
+          tool.whenToUse ? `Use when: ${tool.whenToUse}` : "",
+          tool.whenNotToUse ? `Avoid when: ${tool.whenNotToUse}` : "",
+          tool.argumentHints?.length ? `Arguments: ${tool.argumentHints.join("; ")}` : "",
+          tool.returns ? `Returns: ${tool.returns}` : "",
+        ].filter(Boolean).join(" "),
+        parameters: tool.parameterSchema ?? toolParametersSchema(tool.name),
+      },
+    }))
 }
 
 function toolParametersSchema(toolName: string) {
@@ -692,6 +783,186 @@ function toolParametersSchema(toolName: string) {
         required: ["sourceModule", "articleId"],
         additionalProperties: false,
       }
+    case "save_user_memory":
+      return {
+        type: "object",
+        properties: {
+          category: { type: "string", enum: ["preference", "project", "decision", "workflow", "bugfix", "content_operation", "other"], description: "Memory category." },
+          title: { type: "string", description: "Short title for the memory." },
+          content: { type: "string", description: "Memory content. Do NOT store full article bodies or full conversation transcripts." },
+          tags: { type: "array", items: { type: "string" }, description: "Tags array." },
+          importance: { type: "string", enum: ["low", "medium", "high"], description: "Importance, defaults to medium." },
+          expiresAt: { type: "string", description: "Optional ISO date for expiration." },
+        },
+        required: ["category", "title", "content"],
+        additionalProperties: false,
+      }
+    case "search_user_memory":
+      return {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query." },
+          category: { type: "string", enum: ["preference", "project", "decision", "workflow", "bugfix", "content_operation", "other"], description: "Optional category filter." },
+          limit: { type: "integer", minimum: 1, maximum: 20 },
+        },
+        required: ["query"],
+        additionalProperties: false,
+      }
+    case "list_user_memories":
+      return {
+        type: "object",
+        properties: {
+          category: { type: "string", enum: ["preference", "project", "decision", "workflow", "bugfix", "content_operation", "other"], description: "Optional category filter." },
+          limit: { type: "integer", minimum: 1, maximum: 50 },
+        },
+        additionalProperties: false,
+      }
+    case "forget_user_memory":
+      return {
+        type: "object",
+        properties: {
+          memoryId: { type: "string", description: "MemoryFact id to delete." },
+          confirmedByUser: { type: "boolean", description: "Must be true to execute deletion. If false or absent, only returns confirmation prompt." },
+        },
+        required: ["memoryId"],
+        additionalProperties: false,
+      }
+    case "update_agent_profile":
+      return {
+        type: "object",
+        properties: {
+          section: { type: "string", enum: ["identity", "soul", "user", "rules"], description: "Which AgentProfile section to update." },
+          operation: { type: "string", enum: ["append", "replace_section", "rewrite"], description: "How to apply the content. Default: append. replace_section/rewrite need confirmation." },
+          content: { type: "string", description: "The new content to write or append. Must be concise and structured. Do NOT paste full conversation transcripts." },
+          reason: { type: "string", description: "Why this update is being made — for audit purposes." },
+          confirmedByUser: { type: "boolean", description: "Required true for high-impact changes (rules modifications, rewrites)." },
+        },
+        required: ["section", "content"],
+        additionalProperties: false,
+      }
+    case "list_my_capabilities":
+      return {
+        type: "object",
+        properties: {
+          categoryId: { type: "string", description: "Optional category id to filter. Omit to list all categories." },
+        },
+        additionalProperties: false,
+      }
+    case "search_my_capabilities":
+      return {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Keyword to search for in tool names, titles, descriptions, and trigger phrases." },
+        },
+        required: ["query"],
+        additionalProperties: false,
+      }
+    case "propose_save_user_context":
+      return {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "Text to propose saving to the USER section." },
+          section: { type: "string", enum: ["user", "identity"], description: "Section to save, defaults to user." },
+        },
+        required: ["text"],
+        additionalProperties: false,
+      }
+    case "get_auto_reply_settings":
+      return {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      }
+    case "update_auto_reply_settings":
+      return {
+        type: "object",
+        properties: {
+          settingId: { type: "string", description: "Setting id." },
+          enabled: { type: "boolean", description: "Enable or disable." },
+          replyMode: { type: "string", enum: ["away_notice", "template", "hybrid", "semantic"] },
+          templateText: { type: "string" },
+          customInstruction: { type: "string" },
+          discloseAsAutoReply: { type: "boolean" },
+          allowGroupReply: { type: "boolean" },
+          cooldownMinutes: { type: "integer", minimum: 5, maximum: 480 },
+          maxRepliesPerDay: { type: "integer", minimum: 1, maximum: 100 },
+          confirmedByUser: { type: "boolean", description: "Required when enabling or switching to semantic mode." },
+        },
+        additionalProperties: false,
+      }
+    case "list_my_channels":
+      return {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      }
+    case "get_channel_messages":
+      return {
+        type: "object",
+        properties: {
+          channelId: { type: "string", description: "Channel id." },
+          limit: { type: "integer", minimum: 1, maximum: 30 },
+        },
+        required: ["channelId"],
+        additionalProperties: false,
+      }
+    case "send_draft_chat_message":
+      return {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "Draft message text." },
+          kind: { type: "string", enum: ["direct", "channel"], description: "Chat kind." },
+          peerHint: { type: "string", description: "Friend identifier for direct chat." },
+          channelId: { type: "string", description: "Channel id for group chat." },
+        },
+        required: ["text"],
+        additionalProperties: false,
+      }
+    case "summarize_chat_thread":
+      return {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: ["direct", "channel"], description: "Chat kind." },
+          peerHint: { type: "string", description: "Friend identifier for direct chat." },
+          channelId: { type: "string", description: "Channel id for group chat." },
+          limit: { type: "integer", minimum: 10, maximum: 100 },
+        },
+        additionalProperties: false,
+      }
+    case "delete_my_memory_fact_batch":
+      return {
+        type: "object",
+        properties: {
+          tag: { type: "string", description: "Tag to filter for batch deletion." },
+          category: { type: "string", enum: ["preference", "project", "decision", "workflow", "bugfix", "content_operation", "other"] },
+          confirmedByUser: { type: "boolean", description: "Must be true to execute." },
+        },
+        additionalProperties: false,
+      }
+    case "search_soulwing_conversations":
+      return {
+        type: "object",
+        properties: {
+          mode: { type: "string", enum: ["count", "topics", "summary", "messages"], description: "Query mode: count=statistics, topics=conversation topics, summary=conversation summaries, messages=message content previews." },
+          timeRange: { type: "string", enum: ["1h", "2h", "6h", "24h", "7d", "30d", "all"], description: "Preset time range. Mutually exclusive with since/until." },
+          since: { type: "string", description: "Custom start ISO datetime. Overrides timeRange start." },
+          until: { type: "string", description: "Custom end ISO datetime. Defaults to now." },
+          query: { type: "string", description: "Optional keyword filter for topics/summary/messages modes." },
+          limit: { type: "integer", minimum: 1, maximum: 50, description: "Max items to return. count mode ignores this." },
+        },
+        additionalProperties: false,
+      }
+    case "set_module_visibility":
+      return {
+        type: "object",
+        properties: {
+          module: { type: "string", enum: ["home", "resume", "blog", "daily", "reflections", "notes", "jobs", "interviews"] },
+          visibility: { type: "string", enum: ["private", "friends"] },
+          confirmedByUser: { type: "boolean", description: "Required when changing from private to friends." },
+        },
+        required: ["module", "visibility"],
+        additionalProperties: false,
+      }
     default:
       return {
         type: "object",
@@ -879,6 +1150,20 @@ async function executeToolCall(
     })
     const resultSummary = isStructuredToolResult(result) ? result.summary : "工具执行完成。"
     await completeAIToolCallLog(log.id, result, "completed")
+
+    // Persist tool memory candidate if present (e.g. from Markdown content tools)
+    if (isStructuredToolResult(result) && result.data && typeof result.data === "object" && !Array.isArray(result.data)) {
+      const candidate = (result.data as Record<string, unknown>).memoryCandidate
+      if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+        void saveToolMemoryCandidate(params.userId, candidate as {
+          action: string; module?: string | null; title?: string | null
+          articleId?: string | null; folderId?: string | null; folderName?: string | null
+          sourceModule?: string | null; targetModule?: string | null
+          slugChanged?: boolean | null; changedFields?: string[]
+        }, log.id).catch(() => { /* tool memory candidate save failure must not affect execution */ })
+      }
+    }
+
     await createAIAuditLog(resolvedActor.userId, context.targetUserId, "ai_tool_executed", tool.auditLabel, {
       runId: params.runId,
       stepId: step.id,
@@ -1031,6 +1316,17 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
     })
   }
 
+  // Memory recall: search for relevant long-term memories based on user prompt
+  let memoryContextText = ""
+  try {
+    const memoryCtx = await buildMemoryContext(params.userId, params.prompt, { limit: 5 })
+    if (!memoryCtx.skipped && memoryCtx.contextText) {
+      memoryContextText = memoryCtx.contextText
+    }
+  } catch {
+    // Memory recall failure must not block conversation
+  }
+
   const executions: AIToolExecutionRecord[] = []
   const reasoningParts: string[] = []
   let finalPlan: AIRuntimePlan = buildPlan("self", "模型将根据问题自行判断是否需要调用工具。", [])
@@ -1109,19 +1405,23 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
       })
     } else {
       const toolSpecs = capabilities.toolCalling ? buildProviderTools() : []
-      const buildConversationMessages = async (canUseVision: boolean): Promise<ProviderMessage[]> => [
-        {
-          role: "system",
-          content: buildRuntimeSystemPrompt({
-            capabilities,
-            canUseTools: capabilities.toolCalling,
-            canUseVision,
-            personaPrompt,
-          }),
-        },
-        ...buildHistoryMessages(history),
-        await buildUserMessage(params.prompt, canUseVision ? params.attachments : [], canUseVision),
-      ]
+      const buildConversationMessages = async (canUseVision: boolean): Promise<ProviderMessage[]> => {
+        const systemContent = buildRuntimeSystemPrompt({
+          capabilities,
+          canUseTools: capabilities.toolCalling,
+          canUseVision,
+          personaPrompt,
+        })
+        const finalSystemContent = memoryContextText
+          ? `${systemContent}\n\n${memoryContextText}`
+          : systemContent
+
+        return [
+          { role: "system", content: finalSystemContent },
+          ...buildHistoryMessages(history),
+          await buildUserMessage(params.prompt, canUseVision ? params.attachments : [], canUseVision),
+        ]
+      }
       let conversationMessages: ProviderMessage[] = await buildConversationMessages(shouldAttemptVision)
 
       const requestRound = async (
@@ -1262,7 +1562,7 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
             conversationMessages.push({
               role: "tool",
               tool_call_id: toolCall.id,
-              content: compactJson(execution.result),
+              content: formatToolResultForLLM(execution.result),
             })
           }
           finalPlan = buildPlan(

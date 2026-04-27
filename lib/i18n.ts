@@ -52,6 +52,7 @@ type Dictionary = {
   }
   nav: {
     home: string
+    community: string
     resume: string
     blog: string
     daily: string
@@ -879,6 +880,7 @@ const zhCN: Dictionary = {
   },
   nav: {
     home: "首页",
+    community: "社区",
     resume: "简历",
     blog: "博客",
     daily: "日常",
@@ -906,7 +908,7 @@ const zhCN: Dictionary = {
     language: "语言",
     languageDesc: "切换中文和英文界面。",
     usage: "使用说明",
-    usageDesc: "查看聊天、AI、首页布局和管理员功能的简要说明。",
+    usageDesc: "了解网站的核心功能、内容创作、求职管理、社交互动、社区资源和 AI 助手的使用方式。",
     profileTitle: "个人资料设置",
     passwordTitle: "密码修改",
     privacyTitle: "资料可见范围",
@@ -1736,6 +1738,7 @@ const enUS: Dictionary = {
   },
   nav: {
     home: "Home",
+    community: "Community",
     resume: "Resume",
     blog: "Blog",
     daily: "Daily",
@@ -1763,7 +1766,7 @@ const enUS: Dictionary = {
     language: "Language",
     languageDesc: "Switch between Chinese and English.",
     usage: "Usage Guide",
-    usageDesc: "Read a quick guide for chat, AI, layout editing, and admin tools.",
+    usageDesc: "Learn about core features — content creation, career tracking, social tools, community resources, and the AI assistant.",
     profileTitle: "Profile Settings",
     passwordTitle: "Password Change",
     privacyTitle: "Visibility Settings",

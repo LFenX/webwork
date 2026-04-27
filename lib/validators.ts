@@ -239,3 +239,116 @@ export type AIRequestReviewInput = z.infer<typeof aiRequestReviewSchema>
 export type AIAttachmentInput = z.infer<typeof aiAttachmentSchema>
 export type AIStreamInput = z.infer<typeof aiStreamSchema>
 export type AIRunsQueryInput = z.infer<typeof aiRunsQuerySchema>
+
+// ── Memory ─────────────────────────────────────────────────────────────────
+
+const VALID_MEMORY_CATEGORIES = ["preference", "project", "decision", "workflow", "bugfix", "content_operation", "other"] as const
+
+export const createMemoryFactSchema = z.object({
+  category: z.enum(VALID_MEMORY_CATEGORIES),
+  title: z.string().min(1, "标题不能为空"),
+  content: z.string().min(1, "内容不能为空"),
+  tags: z.array(z.string()).optional().default([]),
+  importance: z.enum(["low", "medium", "high"]).optional().default("medium"),
+  expiresAt: z.string().nullable().optional(),
+})
+
+export const updateMemoryFactSchema = z.object({
+  title: z.string().min(1).optional(),
+  content: z.string().min(1).optional(),
+  category: z.enum(VALID_MEMORY_CATEGORIES).optional(),
+  tags: z.array(z.string()).optional(),
+  importance: z.enum(["low", "medium", "high"]).optional(),
+  expiresAt: z.string().nullable().optional(),
+})
+
+export const updateMemorySettingsSchema = z.object({
+  enableLongTermMemory: z.boolean().optional(),
+  enablePersonaContext: z.boolean().optional(),
+  enableConversationArchive: z.boolean().optional(),
+  enableToolMemoryEvents: z.boolean().optional(),
+  enableMemoryRecall: z.boolean().optional(),
+  enableMemoryTools: z.boolean().optional(),
+  storeFullConversations: z.boolean().optional(),
+  autoTagSensitiveContent: z.boolean().optional(),
+  requireConfirmBeforeSave: z.boolean().optional(),
+})
+
+export type CreateMemoryFactInput = z.infer<typeof createMemoryFactSchema>
+export type UpdateMemoryFactInput = z.infer<typeof updateMemoryFactSchema>
+export type UpdateMemorySettingsInput = z.infer<typeof updateMemorySettingsSchema>
+
+export const updateAgentProfileSchema = z.object({
+  soulContent: z.string().optional(),
+  identityContent: z.string().optional(),
+  userContextContent: z.string().optional(),
+  rulesContent: z.string().optional(),
+  enabled: z.boolean().optional(),
+  restoreDefaults: z.boolean().optional(),
+})
+
+export type UpdateAgentProfileInput = z.infer<typeof updateAgentProfileSchema>
+
+// ── Website Share ─────────────────────────────────────────────────────────
+
+export const createWebsiteResourceSchema = z.object({
+  name: z.string().trim().min(1, "网站名称不能为空").max(100, "网站名称最多 100 个字符"),
+  url: z.string().trim().url("请输入有效的链接").refine((url) => {
+    try {
+      const protocol = new URL(url).protocol
+      return protocol === "http:" || protocol === "https:"
+    } catch { return false }
+  }, "仅支持 http/https 链接"),
+  description: z.string().trim().max(500, "介绍最多 500 个字符").optional().default(""),
+  screenshotUrl: z.string().trim().max(500).regex(/^\/uploads\//, "截图地址格式不正确").optional().nullable(),
+  screenshotPositionX: z.number().int().min(0).max(100).optional().default(50),
+  screenshotPositionY: z.number().int().min(0).max(100).optional().default(50),
+  screenshotScale: z.number().int().min(40).max(240).optional().default(100),
+  screenshotFitMode: z.enum(["cover", "contain"]).optional().default("cover"),
+  tags: z.array(z.string().trim().min(1).max(30)).max(10, "最多 10 个标签").optional().default([]),
+  folderId: z.string().cuid().optional().nullable(),
+})
+
+export const updateWebsiteResourceSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  url: z.string().trim().url().refine((url) => {
+    try {
+      const protocol = new URL(url).protocol
+      return protocol === "http:" || protocol === "https:"
+    } catch { return false }
+  }, "仅支持 http/https 链接").optional(),
+  description: z.string().trim().max(500).optional(),
+  screenshotUrl: z.string().trim().max(500).regex(/^\/uploads\//).optional().nullable(),
+  screenshotPositionX: z.number().int().min(0).max(100).optional(),
+  screenshotPositionY: z.number().int().min(0).max(100).optional(),
+  screenshotScale: z.number().int().min(40).max(240).optional(),
+  screenshotFitMode: z.enum(["cover", "contain"]).optional(),
+  tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
+  folderId: z.string().cuid().optional().nullable(),
+})
+
+export const websiteListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  size: z.coerce.number().int().min(1).max(48).optional().default(12),
+  q: z.string().trim().max(200).optional(),
+  tag: z.string().trim().max(30).optional(),
+  folderId: z.string().optional(),
+  sharedBy: z.string().optional(),
+  sort: z.enum(["latest"]).optional().default("latest"),
+})
+
+export const createWebsiteFolderSchema = z.object({
+  name: z.string().trim().min(1, "文件夹名称不能为空").max(30, "文件夹名称最多 30 个字符"),
+  description: z.string().trim().max(200, "描述最多 200 个字符").optional().default(""),
+})
+
+export const updateWebsiteFolderSchema = z.object({
+  name: z.string().trim().min(1).max(30).optional(),
+  description: z.string().trim().max(200).optional(),
+})
+
+export type CreateWebsiteResourceInput = z.infer<typeof createWebsiteResourceSchema>
+export type UpdateWebsiteResourceInput = z.infer<typeof updateWebsiteResourceSchema>
+export type WebsiteListQueryInput = z.infer<typeof websiteListQuerySchema>
+export type CreateWebsiteFolderInput = z.infer<typeof createWebsiteFolderSchema>
+export type UpdateWebsiteFolderInput = z.infer<typeof updateWebsiteFolderSchema>

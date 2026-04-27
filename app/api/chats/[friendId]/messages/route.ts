@@ -15,6 +15,7 @@ import {
 import { publishChatMessage } from "@/lib/chat-events"
 import { publishRealtime } from "@/lib/realtime-events"
 import { canUseSticker } from "@/lib/stickers"
+import { maybeRunSoulWingAutoReply } from "@/lib/ai/chat-reply/soulwing-auto-reply-service"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -209,6 +210,15 @@ export async function POST(
   const payload = serializeMessage(created)
   publishChatMessage(payload)
   publishRealtime([session.userId, friendId], { type: "chat:message", data: payload })
+
+  // Fire-and-forget: check if the recipient has auto-reply enabled (gated by SOULWING_AUTO_REPLY_ENABLED)
+  void maybeRunSoulWingAutoReply({
+    userId: friendId,
+    chatType: "direct",
+    conversationId: session.userId,
+    newMessageId: message.id,
+    senderUserId: session.userId,
+  })
 
   return NextResponse.json(payload, { status: 201, headers: NO_STORE })
 }

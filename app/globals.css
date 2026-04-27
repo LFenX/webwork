@@ -141,8 +141,16 @@ html {
   font-size: 14px;
   height: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+@media (max-width: 768px) {
+  html {
+    height: auto;
+    min-height: var(--app-viewport-height);
+  }
 }
 
 body {
@@ -157,6 +165,7 @@ body {
     radial-gradient(circle at 82% 0%, rgba(251, 191, 36, 0.09), transparent 28%),
     linear-gradient(180deg, var(--color-bg-soft) 0%, var(--color-bg-primary) 100%);
   background-attachment: fixed;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 }
 
 /* Unified page container */

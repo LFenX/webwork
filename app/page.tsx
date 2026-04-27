@@ -236,7 +236,7 @@ export default async function HomePage() {
       content: (
         <section>
           <SectionTitle title="写作统计" />
-          <div className="mb-6 grid grid-cols-4 gap-1.5 sm:gap-3">
+          <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3">
             <StatsCard title="累计文章" value={writingStats.total} sub="篇" />
             <StatsCard title={dict.article.wordCount} value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
             <StatsCard title="连续写作" value={writingStats.streak} sub="天" trend={writingStats.streak > 0 ? "up" : "neutral"} />
@@ -308,7 +308,7 @@ export default async function HomePage() {
       content: (
         <section>
           <SectionTitle title="聊天活跃度" />
-          <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-3">
+          <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3">
             <StatsCard title="单聊参与" value={chatActivity.directCount} sub="次" />
             <StatsCard title="群聊发言" value={chatActivity.channelCount} sub="次" />
             <StatsCard title="总互动" value={chatActivity.directCount + chatActivity.channelCount} sub="次" />
@@ -322,7 +322,7 @@ export default async function HomePage() {
       content: (
         <section>
           <SectionTitle title="求职漏斗" href="/jobs" allLabel={dict.common.all} />
-          <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-3">
+          <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3">
             <StatsCard title="累计投递" value={stats.total} sub="家公司" />
             <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
             <StatsCard title={dict.home.interviews} value={stats.hasInterview} sub="次" />
@@ -416,122 +416,6 @@ export default async function HomePage() {
         <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={true} />
       </div>
 
-      <div className="hidden">
-
-      <section className="mb-10">
-        <SectionTitle title="写作统计" />
-        <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatsCard title="累计文章" value={writingStats.total} sub="篇" />
-          <StatsCard title={dict.article.wordCount} value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
-          <StatsCard title="连续写作" value={writingStats.streak} sub="天" trend={writingStats.streak > 0 ? "up" : "neutral"} />
-          <StatsCard title="本月新增" value={writingStats.thisMonth} sub="篇" />
-        </div>
-        {writingStats.topTags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {writingStats.topTags.map(({ tag, count }) => (
-              <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[--color-bg-hover] px-2.5 py-0.5 text-xs font-medium text-[--color-text-secondary]">
-                {tag}
-                <span className="font-mono text-[--color-text-muted]">{count}</span>
-              </span>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="mb-10">
-        <SectionTitle title="聊天活跃度" />
-        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatsCard title="单聊参与" value={chatActivity.directCount} sub="次" />
-          <StatsCard title="群聊发言" value={chatActivity.channelCount} sub="次" />
-          <StatsCard title="总互动" value={chatActivity.directCount + chatActivity.channelCount} sub="次" />
-          <StatsCard title="本周活跃" value={chatActivity.weeklyActive} sub="次" />
-        </div>
-      </section>
-
-      <div className="mb-10 grid min-w-0 gap-8 md:grid-cols-2">
-        <section className="min-w-0">
-          <SectionTitle title={dict.home.latestArticles} href="/blog" allLabel={dict.common.all} />
-          <div className="min-w-0 overflow-hidden">
-            {allPosts.length === 0 ? (
-              <p className="text-sm text-[--color-text-muted]">还没有文章</p>
-            ) : (
-              allPosts.map((post) => (
-                <Link key={`${post.type}-${post.slug}`} href={`/${post.type}/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                  <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
-                    <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
-                      {post.summary && <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">{post.summary}</p>}
-                    </div>
-                    <span className="max-w-[3rem] shrink-0 truncate text-xs text-[--color-text-muted]">{post.typeLabel}</span>
-                  </div>
-                </Link>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="min-w-0">
-          <SectionTitle title="最近日常" href="/daily" allLabel={dict.common.all} />
-          <div className="min-w-0 overflow-hidden">
-            {recentDaily.length === 0 ? (
-              <p className="text-sm text-[--color-text-muted]">还没有日常记录</p>
-            ) : (
-              recentDaily.slice(0, 5).map((post) => (
-                <Link key={post.slug} href={`/daily/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                  <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
-                    <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
-                      {post.summary && <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">{post.summary}</p>}
-                    </div>
-                  </div>
-                </Link>
-              ))
-            )}
-          </div>
-        </section>
-      </div>
-
-      <section className="mb-10">
-        <SectionTitle title="求职漏斗" href="/jobs" allLabel={dict.common.all} />
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="grid grid-cols-2 gap-3">
-            <StatsCard title="累计投递" value={stats.total} sub="家公司" />
-            <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
-            <StatsCard title={dict.home.interviews} value={stats.hasInterview} sub="次" />
-            <StatsCard title={dict.home.offers} value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
-          </div>
-          {stats.total > 0 && (
-            <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-              <p className="mb-3 text-xs text-[--color-text-muted]">投递转化漏斗</p>
-              <FunnelChart steps={funnelSteps} />
-            </div>
-          )}
-        </div>
-      </section>
-
-      {recentJobs.length > 0 && (
-        <section className="mb-10">
-          <SectionTitle title="最近求职动态" href="/jobs" allLabel={dict.common.all} />
-          <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-            {recentJobs.slice(0, 5).map((job, index) => (
-              <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${index < Math.min(recentJobs.length, 5) - 1 ? "border-b border-[--color-border]" : ""}`}>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{job.company}</p>
-                  <p className="truncate text-xs text-[--color-text-secondary] sm:text-sm">{job.position}</p>
-                </div>
-                <StatusBadge status={job.status} type="job" />
-                <span className="hidden shrink-0 font-mono text-xs text-[--color-text-muted] sm:inline">{formatChinaDate(job.appliedAt)}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-
-      <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={true} />
-      </div>
     </div>
   )
 }

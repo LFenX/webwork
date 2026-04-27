@@ -78,6 +78,15 @@ model User {
   grantedAiUsageGrants     AIUsageGrant[]   @relation("aiGrantCreator")
   updatedAiUsageGrants     AIUsageGrant[]   @relation("aiGrantUpdater")
   delegatedAiRuns          AIRun[]          @relation("aiRunDelegatedTarget")
+  memoryFacts              MemoryFact[]
+  memoryEvents             MemoryEvent[]
+  memoryToolEvents         MemoryToolEvent[]
+  memorySettings           MemorySettings?
+  autoReplySettings        AutoReplySetting[]
+  autoReplyLogs            AutoReplyLog[]
+  websiteResources         WebsiteResource[]
+  websiteFolders           WebsiteFolder[]
+  websiteVisits            WebsiteVisitLog[]
 }
 
 model UserActivity {
@@ -870,4 +879,202 @@ model AIAuditLog {
   @@index([actorId, createdAt])
   @@index([targetUserId, createdAt])
   @@index([action, createdAt])
+}
+
+model MemorySettings {
+  userId                   String   @id
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enableLongTermMemory     Boolean  @default(true)
+  enablePersonaContext     Boolean  @default(true)
+  enableConversationArchive Boolean @default(true)
+  enableToolMemoryEvents   Boolean  @default(true)
+  enableMemoryRecall       Boolean  @default(true)
+  enableMemoryTools        Boolean  @default(true)
+  storeFullConversations   Boolean  @default(false)
+  autoTagSensitiveContent  Boolean  @default(true)
+  requireConfirmBeforeSave Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
+
+// ⚠️ WARNING: MemoryFact/MemoryEvent/MemoryToolEvent have raw SQL `embedding vector(1536)` columns
+// that Prisma cannot see. NEVER use `prisma db push` — it will drop these columns.
+// Use `prisma migrate dev` for all schema changes. See docs/database-safety.md.
+model MemoryFact {
+  id                   String    @id @default(cuid())
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category             String    @default("other")
+  title                String
+  content              String
+  tags                 String    @default("[]")
+  source               String    @default("manual")
+  sourceConversationId String?
+  sourceToolCallLogId  String?
+  importance           String    @default("medium")
+  expiresAt            DateTime?
+  deletedAt            DateTime?
+  embeddingModel       String?
+  embeddingStatus      String    @default("pending")
+  embeddingUpdatedAt   DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([userId, category])
+  @@index([userId, importance])
+  @@index([userId, createdAt])
+  @@index([userId, deletedAt])
+}
+
+model MemoryEvent {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String?
+  messageId      String?
+  topicSummary   String
+  keyTakeaways   String    @default("")
+  relatedModules String    @default("[]")
+  keywords       String    @default("[]")
+  importance     String    @default("low")
+  sensitive           Boolean   @default(false)
+  deletedAt           DateTime?
+  embeddingModel      String?
+  embeddingStatus     String    @default("pending")
+  embeddingUpdatedAt  DateTime?
+  createdAt           DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, conversationId])
+  @@index([userId, deletedAt])
+}
+
+model MemoryToolEvent {
+  id                   String    @id @default(cuid())
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action               String
+  module               String?
+  title                String?
+  articleId            String?
+  folderId             String?
+  folderName           String?
+  sourceModule         String?
+  targetModule         String?
+  slugChanged          Boolean?
+  changedFields        String    @default("[]")
+  sourceToolCallLogId  String?
+  deletedAt            DateTime?
+  embeddingModel       String?
+  embeddingStatus      String    @default("pending")
+  embeddingUpdatedAt   DateTime?
+  createdAt            DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, action])
+  @@index([userId, module])
+  @@index([userId, deletedAt])
+}
+
+model AutoReplySetting {
+  id                  String   @id @default(cuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled             Boolean  @default(false)
+  scope               String   @default("global")
+  chatType            String?
+  conversationId      String?
+  triggerMode         String   @default("manual")
+  idleMinutes         Int?     @default(10)
+  scheduleStart       String?
+  scheduleEnd         String?
+  timezone            String?
+  replyMode           String   @default("away_notice")
+  templateText        String?
+  customInstruction   String?
+  discloseAsAutoReply Boolean  @default(true)
+  allowGroupReply     Boolean  @default(false)
+  cooldownMinutes     Int      @default(30)
+  maxRepliesPerDay    Int      @default(20)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId, enabled])
+  @@index([userId, chatType, conversationId])
+  @@index([userId, scope])
+}
+
+model AutoReplyLog {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatType         String
+  conversationId   String
+  triggerMessageId String?
+  replyMessageId   String?
+  replyText        String
+  replyMode        String
+  reason           String?
+  createdAt        DateTime @default(now())
+
+  @@index([userId, conversationId, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ─── Community / Website Share ────────────────────────────────────────────────
+
+model WebsiteResource {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId      String?
+  folder        WebsiteFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  name          String
+  url           String
+  domain        String    @default("")
+  description   String    @default("")
+  screenshotUrl       String?
+  screenshotPositionX  Int       @default(50)
+  screenshotPositionY  Int       @default(50)
+  screenshotScale      Int       @default(100)
+  screenshotFitMode    String    @default("cover")
+  tags          String    @default("[]")
+  visibility    String    @default("public")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  visitLogs     WebsiteVisitLog[]
+
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt])
+  @@index([folderId])
+  @@index([domain])
+}
+
+model WebsiteVisitLog {
+  id         String   @id @default(cuid())
+  websiteId  String
+  website    WebsiteResource @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  @@index([websiteId, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+model WebsiteFolder {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String    @default("")
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  websites    WebsiteResource[]
+
+  @@unique([userId, name])
+  @@index([userId, sortOrder])
+  @@index([userId, createdAt])
 }

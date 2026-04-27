@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { ChatPanel, type ChatFriend, useChatSession } from "@/components/friend-chat"
+import { SoulWingReplyButton } from "@/components/chat/soulwing-reply-button"
 
 export function FriendChatPageClient({ userId, friendId, currentUser }: { userId: string; friendId: string; currentUser: ChatFriend }) {
   const chat = useChatSession(friendId, undefined, undefined, currentUser)
@@ -37,6 +38,14 @@ export function FriendChatPageClient({ userId, friendId, currentUser }: { userId
           <Link href="/friends" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-[--color-bg-hover]" aria-label="返回好友">
             <ArrowLeft size={18} />
           </Link>
+        }
+        composerExtra={
+          <SoulWingReplyButton
+            chatType="direct"
+            conversationId={friendId}
+            onInsertDraft={(text) => chat.setText(text)}
+            onSend={undefined}
+          />
         }
       />
     </div>

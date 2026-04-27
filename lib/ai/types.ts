@@ -165,6 +165,8 @@ export type AIToolDescriptor = {
   whenNotToUse?: string
   argumentHints?: string[]
   returns?: string
+  deprecated?: boolean
+  parameterSchema?: Record<string, unknown>
 }
 
 export type AIToolResultStatus = "completed" | "failed"

@@ -19,6 +19,7 @@ import { JOB_STATUS, JOB_CHANNELS } from "@/lib/enums"
 import { apiFetch, apiPost, apiPatch, apiDelete } from "@/lib/api-client"
 import { formatChinaDate } from "@/lib/time"
 import { getDict } from "@/lib/i18n"
+import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 
 interface Job {
   id: string
@@ -84,7 +85,7 @@ const defaultForm: JobForm = {
   link: "",
 }
 
-export function JobsClient() {
+export function JobsClient({ initialVisibility }: { initialVisibility?: "private" | "friends" }) {
   const dict = getDict()
 
   const [jobs, setJobs] = useState<Job[]>([])
@@ -237,14 +238,19 @@ export function JobsClient() {
 
   return (
     <div className="mx-auto max-w-[1200px] px-6 pt-4 pb-10">
-      <div className="mb-6">
-        <h1 className="mb-1 text-xl font-semibold">{dict.jobs.title}</h1>
-        <p className="text-sm text-[--color-text-muted]">{dict.jobs.description}</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="mb-1 text-xl font-semibold">{dict.jobs.title}</h1>
+          <p className="text-sm text-[--color-text-muted]">{dict.jobs.description}</p>
+        </div>
+        {initialVisibility !== undefined && (
+          <ModuleVisibilitySelect module="jobs" initialVisibility={initialVisibility} />
+        )}
       </div>
 
       {stats && (
         <section className="mb-8">
-          <div className="mb-6 grid grid-cols-4 gap-1.5 sm:gap-3 rounded-[--radius-lg] bg-[--color-bg-surface]/60 p-3 sm:p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
+          <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3 rounded-[--radius-lg] bg-[--color-bg-surface]/60 p-3 sm:p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
             <StatsCard title={dict.jobs.total} value={stats.total} sub={dict.jobs.total} />
             <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? dict.jobs.replied : dict.jobs.replyRate} trend={stats.replyRate > 50 ? "up" : "neutral"} />
             <StatsCard title={dict.jobs.interviewRate} value={`${stats.interviewRate}%`} sub={dict.jobs.interviewRate} />
