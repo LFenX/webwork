@@ -249,6 +249,10 @@ function shouldShowTimeBreak(previous: RoundtableMessage | undefined, current: R
 }
 
 function clientPhase(discussion: Discussion): Phase {
+  const latestPhase = [...discussion.messages]
+    .reverse()
+    .find((message) => message.metadata?.phase)?.metadata?.phase
+  if (latestPhase) return latestPhase
   if (discussion.completedTurns <= 0) return "opening"
   if (discussion.completedTurns >= discussion.plannedTurns - 1) return "closing"
   const ratio = discussion.completedTurns / Math.max(discussion.plannedTurns, 1)

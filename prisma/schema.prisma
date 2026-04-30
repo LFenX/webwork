@@ -139,6 +139,11 @@ model SoulWingRoundtableDiscussion {
   plannedTurns     Int       @default(0)
   completedTurns   Int       @default(0)
   styleConfig      Json?
+  nextTurnAt       DateTime?
+  generationLockedAt DateTime?
+  generationLockToken String?
+  runningKey       String?   @unique
+  slotClaimKey     String?   @unique
   lastMessageAt    DateTime?
   startedAt        DateTime?
   endedAt          DateTime?
@@ -149,6 +154,8 @@ model SoulWingRoundtableDiscussion {
 
   @@index([dateKey, slot])
   @@index([status, createdAt])
+  @@index([status, nextTurnAt])
+  @@index([generationLockedAt])
   @@index([dutyUserId])
   @@index([deletedAt, createdAt])
 }
@@ -165,6 +172,7 @@ model SoulWingRoundtableMessage {
   text           String
   userProvided   Boolean  @default(false)
   metadata       Json?
+  followupKey    String?  @unique
   deletedAt      DateTime?
   createdAt      DateTime @default(now())
 

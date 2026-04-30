@@ -1,4 +1,5 @@
 import "server-only"
+import { randomUUID } from "crypto"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import { getEffectiveProviderConfig } from "@/lib/ai/service"
@@ -71,7 +72,45 @@ type StoredMessage = {
 const SHANGHAI_TZ = "Asia/Shanghai"
 const TOOL_TARGET_MEAN_PER_DISCUSSION = 1
 const TOOL_MAX_PER_DISCUSSION = 5
-const pendingTimers = new Map<string, NodeJS.Timeout>()
+const GENERATION_LOCK_TTL_MS = 90_000
+const SCHEDULER_KICK_INTERVAL_MS = 30_000
+const turnTimers = new Map<string, NodeJS.Timeout>()
+const discussionTimers = new Map<string, Set<NodeJS.Timeout>>()
+
+const roundtableSchedulerState = globalThis as unknown as {
+  soulwingRoundtableLastKickAt?: number
+  soulwingRoundtableKickInFlight?: boolean
+}
+
+function registerDiscussionTimer(discussionId: string, timer: NodeJS.Timeout) {
+  const timers = discussionTimers.get(discussionId) ?? new Set<NodeJS.Timeout>()
+  timers.add(timer)
+  discussionTimers.set(discussionId, timers)
+}
+
+function unregisterDiscussionTimer(discussionId: string, timer: NodeJS.Timeout) {
+  const timers = discussionTimers.get(discussionId)
+  if (!timers) return
+  timers.delete(timer)
+  if (timers.size === 0) discussionTimers.delete(discussionId)
+}
+
+function clearDiscussionTimers(discussionId: string) {
+  const timers = discussionTimers.get(discussionId)
+  if (timers) {
+    for (const timer of timers) clearTimeout(timer)
+    discussionTimers.delete(discussionId)
+  }
+  turnTimers.delete(discussionId)
+}
+
+function slotClaimKeyFor(dateKey: string, slot: RoundtableSlot) {
+  return slot === "morning" || slot === "evening" ? `${dateKey}:${slot}` : null
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "P2002"
+}
 
 const PRIVATE_TERMS = [
   "主人",
@@ -348,6 +387,27 @@ function sanitizePrivateTerms(text: string, ownerName: string): string {
   return result
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function stripLeadingOwnerAddress(text: string, ownerName: string) {
+  const aliases = [
+    ownerName?.trim(),
+    "\u6211\u5bb6\u90a3\u4f4d",
+    "\u6211\u642d\u6863",
+    "\u6211\u90a3\u4f4d\u4eba\u7c7b",
+    "\u6211\u670d\u52a1\u7684\u90a3\u4f4d",
+    "\u6211\u7684\u7528\u6237",
+  ].filter((value): value is string => Boolean(value))
+  let result = text.trim()
+  for (const alias of aliases) {
+    const pattern = new RegExp(`^\\s*${escapeRegExp(alias)}\\s*[\\uFF0C,\\u3001:?-]+\\s*`)
+    result = result.replace(pattern, "").trim()
+  }
+  return result || text.trim()
+}
+
 function splitSentences(text: string) {
   const sentences = text
     .replace(/\n{3,}/g, "\n\n")
@@ -476,6 +536,7 @@ function sanitizeAgentOutput(params: {
   lengthProfile: LengthProfile
   isFinalTurn?: boolean
   timeContext?: ShanghaiTimeContext
+  allowOwnerAddress?: boolean
 }) {
   let text = params.text
     .replace(/\r/g, "")
@@ -484,6 +545,9 @@ function sanitizeAgentOutput(params: {
     .replace(/\n{3,}/g, "\n\n")
     .trim()
   text = sanitizePrivateTerms(text, params.ownerName)
+  if (!params.allowOwnerAddress) {
+    text = stripLeadingOwnerAddress(text, params.ownerName)
+  }
   if (params.phase === "synthesis_lead" || params.phase === "afterglow") {
     text = stripForbiddenFarewell(text)
   }
@@ -814,6 +878,7 @@ function phaseFor(completed: number, planned: number, recentMessages: StoredMess
 function describePhase(phase: Phase, isFirstTurn: boolean, isFinalTurn: boolean) {
   if (isFirstTurn) {
     return [
+      "开场是面向圆桌抛题，不是对绑定用户汇报。禁止以用户名字或「我家那位」等称呼开头。",
       "现在是这场讨论的开场，你是值日蝶灵。",
       "请用最自然的方式把今天的议题抛给群里——可以带一句钩子、个人感受或最近在想的事，但别用「大家好」或「欢迎来到」这种主持口吻。",
       "像在最熟的朋友群里发起话题，让其他蝶灵想接话。",
@@ -1239,6 +1304,7 @@ async function generateAgentText(params: {
         lengthProfile,
         isFinalTurn: params.isFinalTurn,
         timeContext: params.timeContext,
+        allowOwnerAddress: Boolean(params.respondingToUser || params.mention || params.opinionFromUser || params.isFollowupReply),
       }),
       arcBeat,
       lengthProfile,
@@ -1316,6 +1382,7 @@ async function generateAgentText(params: {
       lengthProfile,
       isFinalTurn: params.isFinalTurn,
       timeContext: params.timeContext,
+      allowOwnerAddress: Boolean(params.respondingToUser || params.mention || params.opinionFromUser || params.isFollowupReply),
     }),
     arcBeat,
     lengthProfile,
@@ -1402,7 +1469,7 @@ export async function ensureTodayRoundtable(options: { runDue?: boolean } = {}) 
     },
   })
 
-  if (options.runDue ?? true) {
+  if (options.runDue ?? false) {
     await maybeRunDueDiscussions(settings, day, readyMembers)
     await resumeRunningRoundtables()
   }
@@ -1412,6 +1479,19 @@ export async function ensureTodayRoundtable(options: { runDue?: boolean } = {}) 
     day: await prisma.soulWingRoundtableDay.findUniqueOrThrow({ where: { id: day.id } }),
     members,
   }
+}
+
+function kickRoundtableScheduler() {
+  const now = Date.now()
+  if (roundtableSchedulerState.soulwingRoundtableKickInFlight) return
+  if (now - (roundtableSchedulerState.soulwingRoundtableLastKickAt ?? 0) < SCHEDULER_KICK_INTERVAL_MS) return
+  roundtableSchedulerState.soulwingRoundtableLastKickAt = now
+  roundtableSchedulerState.soulwingRoundtableKickInFlight = true
+  void ensureTodayRoundtable({ runDue: true })
+    .catch(() => null)
+    .finally(() => {
+      roundtableSchedulerState.soulwingRoundtableKickInFlight = false
+    })
 }
 
 async function maybeRunDueDiscussions(
@@ -1436,7 +1516,12 @@ async function maybeRunDueDiscussions(
 
   for (const slot of due) {
     const exists = await prisma.soulWingRoundtableDiscussion.findFirst({
-      where: { dateKey: day.dateKey, slot, source: "auto" },
+      where: {
+        dateKey: day.dateKey,
+        slot,
+        deletedAt: null,
+        NOT: { slot: "manual" },
+      },
       select: { id: true },
     })
     if (!exists) {
@@ -1447,7 +1532,7 @@ async function maybeRunDueDiscussions(
         topicDescription: slot === "morning" ? day.morningDescription : day.eveningDescription,
         topicType: slot === "morning" ? "reality" : "life",
         materialCard: (day.materialCard as MaterialCard | null) ?? undefined,
-      })
+      }).catch(() => null)
     }
   }
 }
@@ -1477,6 +1562,21 @@ export async function startRoundtableDiscussion(input: {
   const readyMembers = getReadyMembers(members)
   if (readyMembers.length === 0) throw new Error("当前没有已就绪的蝶灵。")
 
+  if (input.force) {
+    await prisma.soulWingRoundtableDiscussion.updateMany({
+      where: { status: "running", deletedAt: null },
+      data: {
+        status: "cancelled",
+        endedAt: new Date(),
+        runningKey: null,
+        generationLockedAt: null,
+        generationLockToken: null,
+        nextTurnAt: null,
+        slotClaimKey: null,
+      },
+    })
+  }
+
   const materialCard = input.materialCard ?? await buildMaterialCard(
     input.topicTitle,
     input.topicDescription ?? "",
@@ -1494,69 +1594,142 @@ export async function startRoundtableDiscussion(input: {
   }
 
   const planned = plannedTurnsFor(readyMembers.length, input.topicTitle, input.topicDescription ?? "", input.turnCount)
-  const discussion = await prisma.soulWingRoundtableDiscussion.create({
-    data: {
-      dateKey: day.dateKey,
-      slot: input.slot,
-      topicTitle: input.topicTitle,
-      topicDescription: input.topicDescription ?? "",
-      topicType: input.topicType ?? "custom",
-      materialCard,
-      styleConfig: (input.styleConfig ?? undefined) as Prisma.InputJsonValue | undefined,
-      source: input.source,
-      initiatedById: input.initiatedById ?? null,
-      dutyUserId,
-      status: "running",
-      plannedTurns: planned,
-      completedTurns: 0,
-      startedAt: new Date(),
-      scheduledAt: new Date(),
-    },
-  })
+  const slotClaimKey = slotClaimKeyFor(day.dateKey, input.slot)
+  let discussion: Awaited<ReturnType<typeof prisma.soulWingRoundtableDiscussion.create>>
+  try {
+    discussion = await prisma.soulWingRoundtableDiscussion.create({
+      data: {
+        dateKey: day.dateKey,
+        slot: input.slot,
+        slotClaimKey,
+        runningKey: "singleton",
+        topicTitle: input.topicTitle,
+        topicDescription: input.topicDescription ?? "",
+        topicType: input.topicType ?? "custom",
+        materialCard,
+        styleConfig: (input.styleConfig ?? undefined) as Prisma.InputJsonValue | undefined,
+        source: input.source,
+        initiatedById: input.initiatedById ?? null,
+        dutyUserId,
+        status: "running",
+        plannedTurns: planned,
+        completedTurns: 0,
+        startedAt: new Date(),
+        scheduledAt: new Date(),
+      },
+    })
+  } catch (error) {
+    if (!isUniqueConstraintError(error) || !slotClaimKey) throw error
+    const existing = await prisma.soulWingRoundtableDiscussion.findFirst({
+      where: { slotClaimKey, deletedAt: null },
+      select: { id: true },
+    })
+    if (!existing) throw error
+    return existing.id
+  }
 
-  scheduleDiscussionTurn(discussion.id, { delayMs: 1500 + Math.floor(Math.random() * 1500) })
+  await queueDiscussionTurn(discussion.id, 1500 + Math.floor(Math.random() * 1500))
   return discussion.id
 }
 
 async function resumeRunningRoundtables() {
+  const now = new Date()
   const running = await prisma.soulWingRoundtableDiscussion.findMany({
-    where: { status: "running", deletedAt: null },
-    select: { id: true },
+    where: {
+      status: "running",
+      deletedAt: null,
+      OR: [{ nextTurnAt: null }, { nextTurnAt: { lte: now } }],
+    },
+    select: { id: true, nextTurnAt: true },
   })
-  for (const discussion of running) scheduleDiscussionTurn(discussion.id)
+  for (const discussion of running) {
+    const delayMs = discussion.nextTurnAt
+      ? Math.max(discussion.nextTurnAt.getTime() - Date.now(), 250)
+      : randomDelayMs("discuss")
+    scheduleDiscussionTurn(discussion.id, { delayMs })
+  }
+}
+
+async function queueDiscussionTurn(discussionId: string, delayMs: number, opts?: { force?: boolean }) {
+  const nextTurnAt = new Date(Date.now() + Math.max(delayMs, 0))
+  await prisma.soulWingRoundtableDiscussion.updateMany({
+    where: { id: discussionId, status: "running", deletedAt: null },
+    data: { nextTurnAt },
+  })
+  scheduleDiscussionTurn(discussionId, { delayMs, force: opts?.force })
 }
 
 function scheduleDiscussionTurn(discussionId: string, opts?: { delayMs?: number; force?: boolean }) {
-  const existing = pendingTimers.get(discussionId)
+  const existing = turnTimers.get(discussionId)
   if (existing) {
     if (!opts?.force && opts?.delayMs === undefined) return
     clearTimeout(existing)
-    pendingTimers.delete(discussionId)
+    unregisterDiscussionTimer(discussionId, existing)
+    turnTimers.delete(discussionId)
   }
   const delay = opts?.delayMs ?? randomDelayMs("discuss")
   const timer = setTimeout(() => {
-    pendingTimers.delete(discussionId)
+    unregisterDiscussionTimer(discussionId, timer)
+    turnTimers.delete(discussionId)
     void runOneDiscussionTurn(discussionId)
   }, delay)
-  pendingTimers.set(discussionId, timer)
+  turnTimers.set(discussionId, timer)
+  registerDiscussionTimer(discussionId, timer)
+}
+
+async function acquireGenerationLock(discussionId: string) {
+  const token = randomUUID()
+  const now = new Date()
+  const staleBefore = new Date(now.getTime() - GENERATION_LOCK_TTL_MS)
+  const result = await prisma.soulWingRoundtableDiscussion.updateMany({
+    where: {
+      id: discussionId,
+      status: "running",
+      deletedAt: null,
+      OR: [{ generationLockedAt: null }, { generationLockedAt: { lt: staleBefore } }],
+    },
+    data: {
+      generationLockedAt: now,
+      generationLockToken: token,
+      nextTurnAt: null,
+    },
+  })
+  return result.count === 1 ? token : null
+}
+
+async function releaseGenerationLock(discussionId: string, token: string) {
+  await prisma.soulWingRoundtableDiscussion.updateMany({
+    where: { id: discussionId, generationLockToken: token },
+    data: { generationLockedAt: null, generationLockToken: null },
+  }).catch(() => null)
 }
 
 async function runOneDiscussionTurn(discussionId: string) {
+  const lockToken = await acquireGenerationLock(discussionId)
+  if (!lockToken) return
+
+  let result: { shouldContinue: boolean; nextPhase: Phase; delayMs?: number } | null | undefined
   try {
-    const result = await generateNextDiscussionTurn(discussionId)
-    if (result?.shouldContinue) {
-      const nextDelay = randomDelayMs(result.nextPhase)
-      scheduleDiscussionTurn(discussionId, { delayMs: nextDelay, force: true })
-    }
+    result = await generateNextDiscussionTurn(discussionId)
   } catch (error) {
-    await prisma.soulWingRoundtableDiscussion.update({
-      where: { id: discussionId },
+    await prisma.soulWingRoundtableDiscussion.updateMany({
+      where: { id: discussionId, generationLockToken: lockToken },
       data: {
         status: "failed",
         endedAt: new Date(),
-        errorMessage: error instanceof Error ? error.message : "讨论生成失败",
+        runningKey: null,
+        nextTurnAt: null,
+        errorMessage: error instanceof Error ? error.message : "?????????",
       },
     }).catch(() => null)
+    return
+  } finally {
+    await releaseGenerationLock(discussionId, lockToken)
+  }
+
+  if (result?.shouldContinue) {
+    const nextDelay = result.delayMs ?? randomDelayMs(result.nextPhase)
+    await queueDiscussionTurn(discussionId, nextDelay, { force: true })
   }
 }
 
@@ -1660,6 +1833,7 @@ async function generateNextDiscussionTurn(discussionId: string) {
     replyTargetMsg = last
   }
 
+  const promptStartedAt = new Date()
   const generated = await generateAgentText({
     userId: speaker.id,
     agentName: speaker.agentName,
@@ -1689,6 +1863,19 @@ async function generateNextDiscussionTurn(discussionId: string) {
         ? { authorName: synthesisMessage.authorName, text: synthesisMessage.text, isUser: false }
         : null,
   })
+  const newerUserMessage = await prisma.soulWingRoundtableMessage.findFirst({
+    where: {
+      discussionId,
+      deletedAt: null,
+      createdAt: { gt: promptStartedAt },
+      kind: { in: ["user_speak", "user_mention"] },
+    },
+    select: { id: true },
+  })
+  if (newerUserMessage) {
+    return { shouldContinue: true, nextPhase: phase, delayMs: userResponseDelayMs() }
+  }
+
   const subtopicSpawned = phase === "pivot" && /换个问题|子议题|换一种问法/.test(generated.text)
 
   const kind = mention ? "mention_reply" : isFirstTurn ? "duty" : "agent"
@@ -1751,7 +1938,7 @@ async function generateNextDiscussionTurn(discussionId: string) {
   if (isFinalTurn) {
     await prisma.soulWingRoundtableDiscussion.update({
       where: { id: discussionId },
-      data: { status: "completed", endedAt: new Date() },
+      data: { status: "completed", endedAt: new Date(), runningKey: null, nextTurnAt: null },
     })
     return { shouldContinue: false, nextPhase: phase }
   }
@@ -1855,6 +2042,7 @@ async function emitUserFollowup(
       round: 0,
       text: safePublicText(text, 600),
       userProvided: true,
+      followupKey: `${discussion.id}:${self.id}:${used + 1}`,
       metadata: {
         userKind: "followup",
         followupIndex: used + 1,
@@ -1898,7 +2086,8 @@ function scheduleFollowupReplies(params: {
   for (const userId of params.responderIds) {
     const delay = cumulativeDelay
     cumulativeDelay += 2800 + Math.floor(Math.random() * 4500)
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      unregisterDiscussionTimer(params.discussionId, timer)
       void runFollowupReply({
         discussionId: params.discussionId,
         questionMessageId: params.questionMessageId,
@@ -1907,6 +2096,7 @@ function scheduleFollowupReplies(params: {
         responderUserId: userId,
       }).catch(() => null)
     }, delay)
+    registerDiscussionTimer(params.discussionId, timer)
   }
 }
 
@@ -2011,7 +2201,7 @@ async function emitUserSpeak(
     where: { id: discussion.id },
     data: { lastMessageAt: new Date() },
   }).catch(() => null)
-  scheduleDiscussionTurn(discussion.id, { delayMs: userResponseDelayMs(), force: true })
+  await queueDiscussionTurn(discussion.id, userResponseDelayMs(), { force: true })
   return serializeMessage(message)
 }
 
@@ -2040,7 +2230,7 @@ async function emitUserMention(
     where: { id: discussion.id },
     data: { lastMessageAt: new Date() },
   }).catch(() => null)
-  scheduleDiscussionTurn(discussion.id, { delayMs: userResponseDelayMs(), force: true })
+  await queueDiscussionTurn(discussion.id, userResponseDelayMs(), { force: true })
   return serializeMessage(message)
 }
 
@@ -2059,57 +2249,72 @@ async function emitProxyOpinion(
   text: string,
 ) {
   if (!self.canUseAI || !self.participationEnabled || self.adminPaused) {
-    throw new Error("你的蝶灵当前未就绪，无法替你发言。")
+    throw new Error("?????????????????")
   }
-  const recent = await prisma.soulWingRoundtableMessage.findMany({
-    where: { discussionId: discussion.id, deletedAt: null },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: 60,
-  })
-  const phase = phaseFor(discussion.completedTurns, discussion.plannedTurns, recent, 1)
-  const generated = await generateAgentText({
-    userId: self.id,
-    agentName: self.agentName,
-    ownerDisplayName: self.ownerDisplayName,
-    topicTitle: discussion.topicTitle,
-    topicDescription: discussion.topicDescription,
-    materialCard: (discussion.materialCard as MaterialCard | null) ?? await buildMaterialCard(discussion.topicTitle, discussion.topicDescription, self.id),
-    priorMessages: recent,
-    styleNotes: await getRecentStyleNotes(self.id),
-    phase,
-    opinionFromUser: text,
-    styleConfig: (discussion.styleConfig as StyleConfig | null) ?? null,
-  })
-  const message = await prisma.soulWingRoundtableMessage.create({
-    data: {
-      discussionId: discussion.id,
-      authorUserId: self.id,
-      authorName: self.agentName,
-      authorAvatarUrl: self.avatarUrl,
-      kind: "user_proxy",
-      round: discussion.completedTurns + 1,
-      text: generated.text,
-      userProvided: true,
-      metadata: {
-        phase,
-        opinionFromUserId: self.id,
-        arcBeat: generated.arcBeat,
-        lengthProfile: generated.lengthProfile,
+
+  const lockToken = await acquireGenerationLock(discussion.id)
+  if (!lockToken) {
+    throw new Error("??????????????????")
+  }
+
+  try {
+    const lockedDiscussion = await prisma.soulWingRoundtableDiscussion.findFirst({
+      where: { id: discussion.id, status: "running", deletedAt: null },
+    })
+    if (!lockedDiscussion) throw new Error("?????????????")
+
+    const recent = await prisma.soulWingRoundtableMessage.findMany({
+      where: { discussionId: discussion.id, deletedAt: null },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: 60,
+    })
+    const phase = phaseFor(lockedDiscussion.completedTurns, lockedDiscussion.plannedTurns, recent, members.length)
+    const generated = await generateAgentText({
+      userId: self.id,
+      agentName: self.agentName,
+      ownerDisplayName: self.ownerDisplayName,
+      topicTitle: lockedDiscussion.topicTitle,
+      topicDescription: lockedDiscussion.topicDescription,
+      materialCard: (lockedDiscussion.materialCard as MaterialCard | null) ?? await buildMaterialCard(lockedDiscussion.topicTitle, lockedDiscussion.topicDescription, self.id),
+      priorMessages: recent,
+      styleNotes: await getRecentStyleNotes(self.id),
+      phase,
+      opinionFromUser: text,
+      styleConfig: (lockedDiscussion.styleConfig as StyleConfig | null) ?? null,
+    })
+    const message = await prisma.soulWingRoundtableMessage.create({
+      data: {
+        discussionId: discussion.id,
+        authorUserId: self.id,
+        authorName: self.agentName,
+        authorAvatarUrl: self.avatarUrl,
+        kind: "user_proxy",
+        round: lockedDiscussion.completedTurns + 1,
+        text: generated.text,
+        userProvided: true,
+        metadata: {
+          phase,
+          opinionFromUserId: self.id,
+          arcBeat: generated.arcBeat,
+          lengthProfile: generated.lengthProfile,
+        },
       },
-    },
-  })
-  // proxy messages also count toward the planned discussion volume
-  await prisma.soulWingRoundtableDiscussion.update({
-    where: { id: discussion.id },
-    data: { completedTurns: { increment: 1 }, lastMessageAt: new Date() },
-  }).catch(() => null)
-  scheduleDiscussionTurn(discussion.id, { delayMs: userResponseDelayMs() + 1500, force: true })
-  void members // unused – kept for signature stability
-  return serializeMessage(message)
+    })
+    await prisma.soulWingRoundtableDiscussion.update({
+      where: { id: discussion.id },
+      data: { completedTurns: { increment: 1 }, lastMessageAt: new Date() },
+    }).catch(() => null)
+    await queueDiscussionTurn(discussion.id, userResponseDelayMs() + 1500, { force: true })
+    void members
+    return serializeMessage(message)
+  } finally {
+    await releaseGenerationLock(discussion.id, lockToken)
+  }
 }
 
 export async function getRoundtableState(viewerUserId?: string | null) {
-  const { settings, day, members } = await ensureTodayRoundtable()
+  const { settings, day, members } = await ensureTodayRoundtable({ runDue: false })
+  kickRoundtableScheduler()
   const discussions = await prisma.soulWingRoundtableDiscussion.findMany({
     where: { deletedAt: null },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -2212,15 +2417,20 @@ export async function deleteRoundtableMessage(_adminId: string, messageId: strin
 
 export async function deleteRoundtableDiscussion(_adminId: string, discussionId: string) {
   const now = new Date()
-  const existing = pendingTimers.get(discussionId)
-  if (existing) {
-    clearTimeout(existing)
-    pendingTimers.delete(discussionId)
-  }
+  clearDiscussionTimers(discussionId)
   await prisma.$transaction([
     prisma.soulWingRoundtableDiscussion.update({
       where: { id: discussionId },
-      data: { deletedAt: now, status: "deleted", endedAt: now },
+      data: {
+        deletedAt: now,
+        status: "deleted",
+        endedAt: now,
+        runningKey: null,
+        generationLockedAt: null,
+        generationLockToken: null,
+        nextTurnAt: null,
+        slotClaimKey: null,
+      },
     }),
     prisma.soulWingRoundtableMessage.updateMany({
       where: { discussionId },
