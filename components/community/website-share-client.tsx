@@ -99,7 +99,7 @@ export function WebsiteShareClient({
   const [folderId, setFolderId] = useState(prefilledFolderId || searchParams.get("folderId") || "")
   const [sharedBy, setSharedByState] = useState(searchParams.get("sharedBy") || "")
 
-  const [selectedWebsiteId, setSelectedWebsiteId] = useState<string | null>(null)
+  const [selectedWebsiteId, setSelectedWebsiteId] = useState<string | null>(searchParams.get("focus"))
   const [formOpen, setFormOpen] = useState(false)
   const [editingWebsite, setEditingWebsite] = useState<WebsiteResource | null>(null)
   const [folderFormOpen, setFolderFormOpen] = useState(false)

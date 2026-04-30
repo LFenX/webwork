@@ -475,6 +475,7 @@ export async function getAIUnifiedConfigs(userId: string) {
           modelList: parseModelList(grant.modelList),
           temperature: grant.temperature,
           streamEnabled: grant.streamEnabled,
+          webSearchEnabled: grant.webSearchEnabled,
           isEnabled: grant.status === "active",
           apiKeyMask: grant.apiKeyMask,
           status: grant.status,
@@ -811,6 +812,7 @@ export async function upsertAIGrant(adminId: string, userId: string, input: AIGr
     temperature: input.temperature ?? 0.7,
     streamEnabled: input.streamEnabled ?? true,
     modelList: modelListJson,
+    webSearchEnabled: input.webSearchEnabled ?? false,
   }
 
   const grant = isUpdate
@@ -943,6 +945,10 @@ export async function getAdminAIOverview() {
       take: 20,
     }),
   ])
+  const webSearchConfigs = await prisma.aIWebSearchConfig.findMany({
+    where: { ownerType: "ADMIN_GRANT", ownerId: { in: grants.map((grant) => grant.id) } },
+  })
+  const webSearchByOwner = new Map(webSearchConfigs.map((config) => [config.ownerId, config]))
 
   return {
     requestCounts: requestCounts.reduce<Record<string, number>>((acc, item) => {
@@ -960,6 +966,27 @@ export async function getAdminAIOverview() {
       modelList: parseModelList(grant.modelList),
       temperature: grant.temperature,
       streamEnabled: grant.streamEnabled,
+      webSearchEnabled: grant.webSearchEnabled,
+      webSearch: (() => {
+        const config = webSearchByOwner.get(grant.id)
+        return config
+          ? {
+              enabled: config.enabled,
+              configured: Boolean(config.apiKeyMask),
+              apiKeyMask: config.apiKeyMask,
+              host: config.host,
+              workspace: config.workspace,
+              serviceId: config.serviceId,
+            }
+          : {
+              enabled: false,
+              configured: false,
+              apiKeyMask: "",
+              host: "",
+              workspace: "default",
+              serviceId: "ops-web-search-001",
+            }
+      })(),
       updatedAt: grant.updatedAt.toISOString(),
       user: grant.user,
     })),

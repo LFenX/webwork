@@ -1,0 +1,847 @@
+{
+  "verified": {
+    "academic": {
+      "pkg": "jsonresume-theme-academic",
+      "version": "1.3.3",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 8732,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "actual": {
+      "pkg": "jsonresume-theme-actual",
+      "version": "0.2.2",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 11958,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "americano-german": {
+      "pkg": "jsonresume-theme-americano-german",
+      "version": "0.1.4",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 20071,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "berlin-grid-ats": {
+      "pkg": "jsonresume-theme-berlin-grid-ats",
+      "version": "1.0.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 13109,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "boilerplate": {
+      "pkg": "jsonresume-theme-boilerplate",
+      "version": "0.1.2",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 6668,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "caffeine": {
+      "pkg": "jsonresume-theme-caffeine",
+      "version": "1.2.3",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 17081,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "class": {
+      "pkg": "jsonresume-theme-class",
+      "version": "0.1.2",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 9368,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "classy": {
+      "pkg": "jsonresume-theme-classy",
+      "version": "1.0.9",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 6648,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "cora": {
+      "pkg": "jsonresume-theme-cora",
+      "version": "0.1.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 9126,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "dev-ats-es": {
+      "pkg": "jsonresume-theme-dev-ats-es",
+      "version": "1.0.5",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 11261,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "elegant": {
+      "pkg": "jsonresume-theme-elegant",
+      "version": "1.16.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 31122,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "eloquent": {
+      "pkg": "jsonresume-theme-eloquent",
+      "version": "5.0.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 80450,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "engineering": {
+      "pkg": "jsonresume-theme-engineering",
+      "version": "0.7.27",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 7132,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "faang": {
+      "pkg": "jsonresume-theme-faang",
+      "version": "0.1.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 4114,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "flat": {
+      "pkg": "jsonresume-theme-flat",
+      "version": "0.3.7",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 10264,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "github-styled": {
+      "pkg": "jsonresume-theme-github-styled",
+      "version": "1.4.2",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 37344,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "jacrys": {
+      "pkg": "jsonresume-theme-jacrys",
+      "version": "1.0.4",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 19029,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "kards": {
+      "pkg": "jsonresume-theme-kards",
+      "version": "3.0.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 3031006,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "kate": {
+      "pkg": "jsonresume-theme-kate",
+      "version": "1.0.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 14515,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "kendall": {
+      "pkg": "jsonresume-theme-kendall",
+      "version": "0.2.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 19224,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "lucide": {
+      "pkg": "jsonresume-theme-lucide",
+      "version": "1.1.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 18858,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "macchiato": {
+      "pkg": "jsonresume-theme-macchiato",
+      "version": "1.1.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 19785,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "mantra": {
+      "pkg": "jsonresume-theme-mantra",
+      "version": "0.3.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 7957,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "material-moon": {
+      "pkg": "jsonresume-theme-material-moon",
+      "version": "0.1.18",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 22999,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "microdata": {
+      "pkg": "jsonresume-theme-microdata",
+      "version": "0.2.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 22095,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "minyma": {
+      "pkg": "jsonresume-theme-minyma",
+      "version": "0.0.5",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 21578,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "moon": {
+      "pkg": "jsonresume-theme-moon",
+      "version": "1.7.22",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 18637,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "nominaltech-nl": {
+      "pkg": "jsonresume-theme-nominaltech-nl",
+      "version": "0.4.97",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 7241,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "one": {
+      "pkg": "jsonresume-theme-one",
+      "version": "0.0.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 12556,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "onepage": {
+      "pkg": "jsonresume-theme-onepage",
+      "version": "0.0.3",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 8818,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "onepage-plus": {
+      "pkg": "jsonresume-theme-onepage-plus",
+      "version": "1.0.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 10807,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "onepage-simplified": {
+      "pkg": "jsonresume-theme-onepage-simplified",
+      "version": "1.3.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 9253,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "paper": {
+      "pkg": "jsonresume-theme-paper",
+      "version": "0.5.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 14205,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "paper-plus-plus": {
+      "pkg": "jsonresume-theme-paper-plus-plus",
+      "version": "0.6.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 16139,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "paperalt": {
+      "pkg": "jsonresume-theme-paperalt",
+      "version": "0.2.5",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 16634,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "papirus": {
+      "pkg": "jsonresume-theme-papirus",
+      "version": "0.0.5",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 20349,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "pumpkin": {
+      "pkg": "jsonresume-theme-pumpkin",
+      "version": "1.1.4",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 11062,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "relaxed": {
+      "pkg": "jsonresume-theme-relaxed",
+      "version": "0.2.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 13730,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "sceptile": {
+      "pkg": "jsonresume-theme-sceptile",
+      "version": "1.0.5",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 7086,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "short": {
+      "pkg": "jsonresume-theme-short",
+      "version": "0.1.7",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 7296,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "slick": {
+      "pkg": "jsonresume-theme-slick",
+      "version": "0.1.16",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 68936,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "spartan": {
+      "pkg": "jsonresume-theme-spartan",
+      "version": "0.3.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 15389,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "srt": {
+      "pkg": "jsonresume-theme-srt",
+      "version": "0.1.3",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 7175,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "stackoverflow": {
+      "pkg": "jsonresume-theme-stackoverflow",
+      "version": "3.1.5",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 26684,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "stackoverflow-ibic": {
+      "pkg": "jsonresume-theme-stackoverflow-ibic",
+      "version": "2.0.6",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 22534,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "straightforward": {
+      "pkg": "jsonresume-theme-straightforward",
+      "version": "0.2.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 12477,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "tan-responsive": {
+      "pkg": "jsonresume-theme-tan-responsive",
+      "version": "0.0.7",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 14917,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "tech": {
+      "pkg": "jsonresume-theme-tech",
+      "version": "1.5.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 17929,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "zurb": {
+      "pkg": "jsonresume-theme-zurb",
+      "version": "0.4.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 61525,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "ace": {
+      "pkg": "jsonresume-theme-ace",
+      "version": "1.1.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 30576,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "actual-letter": {
+      "pkg": "jsonresume-theme-actual-letter",
+      "version": "0.1.6",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 2003,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "catppuccin": {
+      "pkg": "jsonresume-theme-catppuccin",
+      "version": "1.0.2",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 84621,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "claude": {
+      "pkg": "jsonresume-theme-claude",
+      "version": "1.0.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 13624,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "compact": {
+      "pkg": "jsonresume-theme-compact",
+      "version": "1.0.4",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 5353,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "crisp": {
+      "pkg": "jsonresume-theme-crisp",
+      "version": "0.2.12",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 7635,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "dark-classy-responsive": {
+      "pkg": "jsonresume-theme-dark-classy-responsive",
+      "version": "1.0.3",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 10319,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "developpez": {
+      "pkg": "jsonresume-theme-developpez",
+      "version": "1.1.3",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 24685,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "elegant-fr-mod": {
+      "pkg": "jsonresume-theme-elegant-fr-mod",
+      "version": "1.2.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 46017,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "foxyboxy": {
+      "pkg": "jsonresume-theme-foxyboxy",
+      "version": "0.1.6",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 11367,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "full": {
+      "pkg": "jsonresume-theme-full",
+      "version": "0.0.4",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 15895,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "heavypaper": {
+      "pkg": "jsonresume-theme-heavypaper",
+      "version": "0.2.7",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 12706,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "japanese-cv-style": {
+      "pkg": "jsonresume-theme-japanese-cv-style",
+      "version": "0.5.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 4034,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "jdambron-fr": {
+      "pkg": "jsonresume-theme-jdambron-fr",
+      "version": "1.2.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 153380,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "juno-nl": {
+      "pkg": "jsonresume-theme-juno-nl",
+      "version": "0.3.4",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 12920,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "jupe": {
+      "pkg": "jsonresume-theme-jupe",
+      "version": "1.16.3",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 31170,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "kendall-web": {
+      "pkg": "jsonresume-theme-kendall-web",
+      "version": "0.5.7",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 21031,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "macchiato-custom": {
+      "pkg": "jsonresume-theme-macchiato-custom",
+      "version": "1.1.13",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 22150,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "minimal": {
+      "pkg": "jsonresume-theme-minimal",
+      "version": "0.1.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 12333,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "modern": {
+      "pkg": "jsonresume-theme-modern",
+      "version": "0.0.18",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 4687,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "modern-extended": {
+      "pkg": "jsonresume-theme-modern-extended",
+      "version": "0.1.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 6843,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "modern2": {
+      "pkg": "jsonresume-theme-modern2",
+      "version": "0.0.20",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 4697,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "msresume": {
+      "pkg": "jsonresume-theme-msresume",
+      "version": "0.1.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 4648,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "orbit": {
+      "pkg": "jsonresume-theme-orbit",
+      "version": "3.0.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 18582,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "polymer": {
+      "pkg": "jsonresume-theme-polymer",
+      "version": "0.0.6",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 103241,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "rickosborne": {
+      "pkg": "jsonresume-theme-rickosborne",
+      "version": "2022.09.16-T1450",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 24332,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "riga": {
+      "pkg": "jsonresume-theme-riga",
+      "version": "1.0.16",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 65922,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "rocketspacer": {
+      "pkg": "jsonresume-theme-rocketspacer",
+      "version": "1.2.2",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 14979,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "semantic-ui": {
+      "pkg": "jsonresume-theme-semantic-ui",
+      "version": "0.0.1",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 790648,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "shorter": {
+      "pkg": "jsonresume-theme-shorter",
+      "version": "0.1.6",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 7523,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "simple-red": {
+      "pkg": "jsonresume-theme-simple-red",
+      "version": "1.0.4",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 14000,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "simplyelegant": {
+      "pkg": "jsonresume-theme-simplyelegant",
+      "version": "1.7.2",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 52025,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "spartacus": {
+      "pkg": "jsonresume-theme-spartacus",
+      "version": "1.0.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 10917,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "spartacus-nl": {
+      "pkg": "jsonresume-theme-spartacus-nl",
+      "version": "1.1.8",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 12216,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "spartacus-prime": {
+      "pkg": "jsonresume-theme-spartacus-prime",
+      "version": "1.0.6",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 11272,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "sshorter": {
+      "pkg": "jsonresume-theme-sshorter",
+      "version": "0.3.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 7586,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "stackunderflow": {
+      "pkg": "jsonresume-theme-stackunderflow",
+      "version": "0.0.20",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 23602,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "standard-resume": {
+      "pkg": "jsonresume-theme-standard-resume",
+      "version": "2.1.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 5823,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "tachyons-clean": {
+      "pkg": "jsonresume-theme-tachyons-clean",
+      "version": "0.0.9",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 7186,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "timeline-fixed": {
+      "pkg": "jsonresume-theme-timeline-fixed",
+      "version": "0.0.9",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 11644,
+      "noisy": false,
+      "deprecationCount": 0
+    },
+    "profesh": {
+      "pkg": "jsonresume-theme-profesh",
+      "version": "0.4.0",
+      "verifiedAt": "2026-04-27T17:57:28.720Z",
+      "htmlLength": 10578,
+      "noisy": false,
+      "deprecationCount": 0
+    }
+  },
+  "disabled": {
+    "even": {
+      "pkg": "jsonresume-theme-even",
+      "version": "0.26.1",
+      "reason": "依赖 @rbardini/html ESM-only",
+      "checkedAt": "2026-04-27T17:57:28.720Z"
+    },
+    "eventide": {
+      "pkg": "jsonresume-theme-eventide",
+      "version": "0.29.5",
+      "reason": "依赖 @rbardini/html ESM-only",
+      "checkedAt": "2026-04-27T17:57:28.720Z"
+    },
+    "cjean": {
+      "pkg": "jsonresume-theme-cjean",
+      "version": "1.3.2",
+      "reason": "render 返回 object",
+      "checkedAt": "2026-04-27T17:57:28.720Z"
+    },
+    "react": {
+      "pkg": "jsonresume-theme-react",
+      "version": "1.0.4",
+      "reason": "浏览器环境依赖 / Zod 校验 / window.location",
+      "checkedAt": "2026-04-27T17:57:28.720Z"
+    },
+    "github": {
+      "pkg": "jsonresume-theme-github",
+      "version": "0.0.5",
+      "reason": "使用 Dart Sass 编译 @primer/css，产生大量 deprecation warning，污染服务端日志",
+      "checkedAt": "2026-04-27T17:57:28.720Z"
+    },
+    "a11y": {
+      "pkg": "jsonresume-theme-a11y",
+      "version": "2.5.0",
+      "reason": "render 执行失败: Cannot read properties of undefined (reading 'replace')",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "briefstrap": {
+      "pkg": "jsonresume-theme-briefstrap",
+      "version": "1.0.0",
+      "reason": "render 返回非字符串 (typeof=object, keys=_bitField,_fulfillmentHandler0,_rejectionHandler0,_progressHandler0,_promise0,_receiver0,_settledValue)",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "elegant-compact": {
+      "pkg": "jsonresume-theme-elegant-compact",
+      "version": "0.0.5",
+      "reason": "模块加载失败: Cannot find module 'underscore.string'\nRequire stack:\n- D:\\appmy\\webappwork\\node_modules\\jsonresume-theme-elegant-compact\\index.js\n- D:\\appmy\\webappwork\\package.json",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "elegant-tautologistics": {
+      "pkg": "jsonresume-theme-elegant-tautologistics",
+      "version": "0.2.1",
+      "reason": "模块加载失败: Cannot find module 'underscore.string'\nRequire stack:\n- D:\\appmy\\webappwork\\node_modules\\jsonresume-theme-elegant-tautologistics\\index.js\n- D:\\appmy\\webappwork\\package.json",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "elite": {
+      "pkg": "jsonresume-theme-elite",
+      "version": "1.2.0",
+      "reason": "render 执行失败: {{lowercase}} requires 1 arguments string.",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "kwann-nl": {
+      "pkg": "jsonresume-theme-kwann-nl",
+      "version": "0.5.1",
+      "reason": "模块加载失败: Cannot find module 'underscore.string'\nRequire stack:\n- D:\\appmy\\webappwork\\node_modules\\jsonresume-theme-kwann-nl\\index.js\n- D:\\appmy\\webappwork\\package.json",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "material": {
+      "pkg": "jsonresume-theme-material",
+      "version": "1.3.1",
+      "reason": "render 执行失败: Cannot set properties of undefined (setting 'primary')",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "mocha-responsive": {
+      "pkg": "jsonresume-theme-mocha-responsive",
+      "version": "1.1.1",
+      "reason": "render 执行失败: The source handlebar template file or the stylesheet could not be read.",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "onepage-mrseanryan": {
+      "pkg": "jsonresume-theme-onepage-mrseanryan",
+      "version": "0.0.19",
+      "reason": "render 执行失败: Cannot read properties of undefined (reading 'indexOf')",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "professional": {
+      "pkg": "jsonresume-theme-professional",
+      "version": "1.1.0",
+      "reason": "模块加载失败: Unexpected token '<'",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "refined": {
+      "pkg": "jsonresume-theme-refined",
+      "version": "0.0.3",
+      "reason": "模块加载失败: Cannot find module 'underscore.string'\nRequire stack:\n- D:\\appmy\\webappwork\\node_modules\\jsonresume-theme-refined\\index.js\n- D:\\appmy\\webappwork\\package.json",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "stackoverflowed": {
+      "pkg": "jsonresume-theme-stackoverflowed",
+      "version": "1.1.5",
+      "reason": "async render 失败: Objects are not valid as a React child (found: object with keys {$$typeof, type, key, ref, props}). If you meant to render a collection of children, use an array instead.",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    },
+    "waterfall": {
+      "pkg": "jsonresume-theme-waterfall",
+      "version": "1.0.2",
+      "reason": "render 执行失败: ENOENT: no such file or directory, open 'D:\\appmy\\webappwork\\index.css'",
+      "checkedAt": "2026-04-27T17:57:28.720Z",
+      "noisy": false
+    }
+  }
+}

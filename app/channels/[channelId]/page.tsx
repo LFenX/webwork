@@ -3,8 +3,10 @@ import { requireAuth } from "@/lib/auth"
 import { getDictionary } from "@/lib/i18n"
 import { getUserSiteSettings } from "@/lib/settings"
 import { getGroupChannelDetails, WORLD_CHANNEL_ID } from "@/lib/channel-chat"
+import { SOULWING_ROUNDTABLE_CHANNEL_ID } from "@/lib/soulwing-roundtable"
 import { SettingsShell } from "@/components/settings/settings-shell"
 import { GroupSettingsClient } from "@/components/channels/group-settings-client"
+import { SoulWingRoundtableManageClient } from "@/components/ai/soulwing-roundtable-manage-client"
 
 export const dynamic = "force-dynamic"
 
@@ -19,6 +21,14 @@ export default async function ChannelDetailsPage({
 
   const settings = await getUserSiteSettings(session.userId)
   const dict = getDictionary(settings.language)
+  if (channelId === SOULWING_ROUNDTABLE_CHANNEL_ID) {
+    return (
+      <SettingsShell title="蝶灵圆桌管理" backHref="/channels" backLabel={dict.common.back}>
+        <SoulWingRoundtableManageClient currentUserId={session.userId} />
+      </SettingsShell>
+    )
+  }
+
   const channel = await getGroupChannelDetails(session.userId, channelId)
   if (!channel) notFound()
 

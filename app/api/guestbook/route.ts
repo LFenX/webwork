@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session"
 import { areFriends, getAccessLevel } from "@/lib/permissions"
 import { guestbookMessageSchema } from "@/lib/validators"
 import { canUseSticker } from "@/lib/stickers"
+import { getRequestMeta } from "@/lib/request-meta"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -35,6 +36,8 @@ export async function GET(req: NextRequest) {
       parentId: m.parentId,
       stickerId: m.stickerId,
       stickerEmoji: m.stickerEmoji,
+      ipAddress: m.ipAddress,
+      geoLocation: m.geoLocation,
       sticker: m.sticker ? { ...m.sticker, url: `/api/stickers/${m.sticker.id}/file` } : null,
       createdAt: m.createdAt.toISOString(),
       author: m.author,
@@ -77,6 +80,7 @@ export async function POST(req: NextRequest) {
     if (!parent) return NextResponse.json({ error: "回复的留言不存在" }, { status: 400, headers: NO_STORE })
   }
 
+  const meta = await getRequestMeta(req)
   const message = await prisma.guestbookMessage.create({
     data: {
       id: crypto.randomUUID(),
@@ -86,6 +90,8 @@ export async function POST(req: NextRequest) {
       content,
       stickerId: stickerId ?? null,
       stickerEmoji: stickerEmoji ?? null,
+      ipAddress: meta.ipAddress,
+      geoLocation: meta.geoLocation,
     },
     include: {
       author: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
@@ -100,6 +106,8 @@ export async function POST(req: NextRequest) {
       parentId: message.parentId,
       stickerId: message.stickerId,
       stickerEmoji: message.stickerEmoji,
+      ipAddress: message.ipAddress,
+      geoLocation: message.geoLocation,
       sticker: message.sticker ? { ...message.sticker, url: `/api/stickers/${message.sticker.id}/file` } : null,
       createdAt: message.createdAt.toISOString(),
       author: message.author,

@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { GripVertical, LayoutGrid, Minus, Plus, RotateCcw, Save, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { confirmAction } from "@/lib/interaction-feedback"
 import { DEFAULT_HOME_LAYOUT, HOME_WIDGET_LABELS, type HomeWidgetId, type HomeWidgetLayout } from "@/lib/home-layout"
 
 type Widget = { id: HomeWidgetId; content: ReactNode }
@@ -12,6 +13,8 @@ export function HomeLayoutBoard({
   widgets,
   initialLayout,
   editable = false,
+  initialEditing = false,
+  showEditTrigger = true,
   toolbar,
   editing: externalEditing,
   onEditingChange,
@@ -19,15 +22,19 @@ export function HomeLayoutBoard({
   widgets: Widget[]
   initialLayout: HomeWidgetLayout[]
   editable?: boolean
+  initialEditing?: boolean
+  showEditTrigger?: boolean
   toolbar?: ReactNode
   editing?: boolean
   onEditingChange?: (v: boolean) => void
 }) {
-  const [internalEditing, setInternalEditing] = useState(false)
+  const [internalEditing, setInternalEditing] = useState(initialEditing)
   const editing = externalEditing !== undefined ? externalEditing : internalEditing
   const setEditing = onEditingChange || setInternalEditing
   const [layout, setLayout] = useState(initialLayout)
   const [dragging, setDragging] = useState<HomeWidgetId | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const longPressTimerRef = useRef<number | null>(null)
   const widgetMap = useMemo(() => new Map(widgets.map((widget) => [widget.id, widget.content])), [widgets])
   const visible = layout.filter((item) => widgetMap.has(item.id) && (!item.hidden || editing)).sort((a, b) => a.y - b.y)
@@ -66,40 +73,55 @@ export function HomeLayoutBoard({
   }
 
   async function save() {
-    const res = await fetch("/api/home-layout", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: layout }),
-    })
-    if (!res.ok) {
-      toast.error("布局保存失败")
-      return
+    setSaving(true)
+    try {
+      const res = await fetch("/api/home-layout", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: layout }),
+      })
+      if (!res.ok) {
+        toast.error("布局保存失败")
+        return
+      }
+      toast.success("布局已保存")
+      setEditing(false)
+    } finally {
+      setSaving(false)
     }
-    toast.success("布局已保存")
-    setEditing(false)
   }
 
   async function reset() {
-    const res = await fetch("/api/home-layout", { method: "DELETE" })
-    if (res.ok) {
-      setLayout(DEFAULT_HOME_LAYOUT)
-      toast.success("已恢复默认布局")
+    if (!confirmAction("恢复默认首页布局？当前自定义排序和隐藏状态会被清空。")) return
+    setResetting(true)
+    try {
+      const res = await fetch("/api/home-layout", { method: "DELETE" })
+      if (res.ok) {
+        setLayout(DEFAULT_HOME_LAYOUT)
+        toast.success("已恢复默认布局")
+      } else {
+        toast.error("恢复默认布局失败")
+      }
+    } finally {
+      setResetting(false)
     }
   }
 
   return (
     <div>
-      {(!onEditingChange && (editable || toolbar)) && (
+      {(!onEditingChange && (toolbar || (editable && (showEditTrigger || editing)))) && (
         <div className="mb-2 flex items-center justify-end gap-2">
           {editable && (
             <>
+              {showEditTrigger && (
               <Button type="button" size="icon" variant="outline" title="调整首页布局" onClick={() => setEditing(!editing)}>
-                <LayoutGrid size={15} />
-              </Button>
+                  <LayoutGrid size={15} />
+                </Button>
+              )}
               {editing && (
                 <>
-                  <Button type="button" size="sm" variant="outline" onClick={reset}><RotateCcw size={14} /> 恢复默认</Button>
-                  <Button type="button" size="sm" onClick={save}><Save size={14} /> 保存布局</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={reset} loading={resetting} loadingText="恢复中..."><RotateCcw size={14} /> 恢复默认</Button>
+                  <Button type="button" size="sm" onClick={save} loading={saving} loadingText="保存中..."><Save size={14} /> 保存布局</Button>
                 </>
               )}
             </>

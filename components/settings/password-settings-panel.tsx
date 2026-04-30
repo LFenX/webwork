@@ -29,6 +29,7 @@ export function PasswordSettingsPanel({
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [requesting, setRequesting] = useState(false)
+  const [checking, setChecking] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
   const canSubmit = useMemo(
@@ -62,6 +63,7 @@ export function PasswordSettingsPanel({
   }
 
   async function checkPasswordStatus() {
+    setChecking(true)
     try {
       const res = await fetch("/api/auth/password-change", { cache: "no-store" })
       const data = await res.json().catch(() => null)
@@ -77,6 +79,8 @@ export function PasswordSettingsPanel({
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : labels.passwordRequestFailed)
+    } finally {
+      setChecking(false)
     }
   }
 
@@ -103,10 +107,10 @@ export function PasswordSettingsPanel({
         </div>
       </div>
       <div className="mt-6 flex flex-wrap gap-3">
-        <Button type="button" onClick={requestPasswordChange} disabled={requesting || !canSubmit}>
+        <Button type="button" onClick={requestPasswordChange} disabled={!canSubmit} loading={requesting} loadingText="提交中...">
           {labels.passwordSubmit}
         </Button>
-        <Button type="button" variant="outline" onClick={checkPasswordStatus}>
+        <Button type="button" variant="outline" onClick={checkPasswordStatus} loading={checking} loadingText="查询中...">
           {labels.passwordStatus}
         </Button>
       </div>

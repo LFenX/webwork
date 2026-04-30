@@ -1,15 +1,17 @@
 "use client"
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Bot, Check, Loader2, PauseCircle, Play, RefreshCcw, Search, ShieldCheck, Trash2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Bot, Check, ClipboardList, Hammer, Inbox, Loader2, PauseCircle, Play, RefreshCcw, Search, ShieldCheck, TestTube2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { getDict } from "@/lib/i18n"
+import { confirmAction } from "@/lib/interaction-feedback"
 
 type AdminAIOverview = {
   requestCounts: Record<string, number>
@@ -24,6 +26,15 @@ type AdminAIOverview = {
     modelList: string[]
     temperature: number
     streamEnabled: boolean
+    webSearchEnabled: boolean
+    webSearch?: {
+      enabled: boolean
+      configured: boolean
+      apiKeyMask: string
+      host: string
+      workspace: string
+      serviceId: string
+    }
     updatedAt: string
     user: { id: string; email: string; displayName: string }
   }>
@@ -75,6 +86,11 @@ type GrantForm = {
   modelListText: string
   temperature: string
   streamEnabled: boolean
+  webSearchEnabled: boolean
+  webSearchApiKey: string
+  webSearchHost: string
+  webSearchWorkspace: string
+  webSearchServiceId: string
 }
 
 type SearchResult = {
@@ -98,6 +114,11 @@ const DEFAULT_GRANT_FORM: GrantForm = {
   modelListText: "",
   temperature: "0.7",
   streamEnabled: true,
+  webSearchEnabled: false,
+  webSearchApiKey: "",
+  webSearchHost: "http://default-486s.platform-cn-shanghai.opensearch.aliyuncs.com",
+  webSearchWorkspace: "default",
+  webSearchServiceId: "ops-web-search-001",
 }
 
 function requestStatusBadge(status: string) {
@@ -161,6 +182,8 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
   const [requests, setRequests] = useState<RequestItem[]>([])
   const [loading, setLoading] = useState(false)
   const [grantOpen, setGrantOpen] = useState(false)
+  const [webSearchTesting, setWebSearchTesting] = useState(false)
+  const [grantActionId, setGrantActionId] = useState<string | null>(null)
   const [reviewing, setReviewing] = useState<RequestItem | null>(null)
   const [reviewNote, setReviewNote] = useState("")
   const [grantForm, setGrantForm] = useState<GrantForm>(DEFAULT_GRANT_FORM)
@@ -330,6 +353,11 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       modelListText: (config.modelList ?? []).join("\n"),
       temperature: String(config.temperature ?? 0.7),
       streamEnabled: config.streamEnabled,
+      webSearchEnabled: false,
+      webSearchApiKey: "",
+      webSearchHost: "http://default-486s.platform-cn-shanghai.opensearch.aliyuncs.com",
+      webSearchWorkspace: "default",
+      webSearchServiceId: "ops-web-search-001",
     }))
     setImportOpen(false)
     toast.success("已导入配置，可继续修改后保存授权")
@@ -369,7 +397,15 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
         model: grantForm.model,
         temperature: Number(grantForm.temperature || "0.7"),
         streamEnabled: grantForm.streamEnabled,
+        webSearchEnabled: grantForm.webSearchEnabled,
         modelList,
+        webSearch: {
+          enabled: grantForm.webSearchEnabled,
+          apiKey: grantForm.webSearchApiKey,
+          host: grantForm.webSearchHost,
+          workspace: grantForm.webSearchWorkspace,
+          serviceId: grantForm.webSearchServiceId,
+        },
       }
 
       if (isCreate) {
@@ -404,7 +440,40 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
     }
   }
 
+  async function testGrantWebSearch() {
+    if (!grantForm.userId) return
+    setWebSearchTesting(true)
+    try {
+      const res = await fetch("/api/ai/tools/web-search/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "最近 AI 行业有什么热点",
+          maxResults: 5,
+          contentType: "snippet",
+          adminGrantUserId: grantForm.userId,
+          webSearch: {
+            enabled: grantForm.webSearchEnabled,
+            apiKey: grantForm.webSearchApiKey,
+            host: grantForm.webSearchHost,
+            workspace: grantForm.webSearchWorkspace,
+            serviceId: grantForm.webSearchServiceId,
+          },
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? "联网搜索测试失败")
+      if (!data?.result?.ok) throw new Error(data?.result?.error ?? "联网搜索测试失败")
+      toast.success(`联网搜索测试成功，返回 ${data.result.results.length} 条结果`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "联网搜索测试失败")
+    } finally {
+      setWebSearchTesting(false)
+    }
+  }
+
   async function changeGrantStatus(userId: string, action: string) {
+    setGrantActionId(`${action}:${userId}`)
     try {
       const res = await fetch(`/api/admin/ai/grants/${userId}/${action}`, { method: "POST" })
       const data = await res.json().catch(() => null)
@@ -415,11 +484,14 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       await load()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update grant status")
+    } finally {
+      setGrantActionId(null)
     }
   }
 
   async function deleteGrant(userId: string) {
-    if (!confirm(dp.deleteGrantConfirm)) return
+    if (!confirmAction(`${dp.deleteGrantConfirm}\n删除授权后该用户将无法继续使用这份管理员 AI 配置。`)) return
+    setGrantActionId(`delete:${userId}`)
     try {
       const res = await fetch(`/api/admin/ai/grants/${userId}`, { method: "DELETE" })
       const data = await res.json().catch(() => null)
@@ -428,6 +500,8 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       await load()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete grant")
+    } finally {
+      setGrantActionId(null)
     }
   }
 
@@ -453,6 +527,11 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
         modelListText: (existing.modelList ?? []).join("\n"),
         temperature: String(existing.temperature),
         streamEnabled: existing.streamEnabled,
+        webSearchEnabled: Boolean(existing.webSearchEnabled),
+        webSearchApiKey: "",
+        webSearchHost: existing.webSearch?.host || "http://default-486s.platform-cn-shanghai.opensearch.aliyuncs.com",
+        webSearchWorkspace: existing.webSearch?.workspace || "default",
+        webSearchServiceId: existing.webSearch?.serviceId || "ops-web-search-001",
       })
     } else {
       const requestUser = requests.find((r) => r.user.id === userId)?.user
@@ -503,6 +582,11 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
       modelListText: (grant.modelList ?? []).join("\n"),
       temperature: String(grant.temperature),
       streamEnabled: grant.streamEnabled,
+      webSearchEnabled: Boolean(grant.webSearchEnabled),
+      webSearchApiKey: "",
+      webSearchHost: grant.webSearch?.host || "http://default-486s.platform-cn-shanghai.opensearch.aliyuncs.com",
+      webSearchWorkspace: grant.webSearch?.workspace || "default",
+      webSearchServiceId: grant.webSearch?.serviceId || "ops-web-search-001",
     })
     // Set selected user for read-only display
     setSelectedUser({
@@ -519,14 +603,20 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
 
   if (!enabled) return null
 
+  const grants = overview?.grants ?? []
+  const tools = overview?.tools ?? []
+  const audits = overview?.recentAudits ?? []
+  const activeGrantsCount = grants.filter((item) => item.status === "active").length
+  const requestsToHandle = requests.filter((item) => item.status === "pending" || (item.status === "approved" && !item.grant?.id))
+
   return (
-    <section>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Bot size={16} />
-          <h2 className="text-sm font-semibold">{dp.title}</h2>
+          <Bot size={18} />
+          <h2 className="text-base font-semibold">{dp.title}</h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
             <RefreshCcw size={14} /> {loading ? dp.refreshing : dp.refresh}
           </Button>
@@ -536,132 +626,109 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
         </div>
       </div>
 
-      <div className="mb-4 grid gap-3 md:grid-cols-3">
-        <MetricCard label={dp.pendingRequests} value={pendingCount} />
-        <MetricCard label={dp.activeGrants} value={overview?.grants.filter((item) => item.status === "active").length ?? 0} />
-        <MetricCard label={dp.registeredTools} value={overview?.tools.length ?? 0} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard label={dp.pendingRequests} value={pendingCount} hint={requestsToHandle.length > 0 ? `${requestsToHandle.length} 项需要处理` : undefined} />
+        <MetricCard label={dp.activeGrants} value={activeGrantsCount} hint={`共 ${grants.length} 条`} />
+        <MetricCard label={dp.registeredTools} value={tools.length} />
+        <MetricCard label="近期审计" value={audits.length} hint={audits[0] ? new Date(audits[0].createdAt).toLocaleString() : undefined} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        {/* Access Requests */}
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <h3 className="text-sm font-semibold text-[--color-text-primary]">{dp.accessRequests}</h3>
-          <div className="mt-4 max-h-[480px] space-y-3 overflow-y-auto pr-1">
-            {requests.length === 0 ? (
-              <p className="text-sm text-[--color-text-muted]">{dp.noRequests}</p>
-            ) : (
-              requests.map((item) => (
-                <div key={item.id} className={`rounded-[--radius-lg] border p-3 ${item.status === "pending" ? "border-amber-200 bg-amber-50/30" : "border-[--color-border] bg-[--color-bg-primary]"}`}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-[--color-text-primary]">{item.user.displayName || item.user.email}</p>
-                      <p className="text-xs text-[--color-text-muted]">{item.user.email}</p>
-                    </div>
-                    <span className={`rounded-full border px-2 py-1 text-xs ${requestStatusBadge(item.status)}`}>
-                      {requestStatusLabel(dp, item.status)}
-                    </span>
-                  </div>
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-[--color-text-secondary]">{item.message}</p>
-                  {item.reviewNote ? <p className="mt-1 text-xs text-[--color-text-muted]">{dp.reviewNote}: {item.reviewNote}</p> : null}
-                  <p className="mt-1 text-xs text-[--color-text-muted]">
-                    {new Date(item.createdAt).toLocaleString()}
-                    {item.reviewedAt ? ` · ${dp.reviewNote}: ${new Date(item.reviewedAt).toLocaleString()}` : ""}
-                  </p>
-                  {/* Action buttons based on status */}
-                  {(() => {
-                    // Resolve effective status: "approved" + hasGrant → treated as "configured"
-                    const effectiveStatus =
-                      item.status === "approved" && item.grant?.id ? "configured" : item.status
-
-                    if (effectiveStatus === "pending") {
-                      return (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={() => { setReviewing(item); setReviewNote("") }}>
-                            {dp.review}
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => openGrantDialogForUser(item.user.id, item.id)}>
-                            {dp.configureGrant}
-                          </Button>
-                        </div>
-                      )
-                    }
-
-                    if (effectiveStatus === "approved") {
-                      return (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700">
-                            已通过，待配置授权
-                          </span>
-                          <Button size="sm" variant="outline" onClick={() => openGrantDialogForUser(item.user.id, item.id)}>
-                            {dp.configureGrant}
-                          </Button>
-                        </div>
-                      )
-                    }
-
-                    if (effectiveStatus === "configured") {
-                      return (
-                        <div className="mt-3">
-                          <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
-                            已配置授权
-                          </span>
-                        </div>
-                      )
-                    }
-
-                    return null
-                  })()}
-                </div>
-              ))
-            )}
-          </div>
+      <Tabs defaultValue="requests" className="w-full">
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="inline-flex h-auto min-w-full flex-nowrap gap-1 bg-[--color-bg-surface] p-1">
+            <TabsTrigger value="requests" className="gap-1 px-3 py-2 text-xs sm:text-sm">
+              <Inbox size={14} /> 访问申请
+              {pendingCount > 0 ? (
+                <span className="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-medium text-amber-800">
+                  {pendingCount}
+                </span>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="grants" className="gap-1 px-3 py-2 text-xs sm:text-sm">
+              <ShieldCheck size={14} /> 系统授权
+              <span className="ml-1 text-[10px] text-[--color-text-muted]">({grants.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="tools" className="gap-1 px-3 py-2 text-xs sm:text-sm">
+              <Hammer size={14} /> 已注册工具
+              <span className="ml-1 text-[10px] text-[--color-text-muted]">({tools.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="gap-1 px-3 py-2 text-xs sm:text-sm">
+              <ClipboardList size={14} /> 审计记录
+            </TabsTrigger>
+          </TabsList>
         </div>
 
+        {/* Access Requests */}
+        <TabsContent value="requests" className="mt-4">
+          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3 sm:p-4">
+            {requests.length === 0 ? (
+              <p className="py-6 text-center text-sm text-[--color-text-muted]">{dp.noRequests}</p>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {requests.map((item) => (
+                  <RequestCard
+                    key={item.id}
+                    item={item}
+                    dp={dp}
+                    onReview={(target) => { setReviewing(target); setReviewNote("") }}
+                    onConfigure={(userId, requestId) => openGrantDialogForUser(userId, requestId)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
         {/* System Grants */}
-        <div className="space-y-4">
-          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-            <h3 className="text-sm font-semibold text-[--color-text-primary]">{dp.systemGrants}</h3>
-            <div className="mt-4 max-h-72 space-y-3 overflow-y-auto pr-1">
-              {overview?.grants.length ? (
-                overview.grants.map((grant) => (
-                  <div key={grant.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-primary] p-3">
+        <TabsContent value="grants" className="mt-4">
+          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3 sm:p-4">
+            {grants.length === 0 ? (
+              <p className="py-6 text-center text-sm text-[--color-text-muted]">{dp.noGrants}</p>
+            ) : (
+              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                {grants.map((grant) => (
+                  <div key={grant.id} className="flex h-full flex-col rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-primary] p-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-medium text-[--color-text-primary]">{grant.user.displayName || grant.user.email}</p>
-                        <p className="text-xs text-[--color-text-muted]">{grant.apiKeyMask} / {grant.model}</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-[--color-text-primary]">
+                          {grant.user.displayName || grant.user.email}
+                        </p>
+                        <p className="truncate text-xs text-[--color-text-muted]">{grant.user.email}</p>
                       </div>
-                      <span className={`rounded-full border px-2 py-1 text-xs ${grantStatusBadge(grant.status)}`}>
+                      <span className={`shrink-0 rounded-full border px-2 py-1 text-xs ${grantStatusBadge(grant.status)}`}>
                         {grantStatusLabel(dp, grant.status)}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-[--color-text-muted]">{grant.providerLabel} / {grant.baseUrl}</p>
-                    {grant.modelList.length > 0 ? (
-                      <p className="mt-1 text-xs text-[--color-text-muted]">
-                        Models: {grant.modelList.join(", ")}
-                      </p>
-                    ) : null}
-                    <p className="mt-1 text-xs text-[--color-text-muted]">{dp.updated}: {new Date(grant.updatedAt).toLocaleString()}</p>
+                    <div className="mt-3 space-y-1 text-xs text-[--color-text-muted]">
+                      <p><span className="text-[--color-text-secondary]">{grant.providerLabel}</span> · {grant.model}</p>
+                      <p className="break-all">{grant.baseUrl}</p>
+                      <p>API Key: <span className="font-mono">{grant.apiKeyMask || "—"}</span></p>
+                      {grant.modelList.length > 0 ? (
+                        <p>可选模型: {grant.modelList.slice(0, 4).join(", ")}{grant.modelList.length > 4 ? "..." : ""}</p>
+                      ) : null}
+                      <p>{dp.updated}: {new Date(grant.updatedAt).toLocaleString()}</p>
+                    </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {grant.status === "active" ? (
                         <>
-                          <Button size="sm" variant="outline" onClick={() => changeGrantStatus(grant.userId, "pause")}>
+                          <Button size="sm" variant="outline" onClick={() => changeGrantStatus(grant.userId, "pause")} loading={grantActionId === `pause:${grant.userId}`} loadingText={dp.pause}>
                             <PauseCircle size={14} /> {dp.pause}
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => changeGrantStatus(grant.userId, "revoke")}>
+                          <Button size="sm" variant="outline" onClick={() => changeGrantStatus(grant.userId, "revoke")} loading={grantActionId === `revoke:${grant.userId}`} loadingText={dp.revoke}>
                             <Trash2 size={14} /> {dp.revoke}
                           </Button>
                         </>
                       ) : grant.status === "paused" ? (
                         <>
-                          <Button size="sm" variant="outline" onClick={() => changeGrantStatus(grant.userId, "restore")}>
+                          <Button size="sm" variant="outline" onClick={() => changeGrantStatus(grant.userId, "restore")} loading={grantActionId === `restore:${grant.userId}`} loadingText={dp.restore}>
                             <Play size={14} /> {dp.restore}
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => changeGrantStatus(grant.userId, "revoke")}>
+                          <Button size="sm" variant="outline" onClick={() => changeGrantStatus(grant.userId, "revoke")} loading={grantActionId === `revoke:${grant.userId}`} loadingText={dp.revoke}>
                             <Trash2 size={14} /> {dp.revoke}
                           </Button>
                         </>
                       ) : (grant.status === "revoked" || grant.status === "deprecated") ? (
-                        <Button size="sm" variant="outline" onClick={() => deleteGrant(grant.userId)}>
+                        <Button size="sm" variant="outline" onClick={() => deleteGrant(grant.userId)} loading={grantActionId === `delete:${grant.userId}`} loadingText={dp.deleteGrant}>
                           <Trash2 size={14} /> {dp.deleteGrant}
                         </Button>
                       ) : null}
@@ -670,38 +737,52 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
                       </Button>
                     </div>
                   </div>
-                ))
-              ) : (
-                <p className="text-sm text-[--color-text-muted]">{dp.noGrants}</p>
-              )}
-            </div>
-          </div>
-
-          <ScrollableCard title={dp.recentAudit}>
-            {overview?.recentAudits.length ? (
-              overview.recentAudits.map((audit) => (
-                <div key={audit.id} className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary] px-3 py-2">
-                  <p className="text-sm font-medium text-[--color-text-primary]">{audit.action}</p>
-                  <p className="mt-1 text-xs text-[--color-text-secondary]">{audit.detail}</p>
-                  <p className="mt-1 text-xs text-[--color-text-muted]">{new Date(audit.createdAt).toLocaleString()}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-[--color-text-muted]">{dp.noAudit}</p>
-            )}
-          </ScrollableCard>
-
-          <ScrollableCard title={dp.registeredToolsTitle}>
-            {overview?.tools.map((tool) => (
-              <div key={tool.name} className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary] px-3 py-2">
-                <p className="text-sm font-medium text-[--color-text-primary]">{tool.title}</p>
-                <p className="text-xs text-[--color-text-muted]">{tool.name}</p>
-                <p className="mt-1 text-xs text-[--color-text-secondary]">{tool.description}</p>
+                ))}
               </div>
-            ))}
-          </ScrollableCard>
-        </div>
-      </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Registered Tools */}
+        <TabsContent value="tools" className="mt-4">
+          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3 sm:p-4">
+            {tools.length === 0 ? (
+              <p className="py-6 text-center text-sm text-[--color-text-muted]">暂无已注册工具。</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {tools.map((tool) => (
+                  <div key={tool.name} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-primary] p-3">
+                    <p className="truncate text-sm font-medium text-[--color-text-primary]">{tool.title}</p>
+                    <p className="truncate font-mono text-xs text-[--color-text-muted]">{tool.name}</p>
+                    <p className="mt-2 text-xs leading-5 text-[--color-text-secondary]">{tool.description}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Audit Logs */}
+        <TabsContent value="audit" className="mt-4">
+          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3 sm:p-4">
+            {audits.length === 0 ? (
+              <p className="py-6 text-center text-sm text-[--color-text-muted]">{dp.noAudit}</p>
+            ) : (
+              <div className="space-y-2">
+                {audits.map((audit) => (
+                  <div key={audit.id} className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary] px-3 py-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-[--color-text-primary]">{audit.action}</p>
+                      <p className="text-xs text-[--color-text-muted]">{new Date(audit.createdAt).toLocaleString()}</p>
+                    </div>
+                    <p className="mt-1 text-xs text-[--color-text-secondary]">{audit.detail}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Review Dialog */}
       <Dialog open={Boolean(reviewing)} onOpenChange={(open) => !open && setReviewing(null)}>
@@ -914,6 +995,32 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
               <p className="mt-1 text-xs text-[--color-text-muted]">{dp.modelListHint}</p>
             </div>
             <Field label={dp.temperature} value={grantForm.temperature} onChange={(value) => setGrantForm((current) => ({ ...current, temperature: value }))} />
+            <div className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-hover]/50 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-[--color-text-primary]">开放联网搜索能力</p>
+                  <p className="mt-1 text-xs leading-6 text-[--color-text-muted]">
+                    开启后，该用户的蝶灵在使用管理员授权模型时，可以调用管理员提供的阿里联网搜索 API。联网搜索会消耗管理员配置的搜索额度。
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={grantForm.webSearchEnabled}
+                  onChange={(event) => setGrantForm((current) => ({ ...current, webSearchEnabled: event.target.checked }))}
+                />
+              </div>
+              <div className="mt-3 grid gap-3">
+                <Field label="阿里云联网搜索 API Key" type="password" value={grantForm.webSearchApiKey} onChange={(value) => setGrantForm((current) => ({ ...current, webSearchApiKey: value }))} name="ai-web-search-key" autoComplete="new-password" />
+                <Field label="Host" value={grantForm.webSearchHost} onChange={(value) => setGrantForm((current) => ({ ...current, webSearchHost: value }))} />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Workspace" value={grantForm.webSearchWorkspace} onChange={(value) => setGrantForm((current) => ({ ...current, webSearchWorkspace: value }))} />
+                  <Field label="Service ID" value={grantForm.webSearchServiceId} onChange={(value) => setGrantForm((current) => ({ ...current, webSearchServiceId: value }))} />
+                </div>
+                <Button type="button" variant="outline" onClick={() => void testGrantWebSearch()} disabled={webSearchTesting || !grantForm.webSearchEnabled || !grantForm.webSearchHost.trim()}>
+                  <TestTube2 size={14} /> {webSearchTesting ? "测试中..." : "测试联网搜索"}
+                </Button>
+              </div>
+            </div>
             <div>
               <Label className="mb-1 block text-xs">备注/授权说明</Label>
               <Textarea
@@ -946,20 +1053,65 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
   )
 }
 
-function MetricCard({ label, value }: { label: string; value: number }) {
+function MetricCard({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
     <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
       <p className="text-xs text-[--color-text-muted]">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-[--color-text-primary]">{value}</p>
+      {hint ? <p className="mt-1 text-[11px] text-[--color-text-muted]">{hint}</p> : null}
     </div>
   )
 }
 
-function ScrollableCard({ title, children }: { title: string; children: ReactNode }) {
+function RequestCard({
+  item,
+  dp,
+  onReview,
+  onConfigure,
+}: {
+  item: RequestItem
+  dp: ReturnType<typeof getDict>["admin"]["aiPanel"]
+  onReview: (item: RequestItem) => void
+  onConfigure: (userId: string, requestId: string) => void
+}) {
+  const effectiveStatus =
+    item.status === "approved" && item.grant?.id ? "configured" : item.status
   return (
-    <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-      <h3 className="text-sm font-semibold text-[--color-text-primary]">{title}</h3>
-      <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">{children}</div>
+    <div className={`flex h-full flex-col rounded-[--radius-lg] border p-4 ${item.status === "pending" ? "border-amber-200 bg-amber-50/30" : "border-[--color-border] bg-[--color-bg-primary]"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-[--color-text-primary]">{item.user.displayName || item.user.email}</p>
+          <p className="truncate text-xs text-[--color-text-muted]">{item.user.email}</p>
+        </div>
+        <span className={`shrink-0 rounded-full border px-2 py-1 text-xs ${requestStatusBadge(item.status)}`}>
+          {requestStatusLabel(dp, item.status)}
+        </span>
+      </div>
+      {item.message ? (
+        <p className="mt-2 whitespace-pre-wrap break-words text-sm text-[--color-text-secondary]">{item.message}</p>
+      ) : null}
+      {item.reviewNote ? (
+        <p className="mt-1 break-words text-xs text-[--color-text-muted]">{dp.reviewNote}: {item.reviewNote}</p>
+      ) : null}
+      <p className="mt-2 text-xs text-[--color-text-muted]">
+        {new Date(item.createdAt).toLocaleString()}
+        {item.reviewedAt ? ` · ${dp.reviewNote}: ${new Date(item.reviewedAt).toLocaleString()}` : ""}
+      </p>
+      <div className="mt-auto pt-3">
+        {effectiveStatus === "pending" ? (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => onReview(item)}>{dp.review}</Button>
+            <Button size="sm" variant="outline" onClick={() => onConfigure(item.user.id, item.id)}>{dp.configureGrant}</Button>
+          </div>
+        ) : effectiveStatus === "approved" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700">已通过，待配置授权</span>
+            <Button size="sm" variant="outline" onClick={() => onConfigure(item.user.id, item.id)}>{dp.configureGrant}</Button>
+          </div>
+        ) : effectiveStatus === "configured" ? (
+          <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">已配置授权</span>
+        ) : null}
+      </div>
     </div>
   )
 }

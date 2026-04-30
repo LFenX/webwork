@@ -109,6 +109,48 @@
   z-index: 0;
 }
 
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+button[aria-busy="true"],
+[role="button"][aria-busy="true"] {
+  cursor: wait;
+}
+
+input[type="checkbox"] {
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  accent-color: var(--color-brand);
+}
+
+select {
+  max-width: 100%;
+}
+
+@media (pointer: coarse) {
+  body :where(button, [role="button"]) {
+    min-height: 40px;
+  }
+}
+
 select,
 option {
   background-color: var(--color-bg-surface);
@@ -267,6 +309,17 @@ body {
 }
 
 @media (max-width: 767px) {
+  html:has(.mobile-chat-viewport),
+  body:has(.mobile-chat-viewport) {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body:has(.mobile-chat-viewport) {
+    padding-bottom: 0;
+  }
+
   input,
   textarea,
   select {
@@ -274,7 +327,19 @@ body {
   }
 
   .wechat-composer {
-    padding-bottom: max(0.75rem, calc(env(safe-area-inset-bottom) + 0.25rem));
+    padding-bottom: 5px !important;
+  }
+
+  .mobile-ai-composer {
+    padding-bottom: max(0.625rem, calc(env(safe-area-inset-bottom) + 0.25rem)) !important;
+  }
+
+  body.mobile-keyboard-open .wechat-composer {
+    padding-bottom: 5px !important;
+  }
+
+  body.mobile-keyboard-open .mobile-ai-composer {
+    padding-bottom: 0.25rem !important;
   }
 
   .wechat-composer-panel {
@@ -282,7 +347,24 @@ body {
   }
 
   .wechat-composer-input {
-    min-height: 72px;
+    min-height: 52px;
+  }
+
+  .mobile-chat-viewport {
+    position: fixed;
+    inset: 3.5rem 0 0;
+    height: auto !important;
+    min-height: 0;
+    max-height: none;
+    padding-bottom: 0 !important;
+    overscroll-behavior: none;
+    touch-action: pan-y;
+  }
+
+  .mobile-chat-scroll {
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 
   .mobile-dialog-content {
@@ -504,19 +586,20 @@ a:hover {
 }
 
 .wechat-composer {
-  background: #f7f7f7;
-  border-top: 1px solid #dedede;
+  background: transparent;
+  border-top: 0;
 }
 
 .wechat-composer-panel {
-  min-height: 154px;
-  border: 1px solid #dedede;
-  border-radius: 8px;
+  min-height: 0;
+  border: 0;
+  border-radius: 18px;
   background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.10);
 }
 
 .wechat-composer-input {
-  min-height: 88px;
+  min-height: 56px;
   background: transparent;
   border: 0;
   outline: none;
@@ -558,6 +641,109 @@ a:hover {
 @keyframes announcement-marquee {
   0% { transform: translateX(100%); }
   100% { transform: translateX(-100%); }
+}
+
+.recent-activity-shell {
+  isolation: isolate;
+}
+
+.recent-activity-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(110deg, transparent 0%, transparent 35%, rgba(255, 255, 255, 0.62) 48%, transparent 62%, transparent 100%);
+  transform: translateX(-120%);
+  animation: recent-activity-sheen 5.5s ease-in-out infinite;
+}
+
+.recent-activity-pulse {
+  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35);
+  animation: recent-activity-pulse 2.1s ease-out infinite;
+}
+
+.recent-activity-item {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: recent-activity-rise 0.42s ease-out forwards;
+}
+
+.soulwing-chat-link {
+  position: relative;
+}
+
+.soulwing-chat-link::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 1px solid rgba(45, 212, 191, 0.26);
+  opacity: 0;
+  animation: soulwing-link-glow 2.8s ease-in-out infinite;
+}
+
+.soulwing-butterfly-wrap {
+  perspective: 120px;
+}
+
+.soulwing-butterfly {
+  filter: drop-shadow(0 0 8px rgba(45, 212, 191, 0.42));
+  transform-origin: 50% 56%;
+  animation: soulwing-butterfly-float 2.4s ease-in-out infinite;
+}
+
+@keyframes recent-activity-sheen {
+  0%, 42% { transform: translateX(-120%); opacity: 0; }
+  48% { opacity: 1; }
+  70%, 100% { transform: translateX(120%); opacity: 0; }
+}
+
+@keyframes recent-activity-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.32); }
+  72% { box-shadow: 0 0 0 9px rgba(37, 99, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+
+@keyframes recent-activity-rise {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes soulwing-link-glow {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes soulwing-butterfly-float {
+  0%, 100% {
+    transform: translateY(0) rotateY(-8deg) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) rotateY(8deg) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recent-activity-sheen,
+  .recent-activity-pulse,
+  .recent-activity-item,
+  .soulwing-chat-link::after,
+  .soulwing-butterfly {
+    animation: none;
+  }
+
+  .recent-activity-item {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ─── Tiptap WYSIWYG editor content ────────────────────────────────────────── */

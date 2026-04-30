@@ -71,6 +71,8 @@ function WebsiteFormInner({
       const { url: uploadedUrl } = await res.json()
       setScreenshotUrl(uploadedUrl)
       toast.success("截图已上传")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "上传失败")
     } finally {
       setUploading(false)
     }
@@ -129,6 +131,8 @@ function WebsiteFormInner({
         setUpdatedFolders([...folders, { id: created.id, name: n, userId: session?.userId || "", _count: { websites: 0 } }])
       }
       onFolderCreated()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "创建文件夹失败")
     } finally {
       setCreatingFolder(false)
     }
@@ -150,6 +154,7 @@ function WebsiteFormInner({
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      toast.error("请检查表单中标出的字段")
       return
     }
 
@@ -183,6 +188,8 @@ function WebsiteFormInner({
       }
       toast.success(isEditing ? "资源已更新" : "资源已发布")
       onSuccess()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "提交失败")
     } finally {
       setSubmitting(false)
     }
@@ -351,8 +358,8 @@ function WebsiteFormInner({
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateFolder() } }}
                 autoFocus
               />
-              <Button type="button" variant="outline" size="sm" onClick={handleCreateFolder} disabled={creatingFolder}>
-                {creatingFolder ? "创建中" : "确定"}
+              <Button type="button" variant="outline" size="sm" onClick={handleCreateFolder} disabled={!newFolderName.trim()} loading={creatingFolder} loadingText="创建中...">
+                确定
               </Button>
               <Button type="button" variant="ghost" size="sm" onClick={() => { setShowNewFolder(false); setNewFolderName("") }}>
                 取消
@@ -366,8 +373,8 @@ function WebsiteFormInner({
           <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button className="flex-1" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "提交中..." : isEditing ? "保存修改" : "发布资源"}
+          <Button className="flex-1" onClick={handleSubmit} loading={submitting} loadingText={isEditing ? "保存中..." : "发布中..."}>
+            {isEditing ? "保存修改" : "发布资源"}
           </Button>
         </div>
       </div>

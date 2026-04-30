@@ -1,0 +1,559 @@
+<!doctype html>
+
+<!--	                                       .--.
+                                               `.  \
+                                                 \  \
+                                                  .  \
+                                                  :   .
+                                                  |    .
+                                                  |    :
+                                                  |    |
+  ..._  ___                                       |    |
+ `."".`''''""--..___                              |    |
+ ,-\  \             ""-...__         _____________/    |
+ / ` " '                    `""""""""                  .
+ \                                                      L
+ (>                                                      \
+/                                                         \
+\_    ___..---.                JUNO                        L
+  `--'         '.                                           \
+                 .                                           \_
+                _/`.                                           `.._
+             .'     -.                                             `.
+            /     __.-Y     /''''''-...___,...--------.._            |
+           /   _."    |    /                ' .      \   '---..._    |
+          /   /      /    /                _,. '    ,/           |   |
+          \_,'     _.'   /              /''     _,-'            _|   |
+                  '     /               `-----''               /     |
+                  `...-'                                       `...-->
+
+<html>
+	<head>
+
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimal-ui">
+
+	<title>Richard Hendriks -- Programmer</title>
+	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/css/bootstrap.min.css">
+	<link href='http://fonts.googleapis.com/css?family=Roboto+Mono:400,500,100,300' rel='stylesheet' type='text/css'>
+	<link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,700,800' rel='stylesheet' type='text/css'>
+
+	<style>
+	/*@import url(
+	https://fonts.googleapis.com/css?family=Lato:400,700
+);*/
+body {
+	background: #F4F7F3;
+	margin: 0 0 80px;
+
+}
+a {
+	color: #EF0E52;
+	font-weight: nor;
+	background-color: rgba(255, 0, 116, 0.03);
+	border-bottom: 1px dotted;
+	padding: 2px 5px;
+}
+a:focus,
+a:hover {
+	color: #F53795;
+	border-bottom: 1px solid;
+	text-decoration: none;
+}
+div, p {
+	line-height: 20px;
+	margin: 0;
+	font-weight: 300;
+}
+p + p {
+	margin-top: 10px;
+}
+h1,
+h2,
+h3,
+h4 {
+	margin-top: 0;
+	font-family: 'Open Sans', sans-serif;
+}
+section {
+	margin-top: 30px;
+}
+ul {
+	padding-left: 20px;
+}
+li {
+	line-height: 20px;
+	list-style: none;
+	margin-bottom: 10px;
+	color: #526651;
+}
+li:before {
+	content: "\f111";
+	float: left;
+	font: 8px FontAwesome;
+	margin-top: 9px;
+	margin-left: -20px;
+	opacity: .1;
+	position: absolute;
+}
+img{
+    width:100%;
+    max-width:150px;
+}
+blockquote {
+	border-left: 5px solid #e7e9ec;
+	font-size: 14px;
+}
+em {
+	color: #95a5a6;
+	font-weight: normal;
+	font-style: normal;
+}
+h4 span:first-child {
+	color: #000;
+	font-weight: bold;
+}
+.container {
+	max-width: 750px;
+	padding: 0 30px;
+}
+.col-sm-6 {
+	margin-bottom: 10px;
+}
+.col-sm-12 h4 {
+	margin-top: 12px;
+}
+.col-sm-12 + .col-sm-12 {
+	margin-top: 30px;
+}
+#header {
+	background: #fff;
+	padding: 50px 0;
+	margin-bottom: 30px;
+}
+#header h1 {
+	font-size: 50px;
+	font-weight: bold;
+  	margin-bottom: 0;
+}
+#header h2 {
+	color: #95A5A6;
+	font-size: 22px;
+	font-weight: 200;
+	font-family: 'Roboto Mono';
+	margin-top: 10px;
+}
+#content h3 {
+	color: #75A066;
+	font-size: 20px;
+	margin-top: -4px;
+	font-family: 'Roboto Mono';
+	font-weight: 300;
+	display: inline-block;
+	padding: 5px;
+	border-bottom: 1px dotted;
+}
+#content aside {
+	text-align: right;
+	padding-right: 30px;
+}
+#profiles .network {
+	text-transform: capitalize;
+}
+#work .position,
+#volunteer .position {
+	margin: 0px 0 10px;
+	font-family: 'Roboto Mono';
+	font-weight: 500;
+	font-size: 14px;
+	color: #55934B;
+}
+#education .area {
+	font-weight: bold;
+}
+#education .area:before {
+
+}
+#education .studyType {
+	margin-left: 25px;
+}
+#awards .summary,
+#publications .summary {
+	margin-top: 8px;
+}
+#publications .website a:before {
+	content: attr(href);
+}
+
+@media (min-width: 480px) {
+	.strike-through {
+		border-top: 1px solid #f4f6f6;
+		height: 20px;
+		margin-top: 12px;
+		margin-bottom: -2px;
+		position: relative;
+	}
+	.strike-through span,
+	.strike-through a {
+		position: absolute;
+	}
+	.strike-through span:first-child {
+		padding-right: 20px;
+		margin-top: -12px;
+	}
+	.strike-through span + span {
+		font-size: 14px;
+		margin-top: -10px;
+		padding-left: 20px;
+		right: 0;
+	}
+}
+@media (max-width: 768px) {
+	.col-sm-6:last-child {
+		margin-bottom: 0px;
+	}
+	#content aside {
+		margin-bottom: 20px;
+		padding-right: 0;
+		text-align: left;
+	}
+	#publications .website a:before {
+		content: "View publication";
+	}
+}
+@media (max-width: 480px) {
+	h1 {
+		font-size: 26px;
+	}
+	.date {
+		font-size: 14px;
+		margin-bottom: 5px;
+	}
+
+	#header {
+		margin-bottom: 10px;
+		padding: 40px 0;
+	}
+	#actions {
+		display: none;
+	}
+}
+
+	</style>
+
+	</head>
+	<body>
+
+	<header id="header">
+		<div class="container">
+			<div class="row">
+				<img data-src="holder.js/100x100" class="media-object img-circle center-block" alt="Richard Hendriks" src="" itemprop="image">
+				<br>
+				<div class="col-sm-9 col-sm-push-3">
+					<h1>
+						Richard Hendriks
+					</h1>
+					<h2>
+						Programmer
+					</h2>
+				</div>
+			</div>
+		</div>
+	</header>
+	<div id="content" class="container">
+
+
+	<section id="contact" class="row">
+		<aside class="col-sm-3">
+			<h3>Contact</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+				<div class="col-sm-6">
+					<strong>E-mailadres</strong>
+					<div class="email">richard.hendriks@mail.com</div>
+				</div>
+
+
+				<div class="col-sm-6">
+					<strong>Telefoonnummer</strong>
+					<div class="phone">(912) 555-4321</div>
+				</div>
+
+				<div class="col-sm-6">
+					<strong>Website</strong>
+					<div class="website">
+						<a target="_blank" href="[object Object]"></a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+	<section id="about" class="row">
+		<aside class="col-sm-3">
+			<h3>Over mij</h3>
+		</aside>
+		<div class="col-sm-9">
+
+			<p>Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a &quot;length-limited&quot; conversation!</p>
+		</div>
+	</section>
+	<section id="profiles" class="row">
+		<aside class="col-sm-3">
+			<h3>Profiel</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+				<div class="col-sm-4">
+					<strong class="network">
+						Twitter
+					</strong>
+					<div class="username">
+						<div class="url">
+							<a target="_blank" href="https://twitter.com/neutralthoughts">neutralthoughts</a>
+						</div>
+					</div>
+				</div>
+				<div class="col-sm-4">
+					<strong class="network">
+						SoundCloud
+					</strong>
+					<div class="username">
+						<div class="url">
+							<a target="_blank" href="https://soundcloud.example.com/dandymusicnl">dandymusicnl</a>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section id="work" class="row">
+		<aside class="col-sm-3">
+			<h3>Werk</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+			<div class="col-sm-12">
+				<h4 class="strike-through">
+					<span></span>
+					<span class="date">
+						2013-12-01 — 2014-12-01
+					</span>
+				</h4>
+				<div class="position">
+					CEO/President
+				</div>
+				<div class="summary">
+					<p>Pied Piper is a multi-platform technology based on a proprietary universal compression algorithm that has consistently fielded high Weisman Scores™ that are not merely competitive, but approach the theoretical limit of lossless compression.</p>
+				</div>
+				<h4>Uitgelicht</h4>
+				<ul class="highlights">
+					<li class="bullet">Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+					<li class="bullet">Successfully won Techcrunch Disrupt</li>
+					<li class="bullet">Optimized an algorithm that holds the current world record for Weisman Scores</li>
+				</ul>
+			</div>
+			</div>
+		</div>
+	</section>
+
+	<section id="volunteer" class="row">
+		<aside class="col-sm-3">
+			<h3>Vrijwillig</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+			<div class="col-sm-12">
+				<h4 class="strike-through">
+					<span>CoderDojo</span>
+					<span class="date">
+						2012-01-01 — 2013-01-01
+					</span>
+				</h4>
+				<div class="position">
+					Teacher
+				</div>
+				<div class="summary">
+					<p>Global movement of free coding clubs for young people.</p>
+				</div>
+				<h4>Uitgelicht</h4>
+				<ul class="highlights">
+					<li class="bullet">Awarded &#x27;Teacher of the Month&#x27;</li>
+				</ul>
+			</div>
+			</div>
+		</div>
+	</section>
+
+	<section id="education" class="row">
+		<aside class="col-sm-3">
+			<h3>Onderwijs</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+			<div class="col-sm-12">
+				<h4 class="strike-through">
+					<span>University of Oklahoma</span>
+					<span class="date">
+						2011-06-01 — 2014-01-01
+					</span>
+				</h4>
+				<div class="area">
+					<i class="fa fa-graduation-cap"></i>
+					Information Technology
+				</div>
+				<div class="studyType">
+					Bachelor
+				</div>
+				<h4>Cursussen</h4>
+				<ul class="courses">
+					<li>DB1101 - Basic SQL</li>
+					<li>CS2011 - Java Introduction</li>
+				</ul>
+			</div>
+			</div>
+		</div>
+	</section>
+
+	<section id="awards" class="row">
+		<aside class="col-sm-3">
+			<h3>Prijzen</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+			<div class="col-sm-12">
+				<h4 class="strike-through">
+					<span>Digital Compression Pioneer Award</span>
+				</h4>
+				<div class="date pull-right">
+					<em>Toegekend</em>
+					2014-11-01
+				</div>
+				<div class="awarder">
+					<em>door</em>
+					<strong>Techcrunch</strong>
+				</div>
+				<div class="summary">
+					There is no spoon.
+				</div>
+			</div>
+			</div>
+		</div>
+	</section>
+
+	<section id="publications" class="row">
+		<aside class="col-sm-3">
+			<h3>Publicaties</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+			<div class="col-sm-12">
+				<h4 class="strike-through">
+					<span>Video compression for 3d media</span>
+					<span class="date">
+						2014-10-01
+					</span>
+				</h4>
+				<div class="publisher">
+					<em>Gepubliceerd door</em>
+					<strong>Hooli</strong>
+				</div>
+				<div class="summary">
+					<p>Innovative middle-out compression algorithm that changes the way we store data.</p>
+				</div>
+			</div>
+			</div>
+		</div>
+	</section>
+
+	<section id="skills" class="row">
+		<aside class="col-sm-3">
+			<h3>Vaardigheden</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+			<div class="col-sm-6">
+				<div class="name">
+					<strong>Web Development</strong>
+				</div>
+				<ul class="keywords">
+					<li>HTML</li>
+					<li>CSS</li>
+					<li>Javascript</li>
+				</ul>
+			</div>
+			<div class="col-sm-6">
+				<div class="name">
+					<strong>Compression</strong>
+				</div>
+				<ul class="keywords">
+					<li>Mpeg</li>
+					<li>MP4</li>
+					<li>GIF</li>
+				</ul>
+			</div>
+			</div>
+		</div>
+	</section>
+
+	<section id="languages" class="row">
+		<aside class="col-sm-3">
+			<h3>Talen</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+			<div class="col-sm-6">
+				<div class="language">
+					<strong>English</strong>
+				</div>
+				<div class="fluency">
+					Native speaker
+				</div>
+			</div>
+			</div>
+		</div>
+	</section>
+
+	<section id="interests" class="row">
+		<aside class="col-sm-3">
+			<h3>Interesses</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+			<div class="col-sm-6">
+				<div class="name">
+					Wildlife
+				</div>
+				<ul class="keywords">
+					<li>Ferrets</li>
+					<li>Unicorns</li>
+				</ul>
+			</div>
+			</div>
+		</div>
+	</section>
+
+	<section id="references" class="row">
+		<aside class="col-sm-3">
+			<h3>Referenties</h3>
+		</aside>
+		<div class="col-sm-9">
+			<div class="row">
+			<div class="col-sm-12">
+				<blockquote class="reference">
+					<p>It is my pleasure to recommend Richard, his performance working as a consultant for Main St. Company proved that he will be a valuable addition to any company.</p>
+					<p class="name">
+						<strong>— Erlich Bachman</strong>
+					</p>
+				</blockquote>
+			</div>
+			</div>
+		</div>
+	</section>
+
+	</div>
+
+	</body>
+</html>

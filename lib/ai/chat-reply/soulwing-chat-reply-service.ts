@@ -46,11 +46,20 @@ async function getDirectMessages(userId: string, friendId: string, limit: number
 }
 
 async function getGroupMessages(userId: string, channelId: string, limit: number) {
-  const membership = await prisma.chatChannelMember.findFirst({
-    where: { channelId, userId },
-    select: { id: true },
+  const channel = await prisma.chatChannel.findUnique({
+    where: { id: channelId },
+    select: { type: true },
   })
-  if (!membership) return null
+  if (!channel) return null
+
+  // World channel is open to all authenticated users — no membership record
+  if (channel.type !== "world") {
+    const membership = await prisma.chatChannelMember.findFirst({
+      where: { channelId, userId },
+      select: { id: true },
+    })
+    if (!membership) return null
+  }
 
   return prisma.channelMessage.findMany({
     where: { channelId },

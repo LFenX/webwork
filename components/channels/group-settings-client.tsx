@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { UserAvatar } from "@/components/user-avatar"
+import { confirmAction } from "@/lib/interaction-feedback"
 
 type Member = {
   id: string
@@ -55,6 +56,7 @@ export function GroupSettingsClient({
   const [name, setName] = useState(channel.name)
   const [announcement, setAnnouncement] = useState(channel.announcement)
   const [submitting, setSubmitting] = useState(false)
+  const [memberActionId, setMemberActionId] = useState<string | null>(null)
 
   const isOwner = channel.currentUserRole === "owner"
 
@@ -78,41 +80,56 @@ export function GroupSettingsClient({
   }
 
   async function removeMember(member: Member) {
-    if (!window.confirm(`${labels.confirmRemovePrefix}${member.displayName || member.email}${labels.confirmRemoveSuffix}`)) return
-    const res = await fetch(`/api/channels/${channel.id}/members/${member.id}`, { method: "DELETE" })
-    const data = await res.json().catch(() => null)
-    if (!res.ok) {
-      toast.error(data?.error ?? labels.ownerOnly)
-      return
+    if (!confirmAction(`${labels.confirmRemovePrefix}${member.displayName || member.email}${labels.confirmRemoveSuffix}`)) return
+    setMemberActionId(member.id)
+    try {
+      const res = await fetch(`/api/channels/${channel.id}/members/${member.id}`, { method: "DELETE" })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        toast.error(data?.error ?? labels.ownerOnly)
+        return
+      }
+      toast.success(labels.removedMember)
+      router.refresh()
+    } finally {
+      setMemberActionId(null)
     }
-    toast.success(labels.removedMember)
-    router.refresh()
   }
 
   async function leaveGroup() {
-    if (!window.confirm(labels.confirmLeave)) return
-    const res = await fetch(`/api/channels/${channel.id}/leave`, { method: "POST" })
-    const data = await res.json().catch(() => null)
-    if (!res.ok) {
-      toast.error(data?.error ?? labels.ownerOnly)
-      return
+    if (!confirmAction(`${labels.confirmLeave}\n离开后需要其他成员重新邀请才能加入。`)) return
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/channels/${channel.id}/leave`, { method: "POST" })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        toast.error(data?.error ?? labels.ownerOnly)
+        return
+      }
+      toast.success(labels.leftGroup)
+      router.push("/channels")
+      router.refresh()
+    } finally {
+      setSubmitting(false)
     }
-    toast.success(labels.leftGroup)
-    router.push("/channels")
-    router.refresh()
   }
 
   async function dissolveGroup() {
-    if (!window.confirm(labels.confirmDissolve)) return
-    const res = await fetch(`/api/channels/${channel.id}`, { method: "DELETE" })
-    const data = await res.json().catch(() => null)
-    if (!res.ok) {
-      toast.error(data?.error ?? labels.ownerOnly)
-      return
+    if (!confirmAction(`${labels.confirmDissolve}\n解散后群聊和成员关系将被移除，请确认这是预期操作。`)) return
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/channels/${channel.id}`, { method: "DELETE" })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        toast.error(data?.error ?? labels.ownerOnly)
+        return
+      }
+      toast.success(labels.dissolvedGroup)
+      router.push("/channels")
+      router.refresh()
+    } finally {
+      setSubmitting(false)
     }
-    toast.success(labels.dissolvedGroup)
-    router.push("/channels")
-    router.refresh()
   }
 
   return (
@@ -135,7 +152,7 @@ export function GroupSettingsClient({
           </div>
           <div className="flex flex-wrap gap-3">
             {isOwner ? (
-              <Button type="button" onClick={saveGroup} disabled={submitting}>
+              <Button type="button" onClick={saveGroup} loading={submitting} loadingText="保存中...">
                 {labels.saveGroup}
               </Button>
             ) : (
@@ -154,11 +171,11 @@ export function GroupSettingsClient({
             </p>
           </div>
           {!isOwner ? (
-            <Button type="button" variant="outline" onClick={leaveGroup}>
+            <Button type="button" variant="outline" onClick={leaveGroup} loading={submitting} loadingText="离开中...">
               {labels.leaveGroup}
             </Button>
           ) : (
-            <Button type="button" variant="destructive" onClick={dissolveGroup}>
+            <Button type="button" variant="destructive" onClick={dissolveGroup} loading={submitting} loadingText="解散中...">
               {labels.dissolveGroup}
             </Button>
           )}
@@ -179,7 +196,7 @@ export function GroupSettingsClient({
                 {memberIsOwner ? (
                   <span className="rounded-full bg-[--color-bg-hover] px-2 py-1 text-xs text-[--color-text-secondary]">{labels.groupOwner}</span>
                 ) : isOwner ? (
-                  <Button type="button" size="sm" variant="outline" onClick={() => removeMember(member)}>
+                  <Button type="button" size="sm" variant="outline" onClick={() => removeMember(member)} loading={memberActionId === member.id} loadingText="移除中...">
                     {labels.removeMember}
                   </Button>
                 ) : null}

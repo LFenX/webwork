@@ -134,8 +134,8 @@ export function LoginForm() {
         </div>
         {error && <p className="text-sm text-[--color-danger]">{error}</p>}
         {message && <p className="text-sm text-[--color-text-secondary]">{message}</p>}
-        <Button type="submit" className="w-full" disabled={pending}>
-          {pending ? a.loggingIn : a.login}
+        <Button type="submit" className="w-full" loading={pending} loadingText={a.loggingIn}>
+          {a.login}
         </Button>
       </form>
 
@@ -171,11 +171,11 @@ export function LoginForm() {
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={requestPasswordChange} disabled={resetPending || !resetEmail || newPassword.length < 8}>
-              {resetPending ? a.submitting : a.submitRequest}
+            <Button type="button" variant="outline" size="sm" onClick={requestPasswordChange} disabled={!resetEmail || newPassword.length < 8} loading={resetPending} loadingText={a.submitting}>
+              {a.submitRequest}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={checkPasswordStatus} disabled={checking || !resetEmail}>
-              {checking ? a.checking : a.checkStatus}
+            <Button type="button" variant="outline" size="sm" onClick={checkPasswordStatus} disabled={!resetEmail} loading={checking} loadingText={a.checking}>
+              {a.checkStatus}
             </Button>
           </div>
         </div>

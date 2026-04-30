@@ -150,13 +150,45 @@ export async function getPost(
   }
 }
 
-export async function getResumeContent(userId: string): Promise<{ mode: string; content: string; pdfPath?: string | null }> {
+export interface ResumeContent {
+  mode: string
+  content: string
+  pdfPath?: string | null
+  resumeJson?: unknown | null
+  selectedTheme?: string | null
+  lastExportedPdfPath?: string | null
+  lastExportedAt?: Date | null
+  renderedHtml?: string | null
+  lastBuiltAt?: Date | null
+  lastBuiltTheme?: string | null
+  lastBuiltConfigHash?: string | null
+  resumeLocale?: string | null
+  resumeAppearance?: string | null
+  resumeConfig?: unknown | null
+}
+
+export async function getResumeContent(userId: string): Promise<ResumeContent> {
   const r = await prisma.resume.upsert({
     where: { userId },
     update: {},
     create: { userId, mode: "markdown", content: "" },
   })
-  return { mode: r.mode, content: r.content, pdfPath: r.pdfPath }
+  return {
+    mode: r.mode,
+    content: r.content,
+    pdfPath: r.pdfPath,
+    resumeJson: r.resumeJson ?? null,
+    selectedTheme: r.selectedTheme ?? null,
+    lastExportedPdfPath: r.lastExportedPdfPath ?? null,
+    lastExportedAt: r.lastExportedAt ?? null,
+    renderedHtml: r.renderedHtml ?? null,
+    lastBuiltAt: r.lastBuiltAt ?? null,
+    lastBuiltTheme: r.lastBuiltTheme ?? null,
+    lastBuiltConfigHash: r.lastBuiltConfigHash ?? null,
+    resumeLocale: r.resumeLocale ?? null,
+    resumeAppearance: r.resumeAppearance ?? null,
+    resumeConfig: r.resumeConfig ?? null,
+  }
 }
 
 export async function getSiteSettings(userId: string): Promise<{ ownerName: string; heroTagline: string }> {

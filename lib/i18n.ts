@@ -805,6 +805,18 @@ type Dictionary = {
     versionDeleted: string
     displayUpdated: string
     displayUpdateFailed: string
+    templates: string
+    themeLabel: string
+    themeFallback: string
+    noThemes: string
+    renderFailed: string
+    goTemplates: string
+    markdownBanner: string
+    switchToOnline: string
+    exportPdfSoon: string
+    onlineResume: string
+    pdfResume: string
+    oldMarkdownLabel: string
   }
   friends: {
     search: string
@@ -1632,7 +1644,7 @@ const zhCN: Dictionary = {
     saving: "保存中...",
     save: "保存",
     pdfMode: "应用 PDF 模式",
-    contentLabel: "简历内容（Markdown）",
+    contentLabel: "简历内容",
     previewLabel: "简历预览",
     currentVersion: "当前简历版本",
     noPdf: "还没有上传 PDF 版本的简历。",
@@ -1655,6 +1667,18 @@ const zhCN: Dictionary = {
     versionDeleted: "版本已删除",
     displayUpdated: "已设为当前展示版本",
     displayUpdateFailed: "设置展示版本失败",
+    templates: "模板",
+    themeLabel: "主题",
+    themeFallback: "请求的主题不可用，已自动切换",
+    noThemes: "还没有可用的简历主题。请先安装 jsonresume-theme-* 包",
+    renderFailed: "简历渲染失败",
+    goTemplates: "前往模板中心切换其它主题",
+    markdownBanner: "这是旧版 Markdown 内容。建议切换到在线简历以获得更好的展示效果。",
+    switchToOnline: "切换为在线简历",
+    exportPdfSoon: "导出 PDF（即将支持）",
+    onlineResume: "在线简历",
+    pdfResume: "PDF 简历",
+    oldMarkdownLabel: "查看旧版 Markdown 内容（只读）",
   },
   friends: {
     search: "搜索好友...",
@@ -2490,7 +2514,7 @@ const enUS: Dictionary = {
     saving: "Saving...",
     save: "Save",
     pdfMode: "Apply PDF mode",
-    contentLabel: "Resume content (Markdown)",
+    contentLabel: "Resume content",
     previewLabel: "Resume preview",
     currentVersion: "Current resume version",
     noPdf: "No PDF version uploaded yet.",
@@ -2513,6 +2537,18 @@ const enUS: Dictionary = {
     versionDeleted: "Version deleted",
     displayUpdated: "Set as current display version",
     displayUpdateFailed: "Failed to set display version",
+    templates: "Templates",
+    themeLabel: "Theme",
+    themeFallback: "Requested theme unavailable, automatically switched",
+    noThemes: "No resume themes available. Please install a jsonresume-theme-* package.",
+    renderFailed: "Resume rendering failed",
+    goTemplates: "Go to template center to switch themes",
+    markdownBanner: "This is legacy Markdown content. Switch to online resume for better display.",
+    switchToOnline: "Switch to online resume",
+    exportPdfSoon: "Export PDF (coming soon)",
+    onlineResume: "Online Resume",
+    pdfResume: "PDF Resume",
+    oldMarkdownLabel: "View legacy Markdown content (read-only)",
   },
   friends: {
     search: "Search friends...",

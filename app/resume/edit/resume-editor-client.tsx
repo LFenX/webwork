@@ -3,15 +3,24 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ArrowLeft, Download, Eye, FileText, Trash2, Upload } from "lucide-react"
+import { ArrowLeft, Copy, Download, FileText, LayoutTemplate, Trash2, Upload } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MarkdownEditor } from "@/components/markdown-editor"
-import { MarkdownContent } from "@/components/markdown-content"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ResumeForm, DEFAULT_SECTION_ORDER } from "@/components/resume-form/resume-form"
+import { FormActionsBar } from "@/components/resume-form/form-actions-bar"
+import { TemplateReadinessBanner } from "@/components/resume-form/template-readiness-banner"
+import { OutputOptions, type OutputOptionsValue, type CapabilityInfo } from "@/components/resume-form/output-options"
+import { SectionManager } from "@/components/resume-form/section-manager"
+import { FieldLabelMapEditor } from "@/components/resume-form/field-label-map-editor"
+import { resumeJsonToFormState, formStateToResumeJson } from "@/lib/resume/form-transform"
+import { emptyFormState } from "@/lib/resume/form-types"
+import type { ResumeFormState } from "@/lib/resume/form-types"
+import type { ResumeThemeInfo } from "@/lib/resume/types"
+import { checkResumeBuildReadiness } from "@/lib/resume/build-readiness"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
+import { confirmAction, copyTextWithToast } from "@/lib/interaction-feedback"
 import { formatChinaDateTime } from "@/lib/time"
 
 interface ResumeEditorClientProps {
@@ -19,6 +28,9 @@ interface ResumeEditorClientProps {
   initialContent: string
   initialMode: string
   initialPdfPath: string | null
+  initialResumeJson: unknown | null
+  initialSelectedTheme: string | null
+  themes: ResumeThemeInfo[]
 }
 
 type ResumeVersion = {
@@ -32,20 +44,61 @@ type ResumeVersion = {
 
 const DRAFT_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
-export function ResumeEditorClient({ userId, initialContent, initialMode, initialPdfPath }: ResumeEditorClientProps) {
+function buildInitialFormState(resumeJson: unknown): ResumeFormState {
+  if (resumeJson && typeof resumeJson === "object") {
+    try {
+      return resumeJsonToFormState(resumeJson as Record<string, unknown>)
+    } catch {
+      // fall through
+    }
+  }
+  return emptyFormState()
+}
+
+export function ResumeEditorClient({
+  userId, initialContent, initialMode, initialPdfPath,
+  initialResumeJson, initialSelectedTheme, themes,
+}: ResumeEditorClientProps) {
   const router = useRouter()
-  const [mode, setMode] = useState<"markdown" | "pdf">(initialMode as "markdown" | "pdf")
-  const [content, setContent] = useState(initialContent)
+  const initialTab = initialMode === "pdf" ? "pdf" : "online"
+  const [tab, setTab] = useState<"pdf" | "online">(initialTab)
+
+  // PDF state (unchanged)
   const [pdfPath, setPdfPath] = useState(initialPdfPath)
   const [versions, setVersions] = useState<ResumeVersion[]>([])
   const [versionName, setVersionName] = useState("")
-  const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [previewOpen, setPreviewOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const draftKey = userStorageKey(userId, "resume-draft", "markdown")
+
+  // Online resume form state
+  const [formState, setFormState] = useState<ResumeFormState>(() =>
+    buildInitialFormState(initialResumeJson),
+  )
+  const [selectedTheme, setSelectedTheme] = useState<string | null>(initialSelectedTheme)
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [building, setBuilding] = useState(false)
+
+  const [outputOptions, setOutputOptions] = useState<OutputOptionsValue>({
+    locale: "auto",
+    appearance: "system",
+    sectionOrder: DEFAULT_SECTION_ORDER,
+    hiddenSections: [],
+    fieldLabelMap: {},
+  })
+  const [capabilities, setCapabilities] = useState<CapabilityInfo | null>(null)
+  const [showSectionManager, setShowSectionManager] = useState(false)
+  const [showFieldLabelEditor, setShowFieldLabelEditor] = useState(false)
+  const configLoadedRef = useRef(false)
+  const loadedConfigJsonRef = useRef<string | null>(null)
+  const saveConfigTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const availableThemes = themes.filter((t) => t.available)
+
+  // Draft system
+  const draftKey = userStorageKey(userId, "resume-form-draft", "v1")
   const draftReady = useRef(false)
 
+  // Fetch versions
   useEffect(() => {
     fetch("/api/resume/versions", { cache: "no-store" })
       .then((res) => res.ok ? res.json() : [])
@@ -53,72 +106,146 @@ export function ResumeEditorClient({ userId, initialContent, initialMode, initia
       .catch(() => setVersions([]))
   }, [])
 
+  // Draft restore
   useEffect(() => {
-    const draft = readUserStorage<{ content: string }>({
+    const draft = readUserStorage<{ formState: ResumeFormState; selectedTheme: string | null }>({
       kind: "local",
       key: draftKey,
       userId,
       ttlMs: DRAFT_TTL_MS,
     })
-    if (draft?.content && draft.content !== initialContent) {
-      if (window.confirm("Restore the unsaved local resume draft?")) {
-        window.setTimeout(() => {
-          setContent(draft.content)
-          toast.success("Local resume draft restored")
-        }, 0)
+    if (draft?.formState) {
+      const initialForm = buildInitialFormState(initialResumeJson)
+      const draftJson = JSON.stringify(draft.formState)
+      const initialJson = JSON.stringify(initialForm)
+      if (draftJson !== initialJson) {
+        if (confirmAction("检测到未保存的在线简历草稿，是否恢复？恢复后会覆盖当前编辑器里的初始内容。", "")) {
+          window.setTimeout(() => {
+            setFormState(draft.formState)
+            if (draft.selectedTheme !== undefined) setSelectedTheme(draft.selectedTheme)
+            toast.success("已恢复本地草稿")
+          }, 0)
+        }
       }
     }
     draftReady.current = true
-  }, [draftKey, initialContent, userId])
+  }, [draftKey, initialResumeJson, userId])
 
+  // Draft save (debounced)
+  const saveDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (!draftReady.current || mode !== "markdown") return
-    if (content === initialContent) {
-      removeUserStorage("local", draftKey)
-      return
-    }
-    writeUserStorage({ kind: "local", key: draftKey, userId, value: { content } })
-  }, [content, draftKey, initialContent, mode, userId])
+    if (!draftReady.current || tab !== "online") return
+    if (saveDraftTimer.current) clearTimeout(saveDraftTimer.current)
+    saveDraftTimer.current = setTimeout(() => {
+      const initialForm = buildInitialFormState(initialResumeJson)
+      const draftJson = JSON.stringify(formState)
+      const initialJson = JSON.stringify(initialForm)
+      if (draftJson === initialJson && selectedTheme === initialSelectedTheme) {
+        removeUserStorage("local", draftKey)
+        return
+      }
+      writeUserStorage({ kind: "local", key: draftKey, userId, value: { formState, selectedTheme } })
+    }, 500)
+    return () => { if (saveDraftTimer.current) clearTimeout(saveDraftTimer.current) }
+  }, [formState, selectedTheme, draftKey, initialResumeJson, initialSelectedTheme, tab, userId])
 
+  // BeforeUnload
   useEffect(() => {
     function handleBeforeUnload(event: BeforeUnloadEvent) {
       if (!draftReady.current) return
-      const draft = readUserStorage<{ content: string }>({ kind: "local", key: draftKey, userId, ttlMs: DRAFT_TTL_MS })
+      const draft = readUserStorage<{ formState: unknown }>({ kind: "local", key: draftKey, userId, ttlMs: DRAFT_TTL_MS })
       if (!draft) return
       event.preventDefault()
       event.returnValue = ""
     }
-
     window.addEventListener("beforeunload", handleBeforeUnload)
     return () => window.removeEventListener("beforeunload", handleBeforeUnload)
   }, [draftKey, userId])
 
-  async function handleSaveMarkdown() {
-    setSaving(true)
-    try {
-      const res = await fetch("/api/resume", {
+  // Load user output config
+  useEffect(() => {
+    fetch("/api/resume/config", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) {
+          configLoadedRef.current = true
+          return
+        }
+        const nested = (data.config?.fieldLabelMap ?? {}) as Record<string, Record<string, string>>
+        const flatMap: Record<string, string> = {
+          ...(nested.sections ?? {}),
+          ...(nested.fields ?? {}),
+          ...(nested.ui ?? {}),
+        }
+        const opts: OutputOptionsValue = {
+          locale: data.locale ?? "auto",
+          appearance: data.appearance ?? "system",
+          sectionOrder: data.config?.sectionOrder ?? DEFAULT_SECTION_ORDER,
+          hiddenSections: data.config?.hiddenSections ?? [],
+          fieldLabelMap: flatMap,
+        }
+        setOutputOptions(opts)
+        loadedConfigJsonRef.current = JSON.stringify(opts)
+        configLoadedRef.current = true
+      })
+      .catch(() => {
+        configLoadedRef.current = true
+      })
+  }, [])
+
+  // Fetch effective config (capabilities) when theme changes
+  useEffect(() => {
+    const slug = selectedTheme ?? ""
+    fetch(`/api/resume/effective-config?slug=${encodeURIComponent(slug)}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.capabilities) {
+          setCapabilities(null)
+          return
+        }
+        setCapabilities(data.capabilities)
+      })
+      .catch(() => setCapabilities(null))
+  }, [selectedTheme])
+
+  // Auto-save output config
+  useEffect(() => {
+    if (!configLoadedRef.current) return
+    const currentJson = JSON.stringify(outputOptions)
+    if (currentJson === loadedConfigJsonRef.current) return
+    if (saveConfigTimerRef.current) clearTimeout(saveConfigTimerRef.current)
+    saveConfigTimerRef.current = setTimeout(() => {
+      fetch("/api/resume/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "markdown", content }),
-        cache: "no-store",
+        body: JSON.stringify({
+          locale: outputOptions.locale,
+          appearance: outputOptions.appearance,
+          config: {
+            sectionOrder: outputOptions.sectionOrder,
+            hiddenSections: outputOptions.hiddenSections,
+            fieldLabelMap: { sections: outputOptions.fieldLabelMap },
+          },
+        }),
       })
-      if (!res.ok) throw new Error()
-      removeUserStorage("local", draftKey)
-      toast.success("简历已保存")
-      router.push("/resume")
-    } catch {
-      toast.error("保存失败")
-    } finally {
-      setSaving(false)
+        .then((res) => {
+          if (!res.ok) throw new Error("保存失败")
+          loadedConfigJsonRef.current = currentJson
+        })
+        .catch(() => {
+          toast.error("输出选项自动保存失败")
+        })
+    }, 800)
+    return () => {
+      if (saveConfigTimerRef.current) clearTimeout(saveConfigTimerRef.current)
     }
-  }
+  }, [outputOptions])
+
+  // ─── PDF handlers (unchanged) ───
 
   async function handlePdfUpload(file: File) {
     const name = versionName.trim()
-    if (!name) {
-      toast.error("请先填写版本名")
-      return
-    }
+    if (!name) { toast.error("请先填写版本名"); return }
     setUploading(true)
     try {
       const form = new FormData()
@@ -128,7 +255,7 @@ export function ResumeEditorClient({ userId, initialContent, initialMode, initia
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "上传失败")
       setPdfPath(data.version.pdfPath)
-      setMode("pdf")
+      setTab("pdf")
       setVersions((current) => [data.version, ...current])
       setVersionName("")
       toast.success("PDF 已保存为新版本")
@@ -141,7 +268,7 @@ export function ResumeEditorClient({ userId, initialContent, initialMode, initia
   }
 
   async function handleSavePdfMode() {
-    setSaving(true)
+    setSavingDraft(true)
     try {
       const res = await fetch("/api/resume", {
         method: "PUT",
@@ -155,37 +282,113 @@ export function ResumeEditorClient({ userId, initialContent, initialMode, initia
       router.push("/resume")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "保存失败")
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSavingDraft(false) }
   }
 
   async function setCurrentVersion(version: ResumeVersion) {
-    const res = await fetch(`/api/resume/versions/${version.id}`, { method: "PATCH", cache: "no-store" })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      toast.error(data.error || "切换失败")
-      return
+    setSavingDraft(true)
+    try {
+      const res = await fetch(`/api/resume/versions/${version.id}`, { method: "PATCH", cache: "no-store" })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data.error || "切换失败"); return }
+      setPdfPath(version.pdfPath)
+      setTab("pdf")
+      toast.success("已设为展示版本")
+    } finally {
+      setSavingDraft(false)
     }
-    setPdfPath(version.pdfPath)
-    setMode("pdf")
-    toast.success("已设为展示版本")
   }
 
   async function deleteVersion(version: ResumeVersion) {
-    if (!confirm(`确认删除版本「${version.name}」？`)) return
-    const res = await fetch(`/api/resume/versions/${version.id}`, { method: "DELETE", cache: "no-store" })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      toast.error(data.error || "删除失败")
-      return
+    if (!confirmAction(`确认删除简历版本「${version.name}」？删除后该 PDF 版本将无法在版本列表中恢复。`)) return
+    setSavingDraft(true)
+    try {
+      const res = await fetch(`/api/resume/versions/${version.id}`, { method: "DELETE", cache: "no-store" })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data.error || "删除失败"); return }
+      setVersions((current) => current.filter((item) => item.id !== version.id))
+      toast.success("版本已删除")
+    } finally {
+      setSavingDraft(false)
     }
-    setVersions((current) => current.filter((item) => item.id !== version.id))
-    toast.success("版本已删除")
   }
 
+  // ─── Online resume handlers ───
+
+  async function handleSaveDraft() {
+    setSavingDraft(true)
+    try {
+      const resumeJson = formStateToResumeJson(formState)
+      const body: Record<string, unknown> = { mode: "json", resumeJson }
+      if (selectedTheme) body.selectedTheme = selectedTheme
+      const res = await fetch("/api/resume", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        cache: "no-store",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || data.issues?.join(", ") || "保存草稿失败")
+      removeUserStorage("local", draftKey)
+      toast.success("草稿已保存")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "保存草稿失败")
+    } finally { setSavingDraft(false) }
+  }
+
+  async function handleBuild() {
+    // Client-side readiness check before calling API
+    const resumeJson = formStateToResumeJson(formState)
+    const report = checkResumeBuildReadiness(resumeJson, selectedTheme)
+
+    if (!report.canBuild) {
+      const msgs = report.missingRequiredFields.map((f) => f.errorMsg).join(" · ")
+      toast.error(`无法构建：${msgs}`)
+      return
+    }
+
+    if (report.missingRecommendedFields.length > 0) {
+      const labels = report.missingRecommendedFields.slice(0, 4).map((f) => f.label).join("、")
+      const extra = report.missingRecommendedFields.length > 4 ? ` 等共 ${report.missingRecommendedFields.length} 项` : ""
+      toast.info(`提示：该模板建议补充${labels}${extra}，仍可继续构建`)
+    }
+
+    setBuilding(true)
+    try {
+      const body: Record<string, unknown> = { resumeJson }
+      if (selectedTheme) body.selectedTheme = selectedTheme
+      const res = await fetch("/api/resume/json/build", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        cache: "no-store",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!data.ok) {
+        toast.error(data.error || "构建失败")
+        return
+      }
+      removeUserStorage("local", draftKey)
+      if (data.fallback) {
+        toast.warning(`当前模板不可用，已使用 ${data.usedTheme} 构建`)
+      } else {
+        toast.success("构建成功")
+      }
+      router.push("/resume")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "构建失败")
+    } finally { setBuilding(false) }
+  }
+
+  function copyMarkdown() {
+    void copyTextWithToast(initialContent, "已复制到剪贴板", "复制失败，请手动复制")
+  }
+
+  const showOldMarkdown = initialMode === "markdown" && initialContent
+
   return (
-    <div className="mx-auto max-w-[960px] px-6 py-10">
+    <div className="mx-auto w-full max-w-[1600px] px-6 py-10 lg:px-10">
+      {/* Top bar */}
       <div className="mb-6 flex items-center justify-between gap-4">
         <Link href="/resume" className="inline-flex items-center gap-1 text-sm text-[--color-text-muted] hover:text-[--color-text-primary] hover:no-underline">
           <ArrowLeft size={14} /> 返回简历
@@ -193,42 +396,28 @@ export function ResumeEditorClient({ userId, initialContent, initialMode, initia
         <div className="flex items-center gap-3">
           <div className="flex overflow-hidden rounded-[--radius-sm] border border-[--color-border] text-xs">
             <button
-              onClick={() => setMode("markdown")}
-              className={`px-3 py-1.5 transition-colors ${mode === "markdown" ? "bg-[--color-text-primary] text-white" : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"}`}
+              onClick={() => setTab("pdf")}
+              className={`px-3 py-1.5 transition-colors ${tab === "pdf" ? "bg-[--color-text-primary] text-white" : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"}`}
             >
-              Markdown
+              PDF 简历
             </button>
             <button
-              onClick={() => setMode("pdf")}
-              className={`px-3 py-1.5 transition-colors ${mode === "pdf" ? "bg-[--color-text-primary] text-white" : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"}`}
+              onClick={() => setTab("online")}
+              className={`px-3 py-1.5 transition-colors ${tab === "online" ? "bg-[--color-text-primary] text-white" : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"}`}
             >
-              PDF
+              在线简历
             </button>
           </div>
-          {mode === "markdown" && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)} className="gap-1.5">
-                <Eye size={14} /> 预览
-              </Button>
-              <Button size="sm" onClick={handleSaveMarkdown} disabled={saving}>
-                {saving ? "保存中..." : "保存"}
-              </Button>
-            </>
-          )}
-          {mode === "pdf" && pdfPath && (
-            <Button size="sm" onClick={handleSavePdfMode} disabled={saving}>
-              {saving ? "保存中..." : "应用 PDF 模式"}
+          {tab === "pdf" && pdfPath && (
+            <Button size="sm" onClick={handleSavePdfMode} disabled={savingDraft}>
+              {savingDraft ? "保存中..." : "应用 PDF 模式"}
             </Button>
           )}
         </div>
       </div>
 
-      {mode === "markdown" ? (
-        <div>
-          <Label className="mb-2 block text-xs">简历内容（Markdown）</Label>
-          <MarkdownEditor value={content} onChange={setContent} height={600} />
-        </div>
-      ) : (
+      {/* ── PDF Tab ── */}
+      {tab === "pdf" && (
         <div className="space-y-5">
           {pdfPath ? (
             <div>
@@ -310,16 +499,109 @@ export function ResumeEditorClient({ userId, initialContent, initialMode, initia
         </div>
       )}
 
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>简历预览</DialogTitle>
-          </DialogHeader>
-          <div className="prose mt-2">
-            <MarkdownContent source={content} />
+      {/* ── Online Resume Tab ── */}
+      {tab === "online" && (
+        <div className="space-y-4">
+          {/* Toolbar: theme select + template center link */}
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={selectedTheme ?? ""}
+              onChange={(e) => {
+                const newTheme = e.target.value || null
+                setSelectedTheme(newTheme)
+                if (newTheme !== selectedTheme) {
+                  toast.info("切换模板后，需要重新构建才能看到效果")
+                }
+              }}
+              className="h-9 rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-surface] text-[--color-text-primary] px-3 text-xs"
+            >
+              <option value="">默认主题</option>
+              {availableThemes.map((t) => (
+                <option key={t.slug} value={t.slug}>{t.label}</option>
+              ))}
+            </select>
+            <Link href="/resume/templates" className="inline-flex items-center gap-1 text-xs text-[--color-text-muted] hover:text-[--color-text-primary] hover:no-underline">
+              <LayoutTemplate size={12} /> 前往模板中心
+            </Link>
           </div>
-        </DialogContent>
-      </Dialog>
+
+          {/* Readiness banner */}
+          <div className="mx-auto max-w-[1000px]">
+            <TemplateReadinessBanner
+              formState={formState}
+              themeSlug={selectedTheme}
+              themeLabel={availableThemes.find((t) => t.slug === selectedTheme)?.label ?? (selectedTheme ? selectedTheme : "默认主题")}
+            />
+          </div>
+
+          {/* Output options */}
+          <div className="mx-auto max-w-[1000px]">
+            <OutputOptions
+              value={outputOptions}
+              onChange={setOutputOptions}
+              capabilities={capabilities}
+              onOpenSectionManager={() => setShowSectionManager(true)}
+              onOpenFieldLabelEditor={() => setShowFieldLabelEditor(true)}
+            />
+          </div>
+
+          {/* Form */}
+          <div className="mx-auto max-w-[1000px]">
+            <ResumeForm
+              value={formState}
+              onChange={setFormState}
+              sectionOrder={outputOptions.sectionOrder}
+              hiddenSections={outputOptions.hiddenSections}
+              fieldLabelMap={outputOptions.fieldLabelMap}
+            />
+          </div>
+
+          {/* Old Markdown collapsible */}
+          {showOldMarkdown && (
+            <details className="mx-auto max-w-[1000px] rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] overflow-hidden">
+              <summary className="px-4 py-3 text-sm font-medium cursor-pointer select-none">
+                查看旧版 Markdown 内容（仅供参考）
+              </summary>
+              <div className="px-4 pb-4">
+                <pre className="whitespace-pre-wrap text-xs font-mono text-[--color-text-secondary] max-h-64 overflow-y-auto bg-[--color-bg-hover] rounded p-3">
+                  {initialContent}
+                </pre>
+                <Button variant="outline" size="sm" onClick={copyMarkdown} className="mt-2 gap-1 text-xs">
+                  <Copy size={12} /> 复制到剪贴板
+                </Button>
+              </div>
+            </details>
+          )}
+
+          {/* Bottom action bar */}
+          <FormActionsBar
+            savingDraft={savingDraft}
+            building={building}
+            statusText={building ? "正在构建预览和在线简历..." : savingDraft ? "正在保存简历变更..." : undefined}
+            onSaveDraft={handleSaveDraft}
+            onBuild={handleBuild}
+            onBack={() => router.push("/resume")}
+          />
+
+          {showSectionManager && (
+            <SectionManager
+              sectionOrder={outputOptions.sectionOrder}
+              hiddenSections={outputOptions.hiddenSections}
+              onChange={(order, hidden) => setOutputOptions((prev) => ({ ...prev, sectionOrder: order, hiddenSections: hidden }))}
+              onClose={() => setShowSectionManager(false)}
+              sectionOrderSupport={capabilities?.sectionOrderSupport}
+            />
+          )}
+
+          {showFieldLabelEditor && (
+            <FieldLabelMapEditor
+              value={outputOptions.fieldLabelMap}
+              onChange={(map) => setOutputOptions((prev) => ({ ...prev, fieldLabelMap: map }))}
+              onClose={() => setShowFieldLabelEditor(false)}
+            />
+          )}
+        </div>
+      )}
     </div>
   )
 }

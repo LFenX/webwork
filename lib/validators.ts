@@ -81,9 +81,11 @@ export const articleFolderSchema = z.object({
 export const updateArticleFolderSchema = articleFolderSchema.omit({ type: true }).partial()
 
 export const resumeSchema = z.object({
-  mode: z.enum(["markdown", "pdf"]).optional(),
+  mode: z.enum(["markdown", "pdf", "json"]).optional(),
   content: z.string().optional(),
   pdfPath: z.string().optional().nullable(),
+  resumeJson: z.unknown().optional().nullable(),
+  selectedTheme: z.string().optional().nullable(),
 })
 
 export const siteSettingsSchema = z.object({
@@ -183,6 +185,7 @@ export const aiGrantSchema = z.object({
   model: z.string().trim().min(1).max(120),
   temperature: z.number().min(0).max(2).optional().default(0.7),
   streamEnabled: z.boolean().optional().default(true),
+  webSearchEnabled: z.boolean().optional().default(false),
   status: z.enum(["active", "paused", "revoked", "deprecated"]).optional().default("active"),
   modelList: z.array(z.string().trim().min(1).max(120)).optional().default([]),
   requestId: z.string().optional(),
@@ -192,6 +195,30 @@ export const aiGrantSchema = z.object({
 export const aiGrantUpsertSchema = aiGrantSchema.extend({
   apiKey: z.string().trim().max(500).optional(),
   status: z.enum(["active", "paused", "revoked", "deprecated"]).optional(),
+  webSearch: z.object({
+    enabled: z.boolean().optional().default(false),
+    apiKey: z.string().trim().max(500).optional(),
+    host: z.string().trim().url().max(500),
+    workspace: z.string().trim().min(1).max(120).optional().default("default"),
+    serviceId: z.string().trim().min(1).max(120).optional().default("ops-web-search-001"),
+  }).optional(),
+})
+
+export const aiWebSearchConfigSchema = z.object({
+  enabled: z.boolean().optional().default(false),
+  apiKey: z.string().trim().max(500).optional(),
+  host: z.string().trim().url().max(500).optional().or(z.literal("")),
+  workspace: z.string().trim().min(1).max(120).optional().default("default"),
+  serviceId: z.string().trim().min(1).max(120).optional().default("ops-web-search-001"),
+})
+
+export const aiWebSearchTestSchema = z.object({
+  query: z.string().trim().min(1).max(300),
+  maxResults: z.number().int().min(1).max(10).optional().default(5),
+  contentType: z.enum(["snippet", "summary"]).optional().default("snippet"),
+  configId: z.string().optional(),
+  adminGrantUserId: z.string().optional(),
+  webSearch: aiWebSearchConfigSchema.partial().optional(),
 })
 
 export const aiConfigActivateSchema = z.object({
@@ -234,6 +261,8 @@ export type AIProviderConfigUpdateInput = z.infer<typeof aiProviderConfigUpdateS
 export type AIAccessRequestInput = z.infer<typeof aiAccessRequestSchema>
 export type AIGrantInput = z.infer<typeof aiGrantSchema>
 export type AIGrantUpsertInput = z.infer<typeof aiGrantUpsertSchema>
+export type AIWebSearchConfigInput = z.infer<typeof aiWebSearchConfigSchema>
+export type AIWebSearchTestInput = z.infer<typeof aiWebSearchTestSchema>
 export type AIConfigActivateInput = z.infer<typeof aiConfigActivateSchema>
 export type AIRequestReviewInput = z.infer<typeof aiRequestReviewSchema>
 export type AIAttachmentInput = z.infer<typeof aiAttachmentSchema>
@@ -285,6 +314,8 @@ export const updateAgentProfileSchema = z.object({
   rulesContent: z.string().optional(),
   enabled: z.boolean().optional(),
   restoreDefaults: z.boolean().optional(),
+  avatarUrl: z.string().trim().max(500).optional().nullable(),
+  avatarDataUrl: z.string().max(3_500_000).optional().nullable(),
 })
 
 export type UpdateAgentProfileInput = z.infer<typeof updateAgentProfileSchema>

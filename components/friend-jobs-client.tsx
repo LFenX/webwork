@@ -249,8 +249,8 @@ export function FriendJobsClient({
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setPreviewOpen(false)}>取消</Button>
-            <Button type="button" onClick={importSelected} disabled={importing || selectedIds.size === 0}>
-              {importing ? "导入中..." : `导入 ${selectedIds.size} 条`}
+            <Button type="button" onClick={importSelected} disabled={selectedIds.size === 0} loading={importing} loadingText="导入中...">
+              {`导入 ${selectedIds.size} 条`}
             </Button>
           </DialogFooter>
         </DialogContent>

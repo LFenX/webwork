@@ -16,7 +16,7 @@ export default async function AIPage() {
   const normalizedUser = user ? await normalizeUserRole(user) : null
 
   return (
-    <div className="h-[calc(var(--app-viewport-height)-3.5rem)] overflow-hidden md:h-[calc(100vh-3.5rem)]">
+    <div className="mobile-chat-viewport h-[calc(var(--app-viewport-height)-3.5rem)] overflow-hidden md:h-[calc(100vh-3.5rem)]">
       <div className="mx-auto flex h-full w-full max-w-[1680px] flex-col px-0 py-0 md:px-5 md:pt-4 md:pb-5 sm:px-6 xl:px-8">
         {/* Compact page title bar */}
         <div className="relative mb-4 hidden md:flex md:items-center md:justify-center">

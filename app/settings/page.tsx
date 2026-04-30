@@ -17,6 +17,11 @@ export default async function SettingsPage() {
     { href: "/settings/password", title: dict.settings.password, description: dict.settings.passwordDesc },
     { href: "/settings/privacy", title: dict.settings.privacy, description: dict.settings.privacyDesc },
     { href: "/settings/language", title: dict.settings.language, description: dict.settings.languageDesc },
+    {
+      href: "/?layout=edit",
+      title: dict.home.editLayout,
+      description: settings.language === "en-US" ? "Go back home to adjust card order, width, and visibility." : "回到首页调整卡片排序、宽度和显示状态。",
+    },
     { href: "/settings/usage", title: dict.settings.usage, description: dict.settings.usageDesc },
   ]
 

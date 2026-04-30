@@ -8,6 +8,26 @@ import { channelInviteSchema } from "@/lib/validators"
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
 
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ channelId: string }> }
+) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: "未登录" }, { status: 401, headers: NO_STORE })
+
+  const { channelId } = await params
+  if (channelId !== WORLD_CHANNEL_ID) {
+    return NextResponse.json({ error: "仅世界频道支持此接口" }, { status: 400, headers: NO_STORE })
+  }
+
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: "asc" },
+    select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true },
+  })
+
+  return NextResponse.json({ members: users }, { headers: NO_STORE })
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ channelId: string }> }

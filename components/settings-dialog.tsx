@@ -50,6 +50,7 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
   const [password, setPassword] = useState("")
   const [saving, setSaving] = useState(false)
   const [requestingPassword, setRequestingPassword] = useState(false)
+  const [checkingPassword, setCheckingPassword] = useState(false)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarObjectUrl, setAvatarObjectUrl] = useState("")
 
@@ -184,6 +185,7 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
   }
 
   async function checkPasswordStatus() {
+    setCheckingPassword(true)
     try {
       const res = await fetch("/api/auth/password-change", { cache: "no-store" })
       const data = await res.json().catch(() => null)
@@ -199,6 +201,8 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : a.checkFailed)
+    } finally {
+      setCheckingPassword(false)
     }
   }
 
@@ -302,10 +306,10 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
                   placeholder={s.passwordInput}
                   className="h-9 text-sm"
                 />
-                <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={requestPasswordChange} disabled={requestingPassword || password.length < 8}>
+                <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={requestPasswordChange} disabled={password.length < 8} loading={requestingPassword} loadingText={dict.common.saving}>
                   {s.passwordSubmit}
                 </Button>
-                <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={checkPasswordStatus}>
+                <Button className="w-full sm:w-auto" size="sm" variant="outline" onClick={checkPasswordStatus} loading={checkingPassword} loadingText={dict.common.loading}>
                   {s.passwordStatus}
                 </Button>
               </div>
@@ -313,8 +317,8 @@ export function SettingsDialog({ ownerName, heroTagline, email }: SettingsDialog
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setOpen(false)}>{dict.common.cancel}</Button>
-              <Button size="sm" onClick={handleSave} disabled={saving}>
-                {saving ? dict.common.saving : dict.common.save}
+              <Button size="sm" onClick={handleSave} loading={saving} loadingText={dict.common.saving}>
+                {dict.common.save}
               </Button>
             </div>
           </div>

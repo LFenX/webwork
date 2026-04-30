@@ -15,12 +15,14 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { AdminAIPanel } from "@/components/admin/admin-ai-panel"
+import { AdminAIUsagePanel } from "@/components/admin/admin-ai-usage-panel"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiDelete, apiFetch, apiPatch, apiPost } from "@/lib/api-client"
 import { ADMIN_PERMISSION_DEFS, type AdminPermissionKey, type AdminPermissionMap } from "@/lib/admin-permissions"
 import { getDict } from "@/lib/i18n"
+import { confirmAction, safeErrorMessage } from "@/lib/interaction-feedback"
 import { formatChinaDateTime } from "@/lib/time"
 
 type RegistrationRequest = {
@@ -176,8 +178,27 @@ export function AdminClient() {
   const [stickerUploading, setStickerUploading] = useState(false)
   const [ownerTransferTargetId, setOwnerTransferTargetId] = useState("")
   const [selectedAdminPermissionId, setSelectedAdminPermissionId] = useState<string | null>(null)
+  const [busyActions, setBusyActions] = useState<Record<string, boolean>>({})
 
   const hasPermission = (permission: AdminPermissionKey) => data?.permissions?.[permission] ?? false
+  const isBusy = (key: string) => Boolean(busyActions[key])
+  const runAdminAction = async (key: string, loadingMessage: string, action: () => Promise<void>) => {
+    if (isBusy(key)) return
+    const toastId = toast.loading(loadingMessage)
+    setBusyActions((current) => ({ ...current, [key]: true }))
+    try {
+      await action()
+      toast.dismiss(toastId)
+    } catch (error) {
+      toast.error(safeErrorMessage(error, d.failedToLoad), { id: toastId })
+    } finally {
+      setBusyActions((current) => {
+        const next = { ...current }
+        delete next[key]
+        return next
+      })
+    }
+  }
 
   async function loadUsers(cursor: string | null, append: boolean) {
     setUsersLoading(true)
@@ -303,34 +324,38 @@ export function AdminClient() {
     adminPermissions.find((item) => item.id === selectedAdminPermissionId) ?? null
 
   async function approve(id: string) {
-    await apiPost(`/api/admin/registrations/${id}/approve`, {})
-    toast.success(d.approved)
-    setRefreshKey((key) => key + 1)
+    await runAdminAction(`approve:${id}`, "Approving registration...", async () => {
+      await apiPost(`/api/admin/registrations/${id}/approve`, {})
+      toast.success(d.approved)
+      setRefreshKey((key) => key + 1)
+    })
   }
 
   async function approvePassword(id: string) {
-    await apiPost(`/api/admin/password-requests/${id}/approve`, {})
-    toast.success("Password change approved")
-    setRefreshKey((key) => key + 1)
+    await runAdminAction(`approve-password:${id}`, "Approving password change...", async () => {
+      await apiPost(`/api/admin/password-requests/${id}/approve`, {})
+      toast.success("Password change approved")
+      setRefreshKey((key) => key + 1)
+    })
   }
 
   async function updateRole(id: string, role: string) {
-    await apiPatch(`/api/admin/users/${id}/role`, { role })
-    toast.success(d.roleUpdated)
-    setRefreshKey((key) => key + 1)
+    await runAdminAction(`role:${id}`, "Updating role...", async () => {
+      await apiPatch(`/api/admin/users/${id}/role`, { role })
+      toast.success(d.roleUpdated)
+      setRefreshKey((key) => key + 1)
+    })
   }
 
   async function transferOwner(user: UserItem) {
-    if (!confirm(`Transfer ownership to ${user.email}? You will remain an admin with full admin permissions.`)) {
+    if (!confirmAction(`Transfer ownership to ${user.email}? You will remain an admin with full admin permissions.`)) {
       return
     }
-    try {
+    await runAdminAction(`transfer-owner:${user.id}`, "Transferring ownership...", async () => {
       await apiPost(`/api/admin/users/${user.id}/transfer-owner`, {})
       toast.success(d.ownershipTransferred)
       setRefreshKey((key) => key + 1)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to transfer ownership")
-    }
+    })
   }
 
   async function updateAdminPermission(admin: AdminPermissionItem, key: AdminPermissionKey, value: boolean) {
@@ -349,14 +374,12 @@ export function AdminClient() {
   }
 
   async function deleteUser(user: UserItem) {
-    if (!confirm(`Delete ${user.email}? Only users inactive for at least 30 days can be deleted.`)) return
-    try {
+    if (!confirmAction(`Delete ${user.email}? Only users inactive for at least 30 days can be deleted. This removes the account and cannot be undone.`)) return
+    await runAdminAction(`delete-user:${user.id}`, "Deleting user...", async () => {
       await apiDelete(`/api/admin/users/${user.id}`)
       toast.success(d.userDeleted)
       setRefreshKey((key) => key + 1)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete user")
-    }
+    })
   }
 
   function getDeleteBlockedReason(user: UserItem, inactiveDays: number | null) {
@@ -370,22 +393,29 @@ export function AdminClient() {
 
   async function saveUpdateLog(item: UpdateLogItem) {
     const customMessage = updateDrafts[item.hash] ?? item.customMessage ?? item.originalMessage
-    await apiPatch(`/api/admin/updates/${item.hash}`, { customMessage, useOriginal: false, hidden: false })
-    toast.success(d.updateLogSaved)
-    setRefreshKey((key) => key + 1)
+    await runAdminAction(`update-log:${item.hash}`, "Saving update log...", async () => {
+      await apiPatch(`/api/admin/updates/${item.hash}`, { customMessage, useOriginal: false, hidden: false })
+      toast.success(d.updateLogSaved)
+      setRefreshKey((key) => key + 1)
+    })
   }
 
   async function resetUpdateLog(item: UpdateLogItem) {
-    await apiPatch(`/api/admin/updates/${item.hash}`, { useOriginal: true, hidden: false })
-    toast.success(d.originalRestored)
-    setRefreshKey((key) => key + 1)
+    if (!confirmAction(`Restore this changelog item to the original commit message?\n${item.originalMessage}`)) return
+    await runAdminAction(`reset-log:${item.hash}`, "Restoring update log...", async () => {
+      await apiPatch(`/api/admin/updates/${item.hash}`, { useOriginal: true, hidden: false })
+      toast.success(d.originalRestored)
+      setRefreshKey((key) => key + 1)
+    })
   }
 
   async function hideUpdateLog(item: UpdateLogItem) {
-    if (!confirm(`Hide this update from the public changelog?\n${item.message}`)) return
-    await apiDelete(`/api/admin/updates/${item.hash}`)
-    toast.success(d.updateHidden)
-    setRefreshKey((key) => key + 1)
+    if (!confirmAction(`Hide this update from the public changelog?\n${item.message}`)) return
+    await runAdminAction(`hide-log:${item.hash}`, "Hiding update log...", async () => {
+      await apiDelete(`/api/admin/updates/${item.hash}`)
+      toast.success(d.updateHidden)
+      setRefreshKey((key) => key + 1)
+    })
   }
 
   async function refreshGeoLocations() {
@@ -421,21 +451,21 @@ export function AdminClient() {
   }
 
   async function deleteAnnouncement(item: AnnouncementItem) {
-    if (!confirm(`Delete this announcement?\n${item.content}`)) return
-    try {
+    if (!confirmAction(`Delete this announcement? It will disappear from the announcement history.\n${item.content}`)) return
+    await runAdminAction(`delete-announcement:${item.id}`, "Deleting announcement...", async () => {
       await apiDelete(`/api/announcements/${item.id}`)
       toast.success(d.announcementDeleted)
       await loadAnnouncements()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete announcement")
-    }
+    })
   }
 
   async function deleteBroadcast(item: BroadcastItem) {
-    if (!confirm(`Delete this broadcast?\n${item.content}`)) return
-    await apiDelete(`/api/world-broadcasts/${item.id}`)
-    toast.success(d.broadcastDeleted)
-    await loadBroadcasts()
+    if (!confirmAction(`Delete this broadcast? It will be removed from the world channel history.\n${item.content}`)) return
+    await runAdminAction(`delete-broadcast:${item.id}`, "Deleting broadcast...", async () => {
+      await apiDelete(`/api/world-broadcasts/${item.id}`)
+      toast.success(d.broadcastDeleted)
+      await loadBroadcasts()
+    })
   }
 
   async function uploadPublicStickers(event: ChangeEvent<HTMLInputElement>) {
@@ -458,9 +488,12 @@ export function AdminClient() {
   }
 
   async function deletePublicSticker(item: StickerItem) {
-    await apiDelete(`/api/admin/stickers/${item.id}`)
-    toast.success(d.stickerDeleted)
-    await loadStickers()
+    if (!confirmAction(`Delete public sticker "${item.name || item.originalName}"? It will no longer be available in the public sticker library.`)) return
+    await runAdminAction(`delete-sticker:${item.id}`, "Deleting sticker...", async () => {
+      await apiDelete(`/api/admin/stickers/${item.id}`)
+      toast.success(d.stickerDeleted)
+      await loadStickers()
+    })
   }
 
   return (
@@ -493,6 +526,8 @@ export function AdminClient() {
       ) : data ? (
         <div className="space-y-8">
           <AdminAIPanel enabled={hasPermission("manageAI")} />
+
+          <AdminAIUsagePanel enabled={hasPermission("manageAI")} />
 
           {data.currentAdmin.role === "owner" ? (
             <section>
@@ -528,6 +563,8 @@ export function AdminClient() {
                     variant="outline"
                     onClick={() => selectedOwnerTransferUser && transferOwner(selectedOwnerTransferUser)}
                     disabled={!selectedOwnerTransferUser}
+                    loading={selectedOwnerTransferUser ? isBusy(`transfer-owner:${selectedOwnerTransferUser.id}`) : false}
+                    loadingText="Transferring..."
                   >
                     {d.transferOwner}
                   </Button>
@@ -579,7 +616,7 @@ export function AdminClient() {
                         <p className="break-all font-mono text-xs text-[--color-text-muted]">{request.email}</p>
                       </div>
                       <span className="text-xs text-[--color-text-muted]">{formatTime(request.createdAt, dict)}</span>
-                      <Button size="sm" onClick={() => approve(request.id)}>
+                      <Button size="sm" onClick={() => approve(request.id)} loading={isBusy(`approve:${request.id}`)} loadingText={d.approve}>
                         {d.approve}
                       </Button>
                     </div>
@@ -606,7 +643,7 @@ export function AdminClient() {
                         <p className="break-all font-mono text-xs text-[--color-text-muted]">{request.user.email}</p>
                       </div>
                       <span className="text-xs text-[--color-text-muted]">{formatTime(request.requestedAt, dict)}</span>
-                      <Button size="sm" onClick={() => approvePassword(request.id)}>
+                      <Button size="sm" onClick={() => approvePassword(request.id)} loading={isBusy(`approve-password:${request.id}`)} loadingText={d.approve}>
                         {d.approve}
                       </Button>
                     </div>
@@ -632,8 +669,8 @@ export function AdminClient() {
                 />
                 <div className="mt-3 flex items-center justify-between">
                   <span className="font-mono text-xs text-[--color-text-muted]">{announcementDraft.length}/500</span>
-                  <Button size="sm" onClick={publishAnnouncement} disabled={announcementSaving || !announcementDraft.trim()}>
-                    {announcementSaving ? d.publishing : d.publishAnnouncement}
+                  <Button size="sm" onClick={publishAnnouncement} disabled={!announcementDraft.trim()} loading={announcementSaving} loadingText={d.publishing}>
+                    {d.publishAnnouncement}
                   </Button>
                 </div>
               </div>
@@ -650,7 +687,9 @@ export function AdminClient() {
                         <button
                           type="button"
                           onClick={() => deleteAnnouncement(item)}
-                          className="text-[--color-text-muted] hover:text-[--color-danger]"
+                          disabled={isBusy(`delete-announcement:${item.id}`)}
+                          aria-busy={isBusy(`delete-announcement:${item.id}`) || undefined}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[--color-text-muted] hover:bg-[--color-danger-bg] hover:text-[--color-danger] disabled:opacity-50"
                           title={d.deleteAnnouncement}
                         >
                           <Trash2 size={14} />
@@ -683,7 +722,9 @@ export function AdminClient() {
                         <button
                           type="button"
                           onClick={() => deleteBroadcast(item)}
-                          className="text-[--color-text-muted] hover:text-[--color-danger]"
+                          disabled={isBusy(`delete-broadcast:${item.id}`)}
+                          aria-busy={isBusy(`delete-broadcast:${item.id}`) || undefined}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[--color-text-muted] hover:bg-[--color-danger-bg] hover:text-[--color-danger] disabled:opacity-50"
                           title={d.deleteBroadcast}
                         >
                           <Trash2 size={14} />
@@ -717,7 +758,9 @@ export function AdminClient() {
                       <button
                         type="button"
                         onClick={() => deletePublicSticker(item)}
-                        className="absolute right-1 top-1 hidden rounded bg-white p-1 text-[--color-danger] shadow group-hover:block"
+                        disabled={isBusy(`delete-sticker:${item.id}`)}
+                        aria-busy={isBusy(`delete-sticker:${item.id}`) || undefined}
+                        className="absolute right-1 top-1 hidden h-8 w-8 items-center justify-center rounded-full bg-white text-[--color-danger] shadow transition hover:bg-[--color-danger-bg] disabled:opacity-50 group-hover:flex"
                         title={d.deleteSticker}
                       >
                         <Trash2 size={13} />
@@ -800,13 +843,14 @@ export function AdminClient() {
                                 <td className="w-[170px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
                                   <div className="flex items-center justify-end gap-2">
                                     {canTransferOwner ? (
-                                      <Button size="sm" variant="outline" onClick={() => transferOwner(user)} className="h-8 px-2 text-xs">
+                                      <Button size="sm" variant="outline" onClick={() => transferOwner(user)} loading={isBusy(`transfer-owner:${user.id}`)} loadingText={d.transfer} className="h-8 px-2 text-xs">
                                         {d.transfer}
                                       </Button>
                                     ) : null}
                                     <button
                                       onClick={() => deleteUser(user)}
-                                      disabled={Boolean(deleteBlockedReason)}
+                                      disabled={Boolean(deleteBlockedReason) || isBusy(`delete-user:${user.id}`)}
+                                      aria-busy={isBusy(`delete-user:${user.id}`) || undefined}
                                       className="p-1 text-[--color-text-muted] hover:text-[--color-danger] disabled:cursor-not-allowed disabled:opacity-40"
                                       title={deleteBlockedReason ?? d.deleteUser}
                                     >
@@ -934,13 +978,13 @@ export function AdminClient() {
                         className="min-h-20 w-full rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-primary] p-2 text-sm outline-none focus:border-[--color-text-primary]"
                       />
                       <div className="mt-3 flex flex-wrap justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => saveUpdateLog(item)}>
+                        <Button size="sm" variant="outline" onClick={() => saveUpdateLog(item)} loading={isBusy(`update-log:${item.hash}`)} loadingText={d.saveCustomNote}>
                           <Save size={14} /> {d.saveCustomNote}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => resetUpdateLog(item)}>
+                        <Button size="sm" variant="outline" onClick={() => resetUpdateLog(item)} loading={isBusy(`reset-log:${item.hash}`)} loadingText={d.restoreOriginal}>
                           <RotateCcw size={14} /> {d.restoreOriginal}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => hideUpdateLog(item)} className="text-[--color-danger]">
+                        <Button size="sm" variant="outline" onClick={() => hideUpdateLog(item)} loading={isBusy(`hide-log:${item.hash}`)} loadingText={d.hideEntry} className="text-[--color-danger]">
                           <Trash2 size={14} /> {d.hideEntry}
                         </Button>
                       </div>

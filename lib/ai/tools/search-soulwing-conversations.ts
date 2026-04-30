@@ -1,4 +1,5 @@
 import "server-only"
+import type { Prisma } from "@/app/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import { toolGranted, toolForbidden } from "@/lib/ai/tools/helpers"
 
@@ -329,7 +330,7 @@ export const searchSoulWingConversationsTool = {
     if (resolvedMode === "summary") {
       const maxLimit = normalizeLimit(limit, 5, 20)
 
-      let eventWhere: Record<string, unknown> = {
+      let eventWhere: Prisma.MemoryEventWhereInput = {
         userId,
         deletedAt: null,
         createdAt: { gte: range.since, lte: range.until },
@@ -345,7 +346,7 @@ export const searchSoulWingConversationsTool = {
       }
 
       const events = await prisma.memoryEvent.findMany({
-        where: eventWhere as any,
+        where: eventWhere,
         orderBy: [{ importance: "desc" as const }, { createdAt: "desc" as const }],
         take: maxLimit,
         select: {

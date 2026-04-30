@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Richard Hendriks</title>
+        <style>body {
+    font: 1rem Helvetica, "Times New Roman", Times, sans-serif;
+    line-height: 1.4;
+}
+
+em {
+    color: #999;
+}
+
+p {
+    line-height: 1.4;
+}
+
+ul {
+    margin-bottom: 0;
+}
+
+li {
+    margin-bottom: 2px;
+}
+
+a {
+    text-decoration: none;
+}
+
+#resume {
+    margin: 2rem auto;
+    max-width: 1000px;
+    background: #fff;
+}
+
+.coursesList {
+    width: 28%;
+    vertical-align: top;
+    display: inline-block;
+}
+
+.largeFont {
+    font-size: 1.75rem;
+}
+
+.sectionBlock {
+    display: flex;
+    width: 100%;
+}
+
+.sectionName {
+    width: 18%;
+    vertical-align: top;
+    display: inline-block;
+}
+
+.sectionContent {
+    width: 80%;
+    vertical-align: top;
+    display: inline-block;
+}
+
+.sectionContent ul {
+    padding-left: 20px;
+    margin-top: 6px;
+    list-style-type: circle;
+}
+
+.sectionContent .title {
+    font-weight: bold;
+}
+
+.sectionContent .name {
+    font-style: italic;
+}
+
+.sectionContent .date {
+    float: right;
+}
+
+.sectionLine {
+    border-style: dashed;
+    border-width: 1px;
+    border-color: #CFCFCF;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.divider {
+    font-weight: bold;
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
+.summary {
+    margin-top: 6px;
+}
+
+.skillBlock {
+    margin-bottom: 4px;
+}
+
+.jobBlock {
+    page-break-inside: avoid;
+}
+
+/* PDF styles */
+
+@media print {
+    @page {
+        border: none;
+        size: letter portrait;
+        margin: 20px;
+    }
+
+    body {
+        font-size: 12px;
+    }
+
+    #resume {
+        margin: 0;
+    }
+
+    .largeFont {
+        font-size: 20px;
+    }
+}</style>
+    </head>
+    <body>
+
+        <div id="resume">
+            <div id="nameBlock" class="largeFont">
+                <span class="name">
+                    Richard Hendriks,
+                </span>
+                <span class="label">Programmer</span>
+            </div>
+            <div id="basicsBlock">
+                <span class="email">richard.hendriks@mail.com</span>
+                <span class="divider">|</span>
+                <span class="phone">(912) 555-4321</span>
+                <span class="divider">|</span>
+                <span class="address">
+                    San Francisco, California, US
+                </span>
+                <span class="divider">|</span>
+                <span class="url">
+                    <a href="https://twitter.com/neutralthoughts">Twitter</a>
+                </span>
+                <span class="divider">|</span>
+                <span class="url">
+                    <a href="https://soundcloud.example.com/dandymusicnl">SoundCloud</a>
+                </span>
+            </div>
+            <div class="sectionLine"></div>
+
+            <div id="summaryBlock" class="sectionBlock">
+                <div class="sectionName">
+                    <span>SUMMARY</span>
+                </div>
+                <div class="sectionContent">
+                    <span>Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a &quot;length-limited&quot; conversation!</span>
+                </div>
+            </div>
+            <div class="sectionLine"></div>
+
+            <div id="skills" class="sectionBlock">
+                <div class="sectionName">
+                    <span>SKILLS</span>
+                </div>
+                <div class="sectionContent">
+                    <div class="skillBlock">
+                        <span class="title">
+                            Web Development <em>(Master)</em>:
+                        </span>
+                        <span>HTML</span>, 
+                        <span>CSS</span>, 
+                        <span>Javascript</span>
+                    </div>
+                    <div class="skillBlock">
+                        <span class="title">
+                            Compression <em>(Master)</em>:
+                        </span>
+                        <span>Mpeg</span>, 
+                        <span>MP4</span>, 
+                        <span>GIF</span>
+                    </div>
+                </div>
+            </div>
+            <div class="sectionLine"></div>
+
+            <div id="workBlock" class="sectionBlock">
+                <div class="sectionName">
+                    <span>EXPERIENCE</span>
+                </div>
+                <div class="sectionContent">
+                    <div class="jobBlock">
+                        <div class="blockHeader">
+                            <span class="title">
+                                CEO/President
+                            </span>
+                            <span class="name">
+                                 - Pied Piper
+                            </span>
+                            <span class="date">2013-12-01 - 2014-12-01</span>
+                        </div>
+                        <div></div>
+                        <div>
+                            <a href="https://piedpiper.example.com">https://piedpiper.example.com</a>
+                        </div>
+                        <div class="summary">Pied Piper is a multi-platform technology based on a proprietary universal compression algorithm that has consistently fielded high Weisman Scores™ that are not merely competitive, but approach the theoretical limit of lossless compression.</div>
+                        <ul class="highlights">
+                            <li>Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+                            <li>Successfully won Techcrunch Disrupt</li>
+                            <li>Optimized an algorithm that holds the current world record for Weisman Scores</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="sectionLine"></div>
+
+            <div id="projectBlock" class="sectionBlock">
+                <div class="sectionName">
+                    <span>PROJECTS</span>
+                </div>
+                <div class="sectionContent">
+                    <div class="jobBlock">
+                        <div class="blockHeader">
+                            <span class="title">
+                                <div>
+                                    <a href="https://missdirection.example.com">Miss Direction</a>
+                                </div>
+                            </span>
+                            <span class="date">2016-08-24</span>
+                        </div>
+                        <span>A mapping engine that misguides you</span>
+                        <ul class="highlights">
+                            <li>Won award at AIHacks 2016</li>
+                            <li>Built by all women team of newbie programmers</li>
+                            <li>Using modern technologies such as GoogleMaps, Chrome Extension and Javascript</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="sectionLine"></div>
+
+            <div id="publications">
+                <div class="sectionName">
+                    <span>PUBLICATIONS</span>
+                </div>
+                <div class="sectionContent">
+                    <div class="blockHeader">
+                        <span class="title">
+                            Video compression for 3d media, Hooli
+                        </span>
+                        <span class="date">
+                            <span class="releaseDate">2014-10-01</span>
+                        </span>
+                    </div>
+                    <div class="website">
+                        <a href="https://en.wikipedia.org/wiki/Silicon_Valley_(TV_series)">https://en.wikipedia.org/wiki/Silicon_Valley_(TV_series)</a>
+                    </div>
+                    <span>Innovative middle-out compression algorithm that changes the way we store data.</span>
+                </div>
+            </div>
+            <div class="sectionLine"></div>
+
+            <div id="volunteer" class="sectionBlock">
+                <div class="sectionName">
+                    <span>VOLUNTEERING</span>
+                </div>
+                <div class="sectionContent">
+                    <div class="blockHeader">
+                        <span class="title">CoderDojo
+                            - Teacher</span>
+                        <span class="date">
+                            2012-01-01 - 2013-01-01
+                        </span>
+                        <div class="website">
+                            <a href="https://coderdojo.example.com">https://coderdojo.example.com</a>
+                        </div>
+                        <span>Global movement of free coding clubs for young people.</span>
+                        <ul class="highlights">
+                            <li>Awarded 'Teacher of the Month'</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="sectionLine"></div>
+
+
+            <div id="awards" class="sectionBlock">
+                <div class="sectionName">
+                    <span>AWARDS</span>
+                </div>
+                <div class="sectionContent">
+                    <div class="blockHeader">
+                        <span class="title">
+                            Digital Compression Pioneer Award, Techcrunch
+                        </span>
+                        <span class="date">2014-11-01</span>
+                    </div>
+                    <span>There is no spoon.</span>
+                </div>
+            </div>
+            <div class="sectionLine"></div>
+
+            <div id="education" class="sectionBlock">
+                <div class="sectionName">
+                    <span>EDUCATION</span>
+                </div>
+                <div class="sectionContent">
+                    <div class="educationBlock">
+                        <span class="title">
+                            University of Oklahoma
+                        </span>
+                        <span class="date">
+                            2011-06-01 - 2014-01-01
+                        </span>
+                        <div class="">
+                            Bachelor  - Information Technology
+                        </div>
+                        <div id="coursesBlock">
+                            <ul class="coursesList">
+                                <li class="course">DB1101 - Basic SQL</li>
+                            </ul>
+                            <ul class="coursesList">
+                                <li class="course">CS2011 - Java Introduction</li>
+                            </ul>
+                            <ul class="coursesList">
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="sectionLine"></div>
+
+            <div id="languages" class="sectionBlock">
+                <div class="sectionName">
+                    <span>LANGUAGES</span>
+                </div>
+                <div class="sectionContent">
+                    <span class="language">English</span>
+                    <span class="fluency">
+                        <em>(Native speaker)</em>
+                    </span>
+                    
+                </div>
+                <div class="sectionLine"></div>
+            </div>
+
+            <div id="interests" class="sectionBlock">
+                <div class="sectionName">
+                    <span>INTERESTS</span>
+                </div>
+                <div class="sectionContent">
+                    <span class="name">Wildlife</span>
+                    <span class="keywords">
+                        <em>[
+                            Ferrets
+                            , 
+                            Unicorns
+                            
+                            ]</em></span>
+                    
+                </div>
+                <div class="sectionLine"></div>
+            </div>
+        </div>
+    </body>
+</html>

@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { getDict } from "@/lib/i18n"
+import { confirmAction, copyTextWithToast } from "@/lib/interaction-feedback"
 
 interface UploadItem {
   id: string
@@ -43,6 +44,7 @@ export function ImageManagerDialog({ open, onOpenChange, onInsert }: ImageManage
   const [quota, setQuota] = useState(1)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const totalPages = Math.max(1, Math.ceil(total / 20))
 
   const load = useCallback(async () => {
@@ -68,7 +70,8 @@ export function ImageManagerDialog({ open, onOpenChange, onInsert }: ImageManage
   }, [open, load])
 
   async function handleDelete(item: UploadItem) {
-    if (!confirm(im.confirmDelete(item.originalName))) return
+    if (!confirmAction(`${im.confirmDelete(item.originalName)}\n删除后已插入文章的图片链接可能失效。`)) return
+    setDeletingId(item.id)
     try {
       const res = await fetch(`/api/uploads/${item.id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Delete failed")
@@ -76,6 +79,8 @@ export function ImageManagerDialog({ open, onOpenChange, onInsert }: ImageManage
       load()
     } catch {
       toast.error(im.deleteFailed)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -89,13 +94,11 @@ export function ImageManagerDialog({ open, onOpenChange, onInsert }: ImageManage
   async function handleCopyMarkdown(item: UploadItem) {
     const isImage = item.mimeType.startsWith("image/")
     const md = isImage ? `![${item.originalName}](${item.url})` : `[${item.originalName}](${item.url})`
-    await navigator.clipboard.writeText(md)
-    toast(im.copiedMarkdown)
+    await copyTextWithToast(md, im.copiedMarkdown, "复制失败，请手动复制")
   }
 
   async function handleCopyLink(url: string) {
-    await navigator.clipboard.writeText(url)
-    toast(dict.common.copied)
+    await copyTextWithToast(url, dict.common.copied, "复制失败，请手动复制")
   }
 
   function handleDownload(url: string, name: string) {
@@ -157,7 +160,7 @@ export function ImageManagerDialog({ open, onOpenChange, onInsert }: ImageManage
                   <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => handleDownload(item.url, item.originalName)} title={im.download}>
                     <Download size={14} />
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-8 px-2 text-xs text-[--color-danger]" onClick={() => handleDelete(item)} title={im.delete}>
+                  <Button size="sm" variant="ghost" className="h-8 px-2 text-xs text-[--color-danger]" onClick={() => handleDelete(item)} loading={deletingId === item.id} title={im.delete}>
                     <Trash2 size={14} />
                   </Button>
                 </div>

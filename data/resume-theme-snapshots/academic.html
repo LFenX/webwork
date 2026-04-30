@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Richard Hendriks</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>@page {
+  size: A4;
+  margin: 12mm 14mm;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  font-family: 'EB Garamond', Georgia, 'Palatino Linotype', 'Times New Roman', serif;
+  font-size: 10pt;
+  line-height: 1.32;
+  color: #000;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Browser-only padding (overridden by @page margin in print/PDF) */
+body {
+  padding: 12mm 14mm;
+}
+@media print {
+  body { padding: 0; }
+}
+
+/* ─── Header ─── */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  font-size: 32pt;
+  font-weight: 400;
+  line-height: 1.05;
+  color: #000;
+  letter-spacing: 0.3px;
+}
+
+.label {
+  font-style: italic;
+  font-size: 10.5pt;
+  margin-top: 4px;
+  color: #222;
+  line-height: 1.3;
+}
+
+.contact-info {
+  text-align: right;
+  font-size: 8.5pt;
+  line-height: 1.65;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+.contact-line {
+  white-space: nowrap;
+}
+
+.contact-line i {
+  display: inline-block;
+  width: 11px;
+  text-align: center;
+  margin-left: 5px;
+  font-size: 7.5pt;
+}
+
+.header-rule {
+  border: none;
+  border-top: 0.5px solid #666;
+  margin: 6px 0 3px;
+}
+
+/* ─── Summary ─── */
+
+.summary {
+  font-style: italic;
+  font-size: 9pt;
+  line-height: 1.38;
+  margin-bottom: 2px;
+  text-align: justify;
+}
+
+/* ─── Section Headings ─── */
+
+.section-title {
+  font-variant: small-caps;
+  font-size: 12.5pt;
+  font-weight: 400;
+  letter-spacing: 1.5px;
+  border-bottom: 1.5px solid #C4962C;
+  padding-bottom: 1px;
+  margin-top: 8px;
+  margin-bottom: 5px;
+  color: #000;
+  page-break-after: avoid;
+}
+
+/* ─── Bullet Items (shared) ─── */
+
+.bullet-item {
+  position: relative;
+  padding-left: 14px;
+  margin-bottom: 2px;
+}
+
+.bullet-item::before {
+  content: '\25CB';
+  position: absolute;
+  left: 0;
+  font-size: 7pt;
+  top: 2.5px;
+}
+
+/* ─── Skills ─── */
+
+.skill-name {
+  font-weight: 700;
+}
+
+/* ─── Work Experience ─── */
+
+.work-entry {
+  margin-bottom: 7px;
+  page-break-inside: avoid;
+}
+
+.work-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.work-title {
+  font-weight: 700;
+  font-size: 10pt;
+}
+
+.work-duration {
+  font-size: 9.5pt;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.work-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.work-tech {
+  font-style: italic;
+  font-size: 9.5pt;
+}
+
+.work-client {
+  font-style: italic;
+  font-size: 9.5pt;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.work-summary {
+  margin: 2px 0 0;
+  font-style: italic;
+  font-size: 9.5pt;
+  color: #333;
+}
+
+.work-highlights {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 3px;
+}
+
+.work-highlights li {
+  position: relative;
+  padding-left: 14px;
+  margin-bottom: 3px;
+  text-align: justify;
+}
+
+.work-highlights li::before {
+  content: '\25CB';
+  position: absolute;
+  left: 0;
+  font-size: 7pt;
+  top: 2.5px;
+}
+
+/* ─── Education ─── */
+
+.edu-entry {
+  margin-bottom: 5px;
+  page-break-inside: avoid;
+}
+
+.edu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.edu-degree {
+  font-weight: 700;
+  font-size: 10pt;
+}
+
+.edu-year {
+  font-size: 10pt;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.edu-institution {
+  font-size: 9.5pt;
+}
+
+.edu-courses {
+  font-size: 9.5pt;
+}
+
+/* ─── Projects ─── */
+
+.project-name {
+  font-weight: 700;
+}
+
+/* ─── Volunteer ─── */
+
+.volunteer-item {
+  text-align: justify;
+  margin-bottom: 4px;
+}
+
+.vol-title {
+  font-weight: 700;
+}
+
+/* ─── Additional ─── */
+
+.additional-line {
+  margin-bottom: 1px;
+}
+
+.additional-label {
+  font-weight: 700;
+  font-style: italic;
+}
+
+/* ─── Print ─── */
+
+@media print {
+  .work-entry { page-break-inside: avoid; }
+  .edu-entry  { page-break-inside: avoid; }
+  .section-title { page-break-after: avoid; }
+}
+</style>
+</head>
+<body>
+  <div class="resume">
+    
+    <header class="header">
+      <div class="header-left">
+        <h1 class="name">Richard Hendriks</h1>
+        <div class="label">Programmer</div>
+      </div>
+      <div class="contact-info">
+        <div class="contact-line">San Francisco, California <i class="fa-solid fa-location-dot"></i></div>
+        <div class="contact-line">(912) 555-4321 <i class="fa-solid fa-square-phone"></i></div>
+        <div class="contact-line">richard.hendriks@mail.com <i class="fa-solid fa-envelope"></i></div>
+        <div class="contact-line">richardhendricks.example.com <i class="fa-solid fa-globe"></i></div>
+        <div class="contact-line">neutralthoughts <i class="fa-brands fa-x-twitter"></i></div>
+        <div class="contact-line">dandymusicnl <i class="fa-solid fa-link"></i></div>
+      </div>
+    </header>
+    <hr class="header-rule" />
+    
+    <h2 class="section-title">Summary</h2>
+    <div class="summary">Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a &quot;length-limited&quot; conversation!</div>
+    
+    <h2 class="section-title">Core Skills</h2>
+    <div class="section-body">
+      
+      <div class="bullet-item">
+        <span class="skill-name">Web Development:</span> HTML, CSS, Javascript
+      </div>
+      <div class="bullet-item">
+        <span class="skill-name">Compression:</span> Mpeg, MP4, GIF
+      </div>
+    </div>
+    
+    <h2 class="section-title">Experience</h2>
+    <div class="section-body">
+      
+    <div class="work-entry">
+      <div class="work-header">
+        <div class="work-title">Pied Piper - CEO/President</div>
+        <div class="work-duration">Duration: December 2013 to December 2014</div>
+      </div>
+      
+      <p class="work-summary">Pied Piper is a multi-platform technology based on a proprietary universal compression algorithm that has consistently fielded high Weisman Scores™ that are not merely competitive, but approach the theoretical limit of lossless compression.</p>
+      
+      <ul class="work-highlights">
+        <li>Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+        <li>Successfully won Techcrunch Disrupt</li>
+        <li>Optimized an algorithm that holds the current world record for Weisman Scores</li>
+      </ul>
+    </div>
+    </div>
+    
+    <h2 class="section-title">Selected Projects</h2>
+    <div class="section-body">
+      
+      <div class="bullet-item">
+        <span class="project-name">Miss Direction:</span> A mapping engine that misguides you
+      </div>
+    </div>
+    
+    <h2 class="section-title">Education</h2>
+    <div class="section-body">
+      
+    <div class="edu-entry">
+      <div class="edu-header">
+        <div class="edu-degree">Bachelor Information Technology</div>
+        <div class="edu-year">January 2014</div>
+      </div>
+      <div class="edu-institution">University of Oklahoma | 4.0</div>
+      <div class="edu-courses">Coursework: DB1101 - Basic SQL, CS2011 - Java Introduction</div>
+    </div>
+    </div>
+    
+    <h2 class="section-title">Leadership &amp; Volunteering</h2>
+    <div class="section-body">
+      
+      <div class="bullet-item volunteer-item">
+        <span class="vol-title">Teacher – CoderDojo (2012-01-01–2013-01-01):</span> Global movement of free coding clubs for young people.
+      </div>
+    </div>
+    
+    
+    <h2 class="section-title">Additional</h2>
+    <div class="section-body">
+      <div class="additional-line"><span class="additional-label">Wildlife:</span> Ferrets, Unicorns</div>
+      <div class="additional-line"><span class="additional-label">Languages:</span> English (Native speaker)</div>
+      <div class="additional-line"><span class="additional-label">Referees:</span> Available on request</div>
+    </div>
+  </div>
+</body>
+</html>

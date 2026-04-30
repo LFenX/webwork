@@ -73,6 +73,8 @@ model User {
   aiAccessRequests AIAccessRequest[]
   aiUsageGrant     AIUsageGrant?
   aiToolCallLogs   AIToolCallLog[]
+  aiWebSearchToolLogs AIWebSearchToolLog[]
+  aiUsageLogs      AIUsageLog[]
   aiAuditLogsOwned AIAuditLog[] @relation("aiAuditActor")
   reviewedAiAccessRequests AIAccessRequest[] @relation("aiAccessReviewer")
   grantedAiUsageGrants     AIUsageGrant[]   @relation("aiGrantCreator")
@@ -87,6 +89,101 @@ model User {
   websiteResources         WebsiteResource[]
   websiteFolders           WebsiteFolder[]
   websiteVisits            WebsiteVisitLog[]
+}
+
+model SoulWingRoundtableSettings {
+  id             String   @id @default("default")
+  enabled        Boolean  @default(true)
+  morningEnabled Boolean  @default(true)
+  eveningEnabled Boolean  @default(true)
+  morningTime    String   @default("07:00")
+  eveningTime    String   @default("21:00")
+  timezone       String   @default("Asia/Shanghai")
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model SoulWingRoundtableDay {
+  id                 String   @id @default(cuid())
+  dateKey            String   @unique
+  morningTitle       String
+  morningDescription String   @default("")
+  eveningTitle       String
+  eveningDescription String   @default("")
+  dutyUserId         String?
+  materialCard       Json?
+  announcement       String   @default("")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([dateKey])
+  @@index([dutyUserId])
+}
+
+model SoulWingRoundtableDiscussion {
+  id               String    @id @default(cuid())
+  dateKey          String
+  slot             String
+  topicTitle       String
+  topicDescription String    @default("")
+  topicType        String    @default("custom")
+  materialCard     Json?
+  status           String    @default("pending")
+  source           String    @default("auto")
+  initiatedById    String?
+  dutyUserId       String?
+  summary          Json?
+  errorMessage     String    @default("")
+  scheduledAt      DateTime?
+  plannedTurns     Int       @default(0)
+  completedTurns   Int       @default(0)
+  styleConfig      Json?
+  lastMessageAt    DateTime?
+  startedAt        DateTime?
+  endedAt          DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  messages         SoulWingRoundtableMessage[]
+
+  @@index([dateKey, slot])
+  @@index([status, createdAt])
+  @@index([dutyUserId])
+  @@index([deletedAt, createdAt])
+}
+
+model SoulWingRoundtableMessage {
+  id             String   @id @default(cuid())
+  discussionId   String
+  discussion     SoulWingRoundtableDiscussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  authorUserId   String?
+  authorName     String
+  authorAvatarUrl String?
+  kind           String   @default("agent")
+  round          Int      @default(0)
+  text           String
+  userProvided   Boolean  @default(false)
+  metadata       Json?
+  deletedAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([discussionId, createdAt])
+  @@index([authorUserId, createdAt])
+  @@index([deletedAt, createdAt])
+}
+
+model SoulWingRoundtableParticipant {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  enabled       Boolean  @default(true)
+  adminPaused   Boolean  @default(false)
+  pausedById    String?
+  pauseReason   String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([enabled, adminPaused])
 }
 
 model UserActivity {
@@ -573,6 +670,8 @@ model Comment {
   stickerId   String?
   sticker     StickerAsset? @relation("commentSticker", fields: [stickerId], references: [id], onDelete: SetNull)
   stickerEmoji String?
+  ipAddress String @default("")
+  geoLocation String @default("")
   createdAt DateTime @default(now())
 
   @@index([postId, createdAt])
@@ -588,6 +687,50 @@ model Resume {
   content   String   @default("")
   pdfPath   String?
   updatedAt DateTime @updatedAt
+
+  resumeJson          Json?
+  selectedTheme       String?
+  lastExportedPdfPath String?
+  lastExportedAt      DateTime?
+
+  renderedHtml       String?
+  lastBuiltAt        DateTime?
+  lastBuiltTheme     String?
+  resumeLocale       String?
+  resumeAppearance   String?
+  resumeConfig       Json?
+  lastBuiltConfigHash String?
+}
+
+model ResumeTemplateConfig {
+  slug              String   @id
+  pkg               String
+  enabled           Boolean  @default(true)
+  category          String   @default("en")
+  sortOrder         Int      @default(1000)
+  displayName       String?
+  description       String?
+  defaultLocale     String?
+  defaultAppearance String?
+  defaultConfig     Json?
+  updatedById       String?
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
+
+  @@index([category, sortOrder])
+  @@index([enabled])
+}
+
+model ResumeTemplateAuditLog {
+  id        String   @id @default(cuid())
+  slug      String
+  actorId   String
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([slug, createdAt])
 }
 
 model ResumeVersion {
@@ -629,6 +772,8 @@ model AgentProfile {
   rulesContent      String   @default("")
   rulesVersion      Int      @default(1)
 
+  avatarUrl         String?
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
@@ -646,6 +791,8 @@ model GuestbookMessage {
   stickerId   String?
   sticker     StickerAsset? @relation("guestbookSticker", fields: [stickerId], references: [id], onDelete: SetNull)
   stickerEmoji String?
+  ipAddress String @default("")
+  geoLocation String @default("")
   createdAt DateTime @default(now())
 
   @@index([ownerId, createdAt])
@@ -682,6 +829,7 @@ model AIConversation {
   messages      AIMessage[]
   toolCallLogs  AIToolCallLog[]
   runs          AIRun[]
+  usageLogs     AIUsageLog[]
 
   @@index([userId, updatedAt])
   @@index([userId, deletedAt, lastMessageAt])
@@ -753,6 +901,25 @@ model AIUserProviderConfig {
   @@index([userId])
 }
 
+model AIWebSearchConfig {
+  id              String   @id @default(cuid())
+  ownerType       String
+  ownerId         String
+  provider        String   @default("aliyun")
+  enabled         Boolean  @default(false)
+  apiKeyEncrypted String   @default("")
+  apiKeyMask      String   @default("")
+  host            String   @default("")
+  workspace       String   @default("default")
+  serviceId       String   @default("ops-web-search-001")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([ownerType, ownerId])
+  @@index([ownerType, ownerId])
+  @@index([enabled, updatedAt])
+}
+
 model AIAccessRequest {
   id           String   @id @default(cuid())
   userId       String
@@ -783,6 +950,7 @@ model AIUsageGrant {
   temperature     Float    @default(0.7)
   streamEnabled   Boolean  @default(true)
   modelList       String   @default("[]")
+  webSearchEnabled Boolean @default(false)
   grantedById     String
   grantedBy       User     @relation("aiGrantCreator", fields: [grantedById], references: [id], onDelete: Restrict)
   updatedById     String?
@@ -794,6 +962,25 @@ model AIUsageGrant {
   @@index([status, updatedAt])
   @@index([grantedById, createdAt])
   @@index([updatedById, updatedAt])
+}
+
+model AIWebSearchToolLog {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toolName         String
+  query            String
+  provider         String   @default("aliyun-opensearch")
+  credentialSource String
+  credentialOwnerId String  @default("")
+  resultCount      Int      @default(0)
+  status           String
+  errorMessage     String   @default("")
+  createdAt        DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([credentialSource, credentialOwnerId, createdAt])
+  @@index([toolName, createdAt])
 }
 
 model AIToolCallLog {
@@ -836,6 +1023,7 @@ model AIRun {
   updatedAt         DateTime    @updatedAt
   finishedAt        DateTime?
   steps             AIRunStep[]
+  usageLogs         AIUsageLog[]
 
   @@index([conversationId, createdAt])
   @@index([userId, createdAt])
@@ -879,6 +1067,41 @@ model AIAuditLog {
   @@index([actorId, createdAt])
   @@index([targetUserId, createdAt])
   @@index([action, createdAt])
+}
+
+model AIUsageLog {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId    String?
+  conversation      AIConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  runId             String?
+  run               AIRun?          @relation(fields: [runId], references: [id], onDelete: SetNull)
+  messageId         String?
+  callType          String          @default("chat")
+  providerLabel     String          @default("")
+  providerType      String          @default("")
+  baseUrl           String          @default("")
+  model             String          @default("")
+  configSource      String          @default("unknown")
+  status            String          @default("success")
+  errorMessage      String          @default("")
+  inputTokens       Int             @default(0)
+  outputTokens      Int             @default(0)
+  totalTokens       Int             @default(0)
+  cachedInputTokens Int             @default(0)
+  reasoningTokens   Int             @default(0)
+  toolCallCount     Int             @default(0)
+  latencyMs         Int             @default(0)
+  hasRealUsage      Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+
+  @@index([userId, createdAt])
+  @@index([model, createdAt])
+  @@index([providerLabel, createdAt])
+  @@index([configSource, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([runId])
 }
 
 model MemorySettings {

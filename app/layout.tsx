@@ -8,6 +8,7 @@ import { ServiceWorkerCleanup } from "@/components/service-worker-cleanup"
 import { VisualViewportVars } from "@/components/visual-viewport-vars"
 import { SessionHeartbeat } from "@/components/session-heartbeat"
 import { RealtimeNotifications } from "@/components/realtime-notifications"
+import { RecentActivityReadTracker } from "@/components/recent-activity-read-tracker"
 import { getUserAdminInfo, normalizeUserRole } from "@/lib/admin"
 import { getCreatorProfile } from "@/lib/profile"
 import { getDictionary } from "@/lib/i18n"
@@ -86,6 +87,7 @@ export default async function RootLayout({
         <Toaster position="bottom-right" />
         {session && <SessionHeartbeat />}
         {session && <RealtimeNotifications userId={session.userId} />}
+        {session && <RecentActivityReadTracker userId={session.userId} />}
         <ServiceWorkerCleanup />
         <VisualViewportVars />
       </body>

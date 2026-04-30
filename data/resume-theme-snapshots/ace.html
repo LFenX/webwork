@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en-us">
+<head>
+      <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+      <meta charset="utf-8">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>          Richard Hendriks - Programmer
+</title>
+      <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootswatch/3.3.7/yeti/bootstrap.min.css" />
+      <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" />
+      <style type="text/css">body {
+  padding-top: 478px;
+}
+main section {
+  margin: 10px 0 0 0;
+}
+.navbar h2, .navbar h4 {
+  color: #fff;
+}
+#profile-pic {
+  padding: 0 20px 0 0;
+}
+#profile-pic img {
+  width: 100px;
+  height: 100px;
+}
+i.basics-profile-link:before {
+  padding-right: 4px;
+}
+.date {
+  margin-top: 10.5px;
+  margin-left: 10.5px;
+}
+.card {
+  border: 1px solid #e6e6e6;
+  border-radius: 3px;
+  padding: 10px 0;
+}
+.card-nested {
+  border-width: 1px 0 0 0;
+}
+.keyword {
+  margin: 0 2px;
+  font-size: 100%;
+}
+.list-name {
+  margin: 0;
+}
+
+/* Bootstrap overrides */
+.fa-border {
+  border-radius: 1em;
+}
+body {
+  font-size: 14px;
+}
+hr {
+  margin-top: 18px;
+  margin-bottom: 18px;
+}
+h4,.h4,h5,.h5,h6,.h6 {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+h2,.h2 {
+  font-size: 28px;
+}
+h4,.h4 {
+  font-size: 18px;
+}
+ul,ol {
+  margin-top: 2px;
+  margin-bottom: 8px;
+}
+.navbar {
+  font-size: 16px;
+}
+
+/* Media queries */
+@media only screen and (min-width: 162px) {
+  body {
+    padding-top: 458px;
+  }
+}
+@media only screen and (min-width: 188px) {
+  body {
+    padding-top: 450px;
+  }
+}
+@media only screen and (min-width: 249px) {
+  body {
+    padding-top: 414px;
+  }
+}
+@media only screen and (min-width: 263px) {
+  body {
+    padding-top: 370px;
+  }
+}
+
+/* Custom, iPhone Retina */
+@media only screen and (min-width : 320px) {
+  body {
+  }
+}
+
+@media only screen and (min-width : 370px) {
+  body {
+    padding-top: 338px;
+  }
+}
+/* Extra Small Devices, Phones */
+@media only screen and (min-width : 480px) {
+}
+
+/* Small Devices, Tablets */
+@media only screen and (min-width : 768px) {
+  body {
+    padding-top: 146px;
+  }
+}
+
+/* Medium Devices, Desktops */
+@media only screen and (min-width : 992px) {
+
+}
+
+/* Large Devices, Wide Screens */
+@media only screen and (min-width : 1200px) {
+
+}
+
+@media print {
+  a[href]:after {
+    content: none !important;
+  }
+  body {
+    padding-top: 80px;
+    color: #222222 !important;
+  }
+  blockquote {
+    border-left: 5px solid #dddddd;
+    border-left-width: 1px;
+    color: #6f6f6f;
+    border-top-width: 0 !important;
+    border-right-width: 0 !important;
+    border-bottom-width: 0 !important;
+  }
+  #basics-name {
+    margin-top: 0;
+  }
+  .container {
+    width: auto;
+  }
+  .navbar {
+    display: block;
+    border-width: 0 !important;
+  }
+  .navbar-toggle {
+    display: none;
+  }
+  .navbar-inverse {
+    background-color: #008cba;
+    border-color: #006687;
+  }
+  .navbar-fixed-top {
+    position: absolute !important;
+    top: 0;
+  }
+  .label {
+    border: 1px solid #008cba !important;
+   }
+  .label-primary {
+    background-color: #008cba !important;
+    color: #fff !important;
+  }
+  .text-primary {
+    color: #008cba !important;
+  }
+  .text-success {
+    color: #43ac6a !important;
+  }
+  .text-muted {
+    color: #999999 !important;
+  }
+}
+</style>
+</head>
+<body>
+<nav id="navbar" class="navbar navbar-inverse navbar-fixed-top" role = "navigation">
+    <div class="container-fluid">
+              <div id="profile-pic" class="pull-left hidden-print">
+            <img data-src="holder.js/100x100" alt="Richard Hendriks" src="//www.gravatar.com/avatar/9acdb04e603c1cac2b893190f6dd5911?s&#x3D;100&amp;r&#x3D;pg&amp;d&#x3D;mm" class="media-object img-circle">
+        </div>
+            <h2 id="basics-name">Richard Hendriks</h2>
+            <h4 id="basics-label">Programmer</h4>
+        <div class="clearfix"></div>
+        <ul id="basics-profiles" class="nav navbar-nav hidden-print">
+              <li class="basics-profile">
+                  <a href="https://twitter.com/neutralthoughts" rel="tooltip" title="neutralthoughts on Twitter">
+                      <i class="fa fa-twitter fa-2x"></i>
+                  </a>
+              </li>
+              <li class="basics-profile">
+                  <a href="https://soundcloud.example.com/dandymusicnl" rel="tooltip" title="dandymusicnl on SoundCloud">
+                      <i class="fa fa-soundcloud fa-2x"></i>
+                  </a>
+              </li>
+        </ul>
+    <ul class="nav navbar-nav navbar-right hidden-print">
+          <li id="basics-email"><a href="mailto:richard.hendriks@mail.com"><i class="fa fa-envelope basics-profile-link">richard.hendriks@mail.com</i></a></li>
+          <li id="basics-location">
+              <a href="#">
+                  <i class="fa fa-map-marker">
+                          San Francisco, California, US
+                  </i>
+              </a>
+          </li>
+          <li id="basics-phone"><a href="#">(912) 555-4321</a></li>
+    </ul>
+
+    </div><!-- /.container-fluid -->
+</nav>
+<main id="sections" class="container" role="main">
+      <section id="section-summary">
+              <article>
+          <div class="row">
+              <div class="col-xs-1 hidden-print">
+                  <i class="fa fa-user fa-2x fa-border fa-pull-left"></i>
+              </div>
+              <div class="col-xs-11 hidden-print">
+                  <header id="header-summary">
+                      <h4 class="title text-uppercase clearfix">Summary</h4>
+                  </header>
+                  <p class="summary">Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a &quot;length-limited&quot; conversation!</p>
+              </div>
+              <div class="col-xs-12 visible-print">
+                  <header id="header-summary">
+                      <h4 class="title text-uppercase clearfix">Summary</h4>
+                  </header>
+                  <p class="summary">Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a &quot;length-limited&quot; conversation!</p>
+              </div>
+          </div>
+      </article>
+
+      </section><!-- /#section-summary -->
+      <hr class="separator" />
+      <section id="section-experience">
+              <article>
+          <div class="row">
+              <div class="col-xs-1 hidden-print">
+                  <i class="fa fa-building fa-2x fa-border fa-pull-left"></i>
+              </div>
+              <div class="col-xs-11 hidden-print">
+                  <header id="header-skills">
+                      <h4 class="title text-uppercase clearfix">Experience</h4>
+                  </header>
+                    <ul id="experiences" class="list-unstyled">
+                          <li class="experiences-experience card card-nested">
+                                <h4 class="experience-company text-primary pull-left"></h4>
+                              <time class="date pull-left text-muted">
+                                December, 2013 - December, 2014
+                              </time>
+                              <time class="date pull-left text-muted">
+                                  <i class="fa fa-clock-o fa-border fa-pull-left"></i>
+                                1 year
+                              </time>
+                              <div class="clearfix"></div>
+                                <h5 class="experience-position list-name text-success">CEO/President</h5>
+                                <div class="experience-summary">
+                                    <p>Pied Piper is a multi-platform technology based on a proprietary universal compression algorithm that has consistently fielded high Weisman Scores™ that are not merely competitive, but approach the theoretical limit of lossless compression.</p>
+                                </div>
+                                <ul class="experience-highlights">
+                                      <li class="experience-highlight">Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+                                      <li class="experience-highlight">Successfully won Techcrunch Disrupt</li>
+                                      <li class="experience-highlight">Optimized an algorithm that holds the current world record for Weisman Scores</li>
+                                </ul>
+                          </li>
+                    </ul>
+              </div>
+              <div class="col-xs-12 visible-print">
+                  <header id="header-skills">
+                      <h4 class="title text-uppercase clearfix">Experience</h4>
+                  </header>
+                    <ul id="experiences" class="list-unstyled">
+                          <li class="experiences-experience card card-nested">
+                                <h4 class="experience-company text-primary pull-left"></h4>
+                              <time class="date pull-left text-muted">
+                                December, 2013 - December, 2014
+                              </time>
+                              <time class="date pull-left text-muted">
+                                  <i class="fa fa-clock-o fa-border fa-pull-left"></i>
+                                1 year
+                              </time>
+                              <div class="clearfix"></div>
+                                <h5 class="experience-position list-name text-success">CEO/President</h5>
+                                <div class="experience-summary">
+                                    <p>Pied Piper is a multi-platform technology based on a proprietary universal compression algorithm that has consistently fielded high Weisman Scores™ that are not merely competitive, but approach the theoretical limit of lossless compression.</p>
+                                </div>
+                                <ul class="experience-highlights">
+                                      <li class="experience-highlight">Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+                                      <li class="experience-highlight">Successfully won Techcrunch Disrupt</li>
+                                      <li class="experience-highlight">Optimized an algorithm that holds the current world record for Weisman Scores</li>
+                                </ul>
+                          </li>
+                    </ul>
+              </div>
+          </div>
+      </article>
+
+      </section><!-- /#section-experience -->
+      <section id="section-skills">
+              <article>
+          <div class="row">
+              <div class="col-xs-1 hidden-print">
+                  <i class="fa fa-cog fa-2x fa-border fa-pull-left"></i>
+              </div>
+              <div class="col-xs-11 hidden-print">
+                  <header id="header-skills">
+                      <h4 class="title text-uppercase clearfix">Skills</h4>
+                  </header>
+                    <ul id="skills" class="list-unstyled">
+                          <li class="skills-skill card card-nested">
+                                <h4 id="skills-name">Web Development</h4>
+                                <ul class="keywords list-inline">
+                                      <li class="label label-primary keyword">HTML</li>
+                                      <li class="label label-primary keyword">CSS</li>
+                                      <li class="label label-primary keyword">Javascript</li>
+                                </ul>
+                                <div class="clearfix"></div>
+                          </li>
+                          <li class="skills-skill card card-nested">
+                                <h4 id="skills-name">Compression</h4>
+                                <ul class="keywords list-inline">
+                                      <li class="label label-primary keyword">Mpeg</li>
+                                      <li class="label label-primary keyword">MP4</li>
+                                      <li class="label label-primary keyword">GIF</li>
+                                </ul>
+                                <div class="clearfix"></div>
+                          </li>
+                    </ul>
+              </div>
+              <div class="col-xs-12 visible-print">
+                  <header id="header-skills">
+                      <h4 class="title text-uppercase clearfix">Skills</h4>
+                  </header>
+                    <ul id="skills" class="list-unstyled">
+                          <li class="skills-skill card card-nested">
+                                <h4 id="skills-name">Web Development</h4>
+                                <ul class="keywords list-inline">
+                                      <li class="label label-primary keyword">HTML</li>
+                                      <li class="label label-primary keyword">CSS</li>
+                                      <li class="label label-primary keyword">Javascript</li>
+                                </ul>
+                                <div class="clearfix"></div>
+                          </li>
+                          <li class="skills-skill card card-nested">
+                                <h4 id="skills-name">Compression</h4>
+                                <ul class="keywords list-inline">
+                                      <li class="label label-primary keyword">Mpeg</li>
+                                      <li class="label label-primary keyword">MP4</li>
+                                      <li class="label label-primary keyword">GIF</li>
+                                </ul>
+                                <div class="clearfix"></div>
+                          </li>
+                    </ul>
+              </div>
+          </div>
+      </article>
+
+      </section><!-- /#section-skills -->
+      <section id="section-education">
+              <article>
+          <div class="row">
+              <div class="col-xs-1 hidden-print">
+                  <i class="fa fa-book fa-2x fa-border fa-pull-left"></i>
+              </div>
+              <div class="col-xs-11 hidden-print">
+                  <header id="header-education">
+                      <h4 class="title text-uppercase clearfix">Education</h4>
+                  </header>
+                    <ul id="education" class="list-unstyled">
+                          <li class="education-education card card-nested">
+                                <h4 class="area pull-left">Information Technology Bachelor</h4>
+                              <time class="date pull-left text-muted">
+                                June, 2011 - January, 2014
+                              </time>
+                              <time class="date pull-left text-muted">
+                                  <i class="fa fa-clock-o fa-border fa-pull-left"></i>
+                                2 years, 7 months
+                              </time>
+                              <div class="clearfix"></div>
+                                <h5 class="education-institution list-name text-success">University of Oklahoma</h5>
+                                <ul class="education-courses">
+                                      <li class="education-course">DB1101 - Basic SQL</li>
+                                      <li class="education-course">CS2011 - Java Introduction</li>
+                                </ul>
+                          </li>
+                    </ul>
+              </div>
+              <div class="col-xs-12 visible-print">
+                  <header id="header-education">
+                      <h4 class="title text-uppercase clearfix">Education</h4>
+                  </header>
+                    <ul id="education" class="list-unstyled">
+                          <li class="education-education card card-nested">
+                                <h4 class="area pull-left">Information Technology Bachelor</h4>
+                              <time class="date pull-left text-muted">
+                                June, 2011 - January, 2014
+                              </time>
+                              <time class="date pull-left text-muted">
+                                  <i class="fa fa-clock-o fa-border fa-pull-left"></i>
+                                2 years, 7 months
+                              </time>
+                              <div class="clearfix"></div>
+                                <h5 class="education-institution list-name text-success">University of Oklahoma</h5>
+                                <ul class="education-courses">
+                                      <li class="education-course">DB1101 - Basic SQL</li>
+                                      <li class="education-course">CS2011 - Java Introduction</li>
+                                </ul>
+                          </li>
+                    </ul>
+              </div>
+          </div>
+      </article>
+
+      </section><!-- /#section-education -->
+      <section id="section-awards">
+              <article>
+          <div class="row">
+              <div class="col-xs-1 hidden-print">
+                  <i class="fa fa-trophy fa-2x fa-border fa-pull-left"></i>
+              </div>
+              <div class="col-xs-11 hidden-print">
+                  <header id="header-awards">
+                      <h4 class="title text-uppercase clearfix">Awards</h4>
+                  </header>
+                    <ul id="awards" class="list-unstyled">
+                          <li class="awards-award card card-nested">
+                                <h4 class="awards-title pull-left">Digital Compression Pioneer Award</h4>
+                                <time class="date pull-left text-muted">
+                                    <time class="awards-date" datetime="2014-11-01">Awarded on: November 1, 2014</time>
+                                </time>
+                                <div class="clearfix"></div>
+                                <h5 class="awards-awarder list-name text-success">Techcrunch</h5>
+                                <div class="awards-summary">
+                                    <p>There is no spoon.</p>
+                                </div>
+                          </li>
+                    </ul>
+              </div>
+              <div class="col-xs-12 visible-print">
+                  <header id="header-awards">
+                      <h4 class="title text-uppercase clearfix">Awards</h4>
+                  </header>
+                    <ul id="awards" class="list-unstyled">
+                          <li class="awards-award card card-nested">
+                                <h4 class="awards-title pull-left">Digital Compression Pioneer Award</h4>
+                                <time class="date pull-left text-muted">
+                                    <time class="awards-date" datetime="2014-11-01">Awarded on: November 1, 2014</time>
+                                </time>
+                                <div class="clearfix"></div>
+                                <h5 class="awards-awarder list-name text-success">Techcrunch</h5>
+                                <div class="awards-summary">
+                                    <p>There is no spoon.</p>
+                                </div>
+                          </li>
+                    </ul>
+              </div>
+          </div>
+      </article>
+
+      </section><!-- /#section-awards -->
+      <section id="section-volunteer">
+              <article>
+          <div class="row">
+              <div class="col-xs-1 hidden-print">
+                  <i class="fa fa-users fa-2x fa-border fa-pull-left"></i>
+              </div>
+              <div class="col-xs-11 hidden-print">
+                  <header id="header-volunteer">
+                      <h4 class="title text-uppercase clearfix">Volunteer Work</h4>
+                  </header>
+                    <ul id="volunteer" class="list-unstyled">
+                          <li class="volunteer-volunteer card card-nested">
+                                  <h4 class="volunteer-position pull-left">Teacher, CoderDojo</h4>
+                              <time class="date pull-left text-muted">
+                                January, 2012 - January, 2013
+                              </time>
+                              <time class="date pull-left text-muted">
+                                  <i class="fa fa-clock-o fa-border fa-pull-left"></i>
+                                1 year
+                              </time>
+                              <div class="clearfix"></div>
+                                <div class="volunteer-summary">
+                                    <p>Global movement of free coding clubs for young people.</p>
+                                </div>
+                                <ul class="volunteer-highlights">
+                                      <li>Awarded &#x27;Teacher of the Month&#x27;</li>
+                                </ul>
+                          </li>
+                    </ul>
+              </div>
+              <div class="col-xs-12 visible-print">
+                  <header id="header-volunteer">
+                      <h4 class="title text-uppercase clearfix">Volunteer Work</h4>
+                  </header>
+                    <ul id="volunteer" class="list-unstyled">
+                          <li class="volunteer-volunteer card card-nested">
+                                  <h4 class="volunteer-position pull-left">Teacher, CoderDojo</h4>
+                              <time class="date pull-left text-muted">
+                                January, 2012 - January, 2013
+                              </time>
+                              <time class="date pull-left text-muted">
+                                  <i class="fa fa-clock-o fa-border fa-pull-left"></i>
+                                1 year
+                              </time>
+                              <div class="clearfix"></div>
+                                <div class="volunteer-summary">
+                                    <p>Global movement of free coding clubs for young people.</p>
+                                </div>
+                                <ul class="volunteer-highlights">
+                                      <li>Awarded &#x27;Teacher of the Month&#x27;</li>
+                                </ul>
+                          </li>
+                    </ul>
+              </div>
+          </div>
+      </article>
+
+      </section><!-- /#section-volunteer -->
+      <section id="section-publications">
+              <article>
+          <div class="row">
+              <div class="col-xs-1 hidden-print">
+                  <i class="fa fa-print fa-2x fa-border fa-pull-left"></i>
+              </div>
+              <div class="col-xs-11 hidden-print">
+                  <header id="header-publications">
+                      <h4 class="title text-uppercase clearfix">Publications</h4>
+                  </header>
+                    <ul id="publications" class="list-unstyled">
+                          <li class="publications-publication card card-nested">
+                                  <h4 class="publications-name pull-left">Video compression for 3d media</h4>
+                                <time class="date pull-left text-muted">
+                                    <time class="publications-releaseDate" datetime="2014-10-01">Published on: October 1, 2014</time>
+                                </time>
+                                <div class="clearfix"></div>
+                                <h5 class="publications-publisher list-name text-success">Hooli</h5>
+                                <div class="publications-summary">
+                                    <p>Innovative middle-out compression algorithm that changes the way we store data.</p>
+                                </div>
+                          </li>
+                    </ul>
+              </div>
+              <div class="col-xs-12 visible-print">
+                  <header id="header-publications">
+                      <h4 class="title text-uppercase clearfix">Publications</h4>
+                  </header>
+                    <ul id="publications" class="list-unstyled">
+                          <li class="publications-publication card card-nested">
+                                  <h4 class="publications-name pull-left">Video compression for 3d media</h4>
+                                <time class="date pull-left text-muted">
+                                    <time class="publications-releaseDate" datetime="2014-10-01">Published on: October 1, 2014</time>
+                                </time>
+                                <div class="clearfix"></div>
+                                <h5 class="publications-publisher list-name text-success">Hooli</h5>
+                                <div class="publications-summary">
+                                    <p>Innovative middle-out compression algorithm that changes the way we store data.</p>
+                                </div>
+                          </li>
+                    </ul>
+              </div>
+          </div>
+      </article>
+
+      </section><!-- /#section-publications -->
+      <section id="section-interests">
+              <article>
+          <div class="row">
+              <div class="col-xs-1 hidden-print">
+                  <i class="fa fa-pencil fa-2x fa-border fa-pull-left"></i>
+              </div>
+              <div class="col-xs-11 hidden-print">
+                  <header id="header-interests">
+                      <h4 class="title text-uppercase clearfix">Interests</h4>
+                  </header>
+                    <ul id="interests" class="list-unstyled">
+                          <li class="interests-interest card card-nested">
+                                <h4 id="interests-name">Wildlife</h4>
+                                <ul class="keywords list-inline">
+                                      <li class="label label-primary keyword">Ferrets</li>
+                                      <li class="label label-primary keyword">Unicorns</li>
+                                </ul>
+                                <div class="clearfix"></div>
+                          </li>
+                    </ul>
+              </div>
+              <div class="col-xs-12 visible-print">
+                  <header id="header-interests">
+                      <h4 class="title text-uppercase clearfix">Interests</h4>
+                  </header>
+                    <ul id="interests" class="list-unstyled">
+                          <li class="interests-interest card card-nested">
+                                <h4 id="interests-name">Wildlife</h4>
+                                <ul class="keywords list-inline">
+                                      <li class="label label-primary keyword">Ferrets</li>
+                                      <li class="label label-primary keyword">Unicorns</li>
+                                </ul>
+                                <div class="clearfix"></div>
+                          </li>
+                    </ul>
+              </div>
+          </div>
+      </article>
+
+      </section><!-- /#section-interests -->
+      <section id="section-references">
+              <article>
+          <div class="row">
+              <div class="col-xs-1 hidden-print">
+                  <i class="fa fa-thumbs-up fa-2x fa-border fa-pull-left"></i>
+              </div>
+              <div class="col-xs-11 hidden-print">
+                  <header id="header-references">
+                      <h4 class="title text-uppercase clearfix">References</h4>
+                  </header>
+                    <ul id="references" class="list-unstyled">
+                          <li class="references-reference card card-nested">
+                                <h4 id="references-name">Erlich Bachman</h4>
+                                <blockquote class="reference-quote">
+                                    <p>It is my pleasure to recommend Richard, his performance working as a consultant for Main St. Company proved that he will be a valuable addition to any company.</p>
+                                </blockquote>
+                          </li>
+                    </ul>
+              </div>
+              <div class="col-xs-12 visible-print">
+                  <header id="header-references">
+                      <h4 class="title text-uppercase clearfix">References</h4>
+                  </header>
+                    <ul id="references" class="list-unstyled">
+                          <li class="references-reference card card-nested">
+                                <h4 id="references-name">Erlich Bachman</h4>
+                                <blockquote class="reference-quote">
+                                    <p>It is my pleasure to recommend Richard, his performance working as a consultant for Main St. Company proved that he will be a valuable addition to any company.</p>
+                                </blockquote>
+                          </li>
+                    </ul>
+              </div>
+          </div>
+      </article>
+
+      </section><!-- /#section-references -->
+    <footer id="footer">
+      
+    </footer><!-- /#footer -->
+      <script src="//cdnjs.cloudflare.com/ajax/libs/holder/2.9.4/holder.min.js" type="text/javascript"></script>
+      <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.2.4/jquery.min.js" type="text/javascript"></script>
+      <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" type="text/javascript"></script>
+</main><!-- /#sections -->
+</body>
+</html>

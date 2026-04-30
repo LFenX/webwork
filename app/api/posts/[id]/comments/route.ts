@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session"
 import { commentSchema } from "@/lib/validators"
 import { getAccessLevel } from "@/lib/permissions"
 import { canUseSticker } from "@/lib/stickers"
+import { getRequestMeta } from "@/lib/request-meta"
 
 export const dynamic = "force-dynamic"
 
@@ -50,6 +51,8 @@ export async function GET(
       parentId: comment.parentId,
       stickerId: comment.stickerId,
       stickerEmoji: comment.stickerEmoji,
+      ipAddress: comment.ipAddress,
+      geoLocation: comment.geoLocation,
       sticker: comment.sticker ? { ...comment.sticker, url: `/api/stickers/${comment.sticker.id}/file` } : null,
       createdAt: comment.createdAt.toISOString(),
       author: comment.author,
@@ -92,6 +95,7 @@ export async function POST(
     if (!parent) return NextResponse.json({ error: "回复的评论不存在" }, { status: 400, headers: NO_STORE })
   }
 
+  const meta = await getRequestMeta(req)
   const comment = await prisma.comment.create({
     data: {
       id: crypto.randomUUID(),
@@ -101,6 +105,8 @@ export async function POST(
       content: parsed.data.content,
       stickerId,
       stickerEmoji,
+      ipAddress: meta.ipAddress,
+      geoLocation: meta.geoLocation,
     },
     include: {
       author: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
@@ -115,6 +121,8 @@ export async function POST(
       parentId: comment.parentId,
       stickerId: comment.stickerId,
       stickerEmoji: comment.stickerEmoji,
+      ipAddress: comment.ipAddress,
+      geoLocation: comment.geoLocation,
       sticker: comment.sticker ? { ...comment.sticker, url: `/api/stickers/${comment.sticker.id}/file` } : null,
       createdAt: comment.createdAt.toISOString(),
       author: comment.author,

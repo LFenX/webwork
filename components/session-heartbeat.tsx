@@ -96,7 +96,7 @@ export function SessionHeartbeat() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent overlay>
         <DialogHeader>
           <DialogTitle>{n.sessionExpired}</DialogTitle>
           <DialogDescription>{message}</DialogDescription>

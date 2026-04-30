@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdminPermission } from "@/lib/admin"
 import { deleteAIGrant, upsertAIGrant } from "@/lib/ai/service"
+import { getSafeWebSearchConfig, upsertWebSearchConfig } from "@/lib/web-search/credential-service"
 import { aiGrantUpsertSchema } from "@/lib/validators"
 
 export const dynamic = "force-dynamic"
@@ -16,12 +17,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ user
       return NextResponse.json({ error: "Invalid payload" }, { status: 400, headers: NO_STORE })
     }
     const grant = await upsertAIGrant(admin.id, userId, parsed.data)
+    const webSearch = parsed.data.webSearch
+      ? await upsertWebSearchConfig("ADMIN_GRANT", grant.id, parsed.data.webSearch)
+      : await getSafeWebSearchConfig("ADMIN_GRANT", grant.id)
     return NextResponse.json({
       userId: grant.userId,
       status: grant.status,
       providerLabel: grant.providerLabel,
       apiKeyMask: grant.apiKeyMask,
       model: grant.model,
+      webSearchEnabled: grant.webSearchEnabled,
+      webSearch,
       updatedAt: grant.updatedAt.toISOString(),
     }, { headers: NO_STORE })
   } catch (error) {

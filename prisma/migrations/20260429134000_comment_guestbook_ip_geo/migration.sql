@@ -1,0 +1,7 @@
+ALTER TABLE "Comment"
+  ADD COLUMN "ipAddress" TEXT NOT NULL DEFAULT '',
+  ADD COLUMN "geoLocation" TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE "GuestbookMessage"
+  ADD COLUMN "ipAddress" TEXT NOT NULL DEFAULT '',
+  ADD COLUMN "geoLocation" TEXT NOT NULL DEFAULT '';

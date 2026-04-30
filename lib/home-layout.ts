@@ -1,4 +1,5 @@
 export type HomeWidgetId =
+  | "recentActivity"
   | "writingStats"
   | "recentPosts"
   | "writingHeatmap"
@@ -19,6 +20,7 @@ export type HomeWidgetLayout = {
 }
 
 export const HOME_WIDGET_LABELS: Record<HomeWidgetId, string> = {
+  recentActivity: "最近动态",
   writingStats: "写作统计",
   recentPosts: "最近内容",
   writingHeatmap: "写作热力图",
@@ -31,15 +33,16 @@ export const HOME_WIDGET_LABELS: Record<HomeWidgetId, string> = {
 }
 
 export const DEFAULT_HOME_LAYOUT: HomeWidgetLayout[] = [
-  { id: "writingStats", x: 0, y: 0, w: 12, h: 2 },
-  { id: "recentPosts", x: 0, y: 2, w: 12, h: 3 },
-  { id: "writingHeatmap", x: 0, y: 5, w: 12, h: 2 },
-  { id: "chatActivity", x: 0, y: 7, w: 12, h: 3 },
-  { id: "jobFunnel", x: 0, y: 10, w: 12, h: 3 },
-  { id: "recentJobs", x: 0, y: 13, w: 12, h: 2 },
-  { id: "jobHeatmap", x: 0, y: 15, w: 12, h: 2 },
-  { id: "visitStats", x: 0, y: 17, w: 12, h: 3 },
-  { id: "guestbook", x: 0, y: 20, w: 12, h: 3 },
+  { id: "recentActivity", x: 0, y: 0, w: 12, h: 3 },
+  { id: "writingStats", x: 0, y: 3, w: 12, h: 2 },
+  { id: "recentPosts", x: 0, y: 5, w: 12, h: 3 },
+  { id: "writingHeatmap", x: 0, y: 8, w: 12, h: 2 },
+  { id: "chatActivity", x: 0, y: 10, w: 12, h: 3 },
+  { id: "jobFunnel", x: 0, y: 13, w: 12, h: 3 },
+  { id: "recentJobs", x: 0, y: 16, w: 12, h: 2 },
+  { id: "jobHeatmap", x: 0, y: 18, w: 12, h: 2 },
+  { id: "visitStats", x: 0, y: 20, w: 12, h: 3 },
+  { id: "guestbook", x: 0, y: 23, w: 12, h: 3 },
 ]
 
 export function normalizeHomeLayout(value: unknown): HomeWidgetLayout[] {

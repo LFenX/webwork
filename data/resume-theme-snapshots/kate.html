@@ -1,0 +1,442 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, user-scalable=no, minimal-ui">
+        <title>Richard Hendriks</title>
+        <style>
+            body {
+    background: #EEEEEE;
+    font: 12px "Times New Roman", Times, sans-serif;
+    line-height: 1.4;
+    margin: 40px 0;
+}
+ul {
+    margin-bottom: 0;
+    padding-left: 20px;
+    margin-top: 2px;
+    list-style-type: circle;
+}
+li {
+    margin-bottom: 2px;
+}
+a {
+    text-decoration: underline;
+    color: #000;
+}
+.resume {
+    margin: 0 auto;
+    max-width: 600px;
+    padding: 80px 100px;
+    background: #fff;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 4px #aaa;
+    -webkit-box-shadow: 2px 2px 4px #aaa;
+}
+.largeFont {
+    font: 20px Helvetica;
+}
+.smallFont {
+    font: 12px Verdana;
+}
+.sectionName {
+    width: 100%;
+    vertical-align: top;
+    display: inline-block;
+    font: 120% Helvetica, Arial;
+    text-transform: uppercase;
+}
+.title {
+    font-weight: bold;
+}
+.date {
+    float: right;
+    font-weight: bold;
+}
+.separator {
+    height: 5px;
+}
+.sectionLine {
+    border-style: dashed;
+    border-width: 1px;
+    border-color: #CFCFCF;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+.divider {
+    font-weight: bold;
+    margin-left: 5px;
+    margin-right: 5px;
+}
+span[toggle='true'] {
+    display: inline-block;
+}
+span[section='true'] {
+    display: block;
+}
+.controls {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    max-width: 300px;
+    width: 300px;
+}
+ul > li > h4 {
+    margin-bottom: 0;
+}
+.clearfix {
+    clear: both;
+}
+/*
+ * Set some print settings. We're going to try and enforce 1" margins.
+*/
+@media print {
+    @page {
+        size: letter portrait;
+        margin: 25mm 25mm 25mm 25mm;
+    }
+    .resume {
+        max-width: 100%;
+        border: 0px;
+        background: #fff;
+        box-shadow: none;
+        -webkit-box-shadow: none;
+    }
+    body,
+    html,
+    .resume {
+        margin: 0px;
+        padding: 0px;
+    }
+    .controls {
+        display: none;
+    }
+}
+
+        </style>
+    </head>
+    <body>
+        <div class="controls">
+            <h3>Display</h3>
+            <hr>
+            <ul style="list-style-type: none;">
+                <li>
+                    <h4>Experience</h4>
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('experience')" checked> Block
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('experience_salary')" checked> Salary
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('experience_hours')" checked> Hours
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('experience_dates')" checked> Dates
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('experience_address')" checked> Address
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('experience_website')" checked> Website
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('experience_supervisor')" checked> Supervisor
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('experience_contact_phone')" checked> Contact Phone
+                </li>
+                <li>
+                    <h4>Volunteer</h4>
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('volunteer')" checked> Block
+                </li>
+                <li>
+                    <h4>Awards</h4>
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('awards')" checked> Block
+                </li>
+                <li>
+                    <h4>Education</h4>
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('education')" checked> Block
+                </li>
+                <li>
+                    <h4>Publications</h4>
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('publications')" checked> Block
+                </li>
+                <li>
+                    <h4>Languages</h4>
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('languages')" checked> Block
+                </li>
+                <li>
+                    <h4>References</h4>
+                </li>
+                <li>
+                    <input type="checkbox" onclick="toggle('references')" checked> Block
+                </li>
+            </ul>
+        </div>
+        <div class="resume">
+            <div class="largeFont">
+                Richard Hendriks, Programmer
+            </div>
+            <div class="smallFont">
+                <span class="email"><a href="mailto:richard.hendriks@mail.com">richard.hendriks@mail.com</a></span>
+                <span class="divider">|</span>
+                <span class="phone">(912) 555-4321</span>
+                <span class="divider">|</span>
+                <span class="address">
+                    San Francisco, California
+                </span>
+                <span class="url">
+                    <a href="https://twitter.com/neutralthoughts">https://twitter.com/neutralthoughts</a>
+                </span>
+                <span class="divider">|</span>
+                <span class="url">
+                    <a href="https://soundcloud.example.com/dandymusicnl">https://soundcloud.example.com/dandymusicnl</a>
+                </span>
+                
+            </div>
+            <div class="sectionLine"></div>
+
+            <div class="sectionName">
+                <span>SUMMARY</span>
+            </div>
+            <span>Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a &quot;length-limited&quot; conversation!</span>
+            <div class="sectionLine"></div>
+
+            <div class="sectionName">
+                <span>SKILLS</span>
+            </div>
+            <div class="skillBlock">
+                <span class="title">Web Development:</span>
+                <span>HTML</span>, 
+                <span>CSS</span>, 
+                <span>Javascript</span>
+            </div>
+            <div class="skillBlock">
+                <span class="title">Compression:</span>
+                <span>Mpeg</span>, 
+                <span>MP4</span>, 
+                <span>GIF</span>
+            </div>
+            <div class="sectionLine"></div>
+
+
+            <div style="float: left; width: 50%;">
+                <div class="sectionName" style="font-size: 1em; color: #000;">
+                    Wildlife
+                </div>
+
+                <ul style="margin-top: 0;">
+                    <li>Ferrets</li>
+                    <li>Unicorns</li>
+                </ul>
+            </div>
+
+            <div class="clearfix"></div>
+            <div class="sectionLine"></div>
+
+
+            <div class="clearfix"></div>
+
+            <span section='true' toggle='true' data-id="experience">
+                <div class="sectionName">
+                    <span>PROFESSIONAL EXPERIENCE</span>
+                </div>
+                <span class="title">
+                    CEO/President
+
+                    <span style="float: right;">
+                        <span style="font-weight: normal">
+                            <span toggle='true' data-id="experience_hours">
+                                
+                            </span>
+                            <span toggle='true' data-id="experience_salary">
+                                
+                            </span>
+                        </span>
+
+                        <span toggle='true' data-id="experience_dates">
+                            2013-12-01
+                            to
+                            2014-12-01
+                        </span>
+                    </span>
+
+                    
+
+                    <span style="font-weight: normal; float: right;">
+                        <span toggle='true' data-id="experience_website">
+                            <a href=""></a>
+                        </span>
+                        <span toggle='true' data-id="experience_address">
+                            
+                        </span>
+                        <span toggle='true' data-id="experience_supervisor">
+                            
+                        </span>
+                        <span toggle='true' data-id="experience_contact_phone">
+                            
+                        </span>
+                    </span>
+                </span>
+
+                <p class="worksummary">Pied Piper is a multi-platform technology based on a proprietary universal compression algorithm that has consistently fielded high Weisman Scores™ that are not merely competitive, but approach the theoretical limit of lossless compression.</p>
+                <ul class="highlights">
+                    <li>Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+                    <li>Successfully won Techcrunch Disrupt</li>
+                    <li>Optimized an algorithm that holds the current world record for Weisman Scores</li>
+                </ul>
+                
+                <div class="sectionLine"></div>
+            </span>
+
+            <div class="clearfix"></div>
+
+
+            <span section='true' toggle='true' data-id="volunteer">
+                <div class="sectionName">
+                    <span>VOLUNTEER EXPERIENCE</span>
+                </div>
+                <span class="title">
+                    CoderDojo, Teacher
+                    <span class="date">
+                        2012-01-01 to 2013-01-01
+                    </span>
+                </span>
+                <p class="volunteersummary">Global movement of free coding clubs for young people.</p>
+
+                <ul class="highlights">
+                    <li>Awarded &#x27;Teacher of the Month&#x27;</li>
+                </ul>
+
+                
+                <div class="sectionLine"></div>
+            </span>
+
+            <div class="clearfix"></div>
+
+
+            <span section='true' toggle='true' data-id="publications">
+                <div class="sectionName">
+                    <span>PUBLICATIONS</span>
+                </div>
+                <span class="title">
+                    Video compression for 3d media, Hooli
+                </span>
+                <span class="date">
+                    <span class="releaseDate">2014-10-01</span>
+                </span>
+                
+                
+                <div class="sectionLine"></div>
+            </span>
+
+            <div class="clearfix"></div>
+
+
+            <span section='true' toggle='true' data-id="education" style="display: block">
+                <div class="sectionName">
+                    <span>EDUCATION</span>
+                </div>
+                <span class="title">
+                    Bachelor  - Information Technology
+                    <span class="date">
+                        2011-06-01 to 2014-01-01
+                    </span>
+                </span>
+                <br />University of Oklahoma
+                <ul class="coursesList">
+                    <li class="course">DB1101 - Basic SQL</li>
+                </ul>
+                <ul class="coursesList">
+                    <li class="course">CS2011 - Java Introduction</li>
+                </ul>
+                <ul class="coursesList">
+                </ul>
+                
+                <div class="sectionLine"></div>
+            </span>
+
+            <div class="clearfix"></div>
+
+
+            <span section='true' toggle='true' data-id="awards">
+                <div class="sectionName">
+                    <span>AWARDS</span>
+                </div>
+                <span class="title">
+                    Digital Compression Pioneer Award
+                </span>
+
+
+                <span class="date">
+                    2014-11-01
+                </span>
+
+
+                <ul class="highlights">
+                    <li>There is no spoon.</li>
+                </ul>
+
+                
+
+
+                <div class="sectionLine"></div>
+            </span>
+
+            <div class="clearfix"></div>
+
+
+            <span section='true' toggle='true' data-id="languages">
+                <div class="sectionName">
+                    <span>LANGUAGES</span>
+                </div>
+                <span class="language">English</span>
+                <span class="fluency"><em>(Native speaker)</em></span>
+                
+                <div class="sectionLine"></div>
+            </span>
+
+            <div class="clearfix"></div>
+
+
+            <span section='true' toggle='true' data-id="references">
+                <div class="sectionName">
+                    <span>REFERENCES</span>
+                </div>
+                <span class="name">Erlich Bachman</span> - <em class="reference">It is my pleasure to recommend Richard, his performance working as a consultant for Main St. Company proved that he will be a valuable addition to any company.</em>
+                
+            </span>
+        </div> <!-- // Container -->
+
+        <script type="text/javascript">
+            function toggle(selector) {
+                var elements = document.querySelectorAll('[data-id="' + selector + '"]');
+
+                if (elements.length > 0) {
+                    elements.forEach(function (spanBlock) {
+                        var style = window.getComputedStyle(spanBlock),
+                            display = style.getPropertyValue('display');
+
+                        if (display === "inline-block") {
+                            spanBlock.style.display = "none";
+                        } else {
+                            spanBlock.style.display = "inline-block";
+                        }
+                    })
+                }
+            }
+        </script>
+    </body>
+</html>

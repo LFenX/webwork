@@ -69,6 +69,7 @@ export async function updateAgentProfile(
     rulesContent?: string
     enabled?: boolean
     restoreDefaults?: boolean
+    avatarUrl?: string | null
   },
 ) {
   await getOrCreateAgentProfile(userId)
@@ -92,6 +93,10 @@ export async function updateAgentProfile(
   if (input.userContextContent !== undefined) data.userContextContent = input.userContextContent
   if (input.rulesContent !== undefined) data.rulesContent = input.rulesContent
   if (input.enabled !== undefined) data.enabled = input.enabled
+  if (input.avatarUrl !== undefined) {
+    const trimmed = input.avatarUrl?.trim() ?? ""
+    data.avatarUrl = trimmed ? trimmed : null
+  }
 
   return prisma.agentProfile.update({
     where: { userId },

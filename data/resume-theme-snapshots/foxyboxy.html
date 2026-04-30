@@ -1,0 +1,545 @@
+<!doctype html>
+<html>
+	<head>
+
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimal-ui">
+
+	<title>Richard Hendriks</title>
+	<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.css">
+
+	<style>
+	* {
+	box-sizing: border-box;
+}
+
+body {
+	background: #efefef;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 16px;
+	line-height: 1.5;
+	padding: 1.5rem 0 3rem;
+	color: #333;
+	border-color: #16a085;
+	border-style: solid;
+	border-width: 0 10px;
+
+  // Font smoothing
+	-webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.resume {
+	max-width: 50rem;
+	margin: auto;
+	padding: 0.5rem;
+	font-size: 0;
+}
+
+.header {
+	text-align: center;
+	padding: 0 1.5rem;
+	margin: 0 0.5rem 2rem;
+	position: relative;
+	font-size: initial;
+}
+
+.header__name {
+	font-size: 2rem;
+	font-weight: bold;
+	line-height: 1;
+}
+
+.header__title {
+	font-size: 1.5rem;
+	font-style: italic;
+}
+
+.section {
+	font-size: initial;
+	display: inline-block;
+	width: 100%;
+	padding: 0.5rem;
+
+}
+
+.section__title {
+	font-weight: bold;
+	font-size: 1.5rem;
+	display: inline-block;
+	margin: 0 0 0.5rem;
+	border-bottom: 1px #ccc dotted;
+}
+
+.section__subtitle {
+	font-family: Georgia;
+	font-size: 1.1rem;
+}
+
+.section__body {
+	position: relative;
+	vertical-align: top;
+	width: 100%;
+	font-size: initial;
+	border: 1px #ddd solid;
+	padding: 1rem;
+	transform: scale(1) translateZ(0);
+	transition: 0.25s all;
+	background: #efefef;
+}
+
+.section__body:hover {
+	border-color: #ccc;
+	box-shadow: inset 0 0 0 1px #fff, 0 4px 2px -2px #ddd;
+	transform: scale(1.01) translateZ(1px);
+	z-index: 1;
+	color: #111;
+}
+
+.section__label {
+	display: block;
+	color: #aaa;
+	text-transform: uppercase;
+	font-size: 0.75rem;
+}
+
+.section__link {
+	background-color: #efefcc;
+	color: #333;
+	text-decoration: none;
+	word-break: break-word;
+}
+
+.section__detail {
+	margin-bottom: 0.5rem;
+}
+
+.section__list {
+	margin-top: 0.5rem;
+	padding-left: 2rem;
+}
+
+.section__item {
+	list-style: circle;
+	font-size: 0.8rem;
+}
+
+.section__date {
+	font-family: monospace;
+}
+
+.section__subsection + .section__subsection {
+	margin-top: 1rem;
+	border-top: 1px #ccc dotted;
+	padding-top: 1rem;
+}
+
+.section__quote {
+	font-family: monospace;
+}
+
+.section__tag {
+	padding: 0.5rem 0.75rem;
+	display: inline-block;
+	margin: 0 0.25rem 0.25rem 0;
+	background: #eaeaea;
+}
+
+.section__category {
+	font-size: 0.9rem;
+}
+
+.section__level {
+	font-style: italic;
+	font-size: 0.6rem;
+}
+
+
+@media (min-width: 30rem){
+
+	.header {
+		text-align: right;
+	}
+
+	.header__name {
+		font-size: 3rem;
+	}
+
+	.header__title {
+		font-size: 2rem;
+		background: #efefef;
+		display: inline-block;
+		padding: 0 0.5rem;
+		margin: 0 -0.25rem -2.5rem 0;
+		font-family: Georgia;
+		line-height: 1;
+	}
+
+	.header__title::before {
+		content: "";
+		display: block;
+		border-bottom: 1px #ccc dotted;
+		width: 100%;
+		position: absolute;
+		bottom: 1rem;
+		z-index: -1;
+		left: 0;
+	}
+
+	.sections__main,
+	.sections__aside {
+		display: inline-block;
+		width: 50%;
+		vertical-align: top;
+	}
+
+	.sections__main {
+		width: 60%;
+	}
+
+	.sections__aside {
+		width: 40%;
+	}
+
+}
+
+@media print {
+
+	html,
+	body {
+		background: #fff;
+		padding: 0;
+		margin: 0;
+		border: 0;
+		line-height: 1.2;
+	}
+
+	.resume {
+		max-width: none;
+		padding: 0;
+		margin: 0;
+	}
+
+	.header {
+		padding: 0 0 0.5rem;
+		margin: 0 0 0.5rem;
+		border-bottom: 1px #ccc solid;
+	}
+
+	.header__name {
+		font-size: 1.75rem;
+	}
+
+	.header__title {
+		font-size: 1.2rem;
+	}
+
+	.section__title {
+		font-size: 1rem;
+	}
+
+	.section__subtitle {
+		font-size: 0.9rem;
+	}
+
+	.section__summary,
+	.section__detail {
+		font-size: 0.8rem;
+	}
+
+
+}
+
+	</style>
+
+	</head>
+	<body>
+
+		<div class="resume">
+
+			<header class="header">
+				<h1 class="header__name">Richard Hendriks</h1>
+				<h2 class="header__title">Programmer</h2>
+			</header>
+
+			<main class="sections__main">
+
+				<section class="section section--summary">
+					<div class="section__body">
+
+						<h3 class="section__title">Summary</h3>
+
+						<div class="section__summary">
+							Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a "length-limited" conversation!
+						</div>
+					</div>
+				</section>
+
+
+
+
+
+
+				<section class="section section--work">
+					<div class="section__body">
+
+						<h3 class="section__title">Work</h3>
+
+						<div class="section__subsection">
+
+							<h4 class="section__subtitle">
+								CEO/President
+							</h4>
+
+
+							<div class="section__detail">
+								<span class="section__date">
+									2013
+								</span>
+								<span class="section__date">
+									- 2014
+								</span>
+							</div>
+
+							<div class="section__summary">
+								<p>Pied Piper is a multi-platform technology based on a proprietary universal compression algorithm that has consistently fielded high Weisman Scores™ that are not merely competitive, but approach the theoretical limit of lossless compression.</p>
+							</div>
+							<ul class="section__list">
+								<li class="section__item">Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+								<li class="section__item">Successfully won Techcrunch Disrupt</li>
+								<li class="section__item">Optimized an algorithm that holds the current world record for Weisman Scores</li>
+							</ul>
+						</div>
+
+					</div>
+				</section>
+
+				<section class="section section--volunteer">
+					<div class="section__body">
+
+						<h3 class="section__title">Volunteer</h3>
+
+						<div class="section__subsection">
+
+
+							<h5 class="section__subtitle">
+								CoderDojo
+							</h4>
+
+							<div class="section__detail">
+								<span class="section__date">
+									2012
+								</span>
+								<span class="section__date">
+									- 2013
+								</span>
+							</div>
+							<div class="section__summary">
+								<p>Global movement of free coding clubs for young people.</p>
+							</div>
+							<ul class="section__list">
+								<li class="section__item">Awarded &#x27;Teacher of the Month&#x27;</li>
+							</ul>
+						</div>
+					</div>
+				</section>
+
+			</main>
+
+			<aside class="sections__aside">
+				<section class="section section--contact">
+					<div class="section__body">
+
+						<h3 class="section__title">Contact</h3>
+
+
+						<div class="section__detail">
+							<label class="section__label">Email</label>
+							richard.hendriks@mail.com
+						</div>
+
+						<div class="section__detail">
+							<label class="section__label">Phone</label>
+							(912) 555-4321
+						</div>
+
+						<div class="section__detail">
+							<label class="section__label">Address</label>
+							2712 Broadway St<br />
+							San Francisco
+							 California<br />
+							CA 94115
+						</div>
+
+					</div>
+				</section>
+
+				<section class="section section--education">
+					<div class="section__body">
+
+						<h3 class="section__title">Education</h3>
+						<div class="section__subsection">
+							<h4 class="section__subtitle">
+								University of Oklahoma
+							</h4>
+							<div class="section__detail">
+								<span class="section__date">
+									2011
+								</span>
+								<span class="section__date">
+									- 2014
+								</span>
+							</div>
+							<div class="section__detail">
+								Information Technology
+							</div>
+							<div class="section__detail">
+								Bachelor
+							</div>
+							<ul class="section__list">
+								<li class="section__item">DB1101 - Basic SQL</li>
+								<li class="section__item">CS2011 - Java Introduction</li>
+							</ul>
+						</div>
+
+					</div>
+				</section>
+
+				<section class="section section--awards">
+					<div class="section__body">
+
+						<h3 class="section__title">Awards</h3>
+
+						<div class="section__subsection">
+							<h4 class="section__subtitle">
+								Digital Compression Pioneer Award
+							</h4>
+							<div class="section__date">
+								2014-11-01
+							</div>
+							<div class="section__detail">
+								Techcrunch
+							</div>
+							<div class="section__summary">
+								<p>There is no spoon.</p>
+							</div>
+						</div>
+
+					</div>
+				</section>
+
+				<section class="section section--publications">
+					<div class="section__body">
+
+						<h3 class="section__title">Publications</h3>
+
+						<div class="section__subsection">
+							<h4 class="section__subtitle">
+								Video compression for 3d media
+							</h4>
+							<h5 class="section__subtitle">
+								Hooli
+							</h5>
+							<div class="section__date">
+								2014-10-01
+							</div>
+							<div class="section__summary">
+								<p>Innovative middle-out compression algorithm that changes the way we store data.</p>
+							</div>
+						</div>
+
+					</div>
+				</section>
+
+				<section class="section section--skills">
+					<div class="section__body">
+
+						<h3 class="section__title">Skills</h3>
+
+						<div class="section__subsection">
+							<h4 class="section__subtitle">
+								Web Development
+							</h4>
+							<div class="section__level">
+								<em>Master</em>
+							</div>
+							<ul class="section__list">
+								<li class="section__item">HTML</li>
+								<li class="section__item">CSS</li>
+								<li class="section__item">Javascript</li>
+							</ul>
+						</div>
+						<div class="section__subsection">
+							<h4 class="section__subtitle">
+								Compression
+							</h4>
+							<div class="section__level">
+								<em>Master</em>
+							</div>
+							<ul class="section__list">
+								<li class="section__item">Mpeg</li>
+								<li class="section__item">MP4</li>
+								<li class="section__item">GIF</li>
+							</ul>
+						</div>
+
+					</div>
+				</section>
+
+				<section class="section section--languages">
+					<div class="section__body">
+
+						<h3 class="section__title">Languages</h3>
+
+						<div class="section__tags">
+							<div class="section__tag">
+								<h4 class="section__category">
+									English
+								</h4>
+								<div class="section__level">
+									Native speaker
+								</div>
+							</div>
+						</div>
+
+					</div>
+				</section>
+
+				<section class="section section--interests">
+					<div class="section__body">
+
+						<h3 class="section__title">Interests</h3>
+
+						<div class="section__subsection">
+							<h4 class="section__subtitle">
+								Wildlife
+							</h4>
+							<ul class="section__list">
+								<li class="section__item">Ferrets</li>
+								<li class="section__item">Unicorns</li>
+							</ul>
+						</div>
+
+					</div>
+				</section>
+
+				<section class="section section--references">
+					<div class="section__body">
+
+						<h3 class="section__title">References</h3>
+						<div class="section__subsection">
+							<blockquote class="section__quote">
+								It is my pleasure to recommend Richard, his performance working as a consultant for Main St. Company proved that he will be a valuable addition to any company.
+							</blockquote>
+							<h4 class="section__subtitle">
+								— Erlich Bachman
+							</h4>
+						</div>
+					</div>
+				</section>
+
+			</aside>
+
+		</div>
+	</body>
+</html>

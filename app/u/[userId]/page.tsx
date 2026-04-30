@@ -235,6 +235,8 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
         parentId: message.parentId,
         stickerId: message.stickerId,
         stickerEmoji: message.stickerEmoji,
+        ipAddress: message.ipAddress,
+        geoLocation: message.geoLocation,
         sticker: message.sticker ? { ...message.sticker, url: `/api/stickers/${message.sticker.id}/file` } : null,
         createdAt: message.createdAt.toISOString(),
         author: message.author,

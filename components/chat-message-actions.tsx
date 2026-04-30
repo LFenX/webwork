@@ -1,6 +1,7 @@
 "use client"
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 
 export type MessageActionItem = {
@@ -45,6 +46,7 @@ export function MessageActionSurface({
   const longPressTimerRef = useRef<number | null>(null)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const pendingActionRef = useRef<(() => void) | null>(null)
+  const portalRoot = typeof document !== "undefined" ? document.body : null
 
   const resolvedPosition = useMemo(() => {
     if (!menuState || menuState.mode !== "context" || typeof window === "undefined") return null
@@ -128,10 +130,10 @@ export function MessageActionSurface({
       onPointerCancel={clearLongPress}
     >
       {children}
-      {resolvedPosition ? (
+      {resolvedPosition && portalRoot ? createPortal(
         <div
           ref={menuRef}
-          className="fixed z-[80] min-w-[168px] overflow-hidden rounded-2xl border border-black/10 bg-white py-1 shadow-[0_12px_30px_rgba(15,23,42,0.16)]"
+          className="fixed z-[9998] min-w-[168px] overflow-hidden rounded-2xl border border-black/10 bg-white py-1 shadow-[0_12px_30px_rgba(15,23,42,0.16)]"
           style={{ left: resolvedPosition.x, top: resolvedPosition.y, width: MENU_WIDTH }}
           onPointerDown={(event) => event.stopPropagation()}
         >
@@ -150,22 +152,24 @@ export function MessageActionSurface({
               {item.label}
             </button>
           ))}
-        </div>
+        </div>,
+        portalRoot
       ) : null}
-      {menuState?.mode === "sheet" ? (
+      {menuState?.mode === "sheet" && portalRoot ? createPortal(
         <div
-          className="fixed inset-0 z-[90] bg-black/18"
+          className="fixed inset-0 z-[9999] bg-black/18"
           onClick={() => setMenuState(null)}
           onContextMenu={(event) => event.preventDefault()}
         >
           <div
-            className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.16)]"
+            className="absolute inset-x-0 rounded-t-3xl bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.16)]"
+            style={{ bottom: "var(--keyboard-inset-bottom, 0px)", maxHeight: "calc(var(--app-viewport-height, 100vh) - 1rem)" }}
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
           >
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-black/10" />
             {preview ? (
-              <div className="mb-3 overflow-hidden rounded-2xl border border-black/8 bg-[#f7f8fa]">
+              <div className="mb-3 max-h-[32vh] overflow-y-auto rounded-2xl border border-black/8 bg-[#f7f8fa] [-webkit-overflow-scrolling:touch]">
                 {preview}
               </div>
             ) : null}
@@ -196,7 +200,8 @@ export function MessageActionSurface({
               取消
             </button>
           </div>
-        </div>
+        </div>,
+        portalRoot
       ) : null}
     </div>
   )

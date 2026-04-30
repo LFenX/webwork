@@ -13,6 +13,7 @@ import {
   listRecentConversationHistory,
 } from "@/lib/ai/service"
 import { requestProviderChat, type ProviderMessage, type ProviderToolCall, type ProviderToolSpec } from "@/lib/ai/provider"
+import { recordAIUsage, resolveConfigSource, type AIUsageCallType } from "@/lib/ai/usage-logger"
 import { AI_TOOL_MAP, AI_TOOLS_REGISTRY } from "@/lib/ai/tools/registry"
 import { buildAIToolContext, compactText, createAIToolActor } from "@/lib/ai/tools/context"
 import { isStructuredToolResult, resolveUserReference } from "@/lib/ai/tools/helpers"
@@ -74,6 +75,14 @@ function formatToolResultForLLM(result: unknown): string {
   if (isStructuredToolResult(result)) {
     const parts: string[] = [`[结果] ${result.summary}`]
     if (result.reason) parts.push(`[原因] ${result.reason}`)
+    if (
+      result.data &&
+      typeof result.data === "object" &&
+      !Array.isArray(result.data) &&
+      "credentialSource" in result.data
+    ) {
+      parts.push(`[时效性规则] 当前真实时间是 ${getRuntimeDateContext()}。联网搜索结果可能晚于模型内置知识库截止时间；只要工具返回成功，就应以搜索结果和来源链接为准，不要把较新的年份误判为未来或虚假信息。`)
+    }
     if (result.data !== null && result.data !== undefined) {
       try {
         parts.push(JSON.stringify(result.data))
@@ -93,6 +102,22 @@ function chunkText(value: string, size = 100) {
     chunks.push(value.slice(index, index + size))
   }
   return chunks
+}
+
+function getRuntimeDateContext() {
+  const now = new Date()
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now)
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value ?? ""
+  return `${pick("year")}-${pick("month")}-${pick("day")} ${pick("weekday")} ${pick("hour")}:${pick("minute")}（Asia/Shanghai）`
 }
 
 function extractTargetHint(prompt: string) {
@@ -134,6 +159,18 @@ async function buildHeuristicPlan(prompt: string, actorUserId: string): Promise<
   if (hasPermissionWords(normalized) && /(我是不是管理员|管理员权限|admin permission)/i.test(prompt)) {
     return buildPlan("self", "将先检查当前用户的角色和管理员权限。", [
       { toolName: "get_my_permissions", reason: "问题直接询问当前用户权限。", input: null },
+    ])
+  }
+
+  if (/(蝶灵圆桌|圆桌讨论|圆桌|早上的圆桌|晚上的圆桌|昨晚 9 点|昨晚9点|晨间议题|夜间议题|今日资料卡|值日蝶灵)/i.test(prompt)) {
+    return buildPlan("self", "将读取蝶灵圆桌公告、资料卡和最近讨论记录，再按用户问题总结。", [
+      { toolName: "get_soulwing_roundtable_records", reason: "用户正在询问蝶灵圆桌相关内容。", input: { query: prompt, limit: 5 } },
+    ])
+  }
+
+  if (looksLikeWebSearchQuestion(prompt) && !looksLikePrivateDataQuestion(prompt)) {
+    return buildPlan("self", "将先联网核验当前信息，再基于来源作答。", [
+      { toolName: "web_verify_current_info", reason: "问题涉及可能过时的外部信息，需要联网核验。", input: { question: prompt, maxResults: 5 } },
     ])
   }
 
@@ -469,13 +506,25 @@ function looksLikeSiteDataQuestion(prompt: string) {
   return /(登录|会话|设备|ip|好友|聊天|消息|求职|投递|面试|简历|上传|文章|博客|日常|心得|笔记|用户|管理员|代查|站内|资料|主页)/i.test(prompt)
 }
 
+function looksLikeWebSearchQuestion(prompt: string) {
+  return /(最新|现在|今天|最近|当前|新闻|热点|价格|版本|政策|规则|发布|上线|变更|搜一下|查一下|网上有没有|latest|current|today|recent|news|price|version|policy|release|search web)/i.test(prompt)
+}
+
+function looksLikePrivateDataQuestion(prompt: string) {
+  return /(我和你|跟你|和你聊|你记得|之前让你记住|我的文章|我的群聊|我的好友|好友聊天|聊天记录|站内|记忆|SoulWing|蝶灵)/i.test(prompt)
+}
+
 function buildRuntimeSystemPrompt(params: {
   capabilities: AIProviderCapabilities
   canUseTools: boolean
   canUseVision: boolean
   personaPrompt?: string
 }) {
+  const runtimeDateContext = getRuntimeDateContext()
   const platformRules = [
+    `当前真实日期和时间是：${runtimeDateContext}。这是系统运行时提供的权威当前时间锚点。`,
+    "你的内置知识库截止时间不是当前真实时间；当联网搜索、站内数据或系统运行时日期显示的年份晚于你的内置知识库年份时，不要把它当成未来或虚假信息。必须承认运行时日期与工具结果代表当前外部现实。",
+    "联网搜索结果是外部网页资料，可能包含比你内置知识更新的年份和事件。只要搜索工具返回成功，就应基于搜索结果作答，并标注来源；不要因为内置知识认为某一年是未来而拒绝回答或隐藏搜索结果。",
     "你是蝶灵（SoulWing），当前用户的专属 AI 助手。",
     params.canUseTools
       ? `你拥有工具调用能力（每次对话最多 ${MAX_TOOL_CALLS} 次工具调用、${MAX_AGENT_ROUNDS} 轮推理）。凡是涉及站内私有数据的问题，必须先调用合适工具获取数据，再作答。不要用"我无法获取"或"我不知道"搪塞可以通过工具解决的问题。`
@@ -484,7 +533,7 @@ function buildRuntimeSystemPrompt(params: {
     "数据源区分：当用户说【我跟你】【我和你】【我们之前】【你记得吗】【我问过你什么】【和蝶灵聊了什么】时，默认指用户与蝶灵（SoulWing）的 AI 对话历史。不要将其理解为好友聊天、群聊或系统操作日志。",
     "AI 对话历史查询：遇到【我和你聊了几次/聊了什么/聊了什么主题/之前问过你什么】等问题时，优先调用 search_soulwing_conversations。如果该工具查不到结果，再说明没有查到历史记录。决不允许在未调用工具前说【我只能看到当前对话】或【我无法获取过去的聊天记录】。",
     "如果用户问题有歧义（可能指 AI 对话，也可能指好友聊天），应简要说明你理解的口径（【我理解你是在问我们之间的 AI 对话历史】），然后调用对应工具。如果追问中省略主语（如【那过去一天呢】），沿用上一个问题的数据源——如果上一个问题是 AI 对话，继续使用 search_soulwing_conversations。",
-    "数据源优先级：当问题可能属于多个数据源时，按以下优先级选择：1. AI 对话历史（search_soulwing_conversations / search_user_memory 中的 event）；2. 长期记忆（search_user_memory 中的 fact）；3. 好友聊天（search_my_chat_messages 等）；4. 群聊（get_channel_messages）；5. 系统操作日志（get_my_activity_log）。选择最贴合用户语义的那一个，不要同时调用多个不相关的数据源工具。",
+    "数据源优先级：当问题可能属于多个数据源时，按以下优先级选择：1. AI 对话历史（search_soulwing_conversations / search_user_memory 中的 event）；2. 蝶灵圆桌（get_soulwing_roundtable_records）；3. 长期记忆（search_user_memory 中的 fact）；4. 好友聊天（search_my_chat_messages 等）；5. 群聊（get_channel_messages）；6. 系统操作日志（get_my_activity_log）。选择最贴合用户语义的那一个，不要同时调用多个不相关的数据源工具。",
     "当需要站内数据时，优先遵循：先判断权限，再看概览，再取列表，再读详情或全文。",
     params.canUseVision
       ? "当前请求支持视觉输入；如果用户上传了图片，先描述图像内容，再结合问题作答。"
@@ -906,6 +955,15 @@ function toolParametersSchema(toolName: string) {
         required: ["channelId"],
         additionalProperties: false,
       }
+    case "get_soulwing_roundtable_records":
+      return {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Optional query about roundtable date, slot, topic, or summary." },
+          limit: { type: "integer", minimum: 1, maximum: 10 },
+        },
+        additionalProperties: false,
+      }
     case "send_draft_chat_message":
       return {
         type: "object",
@@ -937,6 +995,28 @@ function toolParametersSchema(toolName: string) {
           category: { type: "string", enum: ["preference", "project", "decision", "workflow", "bugfix", "content_operation", "other"] },
           confirmedByUser: { type: "boolean", description: "Must be true to execute." },
         },
+        additionalProperties: false,
+      }
+    case "web_search":
+      return {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Internet search query, max 300 characters." },
+          maxResults: { type: "integer", minimum: 1, maximum: 10 },
+          contentType: { type: "string", enum: ["snippet", "summary"] },
+          queryRewrite: { type: "boolean" },
+        },
+        required: ["query"],
+        additionalProperties: false,
+      }
+    case "web_verify_current_info":
+      return {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "Question that needs current external verification." },
+          maxResults: { type: "integer", minimum: 1, maximum: 10 },
+        },
+        required: ["question"],
         additionalProperties: false,
       }
     case "search_soulwing_conversations":
@@ -1287,7 +1367,7 @@ async function runHeuristicFallback(params: RuntimeParams, state: RuntimeState, 
 }
 
 function shouldUseHeuristicFallback(prompt: string, capabilities: AIProviderCapabilities) {
-  return !capabilities.toolCalling && looksLikeSiteDataQuestion(prompt)
+  return !capabilities.toolCalling && (looksLikeSiteDataQuestion(prompt) || (looksLikeWebSearchQuestion(prompt) && !looksLikePrivateDataQuestion(prompt)))
 }
 
 export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResponse> {
@@ -1333,6 +1413,36 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
   let contentMarkdown = ""
   const modelName = provider?.model ?? "structured-fallback"
   let assistantStepId: string | null = null
+
+  const usageConfigSource = resolveConfigSource(provider?.source)
+
+  const logProviderCall = (
+    callType: AIUsageCallType,
+    startedAt: number,
+    result: { providerMetadata?: { usage?: unknown } | null; toolCalls?: { length: number } | unknown[] } | null,
+    error: unknown,
+  ) => {
+    if (!provider) return
+    const usage = result?.providerMetadata?.usage ?? null
+    const toolCallCount = Array.isArray(result?.toolCalls) ? result.toolCalls.length : 0
+    void recordAIUsage({
+      userId: params.userId,
+      conversationId: params.conversationId,
+      runId: params.runId,
+      messageId: params.assistantMessageId,
+      callType,
+      providerLabel: provider.providerLabel,
+      providerType: "openai-compatible",
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      configSource: usageConfigSource,
+      status: error ? "failed" : "success",
+      errorMessage: error instanceof Error ? error.message : error ? String(error) : "",
+      startedAt,
+      toolCallCount,
+      providerUsage: usage,
+    })
+  }
 
   const ensureAssistantStep = async () => {
     if (assistantStepId) return assistantStepId
@@ -1481,11 +1591,14 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
         let reasoningStarted = false
 
         let result
+        let roundStartedAt = Date.now()
         try {
           result = await requestRound(reasoningStep.id, reasoningStep.title, reasoningStep.summary, () => {
             reasoningStarted = true
           })
+          logProviderCall("chat", roundStartedAt, result, null)
         } catch (error) {
+          logProviderCall("chat", roundStartedAt, null, error)
           if (shouldAttemptVision && hasImageAttachments && isVisionRelatedProviderError(error)) {
             shouldAttemptVision = false
             conversationMessages = await buildConversationMessages(false)
@@ -1496,9 +1609,16 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
               "当前 provider 无法处理图片输入，已自动改为纯文本重试。",
               { ...capabilities, visionInput: false },
             )
-            result = await requestRound(reasoningStep.id, reasoningStep.title, reasoningStep.summary, () => {
-              reasoningStarted = true
-            })
+            roundStartedAt = Date.now()
+            try {
+              result = await requestRound(reasoningStep.id, reasoningStep.title, reasoningStep.summary, () => {
+                reasoningStarted = true
+              })
+              logProviderCall("chat", roundStartedAt, result, null)
+            } catch (retryError) {
+              logProviderCall("chat", roundStartedAt, null, retryError)
+              throw retryError
+            }
           } else {
             throw error
           }
@@ -1613,9 +1733,10 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
       if (!gotFinalAnswer && executions.length > 0) {
         const summaryPrompt: ProviderMessage = {
           role: "user",
-          content: "请基于以上工具执行结果，用中文给出最终总结回答。不要调用任何工具，直接给出总结。",
+          content: `请基于以上工具执行结果，用中文给出最终总结回答。不要调用任何工具，直接给出总结。当前真实时间是 ${getRuntimeDateContext()}。如果工具结果或联网搜索来源包含晚于你内置知识库截止时间的日期或年份，必须以工具结果和来源为准，不要把它判定为未来或虚假信息。`,
         }
         conversationMessages.push(summaryPrompt)
+        const summaryStartedAt = Date.now()
         try {
           const summaryStep = await createStep(params, state, "reasoning", "生成最终总结", "正在综合工具结果生成最终回答。")
           await emit(params, "reasoning_started", {
@@ -1645,6 +1766,7 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
               await emit(params, "reasoning_delta", { stepId: summaryStep.id, delta })
             },
           })
+          logProviderCall("summary", summaryStartedAt, summaryResult, null)
           await completeAIRunStep(summaryStep.id, {
             status: "completed",
             summary: "最终总结已生成。",
@@ -1658,7 +1780,8 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
             outputPreview: { contentMarkdown, providerMetadata: summaryResult.providerMetadata ?? null },
           })
           gotFinalAnswer = true
-        } catch {
+        } catch (summaryError) {
+          logProviderCall("summary", summaryStartedAt, null, summaryError)
           // If summary call fails, fall through to fallback
         }
       }

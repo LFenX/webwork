@@ -9,7 +9,7 @@ export function FriendChatPageClient({ userId, friendId, currentUser }: { userId
   const chat = useChatSession(friendId, undefined, undefined, currentUser)
 
   return (
-    <div className="mx-auto flex h-[calc(var(--app-viewport-height)-3rem)] max-w-[1000px] flex-col overflow-hidden px-0 py-0 md:h-[calc(var(--app-viewport-height)-8.5rem)] md:px-6 md:pb-6 md:pt-12">
+    <div className="mobile-chat-viewport mx-auto flex h-[calc(var(--app-viewport-height)-3.5rem)] max-w-[1000px] flex-col overflow-hidden px-0 py-0 md:h-[calc(var(--app-viewport-height)-8.5rem)] md:px-6 md:pb-6 md:pt-12">
       <ChatPanel
         friend={chat.friend}
         currentUser={currentUser}

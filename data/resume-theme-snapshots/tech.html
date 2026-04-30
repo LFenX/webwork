@@ -1,0 +1,792 @@
+<!doctype html>
+<html>
+	<head>
+
+	<meta charset='utf-8'>
+	<meta name='viewport' content='width=device-width, user-scalable=no, minimal-ui'>
+
+	<title>Richard Hendriks</title>
+
+	<style>
+	/* Palette: navy accents; near-black body/job titles; mid-grey companies; #595959 dates (≥4.5:1 on white). */
+:root {
+  --resume-accent: #1b4f8a;
+  --resume-body: #1a1a1a;
+  --resume-secondary: #555555;
+  --resume-company: #555555;
+  --resume-date: #595959;
+  --resume-rule: #1b4f8a;
+}
+
+/* Base styles */
+body {
+  background: #ffffff;
+  font: 11pt/1.15 "Times New Roman", Times, serif;
+  margin: 20px 0;
+  color: var(--resume-body);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font: inherit;
+}
+
+em {
+  color: var(--resume-company);
+  font-style: italic;
+}
+
+strong {
+  font-weight: bold;
+}
+
+p {
+  line-height: 1.15;
+}
+
+p.summaryProse {
+  margin: 0;
+}
+
+ul {
+  margin-bottom: 0;
+}
+
+a {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+  color: var(--resume-accent);
+}
+
+.normal-weight {
+  font-weight: normal;
+}
+
+.projectUrl {
+  font-weight: normal;
+  font-size: inherit;
+  color: var(--resume-company);
+}
+
+/* Resume container — no shaded backgrounds */
+.resume {
+  margin: 0 auto;
+  max-width: 750px;
+  padding: 20px 30px;
+  background: #fff;
+  border: 1px solid #ccc;
+  box-shadow: 2px 2px 4px #aaa;
+  -webkit-box-shadow: 2px 2px 4px #aaa;
+}
+
+/* Section headings — top border simulates Word paragraph top border; ALL CAPS */
+h2.sectionName {
+  text-align: left;
+  font-weight: bold;
+  font-size: 10pt;
+  line-height: 1.15;
+  margin-top: 10pt;
+  margin-bottom: 3pt;
+  padding-top: 5pt;
+  border-top: 1.5pt solid var(--resume-rule);
+  color: var(--resume-accent);
+  text-transform: uppercase;
+  letter-spacing: 1pt;
+}
+
+.sectionContent {
+  width: 100%;
+  margin-top: 0;
+}
+
+/* Add spacing after each section except the last one */
+.resume > div:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.skills {
+  margin-bottom: 6px;
+}
+
+/* Allow jobs/education blocks to split across pages (avoid huge gaps when a block
+   won't fit in the remaining space). Pagination is tuned in @media print below. */
+.sectionContent > div {
+  margin-bottom: 2px;
+}
+
+/* Extra breathing room between multiple roles (work) and project entries */
+.workBlock .sectionContent > .jobBlock:not(:last-child),
+.projects .sectionContent > .projectBlock:not(:last-child) {
+  margin-bottom: 8pt;
+}
+
+/*
+ * Company / degree + dates: float layout (right edge ≈ Word right-tab), not table/flex.
+ * Title + date (projects, awards, …): same pattern.
+ */
+.blockHeader {
+  display: block;
+  margin-bottom: 1px;
+}
+
+.blockHeader::after,
+.metaRow::after {
+  content: "";
+  /* Safer clearfix than `display: table` for PDF/ATS extraction */
+  display: block;
+  clear: both;
+}
+
+.blockHeader.blockHeaderInlineMeta {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+}
+
+.blockHeader.blockHeaderInlineMeta h3.title {
+  float: left;
+  /* Patents/Projects titles sit left of a long, nowrap dateLine.
+     Keep the title wide enough to avoid wrapping while still leaving
+     space for the right-aligned date text. */
+  max-width: calc(100% - 12em);
+  padding-right: 0.5em;
+  min-width: 0;
+}
+
+.blockHeader.blockHeaderInlineMeta .dateLine {
+  float: right;
+  margin-top: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.titleGroup {
+  min-width: 0;
+}
+
+.titleGroup h3.title {
+  padding-right: 0;
+}
+
+h3.title {
+  font-weight: bold;
+  font-size: 11pt;
+  color: var(--resume-body);
+  display: block;
+  line-height: 1.15;
+  margin: 0;
+  padding-right: 0;
+}
+
+h3.subSectionName {
+  font-size: 10.5pt;
+  font-weight: bold;
+  margin: 0.75em 0 0.35em 0;
+  color: var(--resume-body);
+}
+
+/* Institution line extras (GPA) — secondary, not job-title weight */
+.educationBlock h3.title em {
+  font-style: italic;
+  font-weight: normal;
+  color: var(--resume-secondary);
+}
+
+.metaRow {
+  display: block;
+  width: 100%;
+  margin-top: 1px;
+  overflow: hidden;
+}
+
+.metaRow .companyLine,
+.metaRow .degree,
+.metaRow .position {
+  float: left;
+  clear: left;
+  max-width: calc(100% - 14em);
+  padding-right: 1em;
+  min-width: 0;
+  margin: 0;
+  text-align: left;
+}
+
+.metaRow .dateLine {
+  float: right;
+  margin-top: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.companyLine {
+  font-size: 11pt;
+  font-weight: normal;
+  line-height: 1.15;
+  margin: 1px 0 0;
+  color: var(--resume-company);
+  font-style: normal;
+}
+
+.companyLine .companyName {
+  color: var(--resume-company);
+  font-style: normal;
+}
+
+.dateLine {
+  white-space: nowrap;
+}
+
+.date {
+  font-weight: normal;
+  font-size: 11pt;
+  color: var(--resume-date);
+  font-style: italic;
+}
+
+.metaRow .degree,
+.metaRow .degree em {
+  font-style: normal;
+  color: var(--resume-company);
+}
+
+.position,
+.degree {
+  margin-top: 1px;
+  margin-bottom: 2px;
+}
+
+.phoneLink,
+.websiteLink,
+.profileLink,
+.emailLink {
+  font-size: inherit;
+  font-weight: normal;
+  text-decoration: none;
+}
+
+/* Header contact line: all black (location, pipes, phone, email, URLs) */
+.basicsBlock .headerContact,
+.basicsBlock .headerContact .contactSep,
+.basicsBlock .phoneLink,
+.basicsBlock .emailLink,
+.basicsBlock .websiteLink,
+.basicsBlock .profileLink {
+  color: #000;
+}
+
+.basicsBlock .phoneLink:hover,
+.basicsBlock .emailLink:hover,
+.basicsBlock .websiteLink:hover,
+.basicsBlock .profileLink:hover {
+  color: #000;
+  text-decoration: none;
+}
+
+.summary {
+  margin-top: 2px;
+  margin-bottom: 2px;
+  line-height: 1.15;
+}
+
+/* Lists — U+2022 bullet, navy; body text stays near-black */
+.sectionContent ul {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.sectionContent ul > li {
+  position: relative;
+  padding-left: 1.15em;
+  margin-bottom: 1px;
+  color: var(--resume-body);
+}
+
+.sectionContent ul > li::before {
+  content: "\2022";
+  position: absolute;
+  left: 0;
+  color: var(--resume-accent);
+  font-weight: normal;
+}
+
+.skillBlock {
+  margin-bottom: 2px;
+  line-height: 1.15;
+}
+
+.skillRow {
+  display: block;
+}
+
+.skillRow b {
+  font-weight: bold;
+  color: var(--resume-body);
+}
+
+.skillDetailsRow {
+  display: block;
+  margin-top: 2px;
+  padding-left: 0;
+}
+
+.separator {
+  height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  overflow: hidden;
+}
+
+/* Contact row layout (colour set under .basicsBlock) */
+.headerContact {
+  display: block;
+  font-size: 11pt;
+  line-height: 1.15;
+}
+
+.headerContact .contactPiece {
+  display: inline;
+  white-space: normal;
+}
+
+.contactLocation:empty {
+  display: none;
+}
+
+.nameBlock {
+  font-size: 20pt;
+  text-align: left;
+  margin-bottom: 0;
+}
+
+h1.name {
+  font-size: 20pt;
+  font-weight: bold;
+  display: block;
+  color: var(--resume-accent);
+  letter-spacing: 1.5pt;
+}
+
+.label {
+  font-size: 12pt;
+  margin-bottom: 0;
+  margin-top: 2px;
+  color: var(--resume-secondary);
+  font-weight: normal;
+}
+
+.basicsBlock {
+  font-size: 11pt;
+  text-align: left;
+  margin-top: 2px;
+  margin-bottom: 3px;
+}
+
+.coursesBlock {
+  margin-top: 2px;
+}
+
+ul.coursesList {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.coursesInline {
+  margin: 0;
+  padding: 0;
+  line-height: 1.15;
+}
+
+.course {
+  display: inline;
+  margin: 0;
+}
+
+.courseSep {
+  display: inline;
+  color: var(--resume-accent);
+  font-weight: normal;
+  margin: 0 0.15em;
+}
+
+.gpa {
+  margin-bottom: 5px;
+  font-size: inherit;
+}
+
+.publicationBlock {
+  margin-bottom: 2px;
+}
+
+/* Patents: Year + Patent no. on one line, labeled (clear for ATS text extraction). */
+.publicationHeader {
+  display: block;
+  margin-bottom: 1px;
+}
+
+.publicationMeta {
+  margin-top: 2px;
+  line-height: 1.15;
+}
+
+.publicationMetaLabel {
+  font-weight: bold;
+  color: var(--resume-body);
+}
+
+.publicationMetaValue {
+  font-weight: normal;
+  color: var(--resume-date);
+}
+
+.publicationMetaSep {
+  font-weight: normal;
+  color: var(--resume-secondary);
+}
+
+@media only screen and (max-width: 40em) {
+  body {
+    margin: 0;
+    font-size: 12pt;
+  }
+
+  .resume {
+    margin: 0 auto;
+    max-width: 600px;
+    padding: 0.5em 1em;
+    border: none;
+  }
+
+  .sectionContent {
+    width: 100%;
+  }
+
+  h2.sectionName {
+    width: auto;
+  }
+
+  .nameBlock {
+    font-size: 18pt;
+  }
+
+  h1.name {
+    font-size: 18pt;
+  }
+
+  .basicsBlock {
+    font-size: 12pt;
+  }
+}
+
+@page {
+  margin: 0.5in;
+}
+
+@media print {
+  body {
+    background: #ffffff;
+    color: var(--resume-body);
+  }
+
+  .resume {
+    margin: 0 auto;
+    max-width: 750px;
+    padding: 0px 0px;
+    border: 0px;
+    background: #fff;
+    box-shadow: none;
+    -webkit-box-shadow: none;
+  }
+
+  a {
+    text-decoration: none;
+  }
+
+  .basicsBlock .headerContact,
+  .basicsBlock .headerContact .contactSep,
+  .basicsBlock .phoneLink,
+  .basicsBlock .emailLink,
+  .basicsBlock .websiteLink,
+  .basicsBlock .profileLink {
+    color: #000;
+  }
+
+  h2.sectionName {
+    color: var(--resume-accent);
+    border-top-color: var(--resume-rule);
+    letter-spacing: 0;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  h1.name {
+    color: var(--resume-accent);
+  }
+
+  /* Keep role/company header with the start of its body; bullets may continue on next page. */
+  .sectionContent > div > .blockHeader,
+  .sectionContent > div > .publicationHeader {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* One bullet = one fragment; breaks between bullets fill the prior page. */
+  .sectionContent ul > li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+	</style>
+
+	</head>
+	<body>
+
+	<div class='resume'>
+  <div class='nameBlock'>
+    <h1 class='name'>Richard Hendriks</h1>
+    <div class='label'>Programmer</div>
+  </div>
+  <div class='basicsBlock'>
+    <div class='headerContact'>
+      <span class='contactPiece contactLocation'>2712 Broadway St, San Francisco, California CA 94115</span>
+      <span class='contactSep' aria-hidden='true'> | </span><span class='contactPiece'><a class='phoneLink' href='tel:(912) 555-4321'>(912) 555-4321</a></span>
+      <span class='contactSep' aria-hidden='true'> | </span><span class='contactPiece'><a class='emailLink' href='mailto:richard.hendriks@mail.com'>richard.hendriks@mail.com</a></span>
+      <span class='contactSep' aria-hidden='true'> | </span><span class='contactPiece'><a class='websiteLink' href='https://richardhendricks.example.com'>https://richardhendricks.example.com</a></span>
+      <span class='contactSep' aria-hidden='true'> | </span><span class='contactPiece'><a class='profileLink' href='https://twitter.com/neutralthoughts'>Twitter</a></span>
+      <span class='contactSep' aria-hidden='true'> | </span><span class='contactPiece'><a class='profileLink' href='https://soundcloud.example.com/dandymusicnl'>SoundCloud</a></span>
+    </div>
+  </div>
+
+  <div class='summaryBlock'>
+    <h2 class='sectionName'>
+      <span>Executive Summary</span>
+    </h2>
+    <div class='sectionContent'>
+      <p class='summary summaryProse'>Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a "length-limited" conversation!</p>
+    </div>
+  </div>
+
+  <div class='workBlock'>
+    <h2 class='sectionName'>
+      <span>Work Experience</span>
+    </h2>
+    <div class='sectionContent'>
+			<div class="jobBlock">
+	      <div class='blockHeader'>
+	        <div class='titleGroup'>
+	          <h3 class='title'>CEO/President</h3>
+	          <div class='metaRow'>
+	            <div class='companyLine'><span class='companyName'>Pied Piper</span>, Palo Alto, CA</div>
+	            <div class='dateLine'>
+	              <span class='date'>2013-12-01 - 2014-12-01</span>
+	            </div>
+	          </div>
+	        </div>
+	      </div>
+	      <div class='summary'><p class='summaryProse'>Pied Piper is a multi-platform technology based on a proprietary universal compression algorithm that has consistently fielded high Weisman Scores™ that are not merely competitive, but approach the theoretical limit of lossless compression.</p></div>
+	      <ul class='highlights'>
+	        <li>Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+	        <li>Successfully won Techcrunch Disrupt</li>
+	        <li>Optimized an algorithm that holds the current world record for Weisman Scores</li>
+	      </ul>
+	      
+			</div>
+    </div>
+  </div>
+
+  <div class='projects'>
+    <h2 class='sectionName'>
+      <span>Projects</span>
+    </h2>
+    <div class='sectionContent'>
+      <div class='projectBlock'>
+        <div class='blockHeader blockHeaderInlineMeta'>
+          <h3 class='title'>
+            Miss Direction <span class='projectUrl'>(https://missdirection.example.com)</span>
+          </h3>
+          <div class='dateLine'>
+            <span class='date'>2016-08-24 - 2016-08-24</span>
+          </div>
+        </div>
+        <div class='description'><p class='summaryProse'>A mapping engine that misguides you</p></div>
+        <ul class='highlights'>
+          <li>Won award at AIHacks 2016</li>
+          <li>Built by all women team of newbie programmers</li>
+          <li>Using modern technologies such as GoogleMaps, Chrome Extension and Javascript</li>
+        </ul>
+      </div>
+      
+    </div>
+  </div>
+
+
+	<div class='skills'>
+    <h2 class='sectionName'>
+      <span>Skills</span>
+    </h2>
+    <div class='sectionContent'>
+      <div class='skillBlock'>
+        <span class='skillRow'>
+          <b>Web Development <em>(Master)</em>:</b><!--
+          --><!--
+          --> HTML,  CSS,  Javascript<!--
+          -->
+        </span>
+      </div>
+      <div class='skillBlock'>
+        <span class='skillRow'>
+          <b>Compression <em>(Master)</em>:</b><!--
+          --><!--
+          --> Mpeg,  MP4,  GIF<!--
+          -->
+        </span>
+      </div>
+    </div>
+	</div>
+
+	<div class='education'>
+    <h2 class='sectionName'>
+      <span>Education</span>
+    </h2>
+    <div class='sectionContent'>
+      <div class='educationBlock'>
+        <div class='blockHeader'>
+          <h3 class='title'>
+            University of Oklahoma <em>(4.0)</em>
+          </h3>
+          <div class='metaRow'>
+            <div class='degree'><em>Bachelor (Information Technology)</em></div>
+            <div class='dateLine'>
+              <span class='date'>2011-06-01 - 2014-01-01</span>
+            </div>
+          </div>
+        </div>
+        <div class='coursesBlock'>
+          <div class='coursesInline'>
+              <span class='course'>DB1101 - Basic SQL</span><span class='courseSep'> • </span>
+              <span class='course'>CS2011 - Java Introduction</span>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+	</div>
+
+	<div class='publications'>
+    <h2 class='sectionName'>
+      <span>Patents</span>
+    </h2>
+    <div class='sectionContent'>
+      <div class='publicationBlock'>
+        <div class='publicationHeader'>
+          <h3 class='title'>Video compression for 3d media</h3>
+          <div class='publicationMeta'>
+            <span class='publicationMetaLabel'>Year:</span> <span class='publicationMetaValue'>2014-10-01</span><span class='publicationMetaSep'> | </span><span class='publicationMetaLabel'>Patent no.:</span> <span class='publicationMetaValue'>Innovative middle-out compression algorithm that changes the way we store data.</span>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+	</div>
+
+
+	<div class='awards'>
+    <h2 class='sectionName'>
+      <span>Awards &amp; Recognition</span>
+    </h2>
+    <div class='sectionContent'>
+      <div class='awardBlock'>
+        <div class='blockHeader blockHeaderInlineMeta'>
+          <h3 class='title'>
+            Digital Compression Pioneer Award: Techcrunch
+          </h3>
+          <div class='dateLine'>
+            <span class='date'>2014-11-01</span>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+	</div>
+
+	<div class='volunteer'>
+    <h2 class='sectionName'>
+      <span>Volunteering</span>
+    </h2>
+    <div class='sectionContent'>
+      <div class='volunteerBlock'>
+        <div class='blockHeader'>
+          <h3 class='title'>
+            CoderDojo
+          </h3>
+          <div class='metaRow'>
+            <div class='position'><strong>Teacher</strong></div>
+            <div class='dateLine'>
+              <span class='date'>2012-01-01 - 2013-01-01</span>
+            </div>
+          </div>
+        </div>
+        <div class='summary'><p class='summaryProse'>Global movement of free coding clubs for young people.</p></div>
+        <ul class='highlights'>
+          <li>Awarded 'Teacher of the Month'</li>
+        </ul>
+      </div>
+      
+    </div>
+	</div>
+
+
+	<div class='languages'>
+    <h2 class='sectionName'>
+      <span>Languages</span>
+    </h2>
+    <div class='sectionContent'>
+      <div class='languageBlock'>
+        <span class='language'>English</span>
+        <span class='fluency'><em>(Native speaker)</em></span>
+        
+      </div>
+    </div>
+	</div>
+
+	<div class='interests'>
+    <h2 class='sectionName'>
+      <span>Interests</span>
+    </h2>
+    <div class='sectionContent'>
+      <div class='interestBlock'>
+        <span class='name'>Wildlife</span>
+        <span class='keywords'>: <em>Ferrets, Unicorns</em></span>
+        
+      </div>
+    </div>
+	</div>
+
+  <div class='references'>
+    <h2 class='sectionName'>
+      <span>References</span>
+    </h2>
+    <div class='sectionContent'>
+      <div class='referenceBlock'>
+        <div class='blockHeader'>
+          <h3 class='title'>Erlich Bachman</h3>
+        </div>
+        <div class='reference'>"It is my pleasure to recommend Richard, his performance working as a consultant for Main St. Company proved that he will be a valuable addition to any company."</div>
+      </div>
+      
+    </div>
+  </div>
+
+	</div>
+	</body>
+</html>

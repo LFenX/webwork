@@ -78,11 +78,13 @@ import { listMyCapabilitiesTool, searchMyCapabilitiesTool } from "@/lib/ai/tools
 import { proposeSaveUserContextTool } from "@/lib/ai/tools/propose-user-context-tool"
 import { getAutoReplySettingsTool, updateAutoReplySettingsTool } from "@/lib/ai/tools/auto-reply-tools"
 import { listMyChannelsTool, getChannelMessagesTool } from "@/lib/ai/tools/channel-tools"
+import { getSoulWingRoundtableRecordsTool } from "@/lib/ai/tools/soulwing-roundtable-tools"
 import { sendDraftChatMessageTool } from "@/lib/ai/tools/chat-draft-tools"
 import { summarizeChatThreadTool } from "@/lib/ai/tools/summarize-thread-tool"
 import { deleteMyMemoryFactBatchTool } from "@/lib/ai/tools/memory-batch-tools"
 import { setModuleVisibilityTool } from "@/lib/ai/tools/module-visibility-tools"
 import { searchSoulWingConversationsTool } from "@/lib/ai/tools/search-soulwing-conversations"
+import { webSearchTool, webVerifyCurrentInfoTool } from "@/lib/ai/tools/web-search-tools"
 import type { AIToolDescriptor } from "@/lib/ai/types"
 
 function defineTool<TInput extends Record<string, unknown> | void>(
@@ -788,6 +790,26 @@ export const AI_TOOLS_REGISTRY = [
     argumentHints: ["query 必填，支持中英文关键词"],
     returns: "匹配的工具列表，含分类、名称、标题、触发短语。",
   }),
+  defineTool(webSearchTool, {
+    scope: "self",
+    inputSchemaSummary: webSearchTool.inputSchemaSummary,
+    sensitivity: webSearchTool.sensitivity,
+    auditLabel: webSearchTool.auditLabel,
+    whenToUse: webSearchTool.whenToUse,
+    whenNotToUse: webSearchTool.whenNotToUse,
+    argumentHints: webSearchTool.argumentHints,
+    returns: webSearchTool.returns,
+  }),
+  defineTool(webVerifyCurrentInfoTool, {
+    scope: "self",
+    inputSchemaSummary: webVerifyCurrentInfoTool.inputSchemaSummary,
+    sensitivity: webVerifyCurrentInfoTool.sensitivity,
+    auditLabel: webVerifyCurrentInfoTool.auditLabel,
+    whenToUse: webVerifyCurrentInfoTool.whenToUse,
+    whenNotToUse: webVerifyCurrentInfoTool.whenNotToUse,
+    argumentHints: webVerifyCurrentInfoTool.argumentHints,
+    returns: webVerifyCurrentInfoTool.returns,
+  }),
   // ── Phase 4: Persona self-update ────────────────────────────────────────
   defineTool(proposeSaveUserContextTool, {
     scope: "self",
@@ -840,6 +862,16 @@ export const AI_TOOLS_REGISTRY = [
     whenNotToUse: getChannelMessagesTool.whenNotToUse,
     argumentHints: getChannelMessagesTool.argumentHints,
     returns: getChannelMessagesTool.returns,
+  }),
+  defineTool(getSoulWingRoundtableRecordsTool, {
+    scope: "self",
+    inputSchemaSummary: getSoulWingRoundtableRecordsTool.inputSchemaSummary,
+    sensitivity: getSoulWingRoundtableRecordsTool.sensitivity,
+    auditLabel: getSoulWingRoundtableRecordsTool.auditLabel,
+    whenToUse: getSoulWingRoundtableRecordsTool.whenToUse,
+    whenNotToUse: getSoulWingRoundtableRecordsTool.whenNotToUse,
+    argumentHints: getSoulWingRoundtableRecordsTool.argumentHints,
+    returns: getSoulWingRoundtableRecordsTool.returns,
   }),
   // ── Phase 5: Chat draft ─────────────────────────────────────────────────
   defineTool(sendDraftChatMessageTool, {

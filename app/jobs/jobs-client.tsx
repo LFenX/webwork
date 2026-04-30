@@ -19,6 +19,7 @@ import { JOB_STATUS, JOB_CHANNELS } from "@/lib/enums"
 import { apiFetch, apiPost, apiPatch, apiDelete } from "@/lib/api-client"
 import { formatChinaDate } from "@/lib/time"
 import { getDict } from "@/lib/i18n"
+import { confirmAction } from "@/lib/interaction-feedback"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 
 interface Job {
@@ -102,6 +103,7 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: "private
   const [detailJob, setDetailJob] = useState<Job | null>(null)
   const [form, setForm] = useState<JobForm>(defaultForm)
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const loadJobs = useCallback(async (cursor: string | null, append: boolean) => {
@@ -204,11 +206,18 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: "private
 
   async function handleDelete(id: string, closeSheet = false) {
     const job = jobs.find(j => j.id === id)
-    if (!confirm(dict.jobs.deleteConfirm(job?.company ?? ""))) return
-    await apiDelete(`/api/jobs/${id}`)
-    if (closeSheet) setDetailOpen(false)
-    toast.success(dict.jobs.deleted)
-    triggerRefresh()
+    if (!confirmAction(`${dict.jobs.deleteConfirm(job?.company ?? "")}\n删除后该求职记录及关联展示将从列表中移除。`)) return
+    setDeletingId(id)
+    try {
+      await apiDelete(`/api/jobs/${id}`)
+      if (closeSheet) setDetailOpen(false)
+      toast.success(dict.jobs.deleted)
+      triggerRefresh()
+    } catch {
+      toast.error(dict.common.error)
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   async function handleStatusChange(id: string, status: string) {
@@ -376,7 +385,7 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: "private
                           <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                             <button onClick={() => openDetail(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-link]" title={dict.jobs.detail}><Eye size={13} /></button>
                             <button onClick={() => openEdit(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-text-primary]" title={dict.common.edit}><Pencil size={13} /></button>
-                            <button onClick={() => handleDelete(job.id)} className="p-1 text-[--color-text-muted] hover:text-[--color-danger]" title={dict.common.delete}><Trash2 size={13} /></button>
+                            <button onClick={() => handleDelete(job.id)} disabled={deletingId === job.id} aria-busy={deletingId === job.id || undefined} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[--color-text-muted] hover:bg-[--color-danger-bg] hover:text-[--color-danger] disabled:opacity-50" title={dict.common.delete}><Trash2 size={13} /></button>
                           </div>
                         </td>
                       </tr>
@@ -432,7 +441,7 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: "private
                 )}
                 <div className="flex gap-2 pt-2">
                   <Button size="sm" variant="outline" onClick={() => openEdit(detailJob)} className="gap-1.5"><Pencil size={13} /> {dict.common.edit}</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleDelete(detailJob.id, true)} className="gap-1.5 text-[--color-danger] hover:text-[--color-danger]"><Trash2 size={13} /> {dict.common.delete}</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleDelete(detailJob.id, true)} loading={deletingId === detailJob.id} loadingText={dict.common.delete} className="gap-1.5 text-[--color-danger] hover:text-[--color-danger]"><Trash2 size={13} /> {dict.common.delete}</Button>
                 </div>
               </div>
             </>
@@ -496,7 +505,7 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: "private
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>{dict.jobs.cancel}</Button>
-              <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? dict.jobs.saving : dict.jobs.save}</Button>
+              <Button size="sm" onClick={handleSave} loading={saving} loadingText={dict.jobs.saving}>{dict.jobs.save}</Button>
             </div>
           </div>
         </DialogContent>

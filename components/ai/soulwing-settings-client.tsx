@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { confirmAction } from "@/lib/interaction-feedback"
 
 type AgentProfileData = {
   userId: string
@@ -18,6 +19,7 @@ type AgentProfileData = {
   identityVersion: number
   userContextVersion: number
   rulesVersion: number
+  avatarUrl: string | null
 }
 
 type MemoryFactItem = {
@@ -71,6 +73,8 @@ type MemorySettingsData = {
   requireConfirmBeforeSave: boolean
 }
 
+type PersonaSectionId = "identity" | "soul" | "user" | "rules"
+
 const CATEGORY_LABELS: Record<string, string> = {
   preference: "偏好",
   project: "项目",
@@ -104,10 +108,10 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-3 py-2 text-[13px] sm:px-4 sm:text-sm font-medium transition-colors whitespace-nowrap ${
+      className={`relative h-10 rounded-full px-4 text-[13px] sm:px-5 sm:text-sm font-medium transition-all whitespace-nowrap ${
         active
-          ? "bg-[--color-brand] text-white shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_2px_4px_rgba(0,0,0,0.12)]"
-          : "bg-[--color-bg-hover] text-[--color-text-secondary] hover:text-[--color-text-primary]"
+          ? "bg-[--color-text-primary] text-[--color-bg-primary] shadow-[0_10px_24px_rgba(15,23,42,0.16)]"
+          : "text-[--color-text-secondary] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
       }`}
     >
       {children}
@@ -142,6 +146,7 @@ function Toggle({ label, description, value, onChange, warning }: { label: strin
 
 export function SoulWingSettingsClient() {
   const [tab, setTab] = useState<"persona" | "memory" | "logs" | "privacy" | "auto_reply">("persona")
+  const [activePersonaSection, setActivePersonaSection] = useState<PersonaSectionId>("identity")
 
   // ── Persona state ──
   const [profile, setProfile] = useState<AgentProfileData | null>(null)
@@ -151,6 +156,9 @@ export function SoulWingSettingsClient() {
   const [userCtx, setUserCtx] = useState("")
   const [rules, setRules] = useState("")
   const [savingPersona, setSavingPersona] = useState(false)
+  const [savingAvatar, setSavingAvatar] = useState(false)
+  const [savingMemory, setSavingMemory] = useState(false)
+  const avatarFileInputRef = useRef<HTMLInputElement | null>(null)
 
   // ── Memory state ──
   const [facts, setFacts] = useState<MemoryFactItem[]>([])
@@ -215,8 +223,70 @@ export function SoulWingSettingsClient() {
     finally { setSavingPersona(false) }
   }
 
+  const onAvatarFilePicked = async (file: File | null) => {
+    if (!file) return
+    if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) {
+      toast.error("仅支持 PNG / JPG / WebP / GIF 格式。")
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("头像图片不能超过 2MB。")
+      return
+    }
+    let dataUrl = ""
+    try {
+      dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "")
+        reader.onerror = () => reject(reader.error ?? new Error("读取文件失败"))
+        reader.readAsDataURL(file)
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "读取文件失败")
+      return
+    }
+    if (!dataUrl) return
+    setSavingAvatar(true)
+    try {
+      const res = await fetch("/api/ai/agent-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarDataUrl: dataUrl }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? "上传失败")
+      toast.success("蝶灵头像已更新")
+      await loadProfile()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "上传失败")
+    } finally {
+      setSavingAvatar(false)
+      if (avatarFileInputRef.current) avatarFileInputRef.current.value = ""
+    }
+  }
+
+  const resetAgentAvatar = async () => {
+    if (!confirmAction("恢复为你账户的头像作为蝶灵头像？当前自定义蝶灵头像会被替换。")) return
+    setSavingAvatar(true)
+    try {
+      const res = await fetch("/api/ai/agent-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarUrl: null }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? "重置失败")
+      toast.success("已恢复为账户头像")
+      await loadProfile()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "重置失败")
+    } finally {
+      setSavingAvatar(false)
+    }
+  }
+
   const restoreDefaults = async () => {
-    if (!confirm("确定要恢复默认蝶灵模板吗？当前的自定义内容将替换为原始默认值。")) return
+    if (!confirmAction("确定要恢复默认蝶灵模板吗？当前自定义的人格、身份、上下文和规则内容会被替换为原始默认值。")) return
     setSavingPersona(true)
     try {
       const res = await fetch("/api/ai/agent-profile", {
@@ -230,6 +300,56 @@ export function SoulWingSettingsClient() {
     } catch { toast.error("恢复默认模板失败") }
     finally { setSavingPersona(false) }
   }
+
+  const personaSections = [
+    {
+      id: "identity" as const,
+      eyebrow: "IDENTITY",
+      title: "蝶灵是谁",
+      description: "定义蝶灵的身份、定位和与你的关系。",
+      value: identity,
+      setValue: setIdentity,
+      version: profile?.identityVersion ?? 0,
+      placeholder: "例如：中文名、与你的关系、核心定位、不可混淆的身份边界。",
+    },
+    {
+      id: "soul" as const,
+      eyebrow: "SOUL",
+      title: "性格与表达方式",
+      description: "定义蝶灵怎么说话、怎么思考、怎么做事。",
+      value: soul,
+      setValue: setSoul,
+      version: profile?.soulVersion ?? 0,
+      placeholder: "例如：语气、思考习惯、协作方式、回答偏好、情绪颗粒度。",
+    },
+    {
+      id: "user" as const,
+      eyebrow: "USER",
+      title: "蝶灵认识的你",
+      description: "告诉蝶灵关于你的背景、偏好、项目和长期目标。",
+      value: userCtx,
+      setValue: setUserCtx,
+      version: profile?.userContextVersion ?? 0,
+      placeholder: "例如：长期项目、偏好的工作方式、重要背景、你希望它记住的上下文。",
+    },
+    {
+      id: "rules" as const,
+      eyebrow: "RULES",
+      title: "行为边界",
+      description: "你为蝶灵设定的行为规则。平台级安全规则始终优先，此处规则不能覆盖。",
+      value: rules,
+      setValue: setRules,
+      version: profile?.rulesVersion ?? 0,
+      placeholder: "例如：必须遵守的表达边界、需要主动确认的场景、不要触碰的话题。",
+    },
+  ]
+  const activePersona = personaSections.find(section => section.id === activePersonaSection) ?? personaSections[0]
+  const hasPersonaChanges = profile
+    ? identity !== (profile.identityContent ?? "")
+      || soul !== (profile.soulContent ?? "")
+      || userCtx !== (profile.userContextContent ?? "")
+      || rules !== (profile.rulesContent ?? "")
+    : false
 
   // ── Memory ─────────────────────────────────────────────────────────────
 
@@ -252,6 +372,7 @@ export function SoulWingSettingsClient() {
 
   const createFact = async () => {
     if (!newTitle.trim() || !newContent.trim()) { toast.error("标题和内容不能为空"); return }
+    setSavingMemory(true)
     try {
       const res = await fetch("/api/ai/memory", {
         method: "POST",
@@ -264,6 +385,7 @@ export function SoulWingSettingsClient() {
       setNewTitle(""); setNewContent(""); setNewTags(""); setNewCategory("other"); setNewImportance("medium")
       await loadFacts(factSearch, factCategory)
     } catch { toast.error("创建记忆失败") }
+    finally { setSavingMemory(false) }
   }
 
   const startEdit = (fact: MemoryFactItem) => {
@@ -277,6 +399,7 @@ export function SoulWingSettingsClient() {
 
   const saveEdit = async () => {
     if (!editingFact) return
+    setSavingMemory(true)
     try {
       const res = await fetch(`/api/ai/memory/${editingFact.id}`, {
         method: "PATCH",
@@ -288,16 +411,19 @@ export function SoulWingSettingsClient() {
       setEditingFact(null)
       await loadFacts(factSearch, factCategory)
     } catch { toast.error("更新记忆失败") }
+    finally { setSavingMemory(false) }
   }
 
   const forgetFact = async (fact: MemoryFactItem) => {
-    if (!confirm(`确定要忘记这条记忆吗？\n\n"${fact.title}"\n\n忘记后不会硬删除，但默认不再展示。`)) return
+    if (!confirmAction(`确定要忘记这条记忆吗？\n\n"${fact.title}"\n\n忘记后不会硬删除，但默认不再展示。`)) return
+    setSavingMemory(true)
     try {
       const res = await fetch(`/api/ai/memory/${fact.id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Failed")
       toast.success("已忘记这条记忆")
       await loadFacts(factSearch, factCategory)
     } catch { toast.error("忘记记忆失败") }
+    finally { setSavingMemory(false) }
   }
 
   // ── Logs ───────────────────────────────────────────────────────────────
@@ -423,7 +549,7 @@ export function SoulWingSettingsClient() {
   return (
     <div>
       {/* Tabs */}
-      <div className="mb-6 flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
+      <div className="mb-6 flex w-fit max-w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-full bg-[--color-bg-surface]/75 p-1 shadow-[inset_0_0_0_1px_var(--color-border)]">
         <TabButton active={tab === "persona"} onClick={() => setTab("persona")}>人格设置</TabButton>
         <TabButton active={tab === "memory"} onClick={() => setTab("memory")}>长期记忆</TabButton>
         <TabButton active={tab === "logs"} onClick={() => setTab("logs")}>自动记忆日志</TabButton>
@@ -442,37 +568,139 @@ export function SoulWingSettingsClient() {
                 </div>
               ) : null}
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-[--color-text-primary]">IDENTITY — 蝶灵是谁</label>
-                <p className="mb-2 text-xs text-[--color-text-muted]">定义蝶灵的身份、定位和与你的关系。</p>
-                <Textarea rows={4} value={identity} onChange={e => setIdentity(e.target.value)} className="min-h-[100px] resize-y rounded-[--radius-md] bg-[--color-bg-surface] text-sm" />
+              <div className="rounded-[--radius-lg] bg-[--color-bg-surface] p-4 shadow-[0_8px_22px_rgba(15,23,42,0.04)] sm:p-5">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-[--color-border-strong] bg-[--color-bg-hover]">
+                    {profile?.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={profile.avatarUrl} alt="蝶灵头像" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-[--color-text-muted]">默认</div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-[--color-text-primary]">蝶灵头像</p>
+                    <p className="mt-1 text-xs leading-5 text-[--color-text-muted]">
+                      默认沿用你的账户头像。可以上传一张图片让你的蝶灵在圆桌、聊天等地方有独立形象。
+                      {profile?.avatarUrl ? "" : " 当前正在使用账户头像。"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      ref={avatarFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(event) => void onAvatarFilePicked(event.target.files?.[0] ?? null)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={savingAvatar}
+                      onClick={() => avatarFileInputRef.current?.click()}
+                      className="rounded-full px-4"
+                    >
+                      {savingAvatar ? "上传中..." : profile?.avatarUrl ? "更换头像" : "上传头像"}
+                    </Button>
+                    {profile?.avatarUrl ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={savingAvatar}
+                        onClick={resetAgentAvatar}
+                        className="rounded-full px-4 text-[--color-text-muted]"
+                      >
+                        恢复为账户头像
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-[--color-text-primary]">SOUL — 蝶灵的性格与表达方式</label>
-                <p className="mb-2 text-xs text-[--color-text-muted]">定义蝶灵怎么说话、怎么思考、怎么做事。</p>
-                <Textarea rows={5} value={soul} onChange={e => setSoul(e.target.value)} className="min-h-[120px] resize-y rounded-[--radius-md] bg-[--color-bg-surface] text-sm" />
-              </div>
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="text-base font-semibold text-[--color-text-primary]">人格文件编辑器</p>
+                    <p className="mt-1 text-sm text-[--color-text-muted]">选择一个分区专注编辑，保存时会一起更新四个人格文件。</p>
+                  </div>
+                  <div className={`rounded-full px-3 py-1 text-xs ${
+                    hasPersonaChanges
+                      ? "bg-[--color-brand]/10 text-[--color-brand]"
+                      : "bg-[--color-bg-hover] text-[--color-text-muted]"
+                  }`}>
+                    {hasPersonaChanges ? "有未保存修改" : "当前已保存"}
+                  </div>
+                </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-[--color-text-primary]">USER — 蝶灵认识的你</label>
-                <p className="mb-2 text-xs text-[--color-text-muted]">告诉蝶灵关于你的背景、偏好、项目和长期目标。</p>
-                <Textarea rows={5} value={userCtx} onChange={e => setUserCtx(e.target.value)} className="min-h-[120px] resize-y rounded-[--radius-md] bg-[--color-bg-surface] text-sm" />
-              </div>
+                <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+                  <aside className="min-w-0">
+                    <div className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:rounded-[--radius-lg] lg:bg-[--color-bg-surface]/60 lg:p-2">
+                      {personaSections.map(section => {
+                        const active = section.id === activePersona.id
+                        return (
+                          <button
+                            key={section.id}
+                            type="button"
+                            onClick={() => setActivePersonaSection(section.id)}
+                            className={`relative min-w-[148px] rounded-full px-4 py-2 text-left transition-all lg:min-w-0 lg:w-full lg:rounded-[--radius-md] lg:px-4 lg:py-3 ${
+                              active
+                                ? "bg-[--color-text-primary] pl-8 text-[--color-bg-primary] shadow-[0_8px_20px_rgba(15,23,42,0.14)] lg:bg-[--color-bg-primary] lg:pl-8 lg:text-[--color-text-primary] lg:shadow-[0_8px_22px_rgba(15,23,42,0.08)] lg:ring-1 lg:ring-[--color-border]"
+                                : "bg-[--color-bg-hover] text-[--color-text-secondary] hover:text-[--color-text-primary] lg:bg-transparent lg:hover:bg-[--color-bg-hover]"
+                            }`}
+                          >
+                            {active ? <span className="pointer-events-none absolute bottom-3 left-3 top-3 z-10 w-[5px] rounded-full bg-[#2563EB] shadow-[0_0_0_1px_rgba(255,255,255,0.85)]" aria-hidden="true" /> : null}
+                            <span className={`block text-[11px] font-semibold ${active ? "text-[--color-bg-primary]/70 lg:text-[--color-brand]" : "text-[--color-text-muted]"}`}>{section.eyebrow}</span>
+                            <span className="mt-0.5 block truncate text-sm font-semibold lg:mt-1 lg:truncate-none lg:pl-2">{section.title}</span>
+                            <span className="mt-1 hidden text-xs leading-5 text-[--color-text-muted] lg:block">{section.description}</span>
+                            <span className="mt-2 hidden text-[11px] text-[--color-text-muted] lg:block">
+                              <span>v{section.version} · {section.value.trim().length || 0} 字</span>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </aside>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-[--color-text-primary]">RULES — 蝶灵的行为边界</label>
-                <p className="mb-2 text-xs text-[--color-text-muted]">你为蝶灵设定的行为规则。注意：平台级安全规则始终优先，此处规则不能覆盖。</p>
-                <Textarea rows={5} value={rules} onChange={e => setRules(e.target.value)} className="min-h-[120px] resize-y rounded-[--radius-md] bg-[--color-bg-surface] text-sm" />
-              </div>
+                  <section className="flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-[--radius-lg] bg-[--color-bg-surface] shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+                    <div className="px-4 py-4 sm:px-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-[--color-brand]">{activePersona.eyebrow}</p>
+                          <h3 className="mt-1 text-lg font-semibold text-[--color-text-primary]">{activePersona.title}</h3>
+                          <p className="mt-1 text-sm text-[--color-text-muted]">{activePersona.description}</p>
+                        </div>
+                        <div className="rounded-full bg-[--color-bg-hover] px-3 py-1.5 text-right">
+                          <p className="text-[11px] text-[--color-text-muted]">当前版本</p>
+                          <p className="text-xs font-semibold text-[--color-text-primary]">v{activePersona.version}</p>
+                        </div>
+                      </div>
+                    </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <Button onClick={saveProfile} disabled={savingPersona} className="rounded-full px-6 shadow-none">
-                  {savingPersona ? "保存中..." : "保存人格配置"}
-                </Button>
-                <Button variant="outline" onClick={restoreDefaults} className="rounded-full px-6 shadow-none text-xs">
-                  恢复默认模板
-                </Button>
+                    <Textarea
+                      wrap="soft"
+                      rows={18}
+                      value={activePersona.value}
+                      onChange={e => activePersona.setValue(e.target.value)}
+                      placeholder={activePersona.placeholder}
+                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                      className="min-h-[420px] w-full max-w-full flex-1 resize-none overflow-x-hidden whitespace-pre-wrap rounded-none border-0 bg-[--color-bg-primary]/45 px-4 py-4 text-sm leading-6 shadow-none [overflow-wrap:anywhere] [word-break:break-word] focus-visible:ring-0 focus-visible:ring-offset-0 sm:px-5"
+                    />
+
+                    <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 bg-[--color-bg-surface]/95 px-4 py-3 backdrop-blur sm:px-5">
+                      <p className="text-xs text-[--color-text-muted]">
+                        当前分区 {activePersona.value.trim().length || 0} 字；保存会写入所有分区。
+                      </p>
+                      <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+                        <Button variant="outline" onClick={restoreDefaults} loading={savingPersona} loadingText="恢复中..." className="flex-1 rounded-full px-6 shadow-none text-xs sm:flex-none">
+                          恢复默认模板
+                        </Button>
+                        <Button onClick={saveProfile} disabled={!hasPersonaChanges} loading={savingPersona} loadingText="保存中..." className="flex-1 rounded-full px-6 shadow-none sm:flex-none">
+                          保存人格配置
+                        </Button>
+                      </div>
+                    </div>
+                  </section>
+                </div>
               </div>
             </>
           )}
@@ -507,7 +735,7 @@ export function SoulWingSettingsClient() {
               <Textarea rows={3} placeholder="记忆内容" value={newContent} onChange={e => setNewContent(e.target.value)} className="min-h-[80px] rounded-[--radius-md] bg-[--color-bg-surface] text-sm" />
               <Input placeholder="标签（用逗号分隔）" value={newTags} onChange={e => setNewTags(e.target.value)} className="rounded-[--radius-md] bg-[--color-bg-surface] text-sm shadow-none" />
               <div className="flex gap-2">
-                <Button size="sm" onClick={createFact} className="rounded-full shadow-none">保存</Button>
+                <Button size="sm" onClick={createFact} loading={savingMemory} loadingText="保存中..." className="rounded-full shadow-none">保存</Button>
                 <Button size="sm" variant="outline" onClick={() => setShowNewFact(false)} className="rounded-full shadow-none text-xs">取消</Button>
               </div>
             </div>
@@ -532,7 +760,7 @@ export function SoulWingSettingsClient() {
                   <Input value={editTags} onChange={e => setEditTags(e.target.value)} placeholder="标签（逗号分隔）" className="rounded-[--radius-md] bg-[--color-bg-surface] text-sm shadow-none" />
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <Button size="sm" onClick={saveEdit} className="rounded-full shadow-none">保存</Button>
+                  <Button size="sm" onClick={saveEdit} loading={savingMemory} loadingText="保存中..." className="rounded-full shadow-none">保存</Button>
                   <Button size="sm" variant="outline" onClick={() => setEditingFact(null)} className="rounded-full shadow-none text-xs">取消</Button>
                 </div>
               </div>
@@ -565,7 +793,7 @@ export function SoulWingSettingsClient() {
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <Button size="sm" variant="ghost" className="h-7 rounded-full px-3 text-xs shadow-none" onClick={() => startEdit(fact)}>编辑</Button>
-                      <Button size="sm" variant="ghost" className="h-7 rounded-full px-3 text-xs text-red-600 shadow-none hover:text-red-700" onClick={() => forgetFact(fact)}>忘记</Button>
+                      <Button size="sm" variant="ghost" className="h-7 rounded-full px-3 text-xs text-red-600 shadow-none hover:text-red-700" onClick={() => forgetFact(fact)} loading={savingMemory} loadingText="忘记中...">忘记</Button>
                     </div>
                   </div>
                 </div>

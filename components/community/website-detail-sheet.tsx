@@ -5,6 +5,7 @@ import { ExternalLink, Copy, Trash2, Pencil, Globe } from "lucide-react"
 import { toast } from "sonner"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
+import { confirmAction, copyTextWithToast } from "@/lib/interaction-feedback"
 import {
   Sheet,
   SheetContent,
@@ -29,6 +30,7 @@ export function WebsiteDetailSheet({
 }: Props) {
   const [website, setWebsite] = useState<WebsiteResource | null>(null)
   const [loading, setLoading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!websiteId) return
@@ -60,16 +62,26 @@ export function WebsiteDetailSheet({
 
   const handleCopy = () => {
     if (!website) return
-    navigator.clipboard.writeText(website.url)
-    toast.success("链接已复制")
+    void copyTextWithToast(website.url, "链接已复制", "复制失败，请手动复制")
   }
 
   const handleDelete = async () => {
     if (!website) return
-    const res = await fetch(`/api/websites/${website.id}`, { method: "DELETE", cache: "no-store" })
-    if (!res.ok) { toast.error("删除失败"); return }
-    toast.success("资源已删除")
-    onDelete(website.id)
+    if (!confirmAction(`确定删除网站资源“${website.name}”？删除后将从资源列表中移除，无法直接恢复。`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/websites/${website.id}`, { method: "DELETE", cache: "no-store" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error ?? "删除失败")
+      }
+      toast.success("资源已删除")
+      onDelete(website.id)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除失败")
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const posX = website?.screenshotPositionX ?? 50
@@ -127,7 +139,7 @@ export function WebsiteDetailSheet({
             {isOwner && (
               <div className="mt-3 flex gap-2">
                 <Button variant="ghost" size="sm" onClick={() => { onEdit(website); onClose() }} className="gap-1.5"><Pencil size={14} />编辑</Button>
-                <Button variant="ghost" size="sm" onClick={handleDelete} className="gap-1.5 text-[--color-danger] hover:text-[--color-danger]"><Trash2 size={14} />删除</Button>
+                <Button variant="ghost" size="sm" onClick={handleDelete} loading={deleting} loadingText="删除中..." className="gap-1.5 text-[--color-danger] hover:text-[--color-danger]"><Trash2 size={14} />删除</Button>
               </div>
             )}
           </>

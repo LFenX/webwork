@@ -14,6 +14,7 @@ import {
   saveModelCatalog,
 } from "@/lib/ai/model-presets"
 import { getDict } from "@/lib/i18n"
+import { confirmAction } from "@/lib/interaction-feedback"
 
 type AIProviderCapabilities = {
   streamText: boolean
@@ -61,6 +62,16 @@ type ConfigPayload = {
   isEnabled: boolean
 }
 
+type WebSearchPayload = {
+  enabled: boolean
+  configured: boolean
+  apiKeyMask: string
+  apiKey: string
+  host: string
+  workspace: string
+  serviceId: string
+}
+
 const DEFAULT_FORM: ConfigPayload = {
   name: "",
   providerLabel: "OpenAI-compatible",
@@ -70,6 +81,16 @@ const DEFAULT_FORM: ConfigPayload = {
   temperature: "0.7",
   streamEnabled: true,
   isEnabled: true,
+}
+
+const DEFAULT_WEB_SEARCH_FORM: WebSearchPayload = {
+  enabled: false,
+  configured: false,
+  apiKeyMask: "",
+  apiKey: "",
+  host: "",
+  workspace: "default",
+  serviceId: "ops-web-search-001",
 }
 
 function buildForm(config: UnifiedConfigItem): ConfigPayload {
@@ -152,9 +173,13 @@ function AISettingsSheetBody({
   const [form, setForm] = useState<ConfigPayload>(DEFAULT_FORM)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [configActionId, setConfigActionId] = useState<string | null>(null)
+  const [webSearchSaving, setWebSearchSaving] = useState(false)
+  const [webSearchTesting, setWebSearchTesting] = useState(false)
   const [testedCapabilities, setTestedCapabilities] = useState<AIProviderCapabilities | null>(null)
   const [testStatus, setTestStatus] = useState<{ status: string; testedAt: string | null } | null>(null)
   const [modelCatalogText, setModelCatalogText] = useState("")
+  const [webSearchForm, setWebSearchForm] = useState<WebSearchPayload>(DEFAULT_WEB_SEARCH_FORM)
 
   // Access request state
   const [accessRequest, setAccessRequest] = useState<AccessRequestInfo | null>(null)
@@ -167,13 +192,22 @@ function AISettingsSheetBody({
     try {
       const res = await fetch("/api/ai/configs", { cache: "no-store" })
       const data = await res.json().catch(() => null)
-      if (data?.configs) setConfigs(data.configs as UnifiedConfigItem[])
+      if (data?.configs) {
+        const nextConfigs = data.configs as UnifiedConfigItem[]
+        setConfigs(nextConfigs)
+        if (!editingId) {
+          const activeSelfConfig = nextConfigs.find((config) => config.isActive && config.source === "self")
+          if (activeSelfConfig) loadConfig(activeSelfConfig)
+        }
+      }
     } catch {
       // ignore
     } finally {
       setConfigsLoading(false)
     }
-  }, [])
+    // loadConfig is a local event-style helper; including it here would recreate this loader every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId])
 
   const loadAccessRequest = useCallback(async () => {
     try {
@@ -199,6 +233,7 @@ function AISettingsSheetBody({
     setTestedCapabilities(null)
     setTestStatus(null)
     setModelCatalogText("")
+    setWebSearchForm(DEFAULT_WEB_SEARCH_FORM)
   }
 
   function loadConfig(config: UnifiedConfigItem) {
@@ -216,6 +251,33 @@ function AISettingsSheetBody({
       setModelCatalogText(modelCatalogToTextareaValue(catalog.models))
     } else {
       setModelCatalogText("")
+    }
+
+    if (config.source === "self") {
+      void loadWebSearchConfig(config.id)
+    } else {
+      setWebSearchForm(DEFAULT_WEB_SEARCH_FORM)
+    }
+  }
+
+  async function loadWebSearchConfig(configId: string) {
+    try {
+      const res = await fetch(`/api/ai/configs/${configId}/web-search`, { cache: "no-store" })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? "Failed to load web search config")
+      const item = data?.webSearch
+      setWebSearchForm({
+        ...DEFAULT_WEB_SEARCH_FORM,
+        enabled: Boolean(item?.enabled),
+        configured: Boolean(item?.configured),
+        apiKeyMask: item?.apiKeyMask ?? "",
+        apiKey: "",
+        host: item?.host || "",
+        workspace: item?.workspace || DEFAULT_WEB_SEARCH_FORM.workspace,
+        serviceId: item?.serviceId || DEFAULT_WEB_SEARCH_FORM.serviceId,
+      })
+    } catch {
+      setWebSearchForm(DEFAULT_WEB_SEARCH_FORM)
     }
   }
 
@@ -313,8 +375,72 @@ function AISettingsSheetBody({
     }
   }
 
+  async function handleSaveWebSearch() {
+    if (!editingId || editingSource !== "self") return
+    setWebSearchSaving(true)
+    try {
+      const res = await fetch(`/api/ai/configs/${editingId}/web-search`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled: webSearchForm.enabled,
+          apiKey: webSearchForm.apiKey,
+          host: webSearchForm.host.trim() || undefined,
+          workspace: webSearchForm.workspace,
+          serviceId: webSearchForm.serviceId,
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? "Failed to save web search config")
+      const item = data?.webSearch
+      setWebSearchForm((current) => ({
+        ...current,
+        configured: Boolean(item?.configured),
+        apiKeyMask: item?.apiKeyMask ?? current.apiKeyMask,
+        apiKey: "",
+      }))
+      toast.success("联网搜索配置已保存")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save web search config")
+    } finally {
+      setWebSearchSaving(false)
+    }
+  }
+
+  async function handleTestWebSearch() {
+    if (!editingId || editingSource !== "self") return
+    setWebSearchTesting(true)
+    try {
+      const res = await fetch("/api/ai/tools/web-search/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "最近 AI 行业有什么热点",
+          maxResults: 5,
+          contentType: "snippet",
+          configId: editingId,
+          webSearch: {
+            host: webSearchForm.host.trim() || undefined,
+            apiKey: webSearchForm.apiKey.trim() || undefined,
+            workspace: webSearchForm.workspace,
+            serviceId: webSearchForm.serviceId,
+          },
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? "联网搜索测试失败")
+      if (!data?.result?.ok) throw new Error(data?.result?.error ?? "联网搜索测试失败")
+      toast.success(`联网搜索测试成功，返回 ${data.result.results.length} 条结果`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "联网搜索测试失败")
+    } finally {
+      setWebSearchTesting(false)
+    }
+  }
+
   async function handleDeleteConfig(configId: string, configName: string) {
-    if (!confirm(dict.ai.confirmDeleteConfig.replace("{name}", configName))) return
+    if (!confirmAction(`${dict.ai.confirmDeleteConfig.replace("{name}", configName)}\n删除后该 AI 配置不可直接恢复，正在使用它的会话需要重新选择配置。`)) return
+    setConfigActionId(`delete:${configId}`)
     try {
       const res = await fetch(`/api/ai/configs/${configId}`, { method: "DELETE" })
       if (!res.ok) {
@@ -327,10 +453,13 @@ function AISettingsSheetBody({
       await onSaved()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : dict.ai.deleteConfigFailed)
+    } finally {
+      setConfigActionId(null)
     }
   }
 
   async function handleActivate(configId: string, source: string) {
+    setConfigActionId(`activate:${configId}`)
     try {
       const res = await fetch(`/api/ai/configs/${configId}/activate`, {
         method: "POST",
@@ -356,6 +485,8 @@ function AISettingsSheetBody({
       await onSaved()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : dict.ai.saveConfigFailed)
+    } finally {
+      setConfigActionId(null)
     }
   }
 
@@ -381,7 +512,7 @@ function AISettingsSheetBody({
   }
 
   async function handleCancelAccessRequest() {
-    if (!confirm(dict.ai.cancelRequestConfirm)) return
+    if (!confirmAction(`${dict.ai.cancelRequestConfirm}\n取消后如仍需管理员授权，需要重新提交申请。`)) return
     setCancellingRequest(true)
     try {
       const res = await fetch("/api/ai/access-request", { method: "DELETE" })
@@ -438,8 +569,8 @@ function AISettingsSheetBody({
                 placeholder={dict.ai.requestPlaceholder}
                 className="min-h-[80px] resize-y"
               />
-              <Button size="sm" onClick={() => void handleSubmitAccessRequest()} disabled={submittingRequest || !requestMessage.trim()}>
-                {submittingRequest ? dict.ai.requestingAccess : dict.ai.applyForGrant}
+              <Button size="sm" onClick={() => void handleSubmitAccessRequest()} disabled={!requestMessage.trim()} loading={submittingRequest} loadingText={dict.ai.requestingAccess}>
+                {dict.ai.applyForGrant}
               </Button>
             </div>
           ) : accessRequest.status === "pending" ? (
@@ -449,7 +580,7 @@ function AISettingsSheetBody({
               <p className="mt-1 text-xs text-amber-600">
                 {new Date(accessRequest.createdAt).toLocaleString()}
               </p>
-              <Button size="sm" variant="outline" className="mt-2" onClick={() => void handleCancelAccessRequest()} disabled={cancellingRequest}>
+              <Button size="sm" variant="outline" className="mt-2" onClick={() => void handleCancelAccessRequest()} loading={cancellingRequest} loadingText={dict.ai.cancelRequest}>
                 <X size={14} className="mr-1" />
                 {dict.ai.cancelRequest}
               </Button>
@@ -530,12 +661,12 @@ function AISettingsSheetBody({
                       </div>
                       <div className="ml-2 flex shrink-0 gap-1">
                         {!config.isActive && config.source === "self" ? (
-                          <Button type="button" variant="ghost" size="sm" onClick={() => handleActivate(config.id, config.source)} title={dict.ai.activateConfig}>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => handleActivate(config.id, config.source)} loading={configActionId === `activate:${config.id}`} title={dict.ai.activateConfig}>
                             <CheckCircle2 size={14} />
                           </Button>
                         ) : null}
                         {!config.isActive && config.source === "admin_grant" ? (
-                          <Button type="button" variant="ghost" size="sm" onClick={() => handleActivate(config.id, config.source)} title={dict.ai.activateConfig}>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => handleActivate(config.id, config.source)} loading={configActionId === `activate:${config.id}`} title={dict.ai.activateConfig}>
                             <CheckCircle2 size={14} />
                           </Button>
                         ) : null}
@@ -543,7 +674,7 @@ function AISettingsSheetBody({
                           <PlugZap size={14} />
                         </Button>
                         {config.source === "self" ? (
-                          <Button type="button" variant="ghost" size="sm" onClick={() => handleDeleteConfig(config.id, config.name || config.providerLabel)} title={dict.ai.deleteConfigBtn}>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => handleDeleteConfig(config.id, config.name || config.providerLabel)} loading={configActionId === `delete:${config.id}`} title={dict.ai.deleteConfigBtn}>
                             <Trash2 size={14} />
                           </Button>
                         ) : null}
@@ -684,13 +815,82 @@ function AISettingsSheetBody({
           </div>
         </div>
 
+        {editingSource === "self" && editingId ? (
+          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-[--color-text-primary]">联网搜索</p>
+                <p className="mt-1 text-xs leading-6 text-[--color-text-muted]">
+                  你当前使用的是自己的模型配置，因此联网搜索也需要使用你自己的阿里云 API Key。系统不会使用管理员的联网搜索额度。
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={webSearchForm.enabled}
+                onChange={(event) => setWebSearchForm((current) => ({ ...current, enabled: event.target.checked }))}
+              />
+            </div>
+            <div className="mt-3 grid gap-3">
+              <p className="text-xs text-[--color-text-muted]">
+                当前仅支持：阿里云 AI 搜索开放平台 / 服务 ID：ops-web-search-001
+                {webSearchForm.configured ? ` / 已配置：${webSearchForm.apiKeyMask}` : " / 未配置 API Key"}
+              </p>
+              <div>
+                <Label className="mb-1 block text-xs">API Key</Label>
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  value={webSearchForm.apiKey}
+                  onChange={(event) => setWebSearchForm((current) => ({ ...current, apiKey: event.target.value }))}
+                  placeholder={webSearchForm.configured ? "已配置，留空则不修改" : "请输入阿里云联网搜索 API Key"}
+                />
+              </div>
+              <div>
+                <Label className="mb-1 block text-xs">Host</Label>
+                <Input
+                  value={webSearchForm.host}
+                  onChange={(event) => setWebSearchForm((current) => ({ ...current, host: event.target.value }))}
+                  placeholder="http://default-xxxx.platform-cn-shanghai.opensearch.aliyuncs.com"
+                />
+                <p className="mt-1 text-xs text-[--color-text-muted]">
+                  Host 是阿里云 AI 搜索开放平台的服务接入地址，每个阿里云账号或工作空间可能不同，请在阿里云控制台复制自己的公网服务地址。
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="mb-1 block text-xs">Workspace</Label>
+                  <Input
+                    value={webSearchForm.workspace}
+                    onChange={(event) => setWebSearchForm((current) => ({ ...current, workspace: event.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 block text-xs">Service ID</Label>
+                  <Input
+                    value={webSearchForm.serviceId}
+                    onChange={(event) => setWebSearchForm((current) => ({ ...current, serviceId: event.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={() => void handleTestWebSearch()} disabled={!webSearchForm.configured} loading={webSearchTesting} loadingText="测试中...">
+                  <TestTube2 size={14} /> 测试联网搜索
+                </Button>
+                <Button type="button" variant="outline" onClick={() => void handleSaveWebSearch()} loading={webSearchSaving} loadingText="保存中...">
+                  <Save size={14} /> 保存联网搜索
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {editingSource === "self" ? (
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={handleTest} disabled={testing}>
-              <TestTube2 size={14} /> {testing ? dict.ai.testingConnection : dict.ai.testConnectionBtn}
+            <Button type="button" variant="outline" onClick={handleTest} loading={testing} loadingText={dict.ai.testingConnection}>
+              <TestTube2 size={14} /> {dict.ai.testConnectionBtn}
             </Button>
-            <Button type="button" onClick={handleSave} disabled={saving || !storageReady}>
-              <Save size={14} /> {saving ? dict.ai.savingConfig : dict.ai.saveConfigBtn}
+            <Button type="button" onClick={handleSave} disabled={!storageReady} loading={saving} loadingText={dict.ai.savingConfig}>
+              <Save size={14} /> {dict.ai.saveConfigBtn}
             </Button>
           </div>
         ) : null}

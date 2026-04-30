@@ -1,0 +1,259 @@
+<!doctype html>
+<html>
+    <head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimal-ui">
+
+    <title>Richard Hendriks</title>
+
+    <style>
+    /* Template level */
+body {
+    font-family: Georgia, serif;
+    font-size: 11px;
+    display: flex;
+    justify-content: center;
+}
+
+#resume {
+    max-width: 800px;
+    width: 100%;
+    padding: 24px 48px;
+    box-sizing: border-box;
+}
+
+h1 {
+    font-size: 26px;
+    text-align: center;
+    margin: 5px;
+}
+
+h2 {
+    border-width: 1px;
+    border-style: none none solid none;
+    margin: 10px 0 2.5px 0;
+}
+
+section {
+    margin: 3px 0;
+}
+
+ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+a {
+    text-decoration: none;
+    color: black;
+}
+
+.item {
+    margin-top: 8px;
+}
+
+.item>.item-header {
+    display: block;
+}
+
+.item>.item-header>.item-header-title {
+    font-weight: bold;
+}
+
+.item-location {
+    font-weight: normal;
+}
+
+.item-header-subtitle-row,
+.item-header-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.item-header-subtitle-row>.item-header-subtitle {
+    font-style: italic;
+}
+
+.item-header .item-details {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.item-header .item-details>.item-details-title {
+    font-weight: bold;
+}
+
+.clearfix {
+    clear: both;
+}
+
+.centered {
+    text-align: center;
+}
+
+/* Section specific */
+/* basics */
+.vertical-separator {
+    text-align: center;
+    padding: 0 10px;
+}
+
+.vertical-separator:not(:first-child) {
+    border-left: 1px solid #000;
+    text-align: center;
+}
+
+/* Set some print settings. */
+@media print {
+    @page {
+        size: portrait;
+        margin: 10mm 25mm;
+    }
+
+    #resume {
+        max-width: 100%;
+        border: 0px;
+        background: #fff;
+        box-shadow: none;
+        -webkit-box-shadow: none;
+    }
+
+    body,
+    html,
+    #resume {
+        margin: 0px;
+        padding: 0px;
+    }
+
+    .controls {
+        display: none;
+    }
+}
+    </style>
+
+    </head>
+    <body>
+
+    <div id="resume">
+        <section id="basics">
+            <h1>Richard Hendriks</h1>
+            <div class="contact centered">
+        <span class="vertical-separator"><a href="mailto:richard.hendriks@mail.com">richard.hendriks@mail.com</a></span><span class="vertical-separator">(912) 555-4321</span><span class="vertical-separator">San Francisco, US</span><span class="vertical-separator"><a href="https://richardhendricks.example.com">richardhendricks.example.com</a></span>    </div>
+            <div class="summary">
+                <h2>Summary</h2>
+                <p>Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a "length-limited" conversation!</p>
+            </div>
+        </section>
+        <section id="skills">
+            <h2>Skills</h2>
+            <ul class="item">
+                <li>
+                    <strong>Web Development</strong>: HTML, CSS, Javascript
+                </li>
+                <li>
+                    <strong>Compression</strong>: Mpeg, MP4, GIF
+                </li>
+            </ul>
+        </section>
+        <section id="work">
+            <h2>Work Experience</h2>
+        <div class="item">
+            <div class="item-header">
+                <div class="item-header-title">
+                    Pied Piper<span class="item-location">, Palo Alto, CA</span>
+                </div>
+                <div class="item-header-subtitle-row">
+                    <div class="item-header-subtitle">
+                        CEO/President
+                    </div>
+                    <div class="item-details">
+                    
+                        <div class="date">
+                            Dec 2013 — Dec 2014
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="clearfix"></div>
+            
+                    <ul class="highlights">
+                        <li>Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+                        <li>Successfully won Techcrunch Disrupt</li>
+                        <li>Optimized an algorithm that holds the current world record for Weisman Scores</li>
+                    </ul>
+        </div>
+        </section>
+        <section id="volunteer">
+            <h2>Volunteering</h2>
+        <div class="item">
+            <div class="item-header">
+                <div class="item-header-title">
+                    CoderDojo
+                </div>
+                <div class="item-header-subtitle-row">
+                    <div class="item-header-subtitle">
+                        Teacher
+                    </div>
+                    <div class="item-details">
+                    
+                        <div class="date">
+                            Jan 2012 — Jan 2013
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="clearfix"></div>
+                    <div class="summary">
+                        <p>Global movement of free coding clubs for young people.</p>
+                    </div>
+            
+                    <ul class="highlights">
+                        <li>Awarded 'Teacher of the Month'</li>
+                    </ul>
+        </div>
+        </section>
+        <section id="education">
+            <h2>Education</h2>
+        <div class="item">
+            <div class="item-header">
+                <div class="item-header-title">
+                    University of Oklahoma
+                </div>
+                <div class="item-header-subtitle-row">
+                    <div class="item-header-subtitle">
+                        Bachelor
+                    </div>
+                    <div class="item-details">
+                    
+                        <div class="date">
+                            Jun 2011 — Jan 2014
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="clearfix"></div>
+                <ul>
+                    <li>
+                        <div class="score">
+                            4.0
+                        </div>
+                    </li>
+                </ul>
+                <ul class="courses">
+                    <li>DB1101 - Basic SQL</li>
+                    <li>CS2011 - Java Introduction</li>
+                </ul>
+        </div>
+        </section>
+        <section id="awards">
+            <h2>Awards & Recognitions</h2>
+            <ul class="item">
+                <li>
+                    <strong>Digital Compression Pioneer Award</strong>: There is no spoon.
+                </li>
+            </ul>
+        </section>
+    </body>
+</html>

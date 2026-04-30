@@ -2,10 +2,12 @@
 
 import { useCallback, useState } from "react"
 import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
 import { StickerPicker, type StickerPick } from "@/components/sticker-picker"
 import { ThreadedDiscussion, type ThreadItem } from "@/components/threaded-discussion"
 import { getDict } from "@/lib/i18n"
 import { handleEnterToSubmit } from "@/lib/keyboard"
+import { confirmAction } from "@/lib/interaction-feedback"
 
 type Message = ThreadItem & {
   author: {
@@ -14,6 +16,7 @@ type Message = ThreadItem & {
     email: string
     avatarText: string
     avatarUrl: string | null
+    location?: string | null
   }
 }
 
@@ -26,7 +29,7 @@ type Props = {
 
 function SelectedStickerView({ sticker: s, onClear }: { sticker: StickerPick; onClear: () => void }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded border border-[--color-border] bg-[--color-bg-surface] px-2 py-1">
+    <div className="inline-flex items-center gap-2 rounded-full bg-[--color-bg-surface] px-2.5 py-1.5 shadow-[inset_0_0_0_1px_var(--color-border)]">
       {s.type === "emoji" ? <span className="text-2xl">{s.emoji}</span> : (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={s.url} alt={s.name} className="h-10 w-10 object-contain" />
@@ -93,12 +96,14 @@ export function GuestbookSection({ ownerId, initialMessages, isOwner, canPost }:
   }, [ownerId])
 
   const handleDelete = useCallback(async (id: string) => {
+    if (!confirmAction("确定要删除这条留言吗？删除后无法恢复。")) return
     const res = await fetch(`/api/guestbook/${id}`, { method: "DELETE" })
     if (!res.ok) {
       toast.error("删除失败")
       return
     }
     setMessages((prev) => prev.filter((item) => item.id !== id))
+    toast.success("留言已删除")
   }, [])
 
   function formatRelative(iso: string) {
@@ -115,46 +120,58 @@ export function GuestbookSection({ ownerId, initialMessages, isOwner, canPost }:
 
   return (
     <section>
-      <h2 className="mb-6 text-lg font-semibold text-[--color-text-primary]">{gb.title}</h2>
-
-      {canPost && (
-        <div className="mb-8 space-y-3">
-          <textarea
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            onKeyDown={(event) => handleEnterToSubmit(event, handleSubmit, { disabled: sending || (!content.trim() && !sticker) })}
-            placeholder={gb.placeholder}
-            rows={3}
-            className="w-full rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-3 text-sm outline-none transition-colors focus:border-[--color-brand] focus:ring-1 focus:ring-[--color-brand]/20"
-          />
-          <div className="flex items-center justify-end gap-2">
-            <StickerPicker onPick={setSticker} />
-            {sticker && <SelectedStickerView sticker={sticker} onClear={() => setSticker(null)} />}
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={sending || (!content.trim() && !sticker)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[--color-brand] px-5 py-2 text-sm font-medium text-white shadow-[0_4px_12px_rgba(37,99,235,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(37,99,235,0.3)] active:scale-95 disabled:opacity-50"
-            >
-              {sending ? gb.sending : gb.submit}
-            </button>
-          </div>
+      <div className="mb-5 flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-[--color-text-primary]">{gb.title}</h2>
+          <p className="mt-1 text-sm text-[--color-text-muted]">把想法、祝福或一张表情留在这里。</p>
         </div>
-      )}
+        {messages.length > 0 ? <span className="rounded-full bg-[--color-brand-soft] px-3 py-1 text-xs font-medium text-[--color-brand]">{messages.length} 条</span> : null}
+      </div>
 
-      {messages.length === 0 ? (
-        <p className="text-sm text-[--color-text-muted]">{gb.noMessages}</p>
-      ) : (
-        <ThreadedDiscussion
-          items={messages}
-          canReply={canPost}
-          canDelete={isOwner}
-          onReply={handleReply}
-          onDelete={handleDelete}
-          formatTime={formatRelative}
-          newestFirst
-        />
-      )}
+      <div className="rounded-[--radius-xl] border border-white/60 bg-[--color-bg-surface]/35 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_18px_48px_rgba(15,23,42,0.055)] backdrop-blur-md">
+        {canPost && (
+          <div className="mb-5 rounded-[--radius-lg] bg-[--color-bg-surface]/45 p-3 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)]">
+            <textarea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              onKeyDown={(event) => handleEnterToSubmit(event, handleSubmit, { disabled: sending || (!content.trim() && !sticker) })}
+              placeholder={gb.placeholder}
+              rows={2}
+              className="min-h-[70px] w-full resize-none rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary]/45 p-3 text-sm leading-6 outline-none transition-shadow placeholder:text-[--color-text-muted] focus:border-[--color-brand-border] focus:ring-2 focus:ring-[--color-brand]/20"
+            />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <StickerPicker onPick={setSticker} />
+                {sticker && <SelectedStickerView sticker={sticker} onClear={() => setSticker(null)} />}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSubmit}
+                disabled={sending || (!content.trim() && !sticker)}
+                loading={sending}
+                loadingText={gb.sending}
+              >
+                {gb.submit}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {messages.length === 0 ? (
+          <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/45 px-5 py-8 text-center text-sm text-[--color-text-muted] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">{gb.noMessages}</div>
+        ) : (
+          <ThreadedDiscussion
+            items={messages}
+            canReply={canPost}
+            canDelete={isOwner}
+            onReply={handleReply}
+            onDelete={handleDelete}
+            formatTime={formatRelative}
+            newestFirst
+          />
+        )}
+      </div>
     </section>
   )
 }

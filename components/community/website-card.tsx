@@ -5,7 +5,7 @@ import { Globe, ExternalLink, Copy, FolderInput } from "lucide-react"
 import { UserAvatar } from "@/components/user-avatar"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { toast } from "sonner"
+import { copyTextWithToast } from "@/lib/interaction-feedback"
 import type { WebsiteResource } from "./website-share-client"
 
 function timeAgo(date: string) {
@@ -51,8 +51,7 @@ export function WebsiteCard({ resource, onClick, onTagClick }: WebsiteCardProps)
 
   const handleCopyLink = (e: React.MouseEvent) => {
     e.stopPropagation()
-    navigator.clipboard.writeText(resource.url)
-    toast.success("链接已复制")
+    void copyTextWithToast(resource.url, "链接已复制", "复制失败，请手动复制")
   }
 
   const imgStyle: React.CSSProperties = fitMode === "cover"

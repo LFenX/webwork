@@ -1,0 +1,340 @@
+<!doctype html>
+<html>
+    <head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimal-ui">
+
+    <title>Richard Hendriks</title>
+
+    <style>
+    /* Template level */
+body {
+	font-family: Georgia, serif;
+	font-size: 11px;
+	margin: 24px 48px;
+}
+
+h1 {
+	font-size: 26px;
+	text-align: center;
+	margin: 5px;
+}
+
+h3 {
+	font-size: 19.5px;
+	text-align: center;
+	margin: 5px;
+	font-weight: normal;
+}
+
+h2 {
+	border-width: 1px;
+	border-style: none none solid none;
+	margin: 10px 0 2.5px 0;
+}
+
+section {
+	margin: 3px 0;
+}
+
+ul {
+	margin: 0;
+	padding-left: 20px;
+}
+
+a {
+	text-decoration: none;
+	color: black;
+}
+
+.item {
+	margin-top: 8px;
+}
+
+.item > .item-header {
+	float: left;
+	display: block;
+}
+
+.item > .item-header > .item-header-title {
+	font-weight: bold;
+}
+
+.item > .item-header > .item-header-subtitle {
+	font-style: italic;
+}
+
+.item > .item-details {
+	float: right;
+	text-align: right;
+}
+
+.item > .item-details > .item-details-title {
+	font-weight: bold;
+}
+
+.clearfix {
+	clear: both;
+}
+
+.centered {
+	text-align: center;
+}
+
+/* Section specific */
+/* basics */
+.vertical-separator {
+	text-align: center;
+	padding: 0 10px;
+}
+
+.vertical-separator:not(:first-child) {
+	border-left: 1px solid #000;
+	text-align: center;
+}
+
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+}
+.col {
+	flex: 1;
+	min-width: 50%;
+	box-sizing: border-box;
+	padding: 10px;
+}
+.profile-details {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	float: left;
+}
+.title-subtitle {
+	flex: 1;
+	min-width: 80px;
+}
+.url {
+	margin-left: 20px;
+	word-break: break-all;
+	overflow-wrap: break-word;
+}
+a {
+	word-break: break-all;
+	overflow-wrap: break-word;
+}
+
+/* Set some print settings. */
+@media print {
+	@page {
+		size: portrait;
+		margin: 10mm 25mm;
+	}
+	.resume {
+		max-width: 100%;
+		border: 0px;
+		background: #fff;
+		box-shadow: none;
+		-webkit-box-shadow: none;
+	}
+	body,
+	html,
+	.resume {
+		margin: 0px;
+		padding: 0px;
+	}
+	.controls {
+		display: none;
+	}
+	.section {
+		page-break-inside: avoid;
+		margin-bottom: 20px;
+	}
+
+	.section h2 {
+		page-break-after: avoid;
+	}
+
+	.row,
+	.col {
+		page-break-inside: avoid;
+	}
+}
+
+    </style>
+
+    </head>
+    <body>
+
+    <div id="resume">
+        <div class="section">
+            	<section id="basics">
+            		<h1>Richard Hendriks</h1>
+            		<h3>Programmer</h3>
+            		<div class="contact centered">
+            <span class="vertical-separator"><a href="mailto:richard.hendriks@mail.com">richard.hendriks@mail.com</a></span><span class="vertical-separator">(912) 555-4321</span><span class="vertical-separator">San Francisco, California, US</span>
+            <span class="vertical-separator"><a href="https://richardhendricks.example.com">richardhendricks.example.com</a></span>		</div>
+            			<div class="contact centered">
+            							<span class="vertical-separator"><a href="https://twitter.com/neutralthoughts">twitter.com/neutralthoughts</a></span>
+            							<span class="vertical-separator"><a href="https://soundcloud.example.com/dandymusicnl">soundcloud.example.com/dandymusicnl</a></span>
+            			</div>
+            			<div class="summary">
+            				<h2>Summary</h2>
+            				<p>Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a "length-limited" conversation!</p>
+            			</div>
+            	</section>
+        </div>
+        <div class="section">
+                <section id="education">
+                    <h2>Education</h2>
+            <div class="item">
+                <div class="item-header">
+                		<div class="item-header-title">
+                			University of Oklahoma
+                		</div>
+                		<div class="item-header-subtitle">
+                			Bachelor in Information Technology
+                		</div>
+                </div>    <div class="item-details">
+                			<div class="date">
+                				Jun 2011
+                				—
+                				Jan 2014
+                			</div>
+                </div>    <div class="clearfix"></div>
+                                    <ul>
+                                            <li>
+                                                <div class="score">
+                                                    4.0
+                                                </div>
+                                            </li>
+                                        
+                                        <li>
+                                            <div class="courses">
+                                                    DB1101 - Basic SQL, 
+                                                    CS2011 - Java Introduction
+                                            </div>
+                                        </li>
+                                    </ul>
+            </div>    </section>
+        </div>
+        <div class="section">
+                <section id="skills">
+                    <h2>Skills</h2>
+                    <ul class="item">
+                            <li>
+                                        <strong>Web Development</strong>: HTML, CSS, Javascript
+                            </li>
+                            <li>
+                                        <strong>Compression</strong>: Mpeg, MP4, GIF
+                            </li>
+                    </ul>
+                </section>
+        </div>
+        <div class="section">
+                <section id="work">
+                    <h2>Work Experience</h2>
+            <div class="item">
+                <div class="item-header">
+                		<div class="item-header-title">
+                			Pied Piper
+                		</div>
+                		<div class="item-header-subtitle">
+                			CEO/President
+                		</div>
+                </div>    <div class="item-details">
+                		<div class="item-details-title">
+                			Palo Alto, CA
+                		</div>
+                			<div class="date">
+                				Dec 2013
+                				—
+                				Dec 2014
+                			</div>
+                </div>    <div class="clearfix"></div>
+                                    <ul class="highlights">
+                                            <li>Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+                                            <li>Successfully won Techcrunch Disrupt</li>
+                                            <li>Optimized an algorithm that holds the current world record for Weisman Scores</li>
+                                    </ul>
+            </div>    </section>
+        </div>
+        <div class="section">
+                <section id="projects">
+                    <h2>Projects</h2>
+            <div class="item">
+                <div class="item-header">
+                		<div class="item-header-title">
+                			Miss Direction
+                		</div>
+                		<div class="item-header-subtitle">
+                			A mapping engine that misguides you
+                		</div>
+                </div>    <div class="item-details">
+                			<div class="date">
+                				Aug 2016
+                				—
+                				Aug 2016
+                			</div>
+                		<div class="url">
+                			[<a href="https://missdirection.example.com">missdirection.example.com</a>]
+                		</div>
+                </div>    <div class="clearfix"></div>
+                                    <ul class="highlights">
+                                            <li>Won award at AIHacks 2016</li>
+                                            <li>Built by all women team of newbie programmers</li>
+                                            <li>Using modern technologies such as GoogleMaps, Chrome Extension and Javascript</li>
+                                    </ul>
+            </div>    </section>
+        </div>
+        <div class="section">
+                <section id="volunteer">
+                    <h2>Volunteering</h2>
+            <div class="item">
+                <div class="item-header">
+                		<div class="item-header-title">
+                			CoderDojo
+                		</div>
+                		<div class="item-header-subtitle">
+                			Teacher
+                		</div>
+                </div>    <div class="item-details">
+                			<div class="date">
+                				Jan 2012
+                				—
+                				Jan 2013
+                			</div>
+                </div>    <div class="clearfix"></div>
+                                    <ul class="highlights">
+                                            <li>Awarded &#x27;Teacher of the Month&#x27;</li>
+                                    </ul>
+            </div>    </section>
+        </div>
+        <div class="section">
+        </div>
+        <div class="section">
+            	<section id="awards">
+            		<h2>Awards & Recognitions</h2>
+            <div class="item">
+                <div class="item-header">
+                		<div class="item-header-title">
+                			Digital Compression Pioneer Award
+                		</div>
+                		<div class="item-header-subtitle">
+                			Techcrunch
+                		</div>
+                </div>    <div class="item-details">
+                		<div class="date">
+                			Nov 2014
+                		</div>
+                	</div>    <div class="clearfix"></div>
+                                    <ul class="highlights">
+                                        <li>There is no spoon.</li>
+                                    </ul>
+            </div>    </section>
+        </div>
+    </div>
+    
+    </body>
+</html>

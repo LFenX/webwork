@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { confirmAction } from "@/lib/interaction-feedback"
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,7 @@ export function WebsiteFolderFormDialog({ open, onOpenChange, editingFolder, onS
   const [name, setName] = useState(editingFolder?.name || "")
   const [description, setDescription] = useState(editingFolder?.description || "")
   const [submitting, setSubmitting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState("")
 
   const handleSubmit = async () => {
@@ -50,6 +52,10 @@ export function WebsiteFolderFormDialog({ open, onOpenChange, editingFolder, onS
       }
       toast.success(isEditing ? "文件夹已更新" : "文件夹已创建")
       onSuccess()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "操作失败"
+      setError(message)
+      toast.error(message)
     } finally {
       setSubmitting(false)
     }
@@ -57,8 +63,9 @@ export function WebsiteFolderFormDialog({ open, onOpenChange, editingFolder, onS
 
   const handleDelete = async () => {
     if (!editingFolder) return
-    if (!confirm(`确定删除文件夹「${editingFolder.name}」？里面的网站不会被删除。`)) return
+    if (!confirmAction(`确定删除文件夹「${editingFolder.name}」？里面的网站不会被删除，但会回到未归类列表。`)) return
 
+    setDeleting(true)
     try {
       const res = await fetch(`/api/website-folders/${editingFolder.id}`, { method: "DELETE" })
       if (!res.ok) {
@@ -68,6 +75,7 @@ export function WebsiteFolderFormDialog({ open, onOpenChange, editingFolder, onS
       toast.success("文件夹已删除")
       onSuccess()
     } catch { toast.error("删除失败") }
+    finally { setDeleting(false) }
   }
 
   return (
@@ -99,17 +107,19 @@ export function WebsiteFolderFormDialog({ open, onOpenChange, editingFolder, onS
             <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
               取消
             </Button>
-            <Button className="flex-1" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "保存中" : isEditing ? "保存" : "创建"}
+            <Button className="flex-1" onClick={handleSubmit} loading={submitting} loadingText={isEditing ? "保存中..." : "创建中..."}>
+              {isEditing ? "保存" : "创建"}
             </Button>
           </div>
           {isEditing && (
             <button
               type="button"
               onClick={handleDelete}
-              className="w-full text-center text-xs text-[--color-danger] hover:underline"
+              disabled={deleting}
+              aria-busy={deleting || undefined}
+              className="w-full rounded-full py-2 text-center text-xs text-[--color-danger] transition-colors hover:bg-[--color-danger-bg] disabled:opacity-50"
             >
-              删除此文件夹
+              {deleting ? "删除中..." : "删除此文件夹"}
             </button>
           )}
         </div>

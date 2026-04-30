@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { type ClipboardEvent as ReactClipboardEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { File as FileIcon, Loader2, Megaphone, Menu, MessageCircle, Paperclip, Plus, RefreshCcw, Send, UserPlus, X } from "lucide-react"
+import { type ClipboardEvent as ReactClipboardEvent, type FormEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { File as FileIcon, Loader2, Megaphone, Menu, MessageCircle, Paperclip, Plus, RefreshCcw, Send, Sparkles, UserPlus, X } from "lucide-react"
 import { toast } from "sonner"
 import { ComposerReplyPreview, MessageActionSurface, MessageReplyReference, type MessageActionItem } from "@/components/chat-message-actions"
 import { ChatComposerAttachments } from "@/components/chat-composer-attachments"
@@ -16,6 +16,7 @@ import { deleteChatOutboxItem, listChatOutboxItems, saveChatOutboxItem, type Cha
 import { copyImageToClipboard, getClipboardImageFiles, saveStickerToCustomLibrary, triggerBrowserDownload } from "@/lib/chat-media-actions"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 import { SoulWingReplyButton } from "@/components/chat/soulwing-reply-button"
+import { SoulWingRoundtableClient } from "@/components/ai/soulwing-roundtable-client"
 import { getDict, type AppLocale } from "@/lib/i18n"
 import { handleEnterToSubmit } from "@/lib/keyboard"
 
@@ -46,6 +47,12 @@ type Channel = {
   ownerName?: string | null
   currentUserRole?: "owner" | "member" | null
   members: Friend[]
+}
+
+function submitOnTouchBeforeKeyboardBlur(event: ReactPointerEvent<HTMLButtonElement>, submit: () => void) {
+  if (event.pointerType === "mouse") return
+  event.preventDefault()
+  submit()
 }
 
 type ChannelAttachment = {
@@ -89,13 +96,47 @@ type ChannelMessage = {
   localStatus?: "sending" | "failed"
 }
 
+type ChannelSummary = {
+  channelId: string
+  totalCount: number
+  latest: { id: string; text: string; createdAt: string } | null
+}
+
 const WORLD_CHANNEL_ID = "world"
+const SOULWING_ROUNDTABLE_CHANNEL_ID = "soulwing-roundtable"
+const CHANNEL_SEEN_STORAGE_NAMESPACE = "channel-seen-count"
+const CHANNEL_SEEN_STORAGE_ID = "channels"
+const CHANNEL_SEEN_COUNTS_CHANGED_EVENT = "channel-seen-counts-changed"
+const CHANNEL_SELECTED_STORAGE_NAMESPACE = "channel-selected"
+const CHANNEL_SELECTED_STORAGE_ID = "channels"
 const INPUT_DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 const TIME_GAP_MS = 5 * 60 * 1000
 const INITIAL_HISTORY_BATCH_SIZE = 40
 const OLDER_HISTORY_BATCH_SIZE = 10
 const BOTTOM_STICKY_THRESHOLD = 96
+const CHANNEL_SUMMARY_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const noopWorldAnnouncement = () => {}
+
+function getChannelSeenStorageKey(userId: string) {
+  return userStorageKey(userId, CHANNEL_SEEN_STORAGE_NAMESPACE, CHANNEL_SEEN_STORAGE_ID)
+}
+
+function getSelectedChannelStorageKey(userId: string) {
+  return userStorageKey(userId, CHANNEL_SELECTED_STORAGE_NAMESPACE, CHANNEL_SELECTED_STORAGE_ID)
+}
+
+function emitChannelSeenCountsChanged(value: Record<string, number>) {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent(CHANNEL_SEEN_COUNTS_CHANGED_EVENT, { detail: value }))
+}
+
+function getTotalUnreadChannelCount(summaries: Record<string, ChannelSummary>, seenCounts: Record<string, number>) {
+  return Object.values(summaries).reduce((sum, summary) => {
+    if (!summary.channelId || summary.channelId === SOULWING_ROUNDTABLE_CHANNEL_ID) return sum
+    const seen = seenCounts[summary.channelId] ?? summary.totalCount
+    return sum + Math.max(summary.totalCount - seen, 0)
+  }, 0)
+}
 
 function formatBytes(size: number) {
   if (size < 1024) return `${size} B`
@@ -250,10 +291,42 @@ export function AnnouncementChannelBar({
   const [announcements, setAnnouncements] = useState(initialAnnouncements)
   const [historyAnnouncements, setHistoryAnnouncements] = useState<AnnouncementItem[]>([])
   const [broadcastHistory, setBroadcastHistory] = useState<AnnouncementItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   const latest = announcements[0]
   const latestId = latest?.id
   const latestType = latest?.type ?? "announcement"
   const latestLabel = latestType === "broadcast" ? dict.admin.worldChannel : dict.home.announcement
+  const [channelSummaries, setChannelSummaries] = useState<Record<string, ChannelSummary>>({})
+  const [seenCounts, setSeenCounts] = useState<Record<string, number>>({})
+  const channelSeenKey = getChannelSeenStorageKey(userId)
+  const channelUnreadCount = getTotalUnreadChannelCount(channelSummaries, seenCounts)
+
+  const persistSeenCounts = useCallback((value: Record<string, number>) => {
+    writeUserStorage({ kind: "local", key: channelSeenKey, userId, value })
+    emitChannelSeenCountsChanged(value)
+  }, [channelSeenKey, userId])
+
+  const loadChannelSummaries = useCallback(async () => {
+    const res = await fetch("/api/channels/summary", { cache: "no-store" })
+    if (!res.ok) return
+    const data = await res.json().catch(() => ({}))
+    const items = Array.isArray(data.items) ? data.items as ChannelSummary[] : []
+    const byId = Object.fromEntries(items.map((item) => [item.channelId, item]))
+    setChannelSummaries(byId)
+    setSeenCounts((current) => {
+      if (Object.keys(current).length > 0) return current
+      const stored = readUserStorage<Record<string, number>>({
+        kind: "local",
+        key: channelSeenKey,
+        userId,
+        ttlMs: CHANNEL_SUMMARY_TTL_MS,
+      })
+      if (stored) return stored
+      const initial = Object.fromEntries(items.map((item) => [item.channelId, item.totalCount]))
+      persistSeenCounts(initial)
+      return initial
+    })
+  }, [channelSeenKey, persistSeenCounts, userId])
 
   const refreshAnnouncements = useCallback(async () => {
     const res = await fetch("/api/announcement-feed", { cache: "no-store" })
@@ -263,17 +336,22 @@ export function AnnouncementChannelBar({
   }, [])
 
   const loadHistory = useCallback(async () => {
-    const [announcementRes, broadcastRes] = await Promise.all([
-      fetch("/api/announcements?history=1&limit=50", { cache: "no-store" }),
-      fetch("/api/world-broadcasts?limit=50", { cache: "no-store" }),
-    ])
-    if (announcementRes.ok) {
-      const data = await announcementRes.json()
-      setHistoryAnnouncements(Array.isArray(data.items) ? data.items : [])
-    }
-    if (broadcastRes.ok) {
-      const data = await broadcastRes.json()
-      setBroadcastHistory(Array.isArray(data.items) ? data.items.map((item: AnnouncementItem) => ({ ...item, type: "broadcast" as const })) : [])
+    setHistoryLoading(true)
+    try {
+      const [announcementRes, broadcastRes] = await Promise.all([
+        fetch("/api/announcements?history=1&limit=50", { cache: "no-store" }),
+        fetch("/api/world-broadcasts?limit=50", { cache: "no-store" }),
+      ])
+      if (announcementRes.ok) {
+        const data = await announcementRes.json()
+        setHistoryAnnouncements(Array.isArray(data.items) ? data.items : [])
+      }
+      if (broadcastRes.ok) {
+        const data = await broadcastRes.json()
+        setBroadcastHistory(Array.isArray(data.items) ? data.items.map((item: AnnouncementItem) => ({ ...item, type: "broadcast" as const })) : [])
+      }
+    } finally {
+      setHistoryLoading(false)
     }
   }, [])
 
@@ -302,6 +380,50 @@ export function AnnouncementChannelBar({
     return () => window.removeEventListener("app:realtime", handler)
   }, [refreshAnnouncements])
 
+  useEffect(() => {
+    const initialTimer = window.setTimeout(() => void loadChannelSummaries(), 0)
+    const timer = window.setInterval(() => void loadChannelSummaries(), 20_000)
+    return () => {
+      window.clearTimeout(initialTimer)
+      window.clearInterval(timer)
+    }
+  }, [loadChannelSummaries])
+
+  useEffect(() => {
+    const onSeenCountsChanged = (event: Event) => {
+      const next = (event as CustomEvent<Record<string, number>>).detail
+      if (next && typeof next === "object") setSeenCounts(next)
+    }
+    const onRealtime = (event: Event) => {
+      const payload = (event as CustomEvent).detail
+      if (payload?.type !== "channel:message") return
+      const message = payload.data as ChannelMessage | undefined
+      if (!message?.channelId || message.channelId === SOULWING_ROUNDTABLE_CHANNEL_ID) return
+      const nextTotal = (channelSummaries[message.channelId]?.totalCount ?? seenCounts[message.channelId] ?? 0) + 1
+      setChannelSummaries((current) => ({
+        ...current,
+        [message.channelId]: {
+          channelId: message.channelId,
+          totalCount: nextTotal,
+          latest: { id: message.id, text: message.text, createdAt: message.createdAt },
+        },
+      }))
+      if (message.senderId === userId) {
+        setSeenCounts((current) => {
+          const next = { ...current, [message.channelId]: nextTotal }
+          persistSeenCounts(next)
+          return next
+        })
+      }
+    }
+    window.addEventListener(CHANNEL_SEEN_COUNTS_CHANGED_EVENT, onSeenCountsChanged)
+    window.addEventListener("app:realtime", onRealtime)
+    return () => {
+      window.removeEventListener(CHANNEL_SEEN_COUNTS_CHANGED_EVENT, onSeenCountsChanged)
+      window.removeEventListener("app:realtime", onRealtime)
+    }
+  }, [channelSummaries, persistSeenCounts, seenCounts, userId])
+
   async function hideLatest() {
     if (!latest) return
     setAnnouncements((current) => current.filter((item) => item.id !== latest.id))
@@ -316,15 +438,25 @@ export function AnnouncementChannelBar({
   return (
     <section className="mb-8 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
       <div className="flex min-w-0 items-center gap-3 px-3 py-2">
-        <Button asChild size="sm" className="h-9 shrink-0 gap-1.5 md:hidden">
+        <Button asChild size="sm" className="relative h-9 shrink-0 gap-1.5 md:hidden">
           <Link href="/channels" className="!text-primary-foreground hover:!text-primary-foreground">
             <MessageCircle size={14} />
             {dict.channels.channels}
+            {channelUnreadCount > 0 ? (
+              <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-red-500 px-1 text-center font-mono text-[10px] leading-4 text-white">
+                {channelUnreadCount > 99 ? "99+" : channelUnreadCount}
+              </span>
+            ) : null}
           </Link>
         </Button>
-        <Button type="button" size="sm" onClick={() => setOpen(true)} className="hidden h-9 shrink-0 gap-1.5 md:inline-flex">
+        <Button type="button" size="sm" onClick={() => setOpen(true)} className="relative hidden h-9 shrink-0 gap-1.5 md:inline-flex">
           <MessageCircle size={14} />
           {dict.channels.channels}
+          {channelUnreadCount > 0 ? (
+            <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-red-500 px-1 text-center font-mono text-[10px] leading-4 text-white">
+              {channelUnreadCount > 99 ? "99+" : channelUnreadCount}
+            </span>
+          ) : null}
         </Button>
         <div className="min-w-0 flex-1 overflow-hidden">
           {latest ? (
@@ -379,7 +511,7 @@ export function AnnouncementChannelBar({
             ))}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={loadHistory}>{dict.common.refresh}</Button>
+            <Button type="button" variant="outline" onClick={() => void loadHistory()} loading={historyLoading} loadingText={dict.common.loading}>{dict.common.refresh}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -392,11 +524,15 @@ export function GroupChatClient({
   currentUser,
   locale = "zh-CN",
   onWorldAnnouncement = noopWorldAnnouncement,
+  initialChannelId,
+  initialRoundtableDiscussionId,
 }: {
   userId: string
   currentUser: Friend
   locale?: AppLocale
   onWorldAnnouncement?: () => void
+  initialChannelId?: string
+  initialRoundtableDiscussionId?: string
 }) {
   const dict = getDict()
   const [channels, setChannels] = useState<Channel[]>([])
@@ -418,6 +554,12 @@ export function GroupChatClient({
   const [profileUser, setProfileUser] = useState<Friend | null>(null)
   const [previewImage, setPreviewImage] = useState<ChannelAttachment | null>(null)
   const [channelMenuOpen, setChannelMenuOpen] = useState(false)
+  const [worldMembersOpen, setWorldMembersOpen] = useState(false)
+  const [worldMembers, setWorldMembers] = useState<Friend[]>([])
+  const [worldMembersLoading, setWorldMembersLoading] = useState(false)
+  const [channelSummaries, setChannelSummaries] = useState<Record<string, ChannelSummary>>({})
+  const [seenCounts, setSeenCounts] = useState<Record<string, number>>({})
+  const [roundtableDiscussing, setRoundtableDiscussing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
@@ -425,18 +567,28 @@ export function GroupChatClient({
   const messagesRef = useRef<ChannelMessage[]>([])
   const nextCursorRef = useRef<string | null>(null)
   const shouldStickToBottomRef = useRef(true)
+  const activeChannelIdRef = useRef(selectedId)
+  const loadMessagesRequestRef = useRef(0)
   const loadOlderInFlightRef = useRef(false)
   const loadOlderSequenceRef = useRef(0)
   const suppressAutoLoadOlderUntilRef = useRef(0)
   const revealPrependedHistoryRef = useRef(false)
   const selected = channels.find((channel) => channel.id === selectedId) ?? channels[0]
   const isWorld = selected?.id === WORLD_CHANNEL_ID
+  const isRoundtable = selected?.id === SOULWING_ROUNDTABLE_CHANNEL_ID
   const friendIds = useMemo(() => new Set(friends.map((friend) => friend.id)), [friends])
   const inputDraftKey = selectedId ? userStorageKey(userId, "chat-input", `channel:${selectedId}`) : ""
+  const channelSeenKey = getChannelSeenStorageKey(userId)
+  const selectedChannelKey = getSelectedChannelStorageKey(userId)
   const activeReplyTo = useMemo(
     () => (replyTo && messages.some((message) => message.id === replyTo.id) ? replyTo : null),
     [messages, replyTo]
   )
+  const forceScrollToBottomRef = useRef(false)
+
+  useEffect(() => {
+    activeChannelIdRef.current = selectedId
+  }, [selectedId])
 
   useEffect(() => {
     messagesRef.current = messages
@@ -445,6 +597,62 @@ export function GroupChatClient({
   useEffect(() => {
     nextCursorRef.current = nextCursor
   }, [nextCursor])
+
+  const persistSeenCounts = useCallback((value: Record<string, number>) => {
+    writeUserStorage({ kind: "local", key: channelSeenKey, userId, value })
+    emitChannelSeenCountsChanged(value)
+  }, [channelSeenKey, userId])
+
+  const selectChannel = useCallback((channelId: string) => {
+    setSelectedId(channelId)
+    writeUserStorage({
+      kind: "local",
+      key: selectedChannelKey,
+      userId,
+      value: { channelId },
+    })
+  }, [selectedChannelKey, userId])
+
+  const markChannelSeen = useCallback((channelId: string) => {
+    if (!channelId || channelId === SOULWING_ROUNDTABLE_CHANNEL_ID) return
+    const totalCount = channelSummaries[channelId]?.totalCount
+    if (typeof totalCount !== "number") return
+    setSeenCounts((current) => {
+      if (current[channelId] === totalCount) return current
+      const next = { ...current, [channelId]: totalCount }
+      persistSeenCounts(next)
+      return next
+    })
+  }, [channelSummaries, persistSeenCounts])
+
+  const loadChannelSummaries = useCallback(async () => {
+    const res = await fetch("/api/channels/summary", { cache: "no-store" })
+    if (!res.ok) return
+    const data = await res.json().catch(() => ({}))
+    const items = Array.isArray(data.items) ? data.items as ChannelSummary[] : []
+    const byId = Object.fromEntries(items.map((item) => [item.channelId, item]))
+    setChannelSummaries(byId)
+    setSeenCounts((current) => {
+      if (Object.keys(current).length > 0) return current
+      const stored = readUserStorage<Record<string, number>>({
+        kind: "local",
+        key: channelSeenKey,
+        userId,
+        ttlMs: CHANNEL_SUMMARY_TTL_MS,
+      })
+      if (stored) return stored
+      const initial = Object.fromEntries(items.map((item) => [item.channelId, item.totalCount]))
+      persistSeenCounts(initial)
+      return initial
+    })
+  }, [channelSeenKey, persistSeenCounts, userId])
+
+  const loadRoundtablePulse = useCallback(async () => {
+    const res = await fetch("/api/soulwing-roundtable", { cache: "no-store" }).catch(() => null)
+    if (!res?.ok) return
+    const data = await res.json().catch(() => ({}))
+    setRoundtableDiscussing(Boolean(data.isDiscussing))
+  }, [])
 
   const loadChannels = useCallback(async () => {
     const [channelRes, friendRes] = await Promise.all([
@@ -455,11 +663,51 @@ export function GroupChatClient({
     const friendData = await friendRes.json().catch(() => [])
     if (!channelRes.ok) throw new Error(channelData.error ?? dict.channels.loadFailed)
     setCurrentUserId(channelData.currentUserId ?? "")
-    setChannels(Array.isArray(channelData.items) ? channelData.items : [])
+    const loadedChannels = Array.isArray(channelData.items) ? channelData.items as Channel[] : []
+    const roundtableChannel: Channel = {
+      id: SOULWING_ROUNDTABLE_CHANNEL_ID,
+      type: "soulwing-roundtable",
+      name: "蝶灵圆桌",
+      announcement: "特殊群聊 · 蝶灵发言",
+      ownerId: null,
+      ownerName: null,
+      currentUserRole: null,
+      members: [],
+    }
+    const worldIndex = loadedChannels.findIndex((channel) => channel.id === WORLD_CHANNEL_ID)
+    const nextChannels = worldIndex >= 0
+      ? [
+          ...loadedChannels.slice(0, worldIndex + 1),
+          roundtableChannel,
+          ...loadedChannels.slice(worldIndex + 1).filter((channel) => channel.id !== SOULWING_ROUNDTABLE_CHANNEL_ID),
+        ]
+      : [roundtableChannel, ...loadedChannels]
+    setChannels(nextChannels)
+    const stored = readUserStorage<{ channelId: string }>({
+      kind: "local",
+      key: selectedChannelKey,
+      userId,
+      ttlMs: CHANNEL_SUMMARY_TTL_MS,
+    })
+    const storedChannelId = stored?.channelId
+    if (initialChannelId && nextChannels.some((channel) => channel.id === initialChannelId)) {
+      setSelectedId(initialChannelId)
+    } else if (storedChannelId && nextChannels.some((channel) => channel.id === storedChannelId)) {
+      setSelectedId(storedChannelId)
+    }
     setFriends(Array.isArray(friendData) ? friendData : [])
-  }, [dict.channels.loadFailed])
+  }, [dict.channels.loadFailed, initialChannelId, selectedChannelKey, userId])
 
   const loadMessages = useCallback(async (channelId: string, options?: { cursor?: string | null; appendOlder?: boolean }) => {
+    const requestSequence = ++loadMessagesRequestRef.current
+    const isCurrentRequest = () => activeChannelIdRef.current === channelId && loadMessagesRequestRef.current === requestSequence
+    if (channelId === SOULWING_ROUNDTABLE_CHANNEL_ID) {
+      if (isCurrentRequest()) {
+        setMessages([])
+        setNextCursor(null)
+      }
+      return { prependedIds: [] }
+    }
     const appendOlder = options?.appendOlder ?? false
     if (appendOlder) setLoadingOlder(true)
     else setLoading(true)
@@ -495,6 +743,7 @@ export function GroupChatClient({
         items = Array.isArray(data.items) ? data.items as ChannelMessage[] : []
         incomingNextCursor = typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null
       }
+      if (!isCurrentRequest()) return { prependedIds: [] }
       if (appendOlder) {
         const prependedIds: string[] = []
         setMessages((current) => {
@@ -506,6 +755,7 @@ export function GroupChatClient({
         setNextCursor(incomingNextCursor)
         return { prependedIds }
       }
+      forceScrollToBottomRef.current = true
       const currentServerMessages = messagesRef.current.filter((item) => !item.localStatus)
       const currentOldest = currentServerMessages[0]
       const incomingOldest = items[0]
@@ -515,12 +765,17 @@ export function GroupChatClient({
       setNextCursor(shouldPreserveExpandedHistory ? nextCursorRef.current : incomingNextCursor)
       const restoredDrafts = await listChatOutboxItems(userId, "channel", channelId)
       const draftMessages = restoredDrafts.map((item) => outboxToChannelMessage(item, currentUser))
+      if (!isCurrentRequest()) return { prependedIds: [] }
       setMessages((current) => mergeChannelMessages(current.filter((item) => item.localStatus !== "failed"), [...items, ...draftMessages]))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : dict.channels.loadFailed)
+      if (activeChannelIdRef.current === channelId) {
+        toast.error(error instanceof Error ? error.message : dict.channels.loadFailed)
+      }
     } finally {
-      if (appendOlder) setLoadingOlder(false)
-      else setLoading(false)
+      if (isCurrentRequest()) {
+        if (appendOlder) setLoadingOlder(false)
+        else setLoading(false)
+      }
     }
   }, [currentUser, userId, dict.channels.loadFailed])
 
@@ -535,9 +790,26 @@ export function GroupChatClient({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       loadChannels().catch((error) => toast.error(error instanceof Error ? error.message : dict.channels.loadFailed))
+      void loadChannelSummaries()
+      void loadRoundtablePulse()
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [loadChannels, dict.channels.loadFailed])
+  }, [loadChannelSummaries, loadChannels, loadRoundtablePulse, dict.channels.loadFailed])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void loadChannelSummaries()
+      void loadRoundtablePulse()
+    }, 20_000)
+    return () => window.clearInterval(timer)
+  }, [loadChannelSummaries, loadRoundtablePulse])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      markChannelSeen(selectedId)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [markChannelSeen, selectedId])
 
   useEffect(() => {
     const shouldPollMembers = channels.some((channel) => channel.type === "group" && channel.members.length < 9)
@@ -550,6 +822,18 @@ export function GroupChatClient({
 
   useEffect(() => {
     if (!selectedId) return
+    forceScrollToBottomRef.current = true
+    if (selectedId === SOULWING_ROUNDTABLE_CHANNEL_ID) {
+      const timer = window.setTimeout(() => {
+        setMessages([])
+        setNextCursor(null)
+        setText("")
+        setFiles([])
+        setSticker(null)
+        setReplyTo(null)
+      }, 0)
+      return () => window.clearTimeout(timer)
+    }
     const savedText = inputDraftKey
       ? readUserStorage<{ text: string }>({ kind: "session", key: inputDraftKey, userId, ttlMs: INPUT_DRAFT_TTL_MS })?.text ?? ""
       : ""
@@ -562,6 +846,7 @@ export function GroupChatClient({
     const source = new EventSource(`/api/channels/${selectedId}/events`)
     source.addEventListener("message", (event) => {
       const message = JSON.parse((event as MessageEvent).data) as ChannelMessage
+      if (message.channelId !== selectedId) return
       setMessages((current) => {
         if (current.some((item) => item.id === message.id)) return current
         const withoutLocal = current.filter((item) => !(item.localStatus === "sending" && item.senderId === message.senderId && item.channelId === message.channelId))
@@ -586,6 +871,35 @@ export function GroupChatClient({
   }, [inputDraftKey, text, userId])
 
   useEffect(() => {
+    const handler = (event: Event) => {
+      const payload = (event as CustomEvent).detail
+      if (payload?.type !== "channel:message") return
+      const message = payload.data as ChannelMessage | undefined
+      if (!message?.channelId || message.channelId === SOULWING_ROUNDTABLE_CHANNEL_ID) return
+      const nextTotal = (channelSummaries[message.channelId]?.totalCount ?? seenCounts[message.channelId] ?? 0) + 1
+      setChannelSummaries((current) => {
+        return {
+          ...current,
+          [message.channelId]: {
+            channelId: message.channelId,
+            totalCount: nextTotal,
+            latest: { id: message.id, text: message.text, createdAt: message.createdAt },
+          },
+        }
+      })
+      if (message.channelId === selectedId) {
+        setSeenCounts((current) => {
+          const next = { ...current, [message.channelId]: nextTotal }
+          persistSeenCounts(next)
+          return next
+        })
+      }
+    }
+    window.addEventListener("app:realtime", handler)
+    return () => window.removeEventListener("app:realtime", handler)
+  }, [channelSummaries, persistSeenCounts, seenCounts, selectedId])
+
+  useEffect(() => {
     const currentLastMessageId = messages[messages.length - 1]?.id ?? null
     if (!selectedId) {
       lastMessageIdRef.current = currentLastMessageId
@@ -603,6 +917,14 @@ export function GroupChatClient({
   useLayoutEffect(() => {
     const container = scrollContainerRef.current
     if (!container) return
+    if (forceScrollToBottomRef.current) {
+      forceScrollToBottomRef.current = false
+      container.scrollTop = container.scrollHeight
+      window.requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight
+      })
+      return
+    }
     if (!revealPrependedHistoryRef.current) return
     revealPrependedHistoryRef.current = false
     container.scrollTop = 0
@@ -612,7 +934,7 @@ export function GroupChatClient({
     const activeSticker = stickerOverride ?? sticker
     const draft = text.trim()
     const draftFiles = [...files]
-    if (!selected || (!draft && draftFiles.length === 0 && !activeSticker) || sending) return
+    if (!selected || selected.id === SOULWING_ROUNDTABLE_CHANNEL_ID || (!draft && draftFiles.length === 0 && !activeSticker) || sending) return
 
     const shouldPublish = isWorld && publishToAnnouncement
     removeUserStorage("session", inputDraftKey)
@@ -774,12 +1096,14 @@ export function GroupChatClient({
 
   return (
     <div className="relative flex min-h-0 w-full max-w-full flex-1 overflow-hidden md:grid md:grid-cols-[260px_minmax(0,1fr)]">
-      <button
-        type="button"
-        aria-label={dict.common.close}
-        onClick={() => setChannelMenuOpen(false)}
-        className={`absolute inset-0 z-10 bg-black/30 backdrop-blur-[2px] transition-opacity md:hidden ${channelMenuOpen ? "block" : "hidden"}`}
-      />
+      {channelMenuOpen && (
+        <button
+          type="button"
+          aria-label={dict.common.close}
+          onClick={() => setChannelMenuOpen(false)}
+          className="absolute inset-0 z-10 bg-black/30 backdrop-blur-[2px] transition-opacity md:hidden"
+        />
+      )}
       <aside className={`absolute inset-y-0 left-0 z-20 isolate flex min-h-0 w-[min(82vw,280px)] flex-col border-r border-[--color-border] bg-[--color-bg-primary]/95 shadow-xl backdrop-blur-md transition-transform duration-200 md:static md:z-auto md:w-auto md:translate-x-0 md:bg-[--color-bg-primary] md:shadow-none md:backdrop-blur-none ${channelMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center justify-between border-b border-[--color-border] bg-[--color-bg-primary]/95 p-3 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
           <p className="text-sm font-semibold">{dict.channels.channels}</p>
@@ -788,29 +1112,59 @@ export function GroupChatClient({
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {channels.map((channel) => (
-            <button
-              key={channel.id}
-              type="button"
-              onClick={() => {
-                setSelectedId(channel.id)
-                setChannelMenuOpen(false)
-              }}
-              className={`flex w-full min-w-0 items-center gap-3 border-b border-[--color-border] px-3 py-3 text-left hover:bg-[--color-bg-hover] ${selectedId === channel.id ? "bg-[--color-bg-hover]" : "bg-[--color-bg-primary]/90"}`}
-            >
-              {channel.type === "world" ? (
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[5px] border border-[--color-border] bg-[--color-bg-hover] text-[--color-text-secondary]">
-                  <MessageCircle size={20} />
-                </div>
-              ) : (
-                <GroupAvatar members={channel.members} name={channel.name} />
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{channel.name}</span>
-                <span className="block truncate text-xs text-[--color-text-muted]">{channel.type === "world" ? dict.channels.allUsers : dict.channels.membersCount(channel.members.length)}</span>
-              </span>
-            </button>
-          ))}
+          {channels.map((channel) => {
+            const summary = channelSummaries[channel.id]
+            const unread = channel.id === SOULWING_ROUNDTABLE_CHANNEL_ID
+              ? 0
+              : Math.max((summary?.totalCount ?? 0) - (seenCounts[channel.id] ?? summary?.totalCount ?? 0), 0)
+            const showRoundtablePulse = channel.id === SOULWING_ROUNDTABLE_CHANNEL_ID && roundtableDiscussing
+            return (
+              <button
+                key={channel.id}
+                type="button"
+                onClick={() => {
+                  selectChannel(channel.id)
+                  markChannelSeen(channel.id)
+                  setChannelMenuOpen(false)
+                }}
+                className={`flex w-full min-w-0 items-center gap-3 border-b border-[--color-border] px-3 py-3 text-left hover:bg-[--color-bg-hover] ${selectedId === channel.id ? "bg-[--color-bg-hover]" : "bg-[--color-bg-primary]/90"}`}
+              >
+                <span className="relative shrink-0">
+                  {channel.type === "world" ? (
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[5px] border border-[--color-border] bg-[--color-bg-hover] text-[--color-text-secondary]">
+                      <MessageCircle size={20} />
+                    </span>
+                  ) : channel.type === "soulwing-roundtable" ? (
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[5px] border border-violet-200 bg-violet-50 text-violet-600">
+                      <Sparkles size={20} />
+                    </span>
+                  ) : (
+                    <GroupAvatar members={channel.members} name={channel.name} />
+                  )}
+                  {unread > 0 ? (
+                    <span className="absolute -right-2 -top-2 min-w-5 rounded-full bg-[--color-danger] px-1.5 py-0.5 text-center text-[10px] font-semibold leading-none text-white">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  ) : null}
+                  {showRoundtablePulse ? (
+                    <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-violet-500 ring-2 ring-white">
+                      <span className="absolute inset-0 animate-ping rounded-full bg-violet-500" />
+                    </span>
+                  ) : null}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{channel.name}</span>
+                  <span className="block truncate text-xs text-[--color-text-muted]">
+                    {channel.type === "world"
+                      ? dict.channels.allUsers
+                      : channel.type === "soulwing-roundtable"
+                        ? (roundtableDiscussing ? "正在讨论 · 蝶灵发言" : "特殊群聊 · 蝶灵发言")
+                        : dict.channels.membersCount(channel.members.length)}
+                  </span>
+                </span>
+              </button>
+            )
+          })}
         </div>
       </aside>
 
@@ -823,29 +1177,59 @@ export function GroupChatClient({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{selected?.name ?? dict.channels.channels}</p>
             <p className="truncate text-xs text-[--color-text-muted]">
-              {isWorld ? dict.channels.channelMessagesHint : selected?.members.map((member) => member.displayName || member.email).join(", ")}
+              {isRoundtable ? "不能直接发普通群消息，只能通过蝶灵参与圆桌" : isWorld ? dict.channels.channelMessagesHint : selected?.members.map((member) => member.displayName || member.email).join(", ")}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {!isWorld && (
+            {isWorld && (
+              <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => {
+                setWorldMembersOpen(true)
+                if (worldMembers.length === 0) {
+                  setWorldMembersLoading(true)
+                  fetch(`/api/channels/${WORLD_CHANNEL_ID}/members`)
+                    .then((r) => r.json())
+                    .then((data) => setWorldMembers(Array.isArray(data.members) ? data.members : []))
+                    .catch(() => {})
+                    .finally(() => setWorldMembersLoading(false))
+                }
+              }}>
+                <UserPlus size={14} />
+                <span className="hidden sm:inline">查看成员</span>
+              </Button>
+            )}
+            {!isWorld && !isRoundtable && (
               <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setInviteOpen(true)}>
                 <UserPlus size={14} />
                 <span className="hidden sm:inline">{dict.channels.invite}</span>
               </Button>
             )}
-            {!isWorld && selected ? (
+            {!isWorld && !isRoundtable && selected ? (
               <Button asChild type="button" size="sm" variant="outline" className="h-8">
                 <Link href={`/channels/${selected.id}`}>{dict.channels.manage}</Link>
               </Button>
             ) : null}
-            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => selected && loadMessages(selected.id)}>
+            {isRoundtable ? (
+              <Button asChild type="button" size="sm" variant="outline" className="h-8">
+                <Link href="/channels/soulwing-roundtable">
+                  <Sparkles size={14} />
+                  <span className="hidden sm:inline">圆桌管理</span>
+                </Link>
+              </Button>
+            ) : null}
+            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => selected && (isRoundtable ? window.dispatchEvent(new CustomEvent("soulwing-roundtable:refresh")) : loadMessages(selected.id))}>
               <RefreshCcw size={14} />
               <span className="hidden sm:inline">{dict.common.refresh}</span>
             </Button>
           </div>
         </div>
 
-        <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {isRoundtable ? (
+          <div className="min-h-0 flex-1 overflow-hidden bg-[--color-bg-primary]">
+            <SoulWingRoundtableClient currentUser={currentUser} locale={locale} embedded initialDiscussionId={initialRoundtableDiscussionId} />
+          </div>
+        ) : (
+        <>
+        <div ref={scrollContainerRef} className="mobile-chat-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {loading ? (
             <p className="py-10 text-center text-sm text-[--color-text-muted]">{dict.common.loading}</p>
           ) : messages.length === 0 ? (
@@ -890,7 +1274,7 @@ export function GroupChatClient({
         </div>
 
         <form
-          className="wechat-composer p-3"
+          className="wechat-composer p-3 pb-[5px]"
           onSubmit={(event) => {
             event.preventDefault()
             void sendMessage()
@@ -960,13 +1344,21 @@ export function GroupChatClient({
                 </button>
               )}
               <div className="flex-1" />
-              <Button type="submit" size="sm" disabled={sending || (!text.trim() && files.length === 0 && !sticker)} className="h-9 shrink-0 rounded-md bg-[#f0f0f0] px-5 text-sm font-normal text-[#9b9b9b] shadow-none hover:bg-[#e8e8e8] enabled:bg-[#3b82f6] enabled:text-white">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={sending || (!text.trim() && files.length === 0 && !sticker)}
+                onPointerDown={(event) => submitOnTouchBeforeKeyboardBlur(event, () => void sendMessage())}
+                className="h-9 shrink-0 rounded-md bg-[#f0f0f0] px-5 text-sm font-normal text-[#9b9b9b] shadow-none hover:bg-[#e8e8e8] enabled:bg-[#3b82f6] enabled:text-white"
+              >
                 {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} className="sm:hidden" />}
                 <span>{sending ? dict.channels.sending : dict.channels.send}</span>
               </Button>
             </div>
           </div>
         </form>
+        </>
+        )}
       </main>
 
       <ChannelCreateDialog
@@ -975,10 +1367,10 @@ export function GroupChatClient({
         friends={friends}
         onCreated={(channel) => {
           setChannels((current) => [current.find((item) => item.id === WORLD_CHANNEL_ID)!, channel, ...current.filter((item) => item.id !== WORLD_CHANNEL_ID)])
-          setSelectedId(channel.id)
+          selectChannel(channel.id)
         }}
       />
-      {selected && (
+      {selected && !isRoundtable && (
         <ChannelInviteDialog
           open={inviteOpen}
           onOpenChange={setInviteOpen}
@@ -989,6 +1381,35 @@ export function GroupChatClient({
           }}
         />
       )}
+      <Sheet open={worldMembersOpen} onOpenChange={setWorldMembersOpen}>
+        <SheetContent side="right" className="w-72 sm:w-80">
+          <SheetHeader>
+            <SheetTitle>世界频道成员</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 flex flex-col gap-2 overflow-y-auto">
+            {worldMembersLoading ? (
+              <p className="py-6 text-center text-sm text-[--color-text-muted]">加载中…</p>
+            ) : worldMembers.length === 0 ? (
+              <p className="py-6 text-center text-sm text-[--color-text-muted]">暂无成员</p>
+            ) : (
+              worldMembers.map((member) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-[--color-bg-hover] active:bg-[--color-bg-hover]"
+                  onClick={() => { setProfileUser(member); setWorldMembersOpen(false) }}
+                >
+                  <UserAvatar size="sm" name={member.displayName} email={member.email} avatarText={member.avatarText} avatarUrl={member.avatarUrl} />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{member.displayName || member.email}</p>
+                    {member.displayName && <p className="truncate text-xs text-[--color-text-muted]">{member.email}</p>}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
       <UserProfileDialog
         user={profileUser}
         currentUserId={currentUserId || userId}

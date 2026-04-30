@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { type ClipboardEvent as ReactClipboardEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { type ClipboardEvent as ReactClipboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   AlertCircle,
@@ -76,6 +76,12 @@ export type ChatMessage = {
   progress?: number
   error?: string
   clientMutationId?: string
+}
+
+function submitOnTouchBeforeKeyboardBlur(event: ReactPointerEvent<HTMLButtonElement>, submit: () => void) {
+  if (event.pointerType === "mouse") return
+  event.preventDefault()
+  submit()
 }
 
 export type ChatSummary = {
@@ -825,6 +831,7 @@ export function ChatPanel({
   const loadOlderSequenceRef = useRef(0)
   const suppressAutoLoadOlderUntilRef = useRef(0)
   const revealPrependedHistoryRef = useRef(false)
+  const forceScrollToBottomRef = useRef(false)
   const [failedMessage, setFailedMessage] = useState<ChatMessage | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [previewImage, setPreviewImage] = useState<ChatAttachment | null>(null)
@@ -837,6 +844,10 @@ export function ChatPanel({
     }
     return null
   }, [friend?.id, messages])
+
+  useEffect(() => {
+    if (friend?.id) forceScrollToBottomRef.current = true
+  }, [friend?.id])
 
   useEffect(() => {
     const currentLastMessageId = messages[messages.length - 1]?.id ?? null
@@ -856,6 +867,23 @@ export function ChatPanel({
   useLayoutEffect(() => {
     const container = scrollContainerRef.current
     if (!container) return
+    const currentLastMessageId = messages[messages.length - 1]?.id ?? null
+    if (currentLastMessageId && lastMessageIdRef.current === null) {
+      forceScrollToBottomRef.current = false
+      container.scrollTop = container.scrollHeight
+      window.requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight
+      })
+      return
+    }
+    if (forceScrollToBottomRef.current) {
+      forceScrollToBottomRef.current = false
+      container.scrollTop = container.scrollHeight
+      window.requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight
+      })
+      return
+    }
     if (!revealPrependedHistoryRef.current) return
     revealPrependedHistoryRef.current = false
     container.scrollTop = 0
@@ -932,7 +960,7 @@ export function ChatPanel({
         </Button>
       </div>
 
-      <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-4">
+      <div ref={scrollContainerRef} className="mobile-chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-4">
         {loading ? (
           <p className="py-10 text-center text-sm text-[--color-text-muted]">{labels.loading}</p>
         ) : messages.length === 0 ? (
@@ -1100,7 +1128,7 @@ export function ChatPanel({
       </div>
 
       <form
-        className="wechat-composer shrink-0 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+        className="wechat-composer shrink-0 p-3 pb-[5px]"
         onSubmit={(event) => {
           event.preventDefault()
           onSend()
@@ -1147,7 +1175,13 @@ export function ChatPanel({
             </Button>
             {composerExtra}
             <div className="flex-1" />
-            <Button type="submit" size="sm" disabled={sending || (!text.trim() && files.length === 0 && !sticker)} className="h-9 shrink-0 rounded-md bg-[#f0f0f0] px-5 text-sm font-normal text-[#9b9b9b] shadow-none hover:bg-[#e8e8e8] enabled:bg-[#3b82f6] enabled:text-white">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={sending || (!text.trim() && files.length === 0 && !sticker)}
+              onPointerDown={(event) => submitOnTouchBeforeKeyboardBlur(event, onSend)}
+              className="h-9 shrink-0 rounded-md bg-[#f0f0f0] px-5 text-sm font-normal text-[#9b9b9b] shadow-none hover:bg-[#e8e8e8] enabled:bg-[#3b82f6] enabled:text-white"
+            >
               <Send size={14} className="sm:hidden" />
               <span>{sending ? labels.sending : labels.send}</span>
             </Button>

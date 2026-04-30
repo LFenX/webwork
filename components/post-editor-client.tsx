@@ -15,6 +15,7 @@ import { MarkdownContent } from "@/components/markdown-content"
 import { MobileFloatingToolbar } from "@/components/mobile-floating-toolbar"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 import { getDict } from "@/lib/i18n"
+import { confirmAction } from "@/lib/interaction-feedback"
 import {
   Dialog,
   DialogContent,
@@ -153,7 +154,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
         draft.visibility !== visibility ||
         draft.folderId !== folderId
 
-      if (hasDraftContent && differs && window.confirm(isZh ? "检测到未保存的本地草稿，是否恢复？" : "Unsaved draft detected. Restore it?")) {
+      if (hasDraftContent && differs && confirmAction(isZh ? "检测到未保存的本地草稿，是否恢复？恢复后会覆盖当前编辑器里的初始内容。" : "Unsaved draft detected. Restore it? This will replace the current editor content.", "")) {
         window.setTimeout(() => {
           setTitle(draft.title ?? "")
           setSummary(draft.summary ?? "")
@@ -258,7 +259,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
 
   async function handleDelete() {
     if (!initialData) return
-    if (!confirm(dict.editor.deleteConfirm(initialData.title))) return
+    if (!confirmAction(`${dict.editor.deleteConfirm(initialData.title)}\n删除后文章会从当前模块中移除，无法直接恢复。`)) return
     setDeleting(true)
     try {
       await fetch(`/api/posts/${initialData.id}`, { method: "DELETE", cache: "no-store" })
@@ -350,12 +351,12 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
               <Eye size={14} /> {dict.editor.preview}
             </Button>
             {mode === "edit" && (
-              <Button variant="outline" size="sm" onClick={handleDelete} disabled={deleting} className="gap-1.5 text-[--color-danger]">
+              <Button variant="outline" size="sm" onClick={handleDelete} loading={deleting} loadingText={dict.editor.delete} className="gap-1.5 text-[--color-danger]">
                 <Trash2 size={14} /> {dict.editor.delete}
               </Button>
             )}
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving ? dict.editor.saving : mode === "create" ? dict.editor.publish : dict.editor.save}
+            <Button size="sm" onClick={handleSave} loading={saving} loadingText={dict.editor.saving}>
+              {mode === "create" ? dict.editor.publish : dict.editor.save}
             </Button>
           </div>
         </div>
@@ -468,7 +469,8 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
               variant="outline"
               size="sm"
               onClick={handleDelete}
-              disabled={deleting}
+              loading={deleting}
+              loadingText={dict.editor.delete}
               className="gap-1.5 text-[--color-danger]"
             >
               <Trash2 size={14} /> {dict.editor.delete}
@@ -477,10 +479,11 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, initi
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={saving}
+            loading={saving}
+            loadingText={dict.editor.saving}
             className="h-8 gap-1 rounded-full px-3 text-xs"
           >
-            {saving ? dict.editor.saving : mode === "create" ? dict.editor.publish : dict.editor.save}
+            {mode === "create" ? dict.editor.publish : dict.editor.save}
           </Button>
         </div>
       </div>

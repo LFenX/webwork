@@ -37,7 +37,9 @@
       "Bash(ADMIN_EMAIL=lfiescut@gmail.com ADMIN_PASSWORD=changeme123 ADMIN_DISPLAY_NAME=LFen npx tsx scripts/migrate-multiuser.ts)",
       "Bash(npm i *)",
       "Bash(grep -r \"tailwind\" package.json)",
-      "Bash(grep -r \"tailwindcss\" package.json)"
+      "Bash(grep -r \"tailwindcss\" package.json)",
+      "Bash(psql --version)",
+      "Bash(Remove-Item *)"
     ]
   }
 }

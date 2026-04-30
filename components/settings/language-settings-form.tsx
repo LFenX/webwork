@@ -62,8 +62,8 @@ export function LanguageSettingsForm({
         <p className="mt-3 text-sm text-[--color-text-secondary]">{labels.languageHint}</p>
       </div>
       <div className="mt-6 flex justify-end">
-        <Button type="button" onClick={handleSave} disabled={saving}>
-          {saving ? labels.saving : labels.save}
+        <Button type="button" onClick={handleSave} loading={saving} loadingText={labels.saving}>
+          {labels.save}
         </Button>
       </div>
     </section>

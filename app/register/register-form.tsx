@@ -130,11 +130,11 @@ export function RegisterForm() {
           {a.goToLogin}
         </Link>
       )}
-      <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? a.submitting : a.submitRegistration}
+      <Button type="submit" className="w-full" loading={pending} loadingText={a.submitting}>
+        {a.submitRegistration}
       </Button>
-      <Button type="button" variant="outline" className="w-full" disabled={checking} onClick={handleCheckStatus}>
-        {checking ? a.checking : a.checkApproval}
+      <Button type="button" variant="outline" className="w-full" loading={checking} loadingText={a.checking} onClick={handleCheckStatus}>
+        {a.checkApproval}
       </Button>
     </form>
   )

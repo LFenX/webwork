@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Richard Hendriks &ndash; Programmer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com" data-cfasync="false"></script>
+  <script data-cfasync="false">
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            github: {
+              canvas: {
+                default: '#ffffff',
+                subtle: '#f6f8fa',
+                dark: '#22272e',
+                'dark-subtle': '#2d333b'
+              },
+              border: {
+                default: '#d0d7de',
+                dark: '#444c56'
+              },
+              fg: {
+                default: '#24292f',
+                muted: '#57606a',
+                dark: '#e6edf3',
+                'dark-muted': '#9198a1'
+              },
+              accent: {
+                emphasis: '#0969da',
+                dark: '#539bf5'
+              }
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script data-cfasync="false">
+    // Apply theme before body renders to prevent flicker
+    // Must run before Tailwind processes the page
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'system';
+      if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else if (savedTheme === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        if (systemTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      }
+    })();
+  </script>
+  <style>
+    /* Prevent flash of unstyled content */
+    html {
+      background-color: #ffffff;
+      color: #24292f;
+    }
+
+    html.dark {
+      background-color: rgb(33, 40, 48);
+      color: #e6edf3;
+    }
+
+    body {
+      min-height: 100vh;
+      background-color: inherit;
+    }
+
+    /* Lighter text colors for dark mode */
+    .dark .text-github-fg-dark {
+      color: #e6edf3 !important;
+    }
+
+    .dark .text-github-fg-dark-muted {
+      color: #adbac7 !important;
+    }
+
+    .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+      color: #e6edf3 !important;
+    }
+
+    .dark .glass-tile {
+      color: #e6edf3;
+    }
+
+    .dark .glass-tile .text-github-fg-muted {
+      color: #adbac7 !important;
+    }
+
+    /* GitHub Brand frosted glass tiles */
+    .glass-tile {
+      background: rgba(246, 248, 250, 0.7) !important;
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(208, 215, 222, 0.5) !important;
+      border-radius: 8px !important;
+      position: relative;
+      z-index: 0;
+      box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+    }
+
+    .dark .glass-tile {
+      background: rgba(45, 51, 59, 0.7) !important;
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(68, 76, 86, 0.5) !important;
+      position: relative;
+      z-index: 0;
+      box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.3),
+        0 2px 4px -1px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+
+    ::selection {
+      background: rgba(9, 105, 218, 0.3);
+    }
+
+    .dark ::selection {
+      background: rgba(83, 155, 245, 0.3);
+    }
+
+    .theme-switcher {
+      background: rgba(246, 248, 250, 0.5);
+      backdrop-filter: blur(12px) saturate(150%);
+      -webkit-backdrop-filter: blur(12px) saturate(150%);
+      border: 1px solid rgba(208, 215, 222, 0.3);
+      box-shadow: none;
+    }
+
+    .dark .theme-switcher {
+      background: rgba(45, 51, 59, 0.5);
+      backdrop-filter: blur(12px) saturate(150%);
+      -webkit-backdrop-filter: blur(12px) saturate(150%);
+      border: 1px solid rgba(68, 76, 86, 0.3);
+      box-shadow: none;
+    }
+
+    .font-mono {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+    }
+
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      body {
+        background: white !important;
+      }
+      .glass-tile {
+        background: white !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+    }
+
+    .theme-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      color: #57606a;
+      background: transparent;
+      box-shadow: none;
+      transform: translateY(0);
+    }
+
+    .theme-options {
+      display: flex;
+      gap: 0.25rem;
+      max-width: 0;
+      opacity: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transition: max-width 180ms ease, opacity 140ms ease;
+    }
+
+    .theme-switcher[data-open="true"] .theme-options {
+      max-width: 8rem;
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .theme-icon-window {
+      width: 1rem;
+      height: 1rem;
+      overflow: hidden;
+    }
+
+    .theme-icon-track {
+      display: flex;
+      flex-direction: column;
+      transition: transform 180ms ease;
+    }
+
+    .theme-icon-track[data-theme="light"] {
+      transform: translateY(0);
+    }
+
+    .theme-icon-track[data-theme="system"] {
+      transform: translateY(-1rem);
+    }
+
+    .theme-icon-track[data-theme="dark"] {
+      transform: translateY(-2rem);
+    }
+
+    .theme-icon {
+      width: 1rem;
+      height: 1rem;
+      flex: 0 0 1rem;
+    }
+
+    .theme-icon-composite {
+      position: relative;
+      width: 1rem;
+      height: 1rem;
+      flex: 0 0 1rem;
+    }
+
+    .theme-icon-base {
+      position: absolute;
+      inset: 0;
+      width: 1rem;
+      height: 1rem;
+    }
+
+    .theme-icon-badge {
+      position: absolute;
+      right: 0.02rem;
+      bottom: 0.02rem;
+      width: 0.52rem;
+      height: 0.52rem;
+      padding: 0.04rem;
+      border-radius: 9999px;
+      background: rgba(246, 248, 250, 0.98);
+      color: #57606a;
+      box-shadow: 0 0 0 1px rgba(208, 215, 222, 0.8);
+    }
+
+    .theme-icon-system-light,
+    .theme-icon-system-dark {
+      opacity: 0;
+    }
+
+    .theme-icon-composite[data-effective-theme="light"] .theme-icon-system-light,
+    .theme-icon-composite[data-effective-theme="dark"] .theme-icon-system-dark {
+      opacity: 1;
+    }
+
+    .dark .theme-icon-badge {
+      background: rgba(34, 39, 46, 0.98);
+      color: #e6edf3;
+      box-shadow: 0 0 0 1px rgba(68, 76, 86, 0.85);
+    }
+
+    .theme-btn:hover {
+      color: #24292f;
+      background: rgba(0, 0, 0, 0.05);
+      transform: translateY(-1px);
+    }
+
+    .dark .theme-btn {
+      color: #9198a1;
+    }
+
+    .dark .theme-btn:hover {
+      color: #e6edf3;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .theme-btn[data-active="true"] {
+      background: rgba(9, 105, 218, 0.1);
+      color: #0969da;
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .dark .theme-btn[data-active="true"] {
+      background: rgba(83, 155, 245, 0.15);
+      color: #539bf5;
+      box-shadow: none;
+    }
+
+    .theme-btn:active {
+      transform: translateY(0);
+      background: rgba(9, 105, 218, 0.1);
+    }
+
+    .dark .theme-btn:active {
+      background: rgba(83, 155, 245, 0.15);
+    }
+
+    .theme-tooltip {
+      position: absolute;
+      top: calc(100% + 0.4rem);
+      right: 0;
+      padding: 0.2rem 0.45rem;
+      border-radius: 0.375rem;
+      background: rgba(36, 41, 47, 0.95);
+      color: #f6f8fa;
+      font-size: 0.75rem;
+      line-height: 1;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-2px);
+      transition: opacity 120ms ease, transform 120ms ease;
+    }
+
+    .theme-switcher[data-open="false"] .theme-btn:hover .theme-tooltip,
+    .theme-btn:focus-visible .theme-tooltip {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .dark .theme-tooltip {
+      background: rgba(230, 237, 243, 0.95);
+      color: #22272e;
+    }
+
+    @media (min-width: 1400px) {
+      .theme-switcher-container {
+        right: max(1rem, calc(50vw - 640px - 3rem)) !important;
+      }
+    }
+
+  </style>
+</head>
+<body class="text-github-fg-default dark:text-github-fg-dark">
+
+  <!-- Theme Toggle Button -->
+  <div class="no-print fixed z-40 theme-switcher-container" style="top: max(1rem, env(safe-area-inset-top)); right: 1rem;">
+    <div id="theme-switcher" class="theme-switcher flex h-fit items-stretch justify-start overflow-hidden rounded-xl p-0.5" aria-label="Theme" data-open="false">
+      <button type="button" id="theme-toggle" class="theme-btn rounded-lg border-0 text-sm transition-all" title="Theme: system" aria-label="Theme: system" aria-expanded="false" aria-haspopup="true" data-theme="system">
+        <span class="theme-icon-window" aria-hidden="true">
+          <span id="theme-icon-track" class="theme-icon-track" data-theme="system">
+            <svg class="theme-icon" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path>
+            </svg>
+            <span class="theme-icon-composite" data-effective-theme="light">
+              <svg class="theme-icon-base" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clip-rule="evenodd"></path>
+              </svg>
+              <svg class="theme-icon-badge theme-icon-system-light" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path>
+              </svg>
+              <svg class="theme-icon-badge theme-icon-system-dark" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+              </svg>
+            </span>
+            <svg class="theme-icon" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+            </svg>
+          </span>
+        </span>
+        <span id="theme-tooltip" class="theme-tooltip">System</span>
+      </button>
+      <div id="theme-options" class="theme-options" role="menu" aria-label="Select theme">
+        <button type="button" class="theme-btn rounded-lg border-0 text-sm transition-all" data-theme-option="light" title="Light theme" aria-label="Light theme" role="menuitem">
+          <svg class="theme-icon" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path>
+          </svg>
+        </button>
+        <button type="button" class="theme-btn rounded-lg border-0 text-sm transition-all" data-theme-option="system" title="System theme" aria-label="System theme" role="menuitem">
+          <span class="theme-icon-composite" data-effective-theme="light">
+            <svg class="theme-icon-base" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+              <path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clip-rule="evenodd"></path>
+            </svg>
+            <svg class="theme-icon-badge theme-icon-system-light" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path>
+            </svg>
+            <svg class="theme-icon-badge theme-icon-system-dark" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+            </svg>
+          </span>
+        </button>
+        <button type="button" class="theme-btn rounded-lg border-0 text-sm transition-all" data-theme-option="dark" title="Dark theme" aria-label="Dark theme" role="menuitem">
+          <svg class="theme-icon" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-5xl mx-auto px-4 py-8 md:py-12">
+
+    <!-- Header / Basics Section -->
+    <header class="mb-8 md:mb-12">
+      <div class="flex flex-row items-center gap-4 md:gap-6 mb-4">
+        <div class="flex-1 min-w-0">
+          <h1 class="text-4xl font-bold mb-2">Richard Hendriks</h1>
+          <p class="text-xl text-github-fg-muted dark:text-github-fg-dark-muted">Programmer</p>
+        </div>
+      </div>
+      <p class="text-base text-github-fg-muted dark:text-github-fg-dark-muted leading-relaxed mb-6">Richard hails from Tulsa. He has earned degrees from the University of Oklahoma and Stanford. (Go Sooners and Cardinal!) Before starting Pied Piper, he worked for Hooli as a part time software developer. While his work focuses on applied information theory, mostly optimizing lossless compression schema of both the length-limited and adaptive variants, his non-work interests range widely, everything from quantum computing to chaos theory. He could tell you about it, but THAT would NOT be a &quot;length-limited&quot; conversation!</p>
+
+      <!-- Contact Information -->
+      <div class="flex flex-wrap gap-3 md:gap-4 text-sm">
+        <a href="mailto:richard.hendriks@mail.com" class="flex items-center gap-2 text-github-accent-emphasis dark:text-github-accent-dark hover:underline">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+          </svg>
+          richard.hendriks@mail.com
+        </a>
+        <a href="tel:(912) 555-4321" class="flex items-center gap-2 text-github-accent-emphasis dark:text-github-accent-dark hover:underline">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+          </svg>
+          (912) 555-4321
+        </a>
+        <a href="https://richardhendricks.example.com" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-github-accent-emphasis dark:text-github-accent-dark hover:underline">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd"></path>
+          </svg>
+          https://richardhendricks.example.com
+        </a>
+        <span class="flex items-center gap-2 text-github-fg-muted dark:text-github-fg-dark-muted">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+          </svg>
+          San Francisco, California US
+        </span>
+      </div>
+
+      <!-- Profiles -->
+      <div class="flex flex-wrap gap-3 mt-4">
+        <a href="https://twitter.com/neutralthoughts" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-md hover:border-github-accent-emphasis dark:hover:border-github-accent-dark transition-colors" title="Twitter: neutralthoughts">
+          <!-- GitHub Icon -->
+          <!-- LinkedIn Icon -->
+          <!-- Twitter/X Icon -->
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+          <!-- Instagram Icon -->
+          <!-- Facebook Icon -->
+          <!-- YouTube Icon -->
+          <!-- Default Icon for other networks -->
+          <span>Twitter</span>
+        </a>
+        <a href="https://soundcloud.example.com/dandymusicnl" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-md hover:border-github-accent-emphasis dark:hover:border-github-accent-dark transition-colors" title="SoundCloud: dandymusicnl">
+          <!-- GitHub Icon -->
+          <!-- LinkedIn Icon -->
+          <!-- Twitter/X Icon -->
+          <!-- Instagram Icon -->
+          <!-- Facebook Icon -->
+          <!-- YouTube Icon -->
+          <!-- Default Icon for other networks -->
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          <span>SoundCloud</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Skills -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4 pb-2 border-b border-github-border-default dark:border-github-border-dark">Skills</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg p-4">
+          <h3 class="font-semibold mb-2">Web Development</h3>
+          <div class="flex flex-wrap gap-2">
+            <span class="px-2 py-1 text-sm bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded font-mono">HTML</span>
+            <span class="px-2 py-1 text-sm bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded font-mono">CSS</span>
+            <span class="px-2 py-1 text-sm bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded font-mono">Javascript</span>
+          </div>
+        </div>
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg p-4">
+          <h3 class="font-semibold mb-2">Compression</h3>
+          <div class="flex flex-wrap gap-2">
+            <span class="px-2 py-1 text-sm bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded font-mono">Mpeg</span>
+            <span class="px-2 py-1 text-sm bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded font-mono">MP4</span>
+            <span class="px-2 py-1 text-sm bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded font-mono">GIF</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Work Experience -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4 pb-2 border-b border-github-border-default dark:border-github-border-dark">Work Experience</h2>
+      <div class="space-y-6">
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg p-4 md:p-6">
+          <div class="flex flex-col md:flex-row md:justify-between md:items-start mb-3">
+            <div>
+              <h3 class="text-xl font-semibold">CEO/President</h3>
+              <p class="text-github-fg-muted dark:text-github-fg-dark-muted">
+                <a href="https://piedpiper.example.com" target="_blank" rel="noopener noreferrer" class="text-github-accent-emphasis dark:text-github-accent-dark hover:underline">Pied Piper</a>
+                <span class="inline-flex items-center gap-1 ml-2">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+                  </svg>
+                  Palo Alto, CA
+                </span>
+              </p>
+            </div>
+            <div class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted mt-1 md:mt-0 md:text-right">
+              2013 → 2014
+            </div>
+          </div>
+          <p class="text-github-fg-muted dark:text-github-fg-dark-muted mb-3">Pied Piper is a multi-platform technology based on a proprietary universal compression algorithm that has consistently fielded high Weisman Scores™ that are not merely competitive, but approach the theoretical limit of lossless compression.</p>
+          <ul class="list-disc list-outside pl-5 space-y-1 text-github-fg-muted dark:text-github-fg-dark-muted">
+            <li>Build an algorithm for artist to detect if their music was violating copy right infringement laws</li>
+            <li>Successfully won Techcrunch Disrupt</li>
+            <li>Optimized an algorithm that holds the current world record for Weisman Scores</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Education -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4 pb-2 border-b border-github-border-default dark:border-github-border-dark">Education</h2>
+      <div class="space-y-4">
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg p-4 md:p-6">
+          <div class="flex flex-col md:flex-row md:justify-between md:items-start">
+            <div>
+              <h3 class="text-xl font-semibold">Bachelor in Information Technology</h3>
+              <p class="text-github-fg-muted dark:text-github-fg-dark-muted">
+                <a href="https://www.ou.edu/" target="_blank" rel="noopener noreferrer" class="text-github-accent-emphasis dark:text-github-accent-dark hover:underline">University of Oklahoma</a>
+              </p>
+              <p class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted mt-1">GPA: 4.0</p>
+            </div>
+            <div class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted mt-1 md:mt-0">
+              2011 → 2014
+            </div>
+          </div>
+          <div class="mt-3">
+            <p class="text-sm font-medium mb-2">Relevant Courses:</p>
+            <div class="flex flex-wrap gap-2">
+              <span class="px-2 py-1 text-xs bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded">DB1101 - Basic SQL</span>
+              <span class="px-2 py-1 text-xs bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded">CS2011 - Java Introduction</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Projects -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4 pb-2 border-b border-github-border-default dark:border-github-border-dark">Projects</h2>
+      <div class="space-y-4">
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg p-4 md:p-6">
+          <div class="flex flex-col md:flex-row md:justify-between md:items-start mb-2">
+            <div>
+              <h3 class="text-xl font-semibold">
+                <a href="https://missdirection.example.com" target="_blank" rel="noopener noreferrer" class="text-github-accent-emphasis dark:text-github-accent-dark hover:underline">Miss Direction</a>
+              </h3>
+              <p class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted">application</p>
+            </div>
+            <div class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted mt-1 md:mt-0">
+              2016 → 2016
+            </div>
+          </div>
+          <p class="text-github-fg-muted dark:text-github-fg-dark-muted mb-2">A mapping engine that misguides you</p>
+          <ul class="list-disc list-outside pl-5 space-y-1 text-sm text-github-fg-muted dark:text-github-fg-dark-muted mb-2">
+            <li>Won award at AIHacks 2016</li>
+            <li>Built by all women team of newbie programmers</li>
+            <li>Using modern technologies such as GoogleMaps, Chrome Extension and Javascript</li>
+          </ul>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <span class="px-2 py-1 text-xs bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded">GoogleMaps</span>
+            <span class="px-2 py-1 text-xs bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded">Chrome Extension</span>
+            <span class="px-2 py-1 text-xs bg-github-canvas-default dark:bg-github-canvas-dark border border-github-border-default dark:border-github-border-dark rounded">Javascript</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Awards -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4 pb-2 border-b border-github-border-default dark:border-github-border-dark">Awards & Honors</h2>
+      <div class="space-y-3">
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg p-4">
+          <div class="flex flex-col md:flex-row md:justify-between md:items-start">
+            <div>
+              <h3 class="font-semibold">Digital Compression Pioneer Award</h3>
+              <p class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted">Techcrunch</p>
+              <p class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted mt-1">There is no spoon.</p>
+            </div>
+            <div class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted mt-1 md:mt-0">2014</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Certificates -->
+
+    <!-- Publications -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4 pb-2 border-b border-github-border-default dark:border-github-border-dark">Publications</h2>
+      <div class="space-y-4">
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg p-4">
+          <div class="flex flex-col md:flex-row md:justify-between md:items-start">
+            <div>
+              <h3 class="font-semibold">
+                <a href="https://en.wikipedia.org/wiki/Silicon_Valley_(TV_series)" target="_blank" rel="noopener noreferrer" class="text-github-accent-emphasis dark:text-github-accent-dark hover:underline">Video compression for 3d media</a>
+              </h3>
+              <p class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted">Hooli</p>
+              <p class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted mt-2">Innovative middle-out compression algorithm that changes the way we store data.</p>
+            </div>
+            <div class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted mt-1 md:mt-0">2014</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Volunteer -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4 pb-2 border-b border-github-border-default dark:border-github-border-dark">Volunteer Experience</h2>
+      <div class="space-y-4">
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg p-4 md:p-6">
+          <div class="flex flex-col md:flex-row md:justify-between md:items-start mb-2">
+            <div>
+              <h3 class="text-xl font-semibold">Teacher</h3>
+              <p class="text-github-fg-muted dark:text-github-fg-dark-muted">
+                <a href="https://coderdojo.example.com" target="_blank" rel="noopener noreferrer" class="text-github-accent-emphasis dark:text-github-accent-dark hover:underline">CoderDojo</a>
+              </p>
+            </div>
+            <div class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted mt-1 md:mt-0">
+              2012 → 2013
+            </div>
+          </div>
+          <p class="text-github-fg-muted dark:text-github-fg-dark-muted mb-2">Global movement of free coding clubs for young people.</p>
+          <ul class="list-disc list-outside pl-5 space-y-1 text-sm text-github-fg-muted dark:text-github-fg-dark-muted">
+            <li>Awarded &#x27;Teacher of the Month&#x27;</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Languages -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4 pb-2 border-b border-github-border-default dark:border-github-border-dark">Languages</h2>
+      <div class="flex flex-wrap gap-3">
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg px-4 py-2">
+          <span class="font-medium">English</span>
+          <span class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted"> - Native speaker</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interests -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4 pb-2 border-b border-github-border-default dark:border-github-border-dark">Interests</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg p-4">
+          <h3 class="font-semibold mb-2">Wildlife</h3>
+          <div class="flex flex-wrap gap-2">
+            <span class="px-2 py-1 text-sm text-github-fg-muted dark:text-github-fg-dark-muted">Ferrets</span>
+            <span class="px-2 py-1 text-sm text-github-fg-muted dark:text-github-fg-dark-muted">Unicorns</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- References -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4 pb-2 border-b border-github-border-default dark:border-github-border-dark">References</h2>
+      <div class="space-y-3">
+        <div class="glass-tile bg-github-canvas-subtle dark:bg-github-canvas-dark-subtle border border-github-border-default dark:border-github-border-dark rounded-lg p-4">
+          <h3 class="font-semibold">Erlich Bachman</h3>
+          <p class="text-sm text-github-fg-muted dark:text-github-fg-dark-muted mt-1 italic">"It is my pleasure to recommend Richard, his performance working as a consultant for Main St. Company proved that he will be a valuable addition to any company."</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    const themeSwitcher = document.getElementById('theme-switcher');
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIconTrack = document.getElementById('theme-icon-track');
+    const themeTooltip = document.getElementById('theme-tooltip');
+    const themeOptionButtons = Array.from(document.querySelectorAll('[data-theme-option]'));
+    const systemThemeIcons = Array.from(document.querySelectorAll('.theme-icon-composite'));
+
+    function getSystemTheme() {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    function applyTheme(theme) {
+      if (theme === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.classList.toggle('dark', systemTheme === 'dark');
+      } else {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+      }
+      updateThemeButton(theme);
+    }
+
+    function updateThemeButton(theme) {
+      themeToggle.setAttribute('data-theme', theme);
+      themeToggle.setAttribute('title', 'Theme: ' + theme);
+      themeToggle.setAttribute('aria-label', 'Theme: ' + theme);
+      themeIconTrack.setAttribute('data-theme', theme);
+      themeTooltip.textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
+
+      systemThemeIcons.forEach(function(icon) {
+        icon.setAttribute('data-effective-theme', getSystemTheme());
+      });
+
+      themeOptionButtons.forEach(function(button) {
+        const isActiveTheme = button.getAttribute('data-theme-option') === theme;
+
+        button.setAttribute('data-active', String(isActiveTheme));
+        button.hidden = isActiveTheme;
+      });
+    }
+
+    function setThemeMenuOpen(isOpen) {
+      themeSwitcher.setAttribute('data-open', String(isOpen));
+      themeToggle.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    const savedTheme = localStorage.getItem('theme') || 'system';
+    applyTheme(savedTheme);
+
+    themeToggle.addEventListener('click', function() {
+      setThemeMenuOpen(themeSwitcher.getAttribute('data-open') !== 'true');
+    });
+
+    themeOptionButtons.forEach(function(button) {
+      button.addEventListener('click', function() {
+        const theme = button.getAttribute('data-theme-option');
+        localStorage.setItem('theme', theme);
+        applyTheme(theme);
+        setThemeMenuOpen(false);
+      });
+    });
+
+    document.addEventListener('click', function(event) {
+      if (!themeSwitcher.contains(event.target)) {
+        setThemeMenuOpen(false);
+      }
+    });
+
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape') {
+        setThemeMenuOpen(false);
+      }
+    });
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+      const savedTheme = localStorage.getItem('theme') || 'system';
+      if (savedTheme === 'system') {
+        applyTheme('system');
+      }
+    });
+  </script>
+</body>
+</html>

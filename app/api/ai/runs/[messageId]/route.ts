@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 
 const NO_STORE = { "Cache-Control": "no-store" }
 
-export async function GET(req: NextRequest, { params }: RouteContext<"/api/ai/runs/[messageId]">) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ messageId: string }> }) {
   const session = await requireAuth()
   const { messageId } = await params
   const query = Object.fromEntries(req.nextUrl.searchParams.entries())

@@ -1,15 +1,18 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import {
   CheckCircle2,
   ChevronDown,
   Copy,
+  ImageIcon,
   Loader2,
   MessageSquarePlus,
   PencilLine,
   Plus,
   Settings2,
+  SlidersHorizontal,
   Sparkles,
   TriangleAlert,
   Trash2,
@@ -21,6 +24,7 @@ import { AISettingsSheet } from "@/components/ai/ai-settings-sheet"
 import { MarkdownContent } from "@/components/markdown-content"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { confirmAction, copyTextWithToast } from "@/lib/interaction-feedback"
 import {
   AI_MODEL_PRESETS_UPDATED_EVENT,
   loadModelCatalog,
@@ -34,6 +38,12 @@ type AIProviderCapabilities = {
   toolCalling: boolean
   visionInput: boolean
   reasoningStream: boolean
+}
+
+function submitOnTouchBeforeKeyboardBlur(event: ReactPointerEvent<HTMLButtonElement>, submit: () => void) {
+  if (event.pointerType === "mouse") return
+  event.preventDefault()
+  submit()
 }
 
 type ConversationItem = {
@@ -52,6 +62,11 @@ type AttachmentItem = {
   originalName: string
   mimeType: string
   size: number
+}
+
+type ComposerAttachment = AttachmentItem & {
+  status: "uploading" | "ready" | "failed"
+  errorMessage?: string
 }
 
 type StepPreview = {
@@ -512,8 +527,7 @@ function AssistantMessageCard({ message, run, dict }: { message: MessageItem; ru
             type="button"
             className="ml-auto inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs text-[--color-text-muted] transition-colors hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
             onClick={async () => {
-              await navigator.clipboard.writeText(message.contentMarkdown)
-              toast.success(dict.ai.answerCopied)
+              await copyTextWithToast(message.contentMarkdown, dict.ai.answerCopied, "复制失败，请手动复制")
             }}
           >
             <Copy size={13} />
@@ -600,23 +614,41 @@ export function AIAssistantClient() {
   const [runsByMessageId, setRunsByMessageId] = useState<Record<string, RunDetail>>({})
   const [statusPayload, setStatusPayload] = useState<AIStatusResponse | null>(null)
   const [prompt, setPrompt] = useState("")
-  const [attachments, setAttachments] = useState<AttachmentItem[]>([])
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([])
   const [requestMessage, setRequestMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const [actionMenuOpen, setActionMenuOpen] = useState(false)
+  const [mobileModelSheetOpen, setMobileModelSheetOpen] = useState(false)
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [selectedModel, setSelectedModel] = useState("")
   const [mobilePanel, setMobilePanel] = useState<"conversations" | "controls" | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
+  const [creatingConversation, setCreatingConversation] = useState(false)
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null)
   const messageSeedRef = useRef(0)
   const endRef = useRef<HTMLDivElement | null>(null)
   const attachmentInputRef = useRef<HTMLInputElement | null>(null)
   const desktopPromptInputRef = useRef<HTMLTextAreaElement | null>(null)
   const mobilePromptInputRef = useRef<HTMLTextAreaElement | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  function openAttachmentPicker() {
+    setActionMenuOpen(false)
+    attachmentInputRef.current?.click()
+  }
+
+  function openQuickModelMenu() {
+    setActionMenuOpen(false)
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      setMobileModelSheetOpen(true)
+    } else {
+      setModelMenuOpen(true)
+    }
+  }
 
   async function loadRun(messageId: string) {
     const res = await fetch(`/api/ai/runs/${messageId}?includeSteps=true`, { cache: "no-store" })
@@ -729,6 +761,8 @@ export function AIAssistantClient() {
   }, [prompt])
 
   async function createConversation() {
+    if (creatingConversation) return
+    setCreatingConversation(true)
     try {
       const res = await fetch("/api/ai/conversations", {
         method: "POST",
@@ -743,6 +777,8 @@ export function AIAssistantClient() {
       setMobilePanel(null)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : dict.ai.createConversationFailed)
+    } finally {
+      setCreatingConversation(false)
     }
   }
 
@@ -764,6 +800,8 @@ export function AIAssistantClient() {
   }
 
   async function deleteConversation(id: string) {
+    if (!confirmAction("确定删除这段 AI 对话？该对话中的历史消息会从列表中移除，无法直接恢复。")) return
+    setDeletingConversationId(id)
     try {
       const res = await fetch(`/api/ai/conversations/${id}`, { method: "DELETE" })
       const data = await res.json().catch(() => null)
@@ -773,6 +811,8 @@ export function AIAssistantClient() {
       await loadMessages(nextId)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : dict.ai.deleteConversationFailed)
+    } finally {
+      setDeletingConversationId(null)
     }
   }
 
@@ -807,7 +847,44 @@ export function AIAssistantClient() {
       originalName: data?.originalName ?? file.name,
       mimeType: file.type,
       size: file.size,
+      status: "ready" as const,
     }
+  }
+
+  async function handleAttachmentFiles(files: File[]) {
+    if (files.length === 0) return
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"))
+    if (imageFiles.length === 0) {
+      toast.error(dict.ai.imageUploadFailed)
+      return
+    }
+
+    const localItems: ComposerAttachment[] = imageFiles.map((file) => ({
+      id: `local-${crypto.randomUUID()}`,
+      uploadId: null,
+      url: URL.createObjectURL(file),
+      originalName: file.name,
+      mimeType: file.type,
+      size: file.size,
+      status: "uploading",
+    }))
+
+    setAttachments((current) => [...current, ...localItems])
+
+    await Promise.all(localItems.map(async (localItem, index) => {
+      const file = imageFiles[index]
+      try {
+        const uploaded = await uploadAttachment(file)
+        URL.revokeObjectURL(localItem.url)
+        setAttachments((current) => current.map((item) => item.id === localItem.id ? uploaded : item))
+      } catch (error) {
+        setAttachments((current) => current.map((item) => item.id === localItem.id ? {
+          ...item,
+          status: "failed",
+          errorMessage: error instanceof Error ? error.message : dict.ai.imageUploadFailed,
+        } : item))
+      }
+    }))
   }
 
   function patchAssistantMessage(messageId: string, updater: (item: MessageItem) => MessageItem) {
@@ -832,18 +909,37 @@ export function AIAssistantClient() {
   const activeModelName = selectedModel || configuredModelName
   const capabilities = statusPayload?.status.config?.capabilities ?? statusPayload?.userConfig?.capabilities ?? null
   const activeConfigSource = statusPayload?.userConfig?.source ?? "self"
+  const hasUploadingAttachments = attachments.some((attachment) => attachment.status === "uploading")
+  const hasFailedAttachments = attachments.some((attachment) => attachment.status === "failed")
+  const canSubmitComposer = !sending && !hasUploadingAttachments && !hasFailedAttachments && (prompt.trim().length > 0 || attachments.length > 0)
 
   useEffect(() => {
     const syncModelCatalog = () => {
-      // For admin grants, use modelList from the config directly
       if (activeConfigSource === "admin_grant" && statusPayload?.userConfig?.modelList?.length) {
-        setAvailableModels(statusPayload.userConfig.modelList)
-        setSelectedModel(configuredModelName)
+        // Admin grants: the model list is server-managed, while the user's
+        // last selected model is a local preference within that allowed list.
+        const grantModels = statusPayload.userConfig.modelList
+        const catalog = loadModelCatalog(providerLabel, activeBaseUrl, configuredModelName)
+        const nextSelectedModel = grantModels.includes(catalog.selectedModel)
+          ? catalog.selectedModel
+          : grantModels.includes(configuredModelName)
+            ? configuredModelName
+            : (grantModels[0] ?? "")
+
+        setAvailableModels(grantModels)
+        setSelectedModel(nextSelectedModel)
         return
       }
-      // For self configs, use localStorage model catalog
+
+      // Self configs: server DB is the canonical model list; localStorage only tracks selected-model preference
+      const serverModels: string[] = statusPayload?.userConfig?.modelList ?? []
       const catalog = loadModelCatalog(providerLabel, activeBaseUrl, configuredModelName)
-      setAvailableModels(catalog.models)
+
+      // Merge DB list (canonical) + any localStorage-only additions for backward compat
+      const merged = Array.from(new Set([...serverModels, ...catalog.models])).filter(Boolean).slice(0, 30)
+      const finalModels = merged.length > 0 ? merged : catalog.models
+
+      setAvailableModels(finalModels)
       setSelectedModel(catalog.selectedModel || configuredModelName)
     }
 
@@ -866,6 +962,13 @@ export function AIAssistantClient() {
     }
   }, [activeBaseUrl, configuredModelName, providerLabel, activeConfigSource, statusPayload?.userConfig?.modelList])
 
+  function selectActiveModel(model: string) {
+    const nextModel = model.trim()
+    if (!nextModel) return
+    setSelectedModel(nextModel)
+    saveModelCatalog(providerLabel, activeBaseUrl, availableModels, nextModel)
+  }
+
   function stopGeneration() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -876,6 +979,14 @@ export function AIAssistantClient() {
   async function sendPrompt(nextPrompt?: string) {
     const text = (nextPrompt ?? prompt).trim()
     if ((!text && attachments.length === 0) || sending) return
+    if (attachments.some((attachment) => attachment.status === "uploading")) {
+      toast.info("图片还在上传，上传完成后再发送。")
+      return
+    }
+    if (attachments.some((attachment) => attachment.status === "failed")) {
+      toast.error("有图片上传失败，请删除后重新上传。")
+      return
+    }
 
     // Runtime grant status check
     if (statusPayload?.status.source === "grant") {
@@ -903,7 +1014,14 @@ export function AIAssistantClient() {
     messageSeedRef.current += 1
     let currentAssistantId = `local-assistant-${messageSeedRef.current}`
     const nowIso = new Date().toISOString()
-    const outgoingAttachments = attachments
+    const outgoingAttachments: AttachmentItem[] = attachments.map((attachment) => ({
+      id: attachment.id,
+      uploadId: attachment.uploadId,
+      url: attachment.url,
+      originalName: attachment.originalName,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+    }))
 
     setMessages((current) => [
       ...current,
@@ -1188,7 +1306,7 @@ export function AIAssistantClient() {
         <aside className="hidden min-h-0 rounded-[--radius-xl] bg-[--color-bg-surface-glass] p-4 shadow-[--shadow-sm] ring-1 ring-[--color-border] backdrop-blur-[16px] [-webkit-backdrop-filter:blur(16px)] lg:flex lg:flex-col">
           <div className="flex items-center justify-between gap-3 px-1 pb-4">
             <p className="text-lg font-semibold text-[--color-text-primary]">{dict.ai.conversations}</p>
-            <Button size="sm" variant="ghost" className="rounded-full" onClick={() => void createConversation()}>
+            <Button size="sm" variant="ghost" className="rounded-full" onClick={() => void createConversation()} loading={creatingConversation} loadingText={dict.ai.newChat}>
               <MessageSquarePlus size={14} />
               {dict.ai.newChat}
             </Button>
@@ -1255,6 +1373,8 @@ export function AIAssistantClient() {
                     <button
                       type="button"
                       className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[--color-text-muted] transition-colors hover:bg-[color:var(--color-bg-surface)] hover:text-red-600"
+                      disabled={deletingConversationId === conversation.id}
+                      aria-busy={deletingConversationId === conversation.id || undefined}
                       onClick={() => void deleteConversation(conversation.id)}
                     >
                       <Trash2 size={14} />
@@ -1312,7 +1432,7 @@ export function AIAssistantClient() {
           {/* Soft divider between toolbar and messages */}
           <div className="hidden md:block mx-8 h-px bg-[--color-border]" />
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mobile-chat-scroll min-h-0 flex-1 overflow-y-auto">
             {loading ? (
               <div className="flex h-full items-center justify-center text-sm text-[--color-text-muted]">
                 <Loader2 size={16} className="mr-2 animate-spin" />
@@ -1430,7 +1550,7 @@ export function AIAssistantClient() {
             )}
           </div>
 
-          <div className="px-4 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] pt-2 sm:px-7 sm:pb-6 sm:pt-4">
+          <div className="mobile-ai-composer px-4 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] pt-2 sm:px-7 sm:pb-6 sm:pt-4">
             <div className="mx-auto mb-3 h-px w-full max-w-[1480px] bg-[--color-border]" />
             <div className="mx-auto w-full max-w-[1480px]">
               <input
@@ -1443,12 +1563,7 @@ export function AIAssistantClient() {
                   const files = Array.from(event.target.files ?? [])
                   event.currentTarget.value = ""
                   if (files.length === 0) return
-                  try {
-                    const uploaded = await Promise.all(files.map((file) => uploadAttachment(file)))
-                    setAttachments((current) => [...current, ...uploaded])
-                  } catch (error) {
-                    toast.error(error instanceof Error ? error.message : dict.ai.imageUploadFailed)
-                  }
+                  void handleAttachmentFiles(files)
                 }}
               />
 
@@ -1478,6 +1593,25 @@ export function AIAssistantClient() {
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={attachment.url} alt="" className="h-full w-full object-cover" />
+                        {attachment.status !== "ready" ? (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/45 text-xs font-medium text-white">
+                            {attachment.status === "uploading" ? (
+                              <>
+                                <Loader2 size={18} className="mb-2 animate-spin" />
+                                上传中
+                              </>
+                            ) : (
+                              <>
+                                <TriangleAlert size={18} className="mb-2" />
+                                上传失败
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
+                            已就绪
+                          </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}
@@ -1493,104 +1627,132 @@ export function AIAssistantClient() {
               ) : null}
 
               {modelMenuOpen ? (
-                <div className="mb-3 flex justify-end">
-                  <div className="w-full max-w-[320px] rounded-[--radius-lg] border border-[--color-border] bg-popover p-4 shadow-[--shadow-md]">
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-sm font-medium text-[--color-text-primary]">Model switch</p>
-                        <p className="mt-1 text-xs leading-6 text-[--color-text-muted]">
-                          Switch the current model for this provider without reopening the whole settings form.
-                        </p>
-                      </div>
-                      <div className="max-h-64 space-y-2 overflow-y-auto">
+                <div className="fixed inset-0 z-[70] hidden md:block" onClick={() => setModelMenuOpen(false)}>
+                  <div className="absolute inset-0 bg-black/35 backdrop-blur-[2px]" />
+                  <div
+                    className="absolute left-1/2 w-[min(420px,calc(100vw-48px))] -translate-x-1/2 overflow-hidden rounded-[22px] bg-white shadow-[0_22px_70px_rgba(15,23,42,0.2)]"
+                    style={{ bottom: 28 }}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="border-b border-gray-100 px-4 py-3 text-center">
+                      <p className="text-xs text-gray-400">选择模型</p>
+                    </div>
+                    <div className="max-h-[52vh] overflow-y-auto divide-y divide-gray-100 overscroll-contain">
                         {availableModels.length > 0 ? (
                           availableModels.map((model) => (
                             <button
                               key={model}
                               type="button"
                               onClick={() => {
-                                setSelectedModel(model)
-                                saveModelCatalog(providerLabel, activeBaseUrl, availableModels, model)
+                                selectActiveModel(model)
                                 setModelMenuOpen(false)
                               }}
-                              className={`flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition-colors ${
+                              className={`flex w-full items-center justify-between px-5 py-[14px] text-left transition-colors ${
                                 activeModelName === model
-                                  ? "bg-[--color-bg-hover] text-[--color-text-primary]"
-                                  : "text-[--color-text-secondary] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+                                  ? "font-semibold text-blue-600"
+                                  : "text-gray-800 hover:bg-gray-50"
                               }`}
                             >
-                              <span className="truncate">{model}</span>
-                              {activeModelName === model ? <CheckCircle2 size={14} className="shrink-0" /> : null}
+                              <span className="truncate text-[15px] leading-snug">{model}</span>
+                              {activeModelName === model ? <CheckCircle2 size={17} className="shrink-0 text-blue-600" /> : null}
                             </button>
                           ))
                         ) : (
-                          <p className="rounded-2xl bg-[--color-bg-hover] px-3 py-3 text-sm text-[--color-text-muted]">
-                            Add more models in settings first, then they will appear here for quick switching.
+                          <p className="px-5 py-6 text-center text-sm text-gray-400">
+                            请先在设置中添加模型
                           </p>
                         )}
-                      </div>
-                      <Button
-                        variant="outline"
-                        className="w-full rounded-full border-[--color-border] bg-[color:var(--color-bg-surface)] shadow-none hover:bg-[--color-bg-hover]"
+                      <button
+                        type="button"
                         onClick={() => {
                           setModelMenuOpen(false)
                           setSettingsOpen(true)
                         }}
+                        className="flex w-full items-center justify-center gap-1.5 px-5 py-[14px] text-[15px] text-gray-400 hover:bg-gray-50"
                       >
                         <Settings2 size={14} />
-                        Manage model list
-                      </Button>
+                        管理模型列表
+                      </button>
                     </div>
                   </div>
                 </div>
               ) : null}
 
-              <div className="hidden items-end gap-3 md:flex">
+              {actionMenuOpen ? (
                 <button
                   type="button"
-                  onClick={() => attachmentInputRef.current?.click()}
-                  className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-bg-surface)] text-[--color-text-primary] shadow-[0_16px_34px_rgba(34,27,20,0.08)] transition-transform hover:-translate-y-0.5"
-                  aria-label={dict.ai.uploadImage}
-                >
-                  <Plus size={28} strokeWidth={2.1} />
-                </button>
+                  className="fixed inset-0 z-40 hidden cursor-default bg-transparent md:block"
+                  onClick={() => setActionMenuOpen(false)}
+                  aria-label="Close actions"
+                />
+              ) : null}
 
-                <div className="flex min-h-16 flex-1 items-end gap-3 rounded-full bg-[color:var(--color-bg-surface)] px-6 py-3 shadow-[0_18px_36px_rgba(34,27,20,0.08)]">
+              <div className="hidden items-center gap-4 md:flex">
+                <div className="relative z-50 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActionMenuOpen((current) => !current)}
+                    className={`inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-bg-surface)] text-[--color-text-primary] shadow-[0_14px_30px_rgba(34,27,20,0.09)] transition-all hover:-translate-y-0.5 ${actionMenuOpen ? "rotate-45" : ""}`}
+                    aria-label="打开功能"
+                    aria-expanded={actionMenuOpen}
+                  >
+                    <Plus size={28} strokeWidth={2.1} />
+                  </button>
+
+                  {actionMenuOpen ? (
+                    <div className="absolute bottom-[calc(100%+12px)] left-0 w-[232px] overflow-hidden rounded-[26px] border border-[--color-border] bg-white p-2 shadow-[0_24px_60px_rgba(15,23,42,0.16)]">
+                      <button
+                        type="button"
+                        onClick={openAttachmentPicker}
+                        className="flex w-full items-center gap-3 rounded-[18px] px-3 py-3 text-left text-sm font-medium text-[--color-text-primary] transition-colors hover:bg-[--color-bg-hover]"
+                      >
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[--color-bg-hover]">
+                          <ImageIcon size={19} />
+                        </span>
+                        图片上传
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openQuickModelMenu}
+                        className="flex w-full items-center gap-3 rounded-[18px] px-3 py-3 text-left text-sm font-medium text-[--color-text-primary] transition-colors hover:bg-[--color-bg-hover]"
+                      >
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[--color-bg-hover]">
+                          <SlidersHorizontal size={19} />
+                        </span>
+                        切换模型
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex min-h-14 flex-1 items-end gap-3 rounded-[28px] bg-[color:var(--color-bg-surface)] px-5 py-1 shadow-[0_14px_30px_rgba(34,27,20,0.09)]">
                   <Textarea
                     ref={desktopPromptInputRef}
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
-                    onKeyDown={(event) => handleEnterToSubmit(event, () => void sendPrompt(), { disabled: sending || (!prompt.trim() && attachments.length === 0) })}
+                    onKeyDown={(event) => handleEnterToSubmit(event, () => void sendPrompt(), { disabled: !canSubmitComposer })}
                     rows={1}
                     placeholder={dict.ai.desktopPlaceholder}
-                    className="min-h-[42px] max-h-[36vh] flex-1 resize-none overflow-hidden !rounded-none !border-0 !bg-transparent px-0 py-[3px] text-[18px] leading-8 !shadow-none outline-none ring-0 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                    className="h-auto min-h-10 max-h-[36vh] flex-1 resize-none overflow-hidden !rounded-none !border-0 !bg-transparent px-0 py-1 text-[17px] leading-8 !shadow-none outline-none ring-0 focus-visible:!ring-0 focus-visible:!ring-offset-0"
                   />
-
-                  <button
-                    type="button"
-                    onClick={() => setModelMenuOpen((current) => !current)}
-                    className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm text-[--color-text-secondary] transition-colors hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
-                  >
-                    {dict.ai.advanced}
-                    <ChevronDown size={16} />
-                  </button>
 
                   {sending ? (
                     <button
                       type="button"
                       onClick={stopGeneration}
-                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#A8463A] shadow-[0_8px_22px_rgba(168,70,58,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(168,70,58,0.36)] active:scale-95"
+                      className="ai-send-btn inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#A8463A] shadow-[0_8px_22px_rgba(168,70,58,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(168,70,58,0.36)] active:scale-95"
                       aria-label="停止生成"
                     >
                       <svg width="22" height="22" viewBox="0 0 24 24" className="block shrink-0">
                         <rect x="6" y="6" width="12" height="12" rx="2" fill="#ffffff" />
                       </svg>
                     </button>
-                  ) : prompt.trim() || attachments.length > 0 ? (
+                  ) : canSubmitComposer ? (
                     <button
                       type="button"
                       onClick={() => void sendPrompt()}
-                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#2563EB] shadow-[0_8px_22px_rgba(37,99,235,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(37,99,235,0.36)] active:scale-95"
+                      onPointerDown={(event) => submitOnTouchBeforeKeyboardBlur(event, () => void sendPrompt())}
+                      className="ai-send-btn inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black shadow-[0_8px_22px_rgba(0,0,0,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(0,0,0,0.24)] active:scale-95"
                       aria-label={dict.ai.sendMessage}
                     >
                       <svg width="24" height="24" viewBox="0 0 24 24" className="block shrink-0">
@@ -1602,7 +1764,7 @@ export function AIAssistantClient() {
                     <button
                       type="button"
                       disabled
-                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F3F1EA] shadow-none cursor-not-allowed"
+                      className="ai-send-btn inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#F3F1EA] shadow-none cursor-not-allowed"
                       aria-label={dict.ai.sendMessage}
                     >
                       <svg width="24" height="24" viewBox="0 0 24 24" className="block shrink-0">
@@ -1617,49 +1779,42 @@ export function AIAssistantClient() {
               <div className="flex items-end gap-3 md:hidden">
                 <button
                   type="button"
-                  onClick={() => attachmentInputRef.current?.click()}
-                  className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-bg-surface)] text-[--color-text-primary] shadow-[0_18px_36px_rgba(34,27,20,0.08)]"
-                  aria-label={dict.ai.uploadImage}
+                  onClick={() => setActionMenuOpen(true)}
+                  className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-bg-surface)] text-[--color-text-primary] shadow-[0_14px_30px_rgba(34,27,20,0.08)] active:scale-95"
+                  aria-label="打开功能"
+                  aria-expanded={actionMenuOpen}
                 >
-                  <Plus size={30} strokeWidth={2.1} />
+                  <Plus size={28} strokeWidth={2.1} />
                 </button>
 
-                <div className="flex min-h-16 flex-1 items-end gap-3 rounded-[28px] bg-[color:var(--color-bg-surface)] px-5 py-3 shadow-[0_18px_36px_rgba(34,27,20,0.08)]">
+                <div className="flex min-h-14 flex-1 items-end gap-3 rounded-[28px] bg-[color:var(--color-bg-surface)] px-4 py-1 shadow-[0_14px_30px_rgba(34,27,20,0.08)]">
                   <Textarea
                     ref={mobilePromptInputRef}
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
-                    onKeyDown={(event) => handleEnterToSubmit(event, () => void sendPrompt(), { disabled: sending || (!prompt.trim() && attachments.length === 0) })}
+                    onKeyDown={(event) => handleEnterToSubmit(event, () => void sendPrompt(), { disabled: !canSubmitComposer })}
                     rows={1}
                     placeholder={dict.ai.mobilePlaceholder}
-                    className="min-h-[42px] max-h-[50vh] flex-1 resize-none overflow-hidden !rounded-none !border-0 !bg-transparent px-0 py-[3px] text-[16px] leading-8 !shadow-none outline-none ring-0 focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                    className="h-auto min-h-10 max-h-[50vh] flex-1 resize-none overflow-hidden !rounded-none !border-0 !bg-transparent px-0 py-1 text-[16px] leading-8 !shadow-none outline-none ring-0 focus-visible:!ring-0 focus-visible:!ring-offset-0"
                   />
-
-                  <button
-                    type="button"
-                    onClick={() => setModelMenuOpen((current) => !current)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[--color-text-muted] hover:bg-[--color-bg-hover]"
-                    aria-label={dict.ai.advanced}
-                  >
-                    <Settings2 size={18} />
-                  </button>
 
                   {sending ? (
                     <button
                       type="button"
                       onClick={stopGeneration}
-                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#A8463A] shadow-[0_8px_22px_rgba(168,70,58,0.28)] transition-all duration-200 active:scale-95"
+                      className="ai-send-btn inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#A8463A] shadow-[0_8px_22px_rgba(168,70,58,0.28)] transition-all duration-200 active:scale-95"
                       aria-label="停止生成"
                     >
                       <svg width="22" height="22" viewBox="0 0 24 24" className="block shrink-0">
                         <rect x="6" y="6" width="12" height="12" rx="2" fill="#ffffff" />
                       </svg>
                     </button>
-                  ) : prompt.trim() || attachments.length > 0 ? (
+                  ) : canSubmitComposer ? (
                     <button
                       type="button"
                       onClick={() => void sendPrompt()}
-                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#2563EB] shadow-[0_8px_22px_rgba(37,99,235,0.28)] transition-all duration-200 active:scale-95"
+                      onPointerDown={(event) => submitOnTouchBeforeKeyboardBlur(event, () => void sendPrompt())}
+                      className="ai-send-btn inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black shadow-[0_8px_22px_rgba(0,0,0,0.18)] transition-all duration-200 active:scale-95"
                       aria-label={dict.ai.sendMessage}
                     >
                       <svg width="24" height="24" viewBox="0 0 24 24" className="block shrink-0">
@@ -1671,7 +1826,7 @@ export function AIAssistantClient() {
                     <button
                       type="button"
                       disabled
-                      className="ai-send-btn inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F3F1EA] shadow-none cursor-not-allowed"
+                      className="ai-send-btn inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#F3F1EA] shadow-none cursor-not-allowed"
                       aria-label={dict.ai.sendMessage}
                     >
                       <svg width="24" height="24" viewBox="0 0 24 24" className="block shrink-0">
@@ -1684,6 +1839,96 @@ export function AIAssistantClient() {
               </div>
             </div>
           </div>
+
+          {/* Mobile action menu */}
+          {actionMenuOpen ? (
+            <div className="fixed inset-0 z-[70] md:hidden" onClick={() => setActionMenuOpen(false)}>
+              <div className="absolute inset-0 bg-black/35 backdrop-blur-[2px]" />
+              <div
+                className="absolute inset-x-4 overflow-hidden rounded-[28px] border border-white/80 bg-white shadow-[0_18px_60px_rgba(15,23,42,0.18)]"
+                style={{ bottom: "calc(5.75rem + env(safe-area-inset-bottom, 0px))" }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="px-3 py-3">
+                  <button
+                    type="button"
+                    onClick={openAttachmentPicker}
+                    className="flex w-full items-center gap-4 rounded-[20px] px-4 py-4 text-left text-[17px] font-semibold leading-none text-black active:bg-black/[0.04]"
+                  >
+                    <ImageIcon size={25} strokeWidth={2.1} />
+                    图片上传
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openQuickModelMenu}
+                    className="flex w-full items-center gap-4 rounded-[20px] px-4 py-4 text-left text-[17px] font-semibold leading-none text-black active:bg-black/[0.04]"
+                  >
+                    <SlidersHorizontal size={25} strokeWidth={2.1} />
+                    切换模型
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {mobileModelSheetOpen && (
+            <div className="fixed inset-0 z-[70] md:hidden" onClick={() => setMobileModelSheetOpen(false)}>
+              <div className="absolute inset-0 bg-black/40" />
+              {/* Sheet stack: list card + cancel card */}
+              <div
+                className="absolute inset-x-3 flex flex-col gap-2"
+                style={{ bottom: "max(12px, env(safe-area-inset-bottom, 12px))" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Model list card */}
+                <div className="flex flex-col overflow-hidden rounded-[14px] bg-white" style={{ maxHeight: "60vh" }}>
+                  <div className="border-b border-gray-100 px-4 py-3 text-center">
+                    <p className="text-xs text-gray-400">选择模型</p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto overscroll-contain divide-y divide-gray-100">
+                    {availableModels.length > 0 ? (
+                      availableModels.map((model) => (
+                        <button
+                          key={model}
+                          type="button"
+                          onClick={() => {
+                            selectActiveModel(model)
+                            setMobileModelSheetOpen(false)
+                          }}
+                          className="flex w-full items-center justify-between px-5 py-[14px] text-left active:bg-gray-50"
+                        >
+                          <span className={`text-[15px] leading-snug ${activeModelName === model ? "font-semibold text-blue-600" : "text-gray-800"}`}>
+                            {model}
+                          </span>
+                          {activeModelName === model && <CheckCircle2 size={17} className="shrink-0 text-blue-600" />}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-5 py-6 text-center text-sm text-gray-400">
+                        请先在设置中添加模型
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setMobileModelSheetOpen(false); setSettingsOpen(true) }}
+                      className="flex w-full items-center justify-center gap-1.5 px-5 py-[14px] text-[15px] text-gray-400 active:bg-gray-50"
+                    >
+                      <Settings2 size={14} />
+                      管理模型列表
+                    </button>
+                  </div>
+                </div>
+                {/* Cancel — separate card */}
+                <button
+                  type="button"
+                  onClick={() => setMobileModelSheetOpen(false)}
+                  className="w-full rounded-[14px] bg-white py-[17px] text-center text-[17px] font-semibold text-blue-600 active:bg-gray-50"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
 
           {mobilePanel ? (
             <>
@@ -1715,7 +1960,7 @@ export function AIAssistantClient() {
                 <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <p className="text-sm text-[--color-text-secondary]">{dict.ai.mobileConversationsHint}</p>
-                    <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void createConversation()}>
+                    <Button size="sm" className="rounded-full px-4 shadow-none" onClick={() => void createConversation()} loading={creatingConversation} loadingText={dict.ai.newChat}>
                       <MessageSquarePlus size={14} />
                       {dict.ai.newChat}
                     </Button>
@@ -1741,6 +1986,8 @@ export function AIAssistantClient() {
                         <button
                           type="button"
                           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[--color-text-muted] hover:bg-[--color-bg-hover] hover:text-red-600"
+                          disabled={deletingConversationId === conversation.id}
+                          aria-busy={deletingConversationId === conversation.id || undefined}
                           onClick={() => void deleteConversation(conversation.id)}
                         >
                           <Trash2 size={15} />
@@ -1781,7 +2028,7 @@ export function AIAssistantClient() {
                             key={m}
                             type="button"
                             className={`rounded-full px-3 py-1.5 text-xs ${m === activeModelName ? "bg-[--color-accent] text-white" : "bg-[--color-bg-hover] text-[--color-text-secondary]"}`}
-                            onClick={() => { setSelectedModel(m); setMobilePanel(null) }}
+                            onClick={() => { selectActiveModel(m); setMobilePanel(null) }}
                           >
                             {m}
                           </button>
@@ -1800,6 +2047,16 @@ export function AIAssistantClient() {
                   >
                     <Settings2 size={15} />
                     {dict.ai.openAiSettings}
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="h-11 justify-center rounded-full border-[--color-border] bg-[color:var(--color-bg-surface)] shadow-none"
+                  >
+                    <Link href="/ai/soulwing">
+                      <Sparkles size={15} />
+                      蝶灵设置
+                    </Link>
                   </Button>
                 </div>
               )}

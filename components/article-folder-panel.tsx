@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { confirmAction } from "@/lib/interaction-feedback"
 import type { ArticleFolderItem } from "@/lib/mdx"
 
 type ArticleFolderPanelProps = {
@@ -166,7 +167,7 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder, re
 
   async function deleteFolder() {
     if (!editing) return
-    if (!confirm(`确认删除文件夹“${editing.name}”？文章会回到未分类。`)) return
+    if (!confirmAction(`确认删除文件夹“${editing.name}”？文章会回到未分类，文件夹设置和封面将被移除。`)) return
 
     setSaving(true)
     try {
@@ -408,8 +409,8 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder, re
           </div>
 
           <DialogFooter>
-            {editing && <Button type="button" variant="outline" onClick={deleteFolder} disabled={saving}>删除</Button>}
-            <Button type="button" onClick={saveFolder} disabled={saving}>{saving ? "保存中..." : "保存"}</Button>
+            {editing && <Button type="button" variant="outline" onClick={deleteFolder} loading={saving} loadingText="删除中...">删除</Button>}
+            <Button type="button" onClick={saveFolder} loading={saving} loadingText="保存中...">保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
