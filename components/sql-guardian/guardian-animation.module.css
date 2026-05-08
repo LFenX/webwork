@@ -1,0 +1,161 @@
+.spriteButton {
+  transform-origin: 50% 78%;
+  will-change: transform, opacity;
+}
+
+.stateIdle {
+  animation: guardian-breathe 3.4s ease-in-out infinite;
+}
+
+.stateWalking {
+  animation: guardian-walk 1.6s ease-in-out infinite;
+}
+
+.stateTalking {
+  animation: guardian-talk 0.88s ease-in-out infinite;
+}
+
+.stateThinking {
+  animation: guardian-think 1.8s ease-in-out infinite;
+}
+
+.stateSleeping {
+  opacity: 0.72;
+  transform: translateY(2px) rotate(-2deg);
+}
+
+.stateJumping {
+  animation: guardian-jump 0.72s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+
+.stateTeleporting {
+  animation: guardian-teleport 0.7s ease-in-out;
+}
+
+.stateCelebrating {
+  animation: guardian-celebrate 0.9s ease-in-out infinite;
+}
+
+.compassThinking {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: guardian-compass-spin 1.2s linear infinite;
+}
+
+.teleportRing {
+  position: absolute;
+  inset: -0.35rem;
+  border: 1px solid rgba(14, 116, 144, 0.34);
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stateTeleporting .teleportRing {
+  animation: guardian-ring 0.7s ease-out;
+}
+
+.reduced,
+.reduced .compassThinking,
+.reduced .teleportRing {
+  animation: none;
+}
+
+@keyframes guardian-breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes guardian-walk {
+  0%,
+  100% {
+    transform: translateX(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateX(2px) rotate(1deg);
+  }
+}
+
+@keyframes guardian-talk {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-2px) scale(1.025);
+  }
+}
+
+@keyframes guardian-think {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-2px) rotate(-1.5deg);
+  }
+}
+
+@keyframes guardian-jump {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-18px) scale(1.015);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes guardian-teleport {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  45% {
+    opacity: 0.3;
+    transform: scale(0.68) rotate(6deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes guardian-celebrate {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+    filter: saturate(1);
+  }
+  50% {
+    transform: translateY(-4px) rotate(2deg);
+    filter: saturate(1.25);
+  }
+}
+
+@keyframes guardian-compass-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes guardian-ring {
+  0% {
+    opacity: 0;
+    transform: scale(0.68);
+  }
+  42% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.32);
+  }
+}

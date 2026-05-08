@@ -98,6 +98,8 @@ model User {
   sqlAssistantConversations SqlAssistantConversation[]
   sqlAssistantMessages      SqlAssistantMessage[]
   updatedSqlTableCatalogOverrides SqlTableCatalogOverride[] @relation("sqlCatalogOverrideUpdater")
+  guardianProfile GuardianProfile?
+  guardianEvents  GuardianEvent[]
 }
 
 model SoulWingRoundtableSettings {
@@ -977,6 +979,43 @@ model SqlAssistantMessage {
 
   @@index([conversationId, createdAt])
   @@index([userId, createdAt])
+}
+
+model GuardianProfile {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String          @default("Query")
+  title           String          @default("迷失的数据水手")
+  avatarSeed      String
+  level           Int             @default(1)
+  exp             Int             @default(0)
+  formStage       String          @default("seed")
+  mood            String          @default("curious")
+  personalityJson Json?
+  preferencesJson Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  events          GuardianEvent[]
+}
+
+model GuardianEvent {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guardianProfileId String
+  guardianProfile   GuardianProfile @relation(fields: [guardianProfileId], references: [id], onDelete: Cascade)
+  eventType         String
+  source            String?
+  pagePath          String?
+  expDelta          Int             @default(0)
+  eventPayloadJson  Json?
+  createdAt         DateTime        @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, eventType, createdAt])
+  @@index([guardianProfileId, createdAt])
+  @@index([eventType])
 }
 
 model SqlTableCatalogOverride {

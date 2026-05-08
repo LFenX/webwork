@@ -13,14 +13,15 @@ export function GuardianHomeIcon({ className, compact = false }: GuardianHomeIco
   return (
     <button
       type="button"
-      onClick={() => wakeGuardian("sql-lab-home")}
+      onClick={() => wakeGuardian("home-clicked")}
       className={cn(
-        "group relative inline-flex shrink-0 items-center justify-center rounded-md border border-cyan-200 bg-cyan-50 text-cyan-950 shadow-[0_6px_18px_rgba(8,145,178,0.12)] transition hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        "group relative inline-flex shrink-0 items-center justify-center rounded-md border border-cyan-200 bg-cyan-50 text-cyan-950 shadow-[0_4px_12px_rgba(8,145,178,0.1)] transition hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
         compact ? "size-8" : "size-9",
         className
       )}
-      aria-label="唤醒 SQL Guardian 角色之家"
-      title="SQL Guardian 角色之家"
+      aria-label="唤醒 SQL Guardian 的数据小屋"
+      title="SQL Guardian 的数据小屋"
+      data-sql-guardian-home
     >
       <svg viewBox="0 0 48 48" role="img" aria-hidden="true" className={compact ? "size-7" : "size-8"}>
         <path d="M8 29c4-10 11-16 18-16s12 6 14 16c-5 5-10 8-16 8S13 34 8 29Z" fill="#A5F3FC" />
@@ -31,8 +32,11 @@ export function GuardianHomeIcon({ className, compact = false }: GuardianHomeIco
         <path d="M20 30h9" stroke="#0E7490" strokeLinecap="round" strokeWidth="1.5" />
         <circle cx="37" cy="14" r="3" fill="#22D3EE" className="motion-safe:group-hover:animate-pulse" />
       </svg>
-      <span className="absolute -right-1 -top-1 rounded-full border border-white bg-cyan-700 px-1 font-mono text-[8px] leading-4 text-white">
+      <span className="pointer-events-none absolute -right-1 -top-1 rounded-full border border-white bg-cyan-700 px-1 font-mono text-[8px] leading-4 text-white">
         {mockGuardianProfile.level}
+      </span>
+      <span className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] hidden whitespace-nowrap rounded-md border border-cyan-100 bg-white px-2 py-1 font-mono text-[10px] text-cyan-900 shadow-sm group-hover:block">
+        数据小屋
       </span>
     </button>
   )
