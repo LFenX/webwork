@@ -735,9 +735,15 @@ export function SchemaTree({ schema, onInsertTable, onInsertColumn, onSelectTabl
             </div>
 
             <div className="mb-1">
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setOpenScopes((current) => ({ ...current, private: !current.private }))}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return
+                  event.preventDefault()
+                  setOpenScopes((current) => ({ ...current, private: !current.private }))
+                }}
                 className="group flex w-full items-center gap-1 rounded-sm px-1.5 py-1.5 text-left text-[12px] text-[--color-text-primary] hover:bg-[--color-bg-hover]"
                 title="当前用户独享的私人数据库，拥有完整建表、插入、查询和修改权限。"
               >
@@ -760,7 +766,7 @@ export function SchemaTree({ schema, onInsertTable, onInsertColumn, onSelectTabl
                 <span className="ml-auto rounded bg-[--color-bg-soft] px-1.5 py-px text-[9px] tabular-nums text-[--color-text-muted]">
                   {privateTotal}
                 </span>
-              </button>
+              </div>
 
               {openScopes.private ? (
                 privateFolderGroups.length ? (

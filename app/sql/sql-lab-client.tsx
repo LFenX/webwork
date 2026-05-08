@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { format as formatSqlText } from "sql-formatter"
 import {
   Activity,
@@ -62,6 +62,10 @@ function newTab(title = "query"): EditorTab {
   return { id: `tab_${Math.random().toString(36).slice(2, 9)}`, title, sql: "" }
 }
 
+function initialTab(): EditorTab {
+  return { id: "tab_query_1", title: "query 1", sql: "" }
+}
+
 function readTabs(): EditorTab[] | null {
   if (typeof window === "undefined") return null
   try {
@@ -109,18 +113,18 @@ export function SqlLabClient() {
   const [saved, setSaved] = useState<SqlSavedQuery[]>([])
   const [examples, setExamples] = useState<SqlExample[]>([])
   const [{ tabs, activeTabId }, setTabsState] = useState<{ tabs: EditorTab[]; activeTabId: string }>(() => {
-    const stored = readTabs()
-    if (stored?.length) return { tabs: stored, activeTabId: stored[0].id }
-    const tab = newTab("query 1")
+    const tab = initialTab()
     return { tabs: [tab], activeTabId: tab.id }
   })
+  const [tabsHydrated, setTabsHydrated] = useState(false)
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<SqlRunResult | null>(null)
   const [bottomTab, setBottomTab] = useState<"results" | "messages" | "history" | "saved" | "examples">("results")
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [limit, setLimit] = useState(1000)
   const [loading, setLoading] = useState(true)
-  const [layout, setLayoutState] = useState<Layout>(() => readLayout())
+  const [layout, setLayoutState] = useState<Layout>(DEFAULT_LAYOUT)
+  const [layoutHydrated, setLayoutHydrated] = useState(false)
 
   const editorRef = useRef<SqlEditorHandle>(null)
   const mainRowRef = useRef<HTMLDivElement>(null)
@@ -143,12 +147,31 @@ export function SqlLabClient() {
   )
 
   useEffect(() => {
-    writeTabs(tabs)
-  }, [tabs])
+    const timer = window.setTimeout(() => {
+      const stored = readTabs()
+      if (stored?.length) setTabsState({ tabs: stored, activeTabId: stored[0].id })
+      setTabsHydrated(true)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   useEffect(() => {
+    if (!tabsHydrated) return
+    writeTabs(tabs)
+  }, [tabs, tabsHydrated])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setLayoutState(readLayout())
+      setLayoutHydrated(true)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    if (!layoutHydrated) return
     writeLayout(layout)
-  }, [layout])
+  }, [layout, layoutHydrated])
 
   const refreshSchema = useCallback(async () => {
     const [sch, ex] = await Promise.all([
@@ -337,7 +360,7 @@ export function SqlLabClient() {
     setTabsState((prev) => {
       const next = prev.tabs.filter((tab) => tab.id !== id)
       if (!next.length) {
-        const fresh = newTab("query 1")
+        const fresh = initialTab()
         return { tabs: [fresh], activeTabId: fresh.id }
       }
       return {
@@ -386,17 +409,22 @@ export function SqlLabClient() {
   const role = schema?.viewer?.role
   const isOwner = schema?.viewer?.isOwner
   const lastSet = result?.resultSets?.[result.resultSets.length - 1] ?? null
+  const sidebarStyle = sidebarOpen
+    ? ({ "--sql-sidebar-width": `${layout.sidebarWidth}px` } as CSSProperties)
+    : undefined
+  const editorHeightStyle = { "--sql-editor-height": `${layout.editorHeight}px` } as CSSProperties
+  const assistantStyle = { "--sql-assistant-width": `${layout.assistantWidth}px` } as CSSProperties
 
   return (
-    <div className="mx-auto flex h-[calc(var(--app-viewport-height)-3.5rem)] max-w-[1600px] flex-col px-3 pb-2 pt-3 md:px-5">
-      <div className="mb-2 flex items-center gap-2 rounded-md border border-[--color-border] bg-[--color-bg-surface] px-2 py-1.5 shadow-[0_2px_10px_rgba(15,23,42,0.04)]">
+    <div className="mx-auto flex min-h-[calc(var(--app-viewport-height)-3.5rem)] max-w-[1600px] flex-col px-2 pb-2 pt-2 sm:px-3 sm:pt-3 md:px-5 lg:h-[calc(var(--app-viewport-height)-3.5rem)]">
+      <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-[--color-border] bg-[--color-bg-surface] px-2 py-1.5 shadow-[0_2px_10px_rgba(15,23,42,0.04)]">
         <div className="flex shrink-0 items-center gap-2 rounded bg-slate-900 px-2 py-1.5 text-white">
           <Terminal size={12} />
           <span className="font-mono text-[11px] tracking-wide">SQL LAB</span>
         </div>
-        <div className="flex min-w-0 items-center gap-1.5 font-mono text-[11px]">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-[11px] sm:flex-none">
           <Server size={11} className="text-emerald-600" />
-          <span className="text-[--color-text-primary]">{schema?.dataSource?.name ?? "primary"}</span>
+          <span className="truncate text-[--color-text-primary]">{schema?.dataSource?.name ?? "primary"}</span>
           <span className="text-[--color-text-muted]">/</span>
           <span className="text-[--color-text-secondary]">{schema?.dataSource?.engine ?? "postgres"}</span>
           <span className="hidden text-[--color-text-muted] md:inline">/</span>
@@ -431,12 +459,14 @@ export function SqlLabClient() {
           </div>
         </div>
       ) : (
-        <div ref={mainRowRef} className="flex min-h-0 flex-1">
+        <div ref={mainRowRef} data-sql-lab-main className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row lg:gap-0">
           <aside
-            style={sidebarOpen ? { width: layout.sidebarWidth } : undefined}
+            style={sidebarStyle}
             className={cn(
-              "shrink-0 overflow-hidden rounded-md border border-[--color-border] bg-[--color-bg-surface] shadow-[0_4px_18px_rgba(15,23,42,0.04)]",
-              !sidebarOpen && "w-[40px]"
+              "overflow-hidden rounded-md border border-[--color-border] bg-[--color-bg-surface] shadow-[0_4px_18px_rgba(15,23,42,0.04)] lg:shrink-0",
+              sidebarOpen
+                ? "h-[min(420px,46vh)] w-full lg:h-auto lg:w-[var(--sql-sidebar-width)]"
+                : "h-10 w-full lg:h-auto lg:w-[40px]"
             )}
           >
             {sidebarOpen ? (
@@ -459,7 +489,7 @@ export function SqlLabClient() {
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="flex h-full w-full flex-col items-center justify-center gap-2 text-[--color-text-muted] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+                className="flex h-full w-full flex-row items-center justify-center gap-2 text-[--color-text-muted] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary] lg:flex-col"
                 title="Show schema"
               >
                 <ChevronRight size={12} />
@@ -474,6 +504,7 @@ export function SqlLabClient() {
               ariaLabel="Resize sidebar"
               getValue={() => layout.sidebarWidth}
               onChange={setSidebarWidth}
+              className="hidden lg:block"
             />
           ) : null}
 
@@ -531,14 +562,14 @@ export function SqlLabClient() {
                     <Pause size={11} /> Stop
                   </Button>
                 ) : null}
-                <span className="mx-1 h-5 w-px bg-[--color-border]" />
+                <span className="mx-1 hidden h-5 w-px bg-[--color-border] sm:block" />
                 <Button size="sm" variant="outline" onClick={formatActiveSql} className="h-7 gap-1 px-2 text-[11px]" disabled={!activeTab?.sql}>
                   <Wand2 size={11} /> Format
                 </Button>
                 <Button size="sm" variant="outline" onClick={saveCurrent} className="h-7 gap-1 px-2 text-[11px]" disabled={!activeTab?.sql.trim()}>
                   Save
                 </Button>
-                <span className="mx-1 h-5 w-px bg-[--color-border]" />
+                <span className="mx-1 hidden h-5 w-px bg-[--color-border] sm:block" />
                 <label className="hidden items-center gap-1.5 rounded-md border border-[--color-border] bg-[--color-bg-soft] px-2 py-1 font-mono text-[10px] text-[--color-text-muted] sm:flex">
                   <span className="uppercase tracking-wider">limit</span>
                   <input
@@ -550,7 +581,7 @@ export function SqlLabClient() {
                     className="w-16 bg-transparent font-mono text-[11px] tabular-nums text-[--color-text-primary] outline-none"
                   />
                 </label>
-                <div className="ml-auto flex items-center gap-2 font-mono text-[10px] text-[--color-text-muted]">
+                <div className="ml-0 flex w-full items-center justify-between gap-2 font-mono text-[10px] text-[--color-text-muted] sm:ml-auto sm:w-auto sm:justify-start">
                   <span className="inline-flex items-center gap-1">
                     <Activity size={10} />
                     {result ? <><span className="tabular-nums text-[--color-text-primary]">{result.durationMs}</span>ms</> : "idle"}
@@ -560,9 +591,12 @@ export function SqlLabClient() {
               </div>
             </div>
 
-            <div className="mt-2 flex min-h-0 flex-1 gap-2">
+            <div data-sql-lab-workbench className="mt-2 flex min-h-0 flex-1 flex-col gap-2 xl:flex-row">
               <div className="flex min-w-0 flex-1 flex-col">
-                <div className="shrink-0" style={{ height: layout.editorHeight }}>
+                <div
+                  className="h-[clamp(180px,var(--sql-editor-height),46vh)] shrink-0 lg:h-[var(--sql-editor-height)]"
+                  style={editorHeightStyle}
+                >
                   <SqlEditor
                     ref={editorRef}
                     value={activeTab?.sql ?? ""}
@@ -581,7 +615,7 @@ export function SqlLabClient() {
                   onChange={setEditorHeight}
                   className="my-1"
                 />
-                <div className="min-h-0 flex-1">
+                <div className="min-h-[320px] flex-1 xl:min-h-0">
                   <ResultsPanel
                     result={result}
                     running={running}
@@ -609,7 +643,10 @@ export function SqlLabClient() {
                 onChange={(next) => setAssistantWidth(-next)}
                 className="hidden xl:block"
               />
-              <aside className="hidden min-h-0 shrink-0 xl:block" style={{ width: layout.assistantWidth }}>
+              <aside
+                className="h-[min(560px,72vh)] w-full shrink-0 xl:h-auto xl:min-h-0 xl:w-[var(--sql-assistant-width)]"
+                style={assistantStyle}
+              >
                 <SqlAssistantPanel
                   className="h-full min-h-0"
                   currentSql={activeTab?.sql ?? ""}
