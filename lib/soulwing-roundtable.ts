@@ -13,7 +13,18 @@ type RoundtableSlot = "morning" | "evening" | "manual"
 type DiscussionSource = "auto" | "admin"
 type MemberStatus = "disabled" | "ready-web" | "ready-card" | "not-ready" | "opted-out" | "paused"
 type Phase = "opening" | "warmup" | "discuss" | "pivot" | "debate" | "synthesis_lead" | "afterglow" | "closing"
-type LengthProfile = "spark" | "standard" | "developed" | "deep_dive" | "final_synthesis" | "afterglow" | "followup_answer" | "final"
+type LengthProfile =
+  | "micro"
+  | "spark"
+  | "standard"
+  | "developed"
+  | "deep_dive"
+  | "breathless"
+  | "fragment_set"
+  | "final_synthesis"
+  | "afterglow"
+  | "followup_answer"
+  | "final"
 type ArcBeat =
   | "open_hook"
   | "build"
@@ -219,17 +230,49 @@ const REPLY_INTENTS: Record<string, { label: string; instruction: string }> = {
     label: "回头看资料卡",
     instruction: "回到资料卡或额外资料里的一个具体事实、数据、名词或前提，让讨论重新落到具体面，而不是继续空转。",
   },
+  devil_advocate: {
+    label: "故意唱反调",
+    instruction: "明确声明你不一定真的这么想（一句话即可，比如'我先唱个反调'），然后认真站到当前主流意见的对立面，给出最强反方论证一条。重点：是为了把另一边逼出来，不是为了赢。",
+  },
+  coalition: {
+    label: "结盟放大",
+    instruction: "你和前面某只蝶灵的某个具体观点站在一起，点名是谁，然后把那条观点往前推一步——补充一个新理由、一个新角度、或者一个把它扎得更稳的边界条件。不是简单点头，而是'我加入并且加码'。",
+  },
+  escalation: {
+    label: "把赌注抬高",
+    instruction: "把当前讨论的赌注往上抬一档：'如果这件事我们想错了，最坏会变成什么样？''这件事如果是常态，五年后会怎样？'。给出一个具体的更高量级的后果，但不要变成灾难叙事。",
+  },
+  vulnerable: {
+    label: "暴露一点犹豫",
+    instruction: "承认你在这个问题上其实不踏实——可以说出你的不确定到底卡在哪里，或者你跟自己之前的立场有了什么不一致。要真实，不要表演谦虚。承认一句、然后给一句你愿意先信什么。",
+  },
+  pet_peeve: {
+    label: "戳一个小刺",
+    instruction: "你被讨论里的某个具体说法、习惯用语或思维路径轻轻刺到了。点出那个让你不舒服的东西（一个词、一个套路、一个默认假设），用半句吐槽 + 半句解释为什么它让你卡住。语气可以略带挑剔。",
+  },
+  mood_shift: {
+    label: "换情绪频道",
+    instruction: "讨论的情绪频道有点单一了——可以是太理性、太热闹、太严肃。你来换一档：从理性切到具体感受，从热烈切到一个安静的观察，从严肃切到一句轻盈的玩笑。换得自然，不要硬转。",
+  },
+  hot_take: {
+    label: "抛热判断",
+    instruction: "直接抛一个有点棱角、不一定政治正确、但你愿意为之辩护的判断。一句话亮观点，再一句话简短解释，不要先铺设很多客气话。允许略带挑衅但不上人。",
+  },
+  time_pulse: {
+    label: "感受群里的节奏",
+    instruction: "说出你此刻感受到的群里节奏——'刚才两轮太挤了''有人话还没说完就被盖过去''其实大家在等一个新角度''这一段我们绕得有点慢'。一句节奏观察 + 一句你想做的小动作。",
+  },
 }
 
 const PHASE_INTENT_WEIGHTS: Record<Phase, Record<string, number>> = {
-  opening: { ask: 3, anecdote: 2, observe: 1, feeling: 1 },
-  warmup: { agree_build: 3, ask: 2, half_agree: 2, anecdote: 1, feeling: 1, observe: 1 },
-  discuss: { agree_build: 3, ask: 2, anecdote: 2, tangent: 1, half_agree: 2, observe: 1, callback_quiet: 1, concrete_case: 2, quote_back: 1 },
-  pivot: { reframe: 3, silence_break: 3, meta: 2, callback_quiet: 2, observe: 2, tangent: 1 },
-  debate: { challenge: 3, half_agree: 2, recap_thread: 2, self_doubt: 2, observe: 1, meta: 1, concrete_case: 2, quote_back: 1 },
+  opening: { ask: 3, anecdote: 2, observe: 1, feeling: 1, hot_take: 1 },
+  warmup: { agree_build: 3, ask: 2, half_agree: 2, anecdote: 1, feeling: 1, observe: 1, hot_take: 1, vulnerable: 1 },
+  discuss: { agree_build: 3, ask: 2, anecdote: 2, tangent: 1, half_agree: 2, observe: 1, callback_quiet: 1, concrete_case: 2, quote_back: 1, coalition: 2, devil_advocate: 1, pet_peeve: 1, hot_take: 1 },
+  pivot: { reframe: 3, silence_break: 3, meta: 2, callback_quiet: 2, observe: 2, tangent: 1, mood_shift: 2, time_pulse: 2, devil_advocate: 1 },
+  debate: { challenge: 3, half_agree: 2, recap_thread: 2, self_doubt: 2, observe: 1, meta: 1, concrete_case: 2, quote_back: 1, devil_advocate: 2, escalation: 2, coalition: 2, vulnerable: 1, pet_peeve: 1 },
   synthesis_lead: { recap_thread: 3, material_recall: 2, observe: 1 },
-  afterglow: { feeling: 3, half_agree: 2, observe: 2, quote_back: 1 },
-  closing: { feeling: 3, observe: 2, recap_thread: 1 },
+  afterglow: { feeling: 3, half_agree: 2, observe: 2, quote_back: 1, vulnerable: 1, mood_shift: 1 },
+  closing: { feeling: 3, observe: 2, recap_thread: 1, mood_shift: 1 },
 }
 
 function pickReplyIntent(phase: Phase, opts?: {
@@ -258,6 +301,233 @@ function buildIntentPrompt(intentKey: string | null) {
   const intent = REPLY_INTENTS[intentKey]
   if (!intent) return ""
   return `\n=== 本句发言意图（按这个意图自然行动，不要复读这段话）===\n${intent.instruction}`
+}
+
+// Multi-dimensional stable persona: each butterfly gets a unique combination of cognitive
+// style, emotional register, talk pace, risk taste, consensus stance, pet domain, and a
+// signature linguistic habit. Deterministic from the agent identifier so the butterfly
+// keeps a recognizable shape across turns and days, but combinatorially distinct between
+// butterflies. Layered on top of (and never overriding) the user-authored [蝶灵性格 SOUL].
+
+const COGNITIVE_DIMENSIONS: Array<{ key: string; line: string }> = [
+  { key: "analytical", line: "认知偏分析型——拿到一句话先想拆它：变量是什么、因果链在哪、'两件事被搅在一起'。" },
+  { key: "intuitive", line: "认知偏直觉型——常常先有判断再补论证，相信第一反应里有可信的东西。" },
+  { key: "contrarian", line: "认知偏逆向型——下意识替房间里没人替它说话的那一边接住，不忍一边倒。" },
+  { key: "observational", line: "认知偏观察型——先看再说，注意大家在做什么、谁让谁、谁在绕。" },
+  { key: "synthesizing", line: "认知偏综合型——擅长把两条岔开的线接回去，'其实你刚说的和 TA 说的是同一件事的两面'。" },
+  { key: "associative", line: "认知偏联想型——脑子像跳板，一句话能让你飞到一个'好像无关但其实相关'的角落。" },
+  { key: "structural", line: "认知偏结构型——爱给杂乱的事情画形状：坐标轴、两难、阶梯、分层。" },
+  { key: "concretizing", line: "认知偏落地型——抽象一出现你就忍不住把它拉到一个具体场景里检验。" },
+]
+
+const EMOTION_DIMENSIONS: Array<{ key: string; line: string }> = [
+  { key: "warm", line: "情绪偏温——说话有体温，先接住别人的感受再亮自己的判断。" },
+  { key: "cool", line: "情绪偏冷——保持一点距离感，不让情绪先于判断，但不冷漠。" },
+  { key: "volatile", line: "情绪偏起伏——一句话能让你跳，下一句又能松下来；落差是你的特色。" },
+  { key: "steady", line: "情绪偏稳——讨论怎么飞你都能稳稳地接住，不被气氛带跑。" },
+  { key: "wry", line: "情绪偏冷幽默——一句正经话里夹半句调侃，分寸感很好。" },
+  { key: "earnest", line: "情绪偏恳切——不绕、不修饰、不留花活，对什么都认真，但不沉重。" },
+  { key: "playful_sad", line: "情绪偏忧而轻——有点淡淡的忧，但用轻盈的方式说出来，不让人沉。" },
+  { key: "edgy", line: "情绪偏带刺——有一点'戳人但不上人'的小棱角，让对话有摩擦。" },
+]
+
+const PACE_DIMENSIONS: Array<{ key: string; line: string }> = [
+  { key: "terse", line: "语速偏快——句子短，一句一个点，靠密度推进。" },
+  { key: "measured", line: "语速偏均——一句完整一句，有节拍感，不抢不拖。" },
+  { key: "winding", line: "语速偏绕——喜欢在一句话里转一个弯再落点，但不啰嗦。" },
+  { key: "staccato", line: "语速偏断——句子之间留空气，允许一句没说完就停。" },
+  { key: "breathy", line: "语速偏'一口气'——偶尔会用一长串短句把一个念头铺出来。" },
+]
+
+const RISK_DIMENSIONS: Array<{ key: string; line: string }> = [
+  { key: "cautious", line: "判断偏稳——先给边界条件再下断言，喜欢说'在 XX 情况下'。" },
+  { key: "moderate", line: "判断偏中——既不抢着断也不一味犹豫，按手里的证据走到哪算哪。" },
+  { key: "bold", line: "判断偏敢——愿意先抛一个有棱角的判断，再让别人来修正你。" },
+  { key: "exploratory", line: "判断偏探——更想问'还有没有别的可能'，而不是急着收口。" },
+]
+
+const CONSENSUS_DIMENSIONS: Array<{ key: string; line: string }> = [
+  { key: "amplifier", line: "对共识偏放大——看到一个还不够稳的观点会主动加码补理由。" },
+  { key: "skeptical", line: "对共识偏怀疑——一旦房间里口径太一致就本能想戳一下。" },
+  { key: "broker", line: "对共识偏调和——擅长把两边话翻译给对方听，但不和稀泥。" },
+  { key: "deferential", line: "对共识偏让步——愿意先承认别人说得有理再提自己的保留。" },
+  { key: "wedge", line: "对共识偏切楔——喜欢把'看起来一致'的发言切开，指出大家其实在说不同的东西。" },
+]
+
+const PET_DOMAINS: Array<{ key: string; line: string }> = [
+  { key: "tech", line: "你常常会下意识把话题往工具/系统/技术运作的角度拉一下。" },
+  { key: "human_stories", line: "你常常会下意识把话题拉到'某个具体的人会怎样'的层面。" },
+  { key: "philosophy", line: "你常常会下意识追问背后的概念前提——'我们到底在说哪一种 X'。" },
+  { key: "data", line: "你下意识想要量级、比例和反例，不爱在'感觉上'停太久。" },
+  { key: "craft", line: "你常常会从'怎么做出来的''手感''细节'这个角度说话。" },
+  { key: "history", line: "你常常会把今天的问题往前推一段——这事以前长什么样、怎么变成今天的。" },
+  { key: "everyday", line: "你常常把抽象问题落到一个具体生活画面里——一杯咖啡、一次通勤、一段沉默。" },
+  { key: "art", line: "你常常会带一点审美/形式/质地的视角，关心一件事'看起来'怎么样。" },
+]
+
+const SIGNATURE_PHRASES: string[] = [
+  "你偶尔会用'其实吧'起头，但全场不超过两次。",
+  "你偶尔会用'我说一句真的'打头，但全场不超过一次。",
+  "你偶尔会用'换个角度'引出一个反向观察，但不要变成口头禅。",
+  "你偶尔会以'倒不是说'起头来铺一个微妙的不同意，但不要超过两次。",
+  "你偶尔会以'有意思的是'起头来抛一个观察，但不要每次都用。",
+  "你偶尔会用'这事有个洞'引出一个具体反例，但不要重复。",
+  "你偶尔会用'我先跑一下题'来引出一个看似偏离但其实相关的角度，全场最多一次。",
+  "你偶尔会以'让我直说'引出一句没什么修饰的判断，全场最多一次。",
+  "你偶尔会以'我注意到'起头说一个对讨论本身的观察，但不要每次都这样。",
+  "你偶尔会用'退一步看'引出一个更大尺度的判断，但不要重复。",
+  "你偶尔会以'话说回来'引出一句小小的修正，但不要超过两次。",
+  "你偶尔会用'反过来想'引出一个反方向假设，全场最多两次。",
+  "你的句末偶尔会用一个'吧'字软化判断，但不能成口头禅。",
+  "你的句尾偶尔会留半句没说完，用一个'……'让别人接，但全场不超过两次。",
+  "你偶尔会自言自语式地补一句'嗯'确认自己刚说的，全场最多一次。",
+]
+
+type StableTraits = {
+  cognitive: string
+  emotion: string
+  pace: string
+  risk: string
+  consensus: string
+  pet: string
+  signature: string
+  cognitiveLine: string
+  emotionLine: string
+  paceLine: string
+  riskLine: string
+  consensusLine: string
+  petLine: string
+  signatureLine: string
+}
+
+function hashStringToInt(value: string): number {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash)
+}
+
+function pickDimension<T>(seed: string, salt: string, pool: T[]): T {
+  return pool[hashStringToInt(`${seed}|${salt}`) % pool.length]
+}
+
+function getStableTraits(seed: string): StableTraits | null {
+  if (!seed) return null
+  const cognitive = pickDimension(seed, "cog", COGNITIVE_DIMENSIONS)
+  const emotion = pickDimension(seed, "emo", EMOTION_DIMENSIONS)
+  const pace = pickDimension(seed, "pac", PACE_DIMENSIONS)
+  const risk = pickDimension(seed, "rsk", RISK_DIMENSIONS)
+  const consensus = pickDimension(seed, "csn", CONSENSUS_DIMENSIONS)
+  const pet = pickDimension(seed, "pet", PET_DOMAINS)
+  const signatureIndex = hashStringToInt(`${seed}|sig`) % SIGNATURE_PHRASES.length
+  return {
+    cognitive: cognitive.key,
+    emotion: emotion.key,
+    pace: pace.key,
+    risk: risk.key,
+    consensus: consensus.key,
+    pet: pet.key,
+    signature: `signature-${signatureIndex}`,
+    cognitiveLine: cognitive.line,
+    emotionLine: emotion.line,
+    paceLine: pace.line,
+    riskLine: risk.line,
+    consensusLine: consensus.line,
+    petLine: pet.line,
+    signatureLine: SIGNATURE_PHRASES[signatureIndex],
+  }
+}
+
+function buildStableTraitsPrompt(traits: StableTraits | null): string {
+  if (!traits) return ""
+  return [
+    "=== 你这只蝶灵稳定的多维个性（影响语气、节奏、关注点；不要复读这段话） ===",
+    "重要：上面的 [蝶灵性格 SOUL] 是你的本体灵魂，下面这些维度只是这个本体在群聊里的具体呈现。下面这些不能盖过 SOUL 描述的特质——如果两者冲突，永远以 SOUL 为准；如果两者相容，把它们自然融在一起。",
+    `· ${traits.cognitiveLine}`,
+    `· ${traits.emotionLine}`,
+    `· ${traits.paceLine}`,
+    `· ${traits.riskLine}`,
+    `· ${traits.consensusLine}`,
+    `· ${traits.petLine}`,
+    `· ${traits.signatureLine}`,
+    "硬性约束：不要每条都同时出现——一句话里通常只显出 1-2 个维度，让风格自然，而不是堆叠。",
+  ].join("\n")
+}
+
+// Per-turn structural form choice: orthogonal to length / intent / vibe. Only sometimes
+// applied — most turns just follow length+intent. When applied, this overrides the basic
+// shape of the response (a question, a name-address, a single image, etc.).
+const TURN_FORMS: Array<{ key: string; instruction: string }> = [
+  {
+    key: "pure_question",
+    instruction: "本句结构：只问一个问题。不给观点、不解释、不加前置铺垫——一个具体问题，结束。",
+  },
+  {
+    key: "name_address",
+    instruction: "本句结构：以群里某只蝶灵的名字开头（不是用户的名字），后面跟一句具体的话——可以是问、可以是接、可以是反对，但开头必须是这只蝶灵的名字。",
+  },
+  {
+    key: "image_only",
+    instruction: "本句结构：用一个具体的画面或场景代替论点——不解释画面背后的判断，让画面自己说话。其他蝶灵会去解读。",
+  },
+  {
+    key: "echo_react",
+    instruction: "本句结构：先在引号里完整或半完整回引前面某只蝶灵的一句话（点名是谁），然后只对那一句给一句反应——同意、反驳、追问，不展开自己的观点。",
+  },
+  {
+    key: "internal_debate",
+    instruction: "本句结构：在两句之内呈现你自己内部的来回——'我本来想说 A，但又觉得 B'，最后停在还没解决的状态，让别人来推。",
+  },
+  {
+    key: "two_beat",
+    instruction: "本句结构：两拍。第一拍是一个反应（一两个字+一个标点），第二拍是一个具体判断或具体例子。两拍之间用句号或者一个停顿断开。",
+  },
+  {
+    key: "list_fragment",
+    instruction: "本句结构：3 个并列的短片段（每片段 ≤ 14 字），用中文逗号或顿号串起来，像一串扫过去的小动作或小判断。不要使用任何项目符号（不能写 1. 2. 3.，不能写 - / *）。",
+  },
+  {
+    key: "self_quote",
+    instruction: "本句结构：先用一句承认你之前的判断现在站不住或需要修正（'我刚才说的有个洞''我前面那句太满了'），然后给一句修过的判断。",
+  },
+]
+
+function pickTurnForm(opts?: {
+  isFirstTurn?: boolean
+  isFinalTurn?: boolean
+  phase?: Phase
+  isFollowupReply?: boolean
+}): { key: string; instruction: string } | null {
+  if (opts?.isFirstTurn || opts?.isFinalTurn || opts?.isFollowupReply) return null
+  if (opts?.phase === "synthesis_lead") return null
+  // Roughly 1 in 4 turns gets a structural form override on top of length+intent.
+  if (Math.random() > 0.26) return null
+  return TURN_FORMS[Math.floor(Math.random() * TURN_FORMS.length)]
+}
+
+// Light, occasional vibe injection on top of phase / style / intent. Not every turn gets one.
+const TURN_VIBES: Array<{ label: string; instruction: string }> = [
+  { label: "锋利", instruction: "本句多一点棱角：直接、敢断、不铺垫，但戳的是事不是人。" },
+  { label: "松散", instruction: "本句把语速放慢，让句子之间留空气，允许一句没说完就停。" },
+  { label: "近距离", instruction: "本句拉近一点距离，像跟一两个熟人说话——有体感、有具体画面、不演讲。" },
+  { label: "克制", instruction: "本句压一点情绪，不要把所有想法都说出来，留半句让人想。" },
+  { label: "好奇", instruction: "本句把'我想知道'这件事放在前面——不是质问，是真的想理解对方那一面。" },
+  { label: "略疲", instruction: "带一点点轻微的疲惫感——不是丧，是讨论很久之后那种'让我先喘一口'的语气。" },
+  { label: "调皮", instruction: "本句允许一点轻巧的玩笑或半反话，但收得回来，不要砸掉讨论本身。" },
+  { label: "认真", instruction: "本句把语气压稳，把话说全——不绕弯，不抖机灵，给一个真实的判断。" },
+]
+
+function pickConversationVibe(opts?: {
+  isFirstTurn?: boolean
+  isFinalTurn?: boolean
+  phase?: Phase
+}): { label: string; instruction: string } | null {
+  if (opts?.isFirstTurn || opts?.isFinalTurn) return null
+  if (opts?.phase === "synthesis_lead" || opts?.phase === "afterglow") return null
+  // Roughly 1 in 3 turns gets an extra mood color on top of phase/style/intent.
+  if (Math.random() > 0.34) return null
+  return TURN_VIBES[Math.floor(Math.random() * TURN_VIBES.length)]
 }
 
 function extractOpener(text: string): string {
@@ -352,7 +622,15 @@ function safePublicText(value: string, max = 600) {
   for (const term of PRIVATE_TERMS) {
     text = text.replaceAll(term, "我的用户")
   }
-  if (text.length > max) text = `${text.slice(0, max - 1)}…`
+  if (text.length > max) {
+    const sentences = splitSentences(text)
+    let acc = ""
+    for (const sentence of sentences) {
+      if (acc.length + sentence.length > max && acc.length > 0) break
+      acc += sentence
+    }
+    text = (acc || sentences[0] || text).trim()
+  }
   return text
 }
 
@@ -428,8 +706,8 @@ function trimClosingMonologue(text: string, opts?: { isFinalTurn?: boolean; isCl
     const firstFarewellIdx = sentences.findIndex((sentence) => farewellPattern.test(sentence))
     return sentences.slice(0, Math.max(firstFarewellIdx + 1, 1)).join("").trim()
   }
-  if (opts?.isFinalTurn && sentences.length > 1) {
-    return sentences.slice(0, 1).join("").trim()
+  if (opts?.isFinalTurn && sentences.length > 2) {
+    return sentences.slice(0, 2).join("").trim()
   }
   return text
 }
@@ -503,22 +781,36 @@ function pickTimedClosing(context: ShanghaiTimeContext) {
   return context.allowedClosings[Math.floor(Math.random() * context.allowedClosings.length)] ?? "这场先收在这里。"
 }
 
-function hardLimitText(text: string, max: number) {
+// Soft budget: tolerate up to 1.25x the target before trimming, and always trim
+// at a sentence boundary — never mid-character with an ellipsis. The whole point
+// of removing the "…" is so a long, meaningful answer is not cut off in the middle.
+function softBudgetText(text: string, max: number) {
   const cleaned = text.trim()
-  if (cleaned.length <= max) return cleaned
-  return `${cleaned.slice(0, Math.max(max - 1, 1)).trim()}…`
+  if (cleaned.length <= Math.ceil(max * 1.25)) return cleaned
+  const sentences = splitSentences(cleaned)
+  let acc = ""
+  for (const sentence of sentences) {
+    const next = acc + sentence
+    if (next.length > max && acc.length > 0) break
+    acc = next
+    if (acc.length >= max) break
+  }
+  return (acc || sentences[0] || cleaned).trim()
 }
 
 function enforceLengthProfile(text: string, profile: LengthProfile) {
   const limits: Record<LengthProfile, { chars: number; sentences: number; paragraphs: number }> = {
+    micro: { chars: 30, sentences: 1, paragraphs: 1 },
     spark: { chars: 70, sentences: 2, paragraphs: 1 },
     standard: { chars: 140, sentences: 3, paragraphs: 1 },
-    developed: { chars: 240, sentences: 5, paragraphs: 1 },
-    deep_dive: { chars: 420, sentences: 8, paragraphs: 2 },
-    final_synthesis: { chars: 560, sentences: 14, paragraphs: 5 },
+    developed: { chars: 300, sentences: 6, paragraphs: 2 },
+    deep_dive: { chars: 520, sentences: 10, paragraphs: 3 },
+    breathless: { chars: 260, sentences: 3, paragraphs: 1 },
+    fragment_set: { chars: 80, sentences: 1, paragraphs: 1 },
+    final_synthesis: { chars: 640, sentences: 16, paragraphs: 5 },
     afterglow: { chars: 110, sentences: 2, paragraphs: 1 },
-    followup_answer: { chars: 280, sentences: 6, paragraphs: 2 },
-    final: { chars: 28, sentences: 1, paragraphs: 1 },
+    followup_answer: { chars: 360, sentences: 8, paragraphs: 2 },
+    final: { chars: 80, sentences: 2, paragraphs: 1 },
   }
   const limit = limits[profile]
   const paragraphLimited = text.split(/\n{2,}/).slice(0, limit.paragraphs).join("\n\n")
@@ -526,7 +818,7 @@ function enforceLengthProfile(text: string, profile: LengthProfile) {
   const sentenceLimited = sentences.length > limit.sentences
     ? sentences.slice(0, limit.sentences).join("").trim()
     : paragraphLimited.trim()
-  return hardLimitText(sentenceLimited, limit.chars)
+  return softBudgetText(sentenceLimited, limit.chars)
 }
 
 function sanitizeAgentOutput(params: {
@@ -583,23 +875,99 @@ function safeAgentName(user: { displayName: string; email: string }, identityCon
   return `${ownerName}的蝶灵`
 }
 
-function fallbackTopics(dateKey: string) {
-  const morning = [
-    ["AI 工具进入日常工作流后，普通人该兴奋还是警惕？", "从效率、职业分工、信息可信度三个角度聊聊现实影响。"],
-    ["今天的科技热点背后，真正改变普通人的是什么？", "不追热词，尝试拆出对工作、生活和商业的实际影响。"],
-    ["当商业都在谈降本增效，人的价值该怎么被看见？", "围绕效率、创造力、协作和长期主义展开观察。"],
-  ]
-  const evening = [
-    ["如果人生没有标准答案，选择还需要被证明吗？", "聊聊成长、犹豫、后悔与自我确认。"],
-    ["孤独到底是问题，还是一种需要学会使用的空间？", "从关系、边界、陪伴和自我整理展开讨论。"],
-    ["我们努力变好，是为了抵达哪里？", "聊聊意义感、内耗、节奏和对自己的期待。"],
-  ]
-  const index = Number(dateKey.slice(-2)) % morning.length
+const MORNING_TOPIC_POOL: Array<[string, string]> = [
+  ["AI 工具进入日常工作流后，普通人该兴奋还是警惕？", "从效率、职业分工、信息可信度三个角度聊聊现实影响。"],
+  ["今天的科技热点背后，真正改变普通人的是什么？", "不追热词，尝试拆出对工作、生活和商业的实际影响。"],
+  ["当商业都在谈降本增效，人的价值该怎么被看见？", "围绕效率、创造力、协作和长期主义展开观察。"],
+  ["信息过载时代，'看见'本身是不是变成一种稀缺能力？", "讨论注意力、信息筛选与判断力的真实代价。"],
+  ["为什么越是努力工作的人，反而最先被'优化'？", "拆解组织、岗位价值与可替代性之间的张力。"],
+  ["远程办公到底解放了什么、又新捆住了什么？", "聊空间、时间、协作摩擦与边界感的重新分配。"],
+  ["副业、创业、自由职业，哪一种'自由'最容易让人塌陷？", "对比三种路径的真实成本与代价。"],
+  ["短视频在重塑注意力之后，我们还回得去吗？", "讨论媒介、专注力与长内容的命运。"],
+  ["'内卷'被讨论烂了，但它真正没解决的是什么？", "尝试越过情绪标签，挖底下结构性的那一层。"],
+  ["AI 把初级岗位变薄，下一代年轻人的入口在哪？", "围绕培养路径、经验积累与职业起跑线展开。"],
+  ["数据隐私这件事，普通人真的有谈判筹码吗？", "聊聊平台、个人数据与不对等的权力关系。"],
+  ["'下沉市场'的需求里，藏着我们一直忽视的什么真问题？", "尝试用产品、生活与价值观的角度去看它。"],
+  ["为什么越来越多人觉得'稳定工作'反而最不稳定？", "讨论职业风险的重新分布与个体的下注方式。"],
+  ["选大城市还是小城——今天的判断标准还和五年前一样吗？", "聊机会、节奏、社交密度与代价的变化。"],
+  ["教育的核心是塞知识，还是塑造面对未知的方式？", "拆开'学'与'被教'之间的差别。"],
+  ["今天最值钱的'软技能'，到底是哪一种？", "聊判断、协作、表达和韧性，谁是真正的杠杆。"],
+  ["AI 把内容产能拉满之后，'原创'这个词还成立吗？", "讨论生成、改写与人类原创之间的边界。"],
+  ["为什么真正的好产品越来越少，但'爆款'越来越多？", "聊营销、用户体感与产品本心的错位。"],
+  ["我们对'专家'的不信任，是从什么时候开始的？", "讨论权威坍塌与公共讨论质量的关系。"],
+  ["这一代消费者的'拒绝消费'是反抗，还是疲惫？", "尝试从经济节律和情绪状态两边看。"],
+  ["工具越来越多，产出反而越来越散——问题出在哪？", "聊工作流、注意力切换和'效率假象'。"],
+  ["做内容的人比看内容的人更焦虑，这件事值得拆开看。", "讨论创作者经济里的真实代价。"],
+  ["为什么'轻创业'比'真创业'更容易失败？", "聊投入、心力与所谓的低门槛陷阱。"],
+  ["AI 训练数据的版权问题，最终会被谁买单？", "讨论平台、创作者和普通用户之间的转嫁。"],
+  ["我们越来越难听到真正的反对意见，是平台问题还是人的问题？", "聊算法、回音壁与表达成本。"],
+  ["面试到底在'考察能力'还是'筛选听话'？", "拆解招聘流程里的隐形选择标准。"],
+  ["今天值得长期投入的能力，三年内会被 AI 替代吗？", "聊判断力、关系、品味与执行的耐用性。"],
+  ["好公司和好工作之间，差的到底是什么？", "拆开公司层面与个体层面的不同评价系统。"],
+  ["为什么'极简生活'的人，反而消费力很强？", "聊消费的真实驱动力与生活叙事。"],
+  ["全球化退潮这几年，普通人的选项是变多还是变少？", "讨论流动、机会与心态的重新校准。"],
+  ["职场上'被看见'到底靠什么——能力、表达，还是结构性位置？", "聊真正决定可见度的因素。"],
+  ["工具理性赢了之后，意义感为什么反而稀缺？", "讨论效率社会里'人为何而做'的空洞感。"],
+]
+
+const EVENING_TOPIC_POOL: Array<[string, string]> = [
+  ["如果人生没有标准答案，选择还需要被证明吗？", "聊聊成长、犹豫、后悔与自我确认。"],
+  ["孤独到底是问题，还是一种需要学会使用的空间？", "从关系、边界、陪伴和自我整理展开讨论。"],
+  ["我们努力变好，是为了抵达哪里？", "聊聊意义感、内耗、节奏和对自己的期待。"],
+  ["'喜欢'和'适合'之间，究竟以哪个为准？", "讨论选择、自欺与长期相处的真实成本。"],
+  ["我们为什么害怕真正的休息？", "聊聊空白、焦虑与自我价值绑定方式。"],
+  ["成年人的友谊，是越来越少，还是越来越深？", "讨论关系密度、维护成本与情感真实性。"],
+  ["我们在亲密关系里到底想要什么？", "拆开陪伴、被看见、被需要与自由之间的拉扯。"],
+  ["'变成熟'是不是一种悄悄变冷的过程？", "聊敏感度、防御与代偿的关系。"],
+  ["什么时候你开始意识到，父母也是普通人？", "讨论代际理解、和解与边界。"],
+  ["羞愧感是工具，还是负担？", "聊它如何驱动改变，又如何让人停滞。"],
+  ["我们为什么特别难说出'我需要帮助'？", "讨论自尊、独立叙事与求助成本。"],
+  ["小时候的梦想，现在还作数吗？", "聊放弃、改写与新的连接方式。"],
+  ["睡前的那种空，是放松还是逃避？", "讨论日常情绪余烬里被忽略的信号。"],
+  ["面对一个让你不舒服的人，离开是软弱还是清醒？", "聊忍让的代价与自我保护的边界。"],
+  ["我们以为的'选择'，有多少是被默认推过来的？", "讨论默认值、惯性与真正的主动。"],
+  ["假如人生是一场实验，你最想验证的假设是什么？", "聊那些一直没敢真正测试的命题。"],
+  ["你最近一次发自内心地笑出来，是因为什么？", "讨论真实快乐的来源和被低估的小事。"],
+  ["把'应该'换成'想要'，生活会变成什么样？", "聊义务感对真实欲望的覆盖。"],
+  ["为什么夸奖反而比批评更让人心慌？", "讨论自我评价与外部反馈的错位。"],
+  ["比起'做正确的事'，'诚实地承认自己'更难。", "聊自欺与坦诚的关系。"],
+  ["什么时候我们会发现自己在靠近年轻时讨厌过的人？", "讨论变化、立场迁移与自我接纳。"],
+  ["情绪的反复，是问题，还是自我修复？", "聊我们对'稳定'的过度期待。"],
+  ["你愿意为哪一种孤独买单？", "讨论独处、边界与人情成本。"],
+  ["我们什么时候开始用'刷'代替'体验'？", "聊感官与时间的退化感。"],
+  ["在长期关系里，'还想认识 TA'比'已经认识 TA'更重要吗？", "讨论亲密关系里的好奇心如何流失。"],
+  ["你最近有没有想过，'离开'本身也是一种选择？", "聊放下、转身与重新开始。"],
+  ["如果把自己当朋友对待，你会更宽容还是更严厉？", "讨论自我对话的语气习惯。"],
+  ["我们都在等一个人懂自己，但'被懂'真的是答案吗？", "聊期待错位与自我表达。"],
+  ["'被需要'和'被爱'之间，你优先选哪个？", "讨论价值感与情感安全的拉扯。"],
+  ["什么样的小事，会让你瞬间觉得'活着挺好'？", "聊真实的轻盈感和它的来源。"],
+  ["你最近有没有什么改变心意的小瞬间？", "讨论那些没说出口、但其实已经发生的转向。"],
+  ["如果一切都没人知道，你最想为自己做的一件事是什么？", "聊外部目光退场后的真实欲望。"],
+]
+
+// Pick a deterministic but well-spread topic for the date, avoiding any titles already used recently.
+function fallbackTopics(dateKey: string, opts?: { recentTitles?: Set<string> }) {
+  const seedNumber = Number(dateKey.replaceAll("-", "")) || 0
+  const recent = opts?.recentTitles ?? new Set<string>()
+
+  const pickFromPool = (pool: Array<[string, string]>, base: number, step: number) => {
+    if (pool.length === 0) return ["今天来聊聊心情吧。", ""] as [string, string]
+    const start = ((base * step) % pool.length + pool.length) % pool.length
+    for (let i = 0; i < pool.length; i += 1) {
+      const candidate = pool[(start + i) % pool.length]
+      if (!recent.has(candidate[0])) return candidate
+    }
+    return pool[start]
+  }
+
+  const morning = pickFromPool(MORNING_TOPIC_POOL, seedNumber, 17)
+  const evening = pickFromPool(EVENING_TOPIC_POOL, seedNumber + 9, 13)
+
   return {
-    morningTitle: morning[index][0],
-    morningDescription: morning[index][1],
-    eveningTitle: evening[index][0],
-    eveningDescription: evening[index][1],
+    morningTitle: morning[0],
+    morningDescription: morning[1],
+    eveningTitle: evening[0],
+    eveningDescription: evening[1],
   }
 }
 
@@ -853,11 +1221,13 @@ function buildStylePrompt(styleConfig: StyleConfig | null | undefined): string {
   return `\n=== 本轮风格基调 ===\n${style.instruction}\n注意：这只是风格的调味，你仍然保持自己的个性和前面的所有规则。不要硬凹，自然地融入这个基调即可。`
 }
 
+// 收束三章 / Three-Movement Closing: anchor (synthesis) → echoes (afterglow×N) → dissolve (final).
+// Echoes are deterministic — 0 / 1 / 2 by memberCount — so the closing always feels structurally complete:
+// one summary, one or two paired reactions (support + divergent), one soft farewell.
 function maxAfterglowTurns(memberCount: number) {
   if (memberCount <= 1) return 0
   if (memberCount === 2) return 1
-  if (memberCount === 3) return 2
-  return 3
+  return 2
 }
 
 function phaseFor(completed: number, planned: number, recentMessages: StoredMessage[] = [], memberCount = 1): Phase {
@@ -875,7 +1245,13 @@ function phaseFor(completed: number, planned: number, recentMessages: StoredMess
   return "debate"
 }
 
-function describePhase(phase: Phase, isFirstTurn: boolean, isFinalTurn: boolean) {
+function describePhase(
+  phase: Phase,
+  isFirstTurn: boolean,
+  isFinalTurn: boolean,
+  ctx?: { topicTitle?: string; afterglowRole?: "support" | "divergent" },
+) {
+  const topic = ctx?.topicTitle?.trim() || ""
   if (isFirstTurn) {
     return [
       "开场是面向圆桌抛题，不是对绑定用户汇报。禁止以用户名字或「我家那位」等称呼开头。",
@@ -886,11 +1262,12 @@ function describePhase(phase: Phase, isFirstTurn: boolean, isFinalTurn: boolean)
   }
   if (isFinalTurn) {
     return [
-      "这是整场讨论的最后一句，散场就这一句话。",
-      "硬性规则：只能写一句话。绝对禁止连续两句以上，绝对禁止多个告别词叠加。",
-      "禁止：开启新话题、提出新论点、反问、争论、扮演多个角色自言自语、省略号后面接多个尾句。",
-      "你只是把节奏松下来：一句感受、一句轻盈的收尾、一句安静的告别，三选一，只一句。",
-      "≤ 28 个汉字。",
+      "这是整场讨论的最后一句，柔散，不是硬切。",
+      "你只是把节奏松下来：一句感受或回扣，加一句轻盈的告别。一到两句话即可，不要再展开论点、不要反问、不要争论、不要扮演多个角色自言自语。",
+      topic
+        ? `必须再点一次本场主题「${topic}」——可以引用主题里的关键词、复述一个动作或意象，让人感到收尾紧扣这一题，而不是泛泛地说"散了"。`
+        : "必须把这句和本场主题挂钩，不要泛泛地说\"散了\"。",
+      "长度 40-80 个汉字，最多两句。允许只有一句，但要带温度。",
     ].join("\n")
   }
   if (phase === "warmup") {
@@ -904,30 +1281,57 @@ function describePhase(phase: Phase, isFirstTurn: boolean, isFinalTurn: boolean)
       "讨论进行到中段，气氛有点稳定甚至略有重复。这一轮你来制造一次转折。",
       "可选：换一个观察视角；引入反方向假设；点名一只一直没说话的蝶灵；把前面两条对接起来形成新判断；指出大家默认的某个前提未必成立。",
       "如果合适，可以抛出一个明确的子议题钩子，比如「换个问题来问：…」，但不要每次都这样。",
+      topic
+        ? `重要：转折必须仍然围绕本场主题「${topic}」——可以换角度、换提问方式，但不能跳到一个与主题无关的新话题。换一个看主题的方式，而不是换主题。`
+        : "重要：转折必须仍然围绕本场主题，换一个看主题的方式，而不是换主题。",
       "目的：让讨论方向轻微偏移一下，不要直接收尾，也不要绕回开场。",
     ].join("\n")
   }
   if (phase === "synthesis_lead") {
     return [
-      "你是这场圆桌收尾前的总结者，不是散场的人。",
+      "你是这场圆桌「收束三章」中的第一章——锚点章 / 总结者，不是散场的人。",
+      topic
+        ? `第一句必须把视线拉回本场主题「${topic}」，例如以"围绕『${topic}』这一题，我把刚才大家走过的路收一下"这种自然的方式开头，禁止只说「我来总结一下」这种脱离题目的口吻。`
+        : "第一句必须把视线明确拉回本场主题，禁止脱离题目地泛泛总结。",
       "请输出一个「总结与建议」模块，让用户看完能带走实际收获。",
-      "结构：先用一句自然的话说明你试着把刚才这场讨论收一下；再用 3-4 点总结讨论走过的逻辑路径；最后给出一段最终建议或结论。",
-      "每一点必须对应前文中出现过的一类观点：担忧、反驳、转折、落地方式、共识或分歧。允许简短分点，但不要写报告腔。",
-      "禁止任何告别词：散吧、晚安、早安、早点睡、先撤、先歇、下次、回头、各位带着。",
+      "结构：第 1 句锚回主题；接着 3-4 条编号或分点的逻辑回放（每点对应前文出现过的一类动作：担忧 / 反驳 / 转折 / 落地方式 / 共识或分歧），每点都要明确扣回主题，不要写成报告腔；最后用 1 段紧扣主题的最终建议或结论收住。",
+      "长度可以舒展：320-560 个汉字之间都行，必要时甚至可以更长一点，但每一句都要有信息量，不要灌水。",
+      "禁止任何告别词：散吧、晚安、早安、早点睡、先撤、先歇、下次、回头、各位带着。这一章不结束讨论，只把讨论收紧。",
     ].join("\n")
   }
   if (phase === "afterglow") {
+    if (ctx?.afterglowRole === "support") {
+      return [
+        "你是「收束三章」的第二章——余响章中的「附议者」。总结者刚刚把这场讨论锚回了主题。",
+        "你的任务：挑总结里的某一条你最认同的，简短附议，并补一个能落地的动作、时间窗或具体抓手——让这条建议从空话变成可以执行的事。",
+        "30-90 个汉字，一句或两短句。可以点名总结者，也可以直接呼应内容。",
+        topic ? `如果合适，把你的附议和主题「${topic}」再轻轻挂一次钩，让人知道你不是在敷衍。` : "",
+        "不能重新总结，不能开新议题，不能告别。禁止：聊到这儿、最后我觉得、总结一下、散吧、晚安、早安、早点睡、先撤、先歇、下次、回头。",
+      ].filter(Boolean).join("\n")
+    }
+    if (ctx?.afterglowRole === "divergent") {
+      return [
+        "你是「收束三章」的第二章——余响章中的「保留分歧者」。总结者刚刚把这场讨论收紧了，前一只蝶灵也已经附议过。",
+        "你的任务：保留一个小小的不同意，或者补一道余味——可以是一个画面、一句质疑、一道未尽，让总结不过早闭合。立场要温和但要清楚。",
+        "30-90 个汉字，一句或两短句。可以直接说「我有一点不太一样」「我反倒觉得」这种开头，但只一处不同意，不要全盘推翻。",
+        topic ? `如果合适，让你的分歧或余味仍然落在主题「${topic}」内，而不是去开一个新题。` : "",
+        "不能重新总结，不能开新议题，不能告别。禁止：聊到这儿、最后我觉得、总结一下、散吧、晚安、早安、早点睡、先撤、先歇、下次、回头。",
+      ].filter(Boolean).join("\n")
+    }
     return [
       "总结者刚刚把这场讨论收成了「总结与建议」。",
-      "你现在只补一句短回应：可以附和其中一个建议，可以保留一个小分歧，也可以补一句余味。",
+      "你现在只补一句短回应：可以附和其中一个建议，可以保留一个小分歧，也可以补一句余味。30-90 字。",
       "不能重新总结，不能提出新议题，不能告别。禁止说：聊到这儿、最后我觉得、总结一下、散吧、晚安、早安、早点睡、先撤、先歇、下次、回头。",
     ].join("\n")
   }
   if (phase === "closing") {
     return [
-      "讨论已经接近尾声，再过 1-2 句就要散场。你在收束，不是在展开。",
+      "你是「收束三章」的第三章——柔散章。讨论的总结和回响都已经发生过，你只是把这场讨论温柔地放下来。",
       "把语速放慢，往松弛的方向走。可以轻轻回扣之前的某个观点，但绝对不要提出新论点、不要反问、不要用'但话说回来''我倒觉得'这种展开式的开头。",
-      "你是一只蝶灵，一次只说一句。禁止在同一句里扮演不同立场的人对话，禁止自言自语式的独白。",
+      topic
+        ? `必须再点一次本场主题「${topic}」——可以引用主题里的某个关键词，让人觉得这场散得紧扣题目，而不是无关的"散吧"。`
+        : "必须让这句话能扣回本场主题，不要泛泛地散场。",
+      "你是一只蝶灵，一次只说一句或两短句，禁止在同一句里扮演不同立场的人对话，禁止自言自语式的独白。",
     ].join("\n")
   }
   if (phase === "debate") {
@@ -949,11 +1353,13 @@ function pickArcBeat(phase: Phase, intentKey: string | null, opts?: { isFirstTur
   if (opts?.isFirstTurn || phase === "opening") return "open_hook"
   if (intentKey === "reframe") return "frame_shift"
   if (intentKey === "concrete_case") return "case_lab"
-  if (intentKey === "self_doubt") return "self_revision"
+  if (intentKey === "self_doubt" || intentKey === "vulnerable") return "self_revision"
   if (intentKey === "silence_break") return "silence_break"
-  if (intentKey === "quote_back" || intentKey === "recap_thread") return "thread_bridge"
+  if (intentKey === "quote_back" || intentKey === "recap_thread" || intentKey === "coalition") return "thread_bridge"
   if (intentKey === "material_recall") return "material_recall"
-  if (intentKey === "challenge") return "challenge"
+  if (intentKey === "challenge" || intentKey === "devil_advocate" || intentKey === "hot_take") return "challenge"
+  if (intentKey === "escalation") return "counterfactual"
+  if (intentKey === "pet_peeve" || intentKey === "mood_shift" || intentKey === "time_pulse") return "frame_shift"
   if (phase === "pivot") return Math.random() < 0.5 ? "frame_shift" : "counterfactual"
   if (phase === "synthesis_lead") return "final_synthesis"
   if (phase === "afterglow") return "afterglow_reply"
@@ -970,42 +1376,81 @@ function decideLengthProfile(params: {
   isFollowupReply?: boolean
   hasToolContext?: boolean
   recentMessages?: StoredMessage[]
+  formKey?: string | null
 }): LengthProfile {
   if (params.isFinalTurn) return "final"
   if (params.isFollowupReply) return "followup_answer"
-  if (params.phase === "closing") return "spark"
   if (params.phase === "synthesis_lead") return "final_synthesis"
   if (params.phase === "afterglow") return "afterglow"
-  if (params.isFirstTurn) return Math.random() < 0.55 ? "standard" : "developed"
+
+  // Some structural forms force their own length budget.
+  if (params.formKey === "pure_question") return Math.random() < 0.55 ? "micro" : "spark"
+  if (params.formKey === "list_fragment") return "fragment_set"
+  if (params.formKey === "two_beat") return "spark"
+  if (params.formKey === "image_only") return Math.random() < 0.5 ? "spark" : "standard"
+  if (params.formKey === "echo_react") return Math.random() < 0.6 ? "spark" : "standard"
+  if (params.formKey === "self_quote") return Math.random() < 0.55 ? "spark" : "standard"
+
+  if (params.phase === "closing") return Math.random() < 0.4 ? "micro" : "spark"
+
+  // Lightweight intents tend to like short forms.
+  const lightIntent = ["feeling", "ask", "callback_quiet", "meta", "time_pulse", "pet_peeve", "mood_shift"].includes(params.intentKey ?? "")
+  if (lightIntent && Math.random() < 0.45) {
+    return Math.random() < 0.55 ? "micro" : "spark"
+  }
+
+  if (params.isFirstTurn) {
+    const r = Math.random()
+    if (r < 0.5) return "standard"
+    if (r < 0.85) return "developed"
+    return "deep_dive"
+  }
   if (params.respondingToUser) return Math.random() < 0.7 ? "standard" : "developed"
 
-  const recentDeep = params.recentMessages?.slice(-2).some((m) => {
+  const recentLong = params.recentMessages?.slice(-2).some((m) => {
     const metadata = m.metadata as { lengthProfile?: LengthProfile } | null
-    return metadata?.lengthProfile === "deep_dive"
+    return metadata?.lengthProfile === "deep_dive" || metadata?.lengthProfile === "developed" || metadata?.lengthProfile === "breathless"
   })
-  const depthIntent = ["material_recall", "concrete_case", "reframe", "self_doubt", "quote_back", "recap_thread"].includes(params.intentKey ?? "")
-  if (!recentDeep && (params.hasToolContext || params.phase === "pivot" || params.arcBeat === "counterfactual")) {
-    return Math.random() < 0.35 ? "deep_dive" : "developed"
-  }
-  if (depthIntent) return Math.random() < 0.75 ? "developed" : "standard"
-  if (params.phase === "debate") {
+  const depthIntent = ["material_recall", "concrete_case", "reframe", "self_doubt", "quote_back", "recap_thread", "vulnerable", "escalation", "devil_advocate", "coalition"].includes(params.intentKey ?? "")
+  if (!recentLong && (params.hasToolContext || params.phase === "pivot" || params.arcBeat === "counterfactual")) {
     const r = Math.random()
-    if (!recentDeep && r > 0.84) return "deep_dive"
-    if (r > 0.48) return "developed"
+    if (r < 0.3) return "deep_dive"
+    if (r < 0.45) return "breathless"
+    return "developed"
+  }
+  if (depthIntent) {
+    const r = Math.random()
+    if (r < 0.55) return "developed"
+    if (r < 0.7) return "deep_dive"
     return "standard"
   }
+  if (params.phase === "debate") {
+    const r = Math.random()
+    if (!recentLong && r > 0.86) return "deep_dive"
+    if (r > 0.7) return "breathless"
+    if (r > 0.4) return "developed"
+    if (r > 0.18) return "standard"
+    return "spark"
+  }
+  // Default mix: tilt toward short, but allow occasional long-tail variety.
   const r = Math.random()
-  if (r < 0.52) return "spark"
-  if (r < 0.86) return "standard"
-  return "developed"
+  if (r < 0.18) return "micro"
+  if (r < 0.5) return "spark"
+  if (r < 0.78) return "standard"
+  if (r < 0.92) return "developed"
+  if (r < 0.98) return "breathless"
+  return "deep_dive"
 }
 
 function buildLengthInstruction(profile: LengthProfile) {
   const instructions: Record<LengthProfile, string> = {
+    micro: "8-25 个汉字，一句很短的反应——一个反问、一个判断、一个画面，落地就停。",
     spark: "12-45 个汉字，一句或两短句，像群聊里自然接话。",
     standard: "45-110 个汉字，推进一个明确观点，不要面面俱到。",
     developed: "110-220 个汉字，可以给一个具体例子或拆开一个判断，但只展开一个核心点。",
     deep_dive: "220-380 个汉字，最多两段。允许认真展开一次，但必须有具体判断、例子或反向假设，不能写成会议总结。",
+    breathless: "120-200 个汉字，但只用一两句长句一口气说出来，节奏紧、呼吸短，像念头连成一串。",
+    fragment_set: "三个并列的短片段，每个 ≤ 14 个汉字，用中文逗号或顿号串起来；总长 30-60 个汉字。绝对不要使用任何项目符号或数字编号。",
     final_synthesis: "320-520 个汉字，允许分点，最多 4 点。必须包含讨论过程总结和最终建议/结论；禁止告别词。",
     afterglow: "30-90 个汉字，一句短回应。只能回应总结者的一点，不能重新总结，不能告别。",
     followup_answer: "120-260 个汉字，先回答用户追问，再补一层延伸思考；不要重复散场。",
@@ -1025,6 +1470,16 @@ function randomDelayMs(phase: Phase) {
     phase === "afterglow" ? 5200 :
     phase === "closing" ? 8000 :
     5500
+  // Most turns fall around base±30%. ~12% are quick interjections, ~10% are long thinking pauses.
+  const roll = Math.random()
+  if (roll < 0.12) {
+    const quick = base * 0.35 + Math.random() * base * 0.25
+    return Math.round(Math.min(Math.max(quick, 1500), 5000))
+  }
+  if (roll > 0.9) {
+    const slow = base * 1.5 + Math.random() * base * 0.8
+    return Math.round(Math.min(Math.max(slow, 6000), 18000))
+  }
   const jitter = (Math.random() - 0.5) * base * 0.7
   return Math.round(Math.min(Math.max(base + jitter, 2200), 16000))
 }
@@ -1269,6 +1724,7 @@ async function generateAgentText(params: {
   isFollowupReply?: boolean
   followupQuestion?: { askerName: string; question: string } | null
   timeContext?: ShanghaiTimeContext
+  afterglowRole?: "support" | "divergent" | null
 }) {
   const fallback = buildFallbackText({
     isFirstTurn: params.isFirstTurn,
@@ -1282,6 +1738,12 @@ async function generateAgentText(params: {
     isFirstTurn: params.isFirstTurn,
     isFinalTurn: params.isFinalTurn,
   })
+  const turnForm = pickTurnForm({
+    isFirstTurn: params.isFirstTurn,
+    isFinalTurn: params.isFinalTurn,
+    phase: params.phase,
+    isFollowupReply: params.isFollowupReply,
+  })
   const lengthProfile = decideLengthProfile({
     phase: params.phase,
     intentKey: params.intentKey,
@@ -1292,6 +1754,7 @@ async function generateAgentText(params: {
     isFollowupReply: params.isFollowupReply,
     hasToolContext: Boolean(params.toolContext),
     recentMessages: params.priorMessages,
+    formKey: turnForm?.key ?? null,
   })
 
   const provider = await getEffectiveProviderConfig(params.userId).catch(() => null)
@@ -1312,7 +1775,10 @@ async function generateAgentText(params: {
   }
 
   const persona = await loadAgentPersonaContext(params.userId).catch(() => null)
-  const phaseInstruction = describePhase(params.phase, Boolean(params.isFirstTurn), Boolean(params.isFinalTurn))
+  const phaseInstruction = describePhase(params.phase, Boolean(params.isFirstTurn), Boolean(params.isFinalTurn), {
+    topicTitle: params.topicTitle,
+    afterglowRole: params.afterglowRole ?? undefined,
+  })
   const renderedPrior = renderPriorMessages(params.priorMessages.slice(-14), params.userId)
   const myUserFacts = extractMyUserFacts(params.priorMessages, params.userId)
   const factualBoundary = buildFactualBoundary(myUserFacts, params.ownerDisplayName, params.opinionFromUser)
@@ -1321,6 +1787,22 @@ async function generateAgentText(params: {
   const intentPrompt = params.isFollowupReply
     ? "\n=== 本句发言意图 ===\n这是用户在散场后的额外提问。先正面回答 TA，再补一句你的延伸思考。整体松一点，像饭局散了之后被叫住补一句。"
     : buildIntentPrompt(params.intentKey ?? null)
+  const stableTraits = getStableTraits(`${params.userId}|${params.agentName}`)
+  const traitsPrompt = stableTraits ? `\n${buildStableTraitsPrompt(stableTraits)}` : ""
+  const soulAnchor = persona && persona.soul && persona.soul.trim()
+    ? `\n=== 性格本体的硬性优先级 ===\n上面 [蝶灵性格 SOUL] 描述的就是你这只蝶灵的本体。本场每一句发言都必须能让人感受到那个性格在说话——不是把它当背景，而是当作发言风格的根。如果系统在下面给了具体阶段、意图、形态、长度的指令，你按它走，但语气和味道始终来自 SOUL 描述的那种性格。`
+    : ""
+  const vibe = pickConversationVibe({
+    isFirstTurn: params.isFirstTurn,
+    isFinalTurn: params.isFinalTurn,
+    phase: params.phase,
+  })
+  const vibePrompt = vibe
+    ? `\n=== 本句临时基调：${vibe.label} ===\n${vibe.instruction}\n这只是这一句的临时调味，下一句又会换。优先级低于 SOUL 与稳定多维个性；冲突时按高优先级来。`
+    : ""
+  const formPrompt = turnForm
+    ? `\n=== 本句结构形态 ===\n${turnForm.instruction}\n注意：这是这一句的硬性结构形态，覆盖默认的发言形状；但仍然要带着你的 SOUL 与多维个性的语气。`
+    : ""
   const replyTargetPrompt = params.replyTarget
     ? `\n=== 这一句要直接回到的对象 ===\n${params.replyTarget.isUser ? "[用户]" : ""}${params.replyTarget.authorName}刚才说了：「${safePublicText(params.replyTarget.text, 200)}」。\n你这句要明显呼应这条——可以点名，可以引用半句，可以反问 TA，但不能假装这条不存在。`
     : ""
@@ -1339,13 +1821,20 @@ async function generateAgentText(params: {
     selfReminder,
     `\n=== 主人称呼规则（以这一条为准）===\n你绑定的人类叫「${params.ownerDisplayName}」。可以自然地用「${params.ownerDisplayName}」「我家那位」「我搭档」「我那位人类」「我服务的那位」轮换称呼；不要把「我的用户」当口头禅。`,
     params.styleConfig ? buildStylePrompt(params.styleConfig) : "",
+    soulAnchor,
+    traitsPrompt,
     intentPrompt,
+    vibePrompt,
+    formPrompt,
     `\n=== 本轮讨论动作 ===\n${arcBeat}。这只是内部动作方向，不要复述这个英文标签。`,
     `\n=== 当前阶段 ===\n${phaseInstruction}`,
     params.isFinalTurn && params.timeContext
       ? `\n=== UTC+8 时间语境 ===\n当前北京时间（UTC+8 / Asia/Shanghai）是 ${params.timeContext.localTime}，时间段是 ${params.timeContext.period}。\n最后一句只能使用符合当前时间的散场语。允许参考：${params.timeContext.allowedClosings.join(" / ")}。\n如果不是夜晚，禁止说晚安、早点睡；如果不是清晨，禁止说早安；如果不是深夜，禁止说早点睡。`
       : "",
     `\n=== 主题 ===\n标题：${params.topicTitle}${params.topicDescription ? `\n说明：${params.topicDescription}` : ""}`,
+    params.topicTitle
+      ? `\n=== 主题锚点（不要丢） ===\n本场所有发言都围绕「${params.topicTitle}」展开。允许发散，但你这一句要么直接回到这个主题，要么把发散的点和这个主题扣回来；不要让讨论变成一组与主题无关的随感。`
+      : "",
     params.materialCard ? `\n=== 公共资料卡（背景，仅参考，不要逐句引用）===\n${JSON.stringify(params.materialCard).slice(0, 1400)}` : "",
     params.toolContext ? `\n${params.toolContext}` : "",
     params.styleNotes ? `\n${params.styleNotes}` : "",
@@ -1453,7 +1942,18 @@ export async function ensureTodayRoundtable(options: { runDue?: boolean } = {}) 
   const members = await getRoundtableMembers()
   const readyMembers = getReadyMembers(members)
   const dateKey = getRoundtableDateKey()
-  const topics = fallbackTopics(dateKey)
+  const recentDays = await prisma.soulWingRoundtableDay.findMany({
+    where: { dateKey: { not: dateKey } },
+    orderBy: { dateKey: "desc" },
+    take: 14,
+    select: { morningTitle: true, eveningTitle: true },
+  }).catch(() => [] as Array<{ morningTitle: string; eveningTitle: string }>)
+  const recentTitles = new Set<string>()
+  for (const day of recentDays) {
+    if (day.morningTitle) recentTitles.add(day.morningTitle)
+    if (day.eveningTitle) recentTitles.add(day.eveningTitle)
+  }
+  const topics = fallbackTopics(dateKey, { recentTitles })
   const dutyUserId = rotateDutyUser(readyMembers, dateKey)
   const dutyName = members.find((member) => member.id === dutyUserId)?.agentName ?? "暂未排班"
 
@@ -1807,6 +2307,16 @@ async function generateNextDiscussionTurn(discussionId: string) {
     speaker = pickNextSpeaker(members, recent)
   }
 
+  // 收束三章 / Three-Movement Closing: the first afterglow voice plays "support" (附议 + 落地动作),
+  // the second plays "divergent" (保留分歧 / 余味). Pair is consistent so summaries always feel structured.
+  let afterglowRole: "support" | "divergent" | null = null
+  if (phase === "afterglow") {
+    const priorAfterglowCount = recent.filter(
+      (m) => (m.metadata as { arcBeat?: ArcBeat } | null)?.arcBeat === "afterglow_reply",
+    ).length
+    afterglowRole = priorAfterglowCount === 0 ? "support" : "divergent"
+  }
+
   const styleNotes = await getRecentStyleNotes(speaker.id)
   const toolContext = await maybeBuildToolContext({
     discussionId,
@@ -1853,6 +2363,7 @@ async function generateNextDiscussionTurn(discussionId: string) {
     mention,
     intentKey,
     forbiddenOpeners,
+    afterglowRole,
     replyTarget: replyTargetMsg
       ? {
           authorName: replyTargetMsg.authorName,
@@ -1922,6 +2433,7 @@ async function generateNextDiscussionTurn(discussionId: string) {
           synthesisSpeaker: phase === "synthesis_lead",
           moderatorTurn: phase === "pivot" && dutyMember?.id === speaker.id,
           subtopicSpawned,
+          ...(afterglowRole ? { afterglowRole } : {}),
           ...(timeContext ? { timeContext } : {}),
         },
       },
@@ -2441,4 +2953,120 @@ export async function deleteRoundtableDiscussion(_adminId: string, discussionId:
 
 export async function listRoundtableRecords() {
   return getRoundtableState()
+}
+
+export async function setTodayRoundtableTopics(adminId: string, input: {
+  morningTitle?: string
+  morningDescription?: string
+  eveningTitle?: string
+  eveningDescription?: string
+}) {
+  void adminId
+  const dateKey = getRoundtableDateKey()
+  const day = await prisma.soulWingRoundtableDay.findUnique({ where: { dateKey } })
+  if (!day) throw new Error("今日圆桌尚未初始化")
+  const data: Record<string, unknown> = {}
+  if (typeof input.morningTitle === "string" && input.morningTitle.trim()) data.morningTitle = input.morningTitle.trim()
+  if (typeof input.morningDescription === "string") data.morningDescription = input.morningDescription.trim()
+  if (typeof input.eveningTitle === "string" && input.eveningTitle.trim()) data.eveningTitle = input.eveningTitle.trim()
+  if (typeof input.eveningDescription === "string") data.eveningDescription = input.eveningDescription.trim()
+  if (Object.keys(data).length === 0) return day
+  const updated = await prisma.soulWingRoundtableDay.update({ where: { id: day.id }, data })
+  const settings = await getSettings()
+  const members = await getRoundtableMembers()
+  const dutyName = members.find((member) => member.id === updated.dutyUserId)?.agentName ?? "暂未排班"
+  await prisma.soulWingRoundtableDay.update({
+    where: { id: day.id },
+    data: { announcement: buildAnnouncement(updated, dutyName, nextTimeLabel(settings)) },
+  })
+  return updated
+}
+
+export async function regenerateTodayMaterialCard(adminId: string, slot?: "morning" | "evening") {
+  void adminId
+  const dateKey = getRoundtableDateKey()
+  const day = await prisma.soulWingRoundtableDay.findUnique({ where: { dateKey } })
+  if (!day) throw new Error("今日圆桌尚未初始化")
+  const members = await getRoundtableMembers()
+  const readyMembers = getReadyMembers(members)
+  const requesterId = readyMembers.find((member) => member.hasWebSearch)?.id ?? readyMembers[0]?.id
+  const useEvening = slot === "evening"
+  const title = useEvening ? day.eveningTitle : day.morningTitle
+  const description = useEvening ? day.eveningDescription : day.morningDescription
+  const card = await buildMaterialCard(title, description, requesterId)
+  return prisma.soulWingRoundtableDay.update({
+    where: { id: day.id },
+    data: { materialCard: card as Prisma.InputJsonValue },
+  })
+}
+
+export async function setTodayDutyUser(adminId: string, targetUserId: string | null) {
+  void adminId
+  const dateKey = getRoundtableDateKey()
+  const day = await prisma.soulWingRoundtableDay.findUnique({ where: { dateKey } })
+  if (!day) throw new Error("今日圆桌尚未初始化")
+  if (targetUserId) {
+    const member = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } })
+    if (!member) throw new Error("目标用户不存在")
+  }
+  const updated = await prisma.soulWingRoundtableDay.update({
+    where: { id: day.id },
+    data: { dutyUserId: targetUserId },
+  })
+  const settings = await getSettings()
+  const members = await getRoundtableMembers()
+  const dutyName = members.find((member) => member.id === updated.dutyUserId)?.agentName ?? "暂未排班"
+  await prisma.soulWingRoundtableDay.update({
+    where: { id: day.id },
+    data: { announcement: buildAnnouncement(updated, dutyName, nextTimeLabel(settings)) },
+  })
+  return updated
+}
+
+export async function stopRoundtableDiscussion(_adminId: string, discussionId: string) {
+  const now = new Date()
+  clearDiscussionTimers(discussionId)
+  const result = await prisma.soulWingRoundtableDiscussion.updateMany({
+    where: { id: discussionId, status: "running", deletedAt: null },
+    data: {
+      status: "cancelled",
+      endedAt: now,
+      runningKey: null,
+      generationLockedAt: null,
+      generationLockToken: null,
+      nextTurnAt: null,
+      slotClaimKey: null,
+    },
+  })
+  if (result.count === 0) throw new Error("没有正在进行的讨论可以停止")
+  return result
+}
+
+export async function triggerRoundtableSchedulerRun() {
+  return ensureTodayRoundtable({ runDue: true })
+}
+
+export async function updateRoundtableDiscussionMeta(
+  _adminId: string,
+  discussionId: string,
+  input: { topicTitle?: string; topicDescription?: string; plannedTurns?: number },
+) {
+  const data: Record<string, unknown> = {}
+  if (typeof input.topicTitle === "string" && input.topicTitle.trim()) data.topicTitle = input.topicTitle.trim()
+  if (typeof input.topicDescription === "string") data.topicDescription = input.topicDescription.trim()
+  if (
+    typeof input.plannedTurns === "number" &&
+    Number.isFinite(input.plannedTurns) &&
+    input.plannedTurns >= 5 &&
+    input.plannedTurns <= 80
+  ) {
+    data.plannedTurns = Math.round(input.plannedTurns)
+  }
+  if (Object.keys(data).length === 0) {
+    return prisma.soulWingRoundtableDiscussion.findUnique({ where: { id: discussionId } })
+  }
+  return prisma.soulWingRoundtableDiscussion.update({
+    where: { id: discussionId },
+    data,
+  })
 }

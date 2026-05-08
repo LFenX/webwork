@@ -8,6 +8,7 @@ export type AdminPermissionKey =
   | "manageUpdateLogs"
   | "refreshGeoLocations"
   | "manageAI"
+  | "manageSqlLab"
 
 export type AdminPermissionMap = Record<AdminPermissionKey, boolean>
 
@@ -21,6 +22,7 @@ export const ADMIN_PERMISSION_DEFS: Array<{ key: AdminPermissionKey; label: stri
   { key: "manageUpdateLogs", label: "更新日志", description: "管理公开更新日志展示" },
   { key: "refreshGeoLocations", label: "IP 地理位置", description: "刷新活动日志中的 IP 地理位置" },
   { key: "manageAI", label: "AI 助手", description: "审核 AI 申请并管理系统授信" },
+  { key: "manageSqlLab", label: "SQL 实验室", description: "为成员开放数据库表/列的查询与执行权限" },
 ]
 
 export const EMPTY_ADMIN_PERMISSIONS: AdminPermissionMap = {
@@ -33,6 +35,7 @@ export const EMPTY_ADMIN_PERMISSIONS: AdminPermissionMap = {
   manageUpdateLogs: false,
   refreshGeoLocations: false,
   manageAI: false,
+  manageSqlLab: false,
 }
 
 export const OWNER_ADMIN_PERMISSIONS: AdminPermissionMap = {
@@ -45,6 +48,7 @@ export const OWNER_ADMIN_PERMISSIONS: AdminPermissionMap = {
   manageUpdateLogs: true,
   refreshGeoLocations: true,
   manageAI: true,
+  manageSqlLab: true,
 }
 
 export function normalizeAdminPermissions(value?: Partial<Record<AdminPermissionKey, unknown>> | null): AdminPermissionMap {
@@ -58,5 +62,6 @@ export function normalizeAdminPermissions(value?: Partial<Record<AdminPermission
     manageUpdateLogs: Boolean(value?.manageUpdateLogs),
     refreshGeoLocations: Boolean(value?.refreshGeoLocations),
     manageAI: Boolean(value?.manageAI),
+    manageSqlLab: Boolean(value?.manageSqlLab),
   }
 }

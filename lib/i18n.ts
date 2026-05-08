@@ -61,6 +61,7 @@ type Dictionary = {
     jobs: string
     interviews: string
     ai: string
+    sql: string
     friends: string
     admin: string
     login: string
@@ -901,6 +902,7 @@ const zhCN: Dictionary = {
     jobs: "求职",
     interviews: "面试",
     ai: "蝶灵",
+    sql: "SQL 实验室",
     friends: "好友",
     admin: "管理",
     login: "登录",
@@ -1771,6 +1773,7 @@ const enUS: Dictionary = {
     jobs: "Jobs",
     interviews: "Interviews",
     ai: "AI Assistant",
+    sql: "SQL Lab",
     friends: "Friends",
     admin: "Admin",
     login: "Login",

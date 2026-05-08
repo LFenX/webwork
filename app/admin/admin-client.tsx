@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner"
 import { AdminAIPanel } from "@/components/admin/admin-ai-panel"
 import { AdminAIUsagePanel } from "@/components/admin/admin-ai-usage-panel"
+import { AdminSqlAccessPanel } from "@/components/admin/admin-sql-access-panel"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -994,6 +995,8 @@ export function AdminClient() {
               </div>
             </section>
           ) : null}
+
+          {hasPermission("manageSqlLab") ? <AdminSqlAccessPanel /> : null}
         </div>
       ) : null}
 

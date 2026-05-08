@@ -1,0 +1,103 @@
+
+> webappwork-tmp@0.1.0 dev
+> next dev --port 3002
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3002
+- Network:       http://100.126.79.86:3002
+- Environments: .env
+✓ Ready in 1368ms
+- Experiments (use with caution):
+  · serverActions
+
+ GET / 200 in 3.6s (next.js: 3.0s, proxy.ts: 54ms, application-code: 531ms)
+○ Compiling /blog/new ...
+ GET /blog/new 200 in 9.4s (next.js: 5.2s, proxy.ts: 6ms, application-code: 4.2s)
+✓ Finished writing to filesystem cache in 10.6s
+ GET /blog/new 200 in 351ms (next.js: 5ms, proxy.ts: 3ms, application-code: 342ms)
+ GET /manifest.webmanifest 200 in 526ms (next.js: 516ms, application-code: 9ms)
+ GET /manifest.webmanifest 200 in 5ms (next.js: 2ms, application-code: 3ms)
+ GET /blog/new 200 in 344ms (next.js: 4ms, proxy.ts: 3ms, application-code: 337ms)
+ POST /api/session/heartbeat 200 in 747ms (next.js: 589ms, proxy.ts: 6ms, application-code: 152ms)
+ GET /api/article-folders?type=blog 200 in 593ms (next.js: 547ms, proxy.ts: 3ms, application-code: 42ms)
+ GET /api/chats/summary?_t=1778150409618 200 in 866ms (next.js: 560ms, proxy.ts: 5ms, application-code: 301ms)
+ GET /api/home/recent-activity 200 in 290ms (next.js: 132ms, proxy.ts: 116ms, application-code: 42ms)
+ POST /api/session/heartbeat 200 in 12ms (next.js: 2ms, proxy.ts: 3ms, application-code: 7ms)
+ GET /api/realtime/events 200 in 6.4s (next.js: 511ms, proxy.ts: 6ms, application-code: 5.8s)
+ POST /api/session/heartbeat 200 in 52ms (next.js: 5ms, proxy.ts: 4ms, application-code: 43ms)
+ GET /blog/new 200 in 561ms (next.js: 6ms, proxy.ts: 3ms, application-code: 552ms)
+ GET /api/chats/summary?_t=1778150463815 200 in 188ms (next.js: 1828µs, proxy.ts: 3ms, application-code: 184ms)
+ GET /api/article-folders?type=blog 200 in 14ms (next.js: 4ms, proxy.ts: 2ms, application-code: 8ms)
+ GET /api/home/recent-activity 200 in 35ms (next.js: 4ms, proxy.ts: 2ms, application-code: 29ms)
+ POST /api/session/heartbeat 200 in 27ms (next.js: 1875µs, proxy.ts: 2ms, application-code: 23ms)
+ GET /api/realtime/events 200 in 5.9s (next.js: 7ms, proxy.ts: 4ms, application-code: 5.9s)
+ GET /blog/new 200 in 4.1s (next.js: 1543ms, proxy.ts: 188ms, application-code: 2.3s)
+ POST /api/session/heartbeat 200 in 1351ms (next.js: 746ms, proxy.ts: 5ms, application-code: 600ms)
+ GET /api/chats/summary?_t=1778151235684 200 in 1702ms (next.js: 454ms, proxy.ts: 5ms, application-code: 1244ms)
+ GET /api/home/recent-activity 200 in 337ms (next.js: 306ms, proxy.ts: 2ms, application-code: 29ms)
+ GET /api/article-folders?type=blog 200 in 594ms (next.js: 585ms, proxy.ts: 2ms, application-code: 6ms)
+ POST /api/session/heartbeat 200 in 12ms (next.js: 2ms, proxy.ts: 3ms, application-code: 7ms)
+ GET /api/realtime/events 200 in 9.2s (next.js: 1326ms, proxy.ts: 5ms, application-code: 7.9s)
+ GET / 200 in 2.6s (next.js: 1454ms, proxy.ts: 203ms, application-code: 975ms)
+ GET /manifest.webmanifest 200 in 419ms (next.js: 413ms, application-code: 6ms)
+ GET /blog/new 200 in 2.2s (next.js: 332ms, proxy.ts: 3ms, application-code: 1874ms)
+ GET /api/chats/summary?_t=1778152778487 200 in 2.9s (next.js: 1654ms, proxy.ts: 3ms, application-code: 1268ms)
+ POST /api/session/heartbeat 200 in 1256ms (next.js: 293ms, proxy.ts: 6ms, application-code: 957ms)
+ GET /api/home/recent-activity 200 in 1321ms (next.js: 1231ms, proxy.ts: 6ms, application-code: 84ms)
+ GET /api/article-folders?type=blog 200 in 717ms (next.js: 706ms, proxy.ts: 2ms, application-code: 9ms)
+ GET /api/realtime/events 200 in 56s (next.js: 791ms, proxy.ts: 6ms, application-code: 55s)
+ GET /blog/new 200 in 91ms (next.js: 5ms, proxy.ts: 2ms, application-code: 84ms)
+ GET /api/chats/summary?_t=1778152884467 200 in 57ms (next.js: 3ms, proxy.ts: 3ms, application-code: 51ms)
+ POST /api/session/heartbeat 200 in 49ms (next.js: 23ms, proxy.ts: 11ms, application-code: 15ms)
+ GET /blog/new 200 in 382ms (next.js: 3ms, proxy.ts: 3ms, application-code: 376ms)
+ GET /api/article-folders?type=blog 200 in 14ms (next.js: 6ms, proxy.ts: 2ms, application-code: 6ms)
+ POST /api/session/heartbeat 200 in 18ms (next.js: 1888µs, proxy.ts: 2ms, application-code: 14ms)
+ GET /api/home/recent-activity 200 in 81ms (next.js: 1964µs, proxy.ts: 2ms, application-code: 77ms)
+ GET /api/realtime/events 200 in 31.3s (next.js: 25ms, proxy.ts: 11ms, application-code: 31.2s)
+ GET /api/chats/summary?_t=1778152970182 200 in 36ms (next.js: 3ms, proxy.ts: 3ms, application-code: 30ms)
+ POST /api/session/heartbeat 200 in 30ms (next.js: 5ms, proxy.ts: 5ms, application-code: 20ms)
+ GET /blog/new 200 in 436ms (next.js: 3ms, proxy.ts: 3ms, application-code: 430ms)
+ GET /api/article-folders?type=blog 200 in 19ms (next.js: 6ms, proxy.ts: 2ms, application-code: 11ms)
+ POST /api/session/heartbeat 200 in 52ms (next.js: 2ms, proxy.ts: 3ms, application-code: 47ms)
+ GET /api/home/recent-activity 200 in 172ms (next.js: 2ms, proxy.ts: 1948µs, application-code: 168ms)
+ GET /api/realtime/events 200 in 3.3s (next.js: 8ms, proxy.ts: 5ms, application-code: 3.3s)
+ GET /manifest.webmanifest 200 in 5ms (next.js: 3ms, application-code: 3ms)
+ GET /blog/new 200 in 298ms (next.js: 3ms, proxy.ts: 3ms, application-code: 292ms)
+ GET /api/chats/summary?_t=1778153020463 200 in 30ms (next.js: 2ms, proxy.ts: 2ms, application-code: 26ms)
+ POST /api/session/heartbeat 200 in 24ms (next.js: 6ms, proxy.ts: 3ms, application-code: 15ms)
+ GET /api/article-folders?type=blog 200 in 13ms (next.js: 4ms, proxy.ts: 2ms, application-code: 7ms)
+ POST /api/session/heartbeat 200 in 15ms (next.js: 2ms, proxy.ts: 2ms, application-code: 10ms)
+ GET /api/home/recent-activity 200 in 96ms (next.js: 2ms, proxy.ts: 2ms, application-code: 92ms)
+ POST /api/session/heartbeat 200 in 71ms (next.js: 1880µs, proxy.ts: 2ms, application-code: 67ms)
+ GET /manifest.webmanifest 200 in 5ms (next.js: 1893µs, application-code: 3ms)
+ GET /blog/new 200 in 331ms (next.js: 3ms, proxy.ts: 2ms, application-code: 326ms)
+ GET /api/chats/summary?_t=1778153046720 200 in 25ms (next.js: 1835µs, proxy.ts: 3ms, application-code: 20ms)
+ POST /api/session/heartbeat 200 in 23ms (next.js: 6ms, proxy.ts: 4ms, application-code: 13ms)
+ GET /api/article-folders?type=blog 200 in 13ms (next.js: 4ms, proxy.ts: 2ms, application-code: 8ms)
+ POST /api/session/heartbeat 200 in 17ms (next.js: 1733µs, proxy.ts: 2ms, application-code: 13ms)
+ GET /api/home/recent-activity 200 in 32ms (next.js: 1900µs, proxy.ts: 1957µs, application-code: 28ms)
+ POST /api/session/heartbeat 200 in 16ms (next.js: 2ms, proxy.ts: 4ms, application-code: 11ms)
+ POST /api/session/heartbeat 200 in 16ms (next.js: 3ms, proxy.ts: 3ms, application-code: 11ms)
+ POST /api/session/heartbeat 200 in 17ms (next.js: 5ms, proxy.ts: 3ms, application-code: 9ms)
+ GET /api/realtime/events 200 in 870ms (next.js: 8ms, proxy.ts: 4ms, application-code: 858ms)
+ GET /api/realtime/events 200 in 28.0s (next.js: 8ms, proxy.ts: 4ms, application-code: 28.0s)
+ GET /blog/new 200 in 313ms (next.js: 3ms, proxy.ts: 3ms, application-code: 307ms)
+ GET /api/chats/summary?_t=1778153119946 200 in 31ms (next.js: 1970µs, proxy.ts: 3ms, application-code: 26ms)
+ POST /api/session/heartbeat 200 in 29ms (next.js: 7ms, proxy.ts: 4ms, application-code: 18ms)
+ GET /api/article-folders?type=blog 200 in 15ms (next.js: 7ms, proxy.ts: 2ms, application-code: 7ms)
+ GET /api/home/recent-activity 200 in 28ms (next.js: 3ms, proxy.ts: 4ms, application-code: 21ms)
+ POST /api/session/heartbeat 200 in 17ms (next.js: 1891µs, proxy.ts: 2ms, application-code: 13ms)
+ GET /api/realtime/events 200 in 2.7s (next.js: 8ms, proxy.ts: 4ms, application-code: 2.7s)
+✓ Finished filesystem cache database compaction in 20.8s
+✓ Compiled in 4.5s
+✓ Compiled in 472ms
+✓ Compiled in 457ms
+✓ Finished filesystem cache database compaction in 19.0s
+✓ Finished writing to filesystem cache in 16.2s
+✓ Compiled in 4.8s
+✓ Compiled in 4.4s
+✓ Compiled in 476ms
+✓ Compiled in 119ms
+✓ Compiled in 232ms
+✓ Compiled in 214ms
+[?25h

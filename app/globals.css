@@ -82,6 +82,7 @@
   --app-viewport-height: 100vh;
   --app-viewport-offset-top: 0px;
   --keyboard-inset-bottom: 0px;
+  --visual-keyboard-gap: 0px;
 }
 
 .editor-floating-panel {
@@ -293,6 +294,20 @@ body {
   }
 }
 
+@keyframes sql-cute-caret {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+    filter: saturate(1.1);
+  }
+  48% {
+    opacity: 0.38;
+    transform: scaleY(0.92);
+    filter: saturate(1.5);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ai-page-title,
   .ai-page-title-line {
@@ -409,6 +424,774 @@ a:hover {
   text-decoration: underline;
 }
 
+/* Notion-style article workspace */
+.article-workspace-shell {
+  height: calc(var(--app-viewport-height) - 3.5rem);
+  overflow: hidden;
+  background: #f7f7f5;
+  color: var(--color-text-primary);
+}
+
+.article-workspace-grid {
+  display: grid;
+  height: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
+}
+
+.article-workspace-sidebar {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 1px solid rgba(15, 23, 42, 0.07);
+  background: #f1f1ef;
+}
+
+.article-workspace-main {
+  height: 100%;
+  min-width: 0;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  background: #fff;
+}
+
+.article-workspace-right {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  border-left: 1px solid rgba(15, 23, 42, 0.07);
+  background: #fbfbfa;
+}
+
+.article-workspace-aside {
+  padding: 1rem;
+}
+
+.article-workspace-mobile-nav {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  background: #f7f7f5;
+  padding: 0.625rem 1rem;
+  scrollbar-width: none;
+}
+
+.article-workspace-mobile-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.article-workspace-mobile-after {
+  border-top: 1px solid rgba(15, 23, 42, 0.07);
+  background: #f7f7f5;
+  padding: 1rem;
+}
+
+.notion-document {
+  width: min(100%, 900px);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 4vw, 3rem) clamp(1rem, 5vw, 4rem) 3.5rem;
+}
+
+.notion-document-wide {
+  width: min(100%, 980px);
+}
+
+.notion-page-bar {
+  position: sticky;
+  top: 0;
+  z-index: 36;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 calc(-1 * clamp(1rem, 5vw, 4rem)) clamp(1.5rem, 4vw, 2.75rem);
+  padding: 0.6rem clamp(1rem, 5vw, 4rem);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.notion-icon-link,
+.notion-toolbar-button {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.notion-icon-link:hover,
+.notion-toolbar-button:hover {
+  background: #f1f1ef;
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.notion-title {
+  margin: 0;
+  color: #111;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+
+.notion-title-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #111;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.08;
+  outline: none;
+}
+
+.notion-title-input::placeholder {
+  color: #b4b4ae;
+  font-weight: 500;
+}
+
+.notion-properties {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.notion-property-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 9rem) minmax(0, 1fr);
+  min-height: 2rem;
+  align-items: center;
+  column-gap: 1rem;
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.25rem;
+}
+
+.notion-property-row:hover {
+  background: #f7f7f5;
+}
+
+.notion-property-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.notion-property-value {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.notion-input,
+.notion-select {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  padding: 0.375rem 0.5rem;
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.notion-input:focus,
+.notion-select:focus {
+  background: #f1f1ef;
+}
+
+.notion-editor-surface {
+  margin-top: 2.25rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.07);
+  padding-top: 1.25rem;
+}
+
+.notion-editor-surface .tiptap-wrapper {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.notion-editor-surface .tiptap-content .ProseMirror {
+  padding: 1.25rem 0 0;
+  color: var(--color-text-primary);
+}
+
+.notion-editor-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 38;
+  margin-bottom: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 0.625rem;
+  background: rgba(251, 251, 250, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
+.notion-editor-toolbar-scroll {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: visible;
+  padding: 0.35rem;
+  scrollbar-width: thin;
+}
+
+.notion-editor-tool,
+.notion-editor-menu-button,
+.notion-editor-source-pill {
+  display: inline-flex;
+  height: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 0.375rem;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.notion-editor-tool {
+  width: 2rem;
+}
+
+.notion-editor-menu-button,
+.notion-editor-source-pill {
+  padding: 0 0.55rem;
+}
+
+.notion-editor-tool:hover,
+.notion-editor-menu-button:hover,
+.notion-editor-source-pill:hover,
+.notion-editor-tool.is-active,
+.notion-editor-menu-button.is-active {
+  background: #eeeeec;
+  color: var(--color-text-primary);
+}
+
+.notion-editor-tool:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.notion-editor-source-pill {
+  background: #f1f1ef;
+  color: var(--color-text-primary);
+}
+
+.notion-editor-toolbar-hint {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.notion-editor-separator {
+  width: 1px;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.notion-editor-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.notion-editor-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  cursor: default;
+  background: transparent;
+}
+
+.notion-editor-menu-panel {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 1100;
+  min-width: 13rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.625rem;
+  background: #fff;
+  padding: 0.35rem;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+}
+
+.notion-editor-menu-panel.is-wide {
+  width: 16rem;
+}
+
+.notion-editor-menu-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.notion-editor-menu-row:hover,
+.notion-editor-menu-row.is-active {
+  background: #f1f1ef;
+  color: var(--color-text-primary);
+}
+
+.notion-color-section {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.35rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.notion-color-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.notion-color-swatch {
+  aspect-ratio: 1;
+  min-width: 1.35rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.35rem;
+}
+
+.notion-dialog-input {
+  height: 2.25rem;
+  width: 100%;
+  border-radius: 0.45rem;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-surface);
+  padding: 0 0.7rem;
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.notion-dialog-input:focus {
+  border-color: var(--color-text-primary);
+}
+
+.notion-dialog-primary,
+.notion-dialog-secondary {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  padding: 0 0.85rem;
+  font-size: 0.875rem;
+}
+
+.notion-dialog-primary {
+  background: var(--color-text-primary);
+  color: #fff;
+}
+
+.notion-dialog-primary:disabled {
+  opacity: 0.4;
+}
+
+.notion-dialog-secondary {
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.notion-upload-zone {
+  display: grid;
+  width: 100%;
+  place-items: center;
+  gap: 0.35rem;
+  border: 1px dashed rgba(15, 23, 42, 0.18);
+  border-radius: 0.625rem;
+  background: #fbfbfa;
+  padding: 1.5rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.notion-upload-zone small {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.notion-reader-content {
+  margin-top: 2.5rem;
+}
+
+.notion-comments {
+  width: min(100%, 900px);
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 5vw, 4rem) 3rem;
+}
+
+.notion-prev-next {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 3rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--color-border);
+}
+@media (max-width: 640px) {
+  .notion-prev-next { grid-template-columns: 1fr; }
+}
+.notion-prev-next-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fbfaf7;
+  color: var(--color-text-primary);
+  text-decoration: none;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+.notion-prev-next-card:hover {
+  background: #f4f3ee;
+  border-color: var(--color-border-strong);
+  text-decoration: none;
+}
+.notion-prev-next-next {
+  text-align: right;
+  align-items: flex-end;
+}
+.notion-prev-next-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.notion-prev-next-title {
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.notion-prev-next-spacer { display: block; }
+
+.notion-property-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.25rem;
+  background: #f1f1ef;
+  padding: 0.125rem 0.375rem;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 767px) {
+  /* On phone, fall back to the document scroll (avoids nested scroll containers / momentum issues). */
+  .article-workspace-shell {
+    height: auto;
+    min-height: calc(var(--app-viewport-height) - 3.5rem);
+    overflow: visible;
+  }
+  .article-workspace-grid {
+    height: auto;
+  }
+  .article-workspace-main {
+    height: auto;
+    overflow: visible;
+  }
+  .article-workspace-sidebar,
+  .article-workspace-right {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 767px) {
+  .notion-document {
+    padding: 1rem 1rem 2.25rem;
+  }
+
+  .notion-page-bar {
+    position: sticky;
+    top: 3.5rem;
+    z-index: 35;
+    margin: -1rem -1rem 1.5rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+    background: rgba(255, 255, 255, 0.94);
+    padding: 0.5rem 0.75rem;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .notion-title,
+  .notion-title-input {
+    font-size: 2rem;
+  }
+
+  .notion-property-row {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+    padding: 0.375rem 0;
+  }
+
+  .notion-property-row:hover {
+    background: transparent;
+  }
+
+  .notion-input,
+  .notion-select {
+    padding-left: 0;
+  }
+
+  .notion-editor-toolbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    /* Sit just above the keyboard if it's open, else stick to the safe-area bottom.
+       No `transition` here — VisualViewportVars updates --kbd-bottom every frame as the
+       keyboard animates, so the toolbar tracks the keyboard natively. Adding a CSS
+       transition on top of that compounds with URL-bar reflows and feels jumpy. */
+    bottom: max(var(--kbd-bottom, 0px), env(safe-area-inset-bottom, 0px));
+    top: auto;
+    z-index: 70;
+    margin: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 0.9rem 0.9rem 0 0;
+    box-shadow: 0 -14px 36px rgba(15, 23, 42, 0.12);
+    will-change: bottom;
+  }
+
+  .notion-editor-toolbar-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
+    padding: 0.4rem 0.5rem;
+  }
+
+  .notion-editor-toolbar-mobile {
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+    padding: 0;
+    background: rgba(255, 255, 255, 0.985);
+  }
+
+  .notion-mobile-toolbar-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0;
+    /* Outer toolbar `bottom` already covers safe-area; keep inner padding tight to avoid blank space below buttons. */
+    padding: 0.35rem 0.35rem;
+  }
+
+  .notion-mobile-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    border-radius: 0.55rem;
+    color: var(--color-text-secondary);
+    transition: background 0.14s ease, color 0.14s ease;
+  }
+  .notion-mobile-tool:active,
+  .notion-mobile-tool.is-active {
+    background: #eaeaea;
+    color: var(--color-brand);
+  }
+  .notion-mobile-tool:disabled { opacity: 0.32; }
+
+  .notion-mobile-sheet-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+    padding: 0.25rem;
+  }
+  .notion-mobile-sheet-tile {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    height: 48px;
+    padding: 0 0.85rem;
+    border-radius: 0.65rem;
+    background: #f4f4f1;
+    color: var(--color-text-primary);
+    font-size: 0.93rem;
+    text-align: left;
+  }
+  .notion-mobile-sheet-tile.is-active {
+    background: color-mix(in srgb, var(--color-brand) 12%, #f4f4f1);
+    color: var(--color-brand);
+  }
+  .notion-mobile-sheet-tile:active { background: #e9e9e6; }
+
+  .notion-mobile-sheet-divider {
+    height: 1px;
+    margin: 0.55rem 0.25rem;
+    background: rgba(15, 23, 42, 0.07);
+  }
+
+  .notion-mobile-inline-row,
+  .notion-mobile-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.25rem;
+  }
+  .notion-mobile-inline-btn {
+    display: inline-flex;
+    width: 44px;
+    height: 38px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    background: #f4f4f1;
+    color: var(--color-text-secondary);
+  }
+  .notion-mobile-inline-btn.is-active { background: var(--color-brand); color: #fff; }
+
+  .notion-mobile-dialog-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+    padding: 0.25rem;
+  }
+  .notion-mobile-dialog-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    height: 76px;
+    padding: 0.4rem;
+    border-radius: 0.7rem;
+    background: #f4f4f1;
+    color: var(--color-text-primary);
+    font-size: 0.78rem;
+    text-align: center;
+  }
+  .notion-mobile-dialog-tile .notion-editor-tool {
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    color: var(--color-text-primary);
+  }
+  .notion-mobile-dialog-tile span { color: var(--color-text-secondary); }
+
+  /* Reserve space at the bottom so the last line of content isn't covered by the toolbar.
+     Do NOT add --kbd-bottom here — ProseMirror already scrolls the caret into view when the
+     keyboard opens, and adding kbd-bottom on top of that makes the whole content column shift
+     up/down each time the keyboard opens or closes, which feels like the page is bouncing. */
+  .mobile-editor-content-area {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .notion-editor-menu-panel {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    top: auto;
+    /* Stack above the toolbar — toolbar is ~3.25rem tall */
+    bottom: calc(max(var(--kbd-bottom, 0px), env(safe-area-inset-bottom, 0px)) + 3.5rem);
+    min-width: 0;
+    max-width: none;
+    max-height: 62vh;
+    overflow-y: auto;
+  }
+
+  /* Zhihu-style menu mode: when the user taps a tool button, the soft keyboard is dismissed
+     and the menu sheet fills the same space the keyboard occupied — exactly under the toolbar.
+     `!important` is used to defeat the more-general `.notion-editor-menu-panel` mobile rule
+     above (and any HMR-cached order weirdness). */
+  .notion-editor-toolbar-mobile.is-menu-open {
+    bottom: var(--menu-sheet-height, 300px) !important;
+    z-index: 1200;
+  }
+  .notion-editor-toolbar-mobile.is-menu-open .notion-editor-menu-panel {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: var(--menu-sheet-height, 300px) !important;
+    max-height: var(--menu-sheet-height, 300px) !important;
+    min-width: 0;
+    max-width: none;
+    border: 0;
+    border-top: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 0;
+    box-shadow: none;
+    margin: 0;
+    padding: 0.65rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+    background: #fafaf8;
+    overflow-y: auto;
+    z-index: 1190;
+  }
+  /* Backdrop only covers the area above toolbar+menu, so the user can still tap a different
+     tool button on the toolbar to switch menus without the backdrop swallowing the click. */
+  .notion-editor-toolbar-mobile.is-menu-open .notion-editor-menu-backdrop {
+    bottom: calc(var(--menu-sheet-height, 300px) + 3.25rem) !important;
+  }
+
+  .notion-editor-menu-panel.is-mobile-sheet {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: var(--menu-sheet-height, 300px) !important;
+    max-height: var(--menu-sheet-height, 300px) !important;
+    min-width: 0;
+    max-width: none;
+    border: 0;
+    border-top: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 0;
+    box-shadow: none;
+    margin: 0;
+    padding: 0.65rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+    background: #fafaf8;
+    overflow-y: auto;
+    z-index: 1190;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .notion-editor-menu-backdrop.is-mobile-sheet {
+    bottom: calc(var(--menu-sheet-height, 300px) + 3.25rem) !important;
+    z-index: 1180;
+  }
+
+  body.mobile-editor-menu-open {
+    overscroll-behavior: none;
+  }
+}
+
 /* Prose styles for markdown content pages */
 .prose {
   color: var(--color-text-primary);
@@ -421,56 +1204,74 @@ a:hover {
   line-height: 1.35;
   font-weight: 600;
   color: var(--color-text-primary);
+  letter-spacing: -0.005em;
 }
 .prose h1:first-child, .prose h2:first-child, .prose h3:first-child {
   margin-top: 0;
 }
-.prose h1 { font-size: 1.6rem; }
-.prose h2 { font-size: 1.25rem; }
-.prose h3 { font-size: 1.05rem; }
-.prose h4 { font-size: 1rem; }
+.prose h1 {
+  font-size: 1.7rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.4em;
+}
+.prose h2 {
+  font-size: 1.3rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  padding-bottom: 0.3em;
+}
+.prose h3 { font-size: 1.08rem; color: var(--color-text-primary); }
+.prose h4 { font-size: 1rem; color: var(--color-text-primary); }
 .prose p {
-  margin-bottom: 1.4em;
-  color: var(--color-text-secondary);
+  margin-bottom: 1.3em;
+  color: var(--color-text-primary);
 }
 .prose ul, .prose ol {
-  padding-left: 1.5em;
-  margin-bottom: 1.4em;
-  color: var(--color-text-secondary);
+  padding-left: 1.6em;
+  margin-bottom: 1.3em;
+  color: var(--color-text-primary);
 }
+.prose ul li::marker { color: var(--color-accent); }
+.prose ol li::marker { color: var(--color-accent); font-weight: 600; }
 .prose li {
   margin-bottom: 0.4em;
 }
+.prose li > p { margin-bottom: 0.4em; }
 .prose blockquote {
-  border-left: 3px solid var(--color-border-strong);
-  padding: 0.5em 0 0.5em 1.25em;
-  color: var(--color-text-muted);
+  border-left: 4px solid var(--color-accent);
+  padding: 0.65em 1.25em;
+  color: var(--color-text-primary);
   margin: 1.75em 0;
-  font-style: italic;
+  background: #faf6f3;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-style: normal;
 }
 .prose blockquote p {
-  margin-bottom: 0;
-  color: var(--color-text-muted);
+  margin-bottom: 0.6em;
+  color: var(--color-text-primary);
 }
+.prose blockquote p:last-child { margin-bottom: 0; }
 .prose code:not(pre code) {
   font-family: var(--font-mono), monospace;
   font-size: 0.875em;
-  background: var(--color-bg-hover);
-  border: 1px solid var(--color-border);
-  border-radius: 3px;
-  padding: 0.15em 0.4em;
-  color: var(--color-text-primary);
+  background: rgba(201, 100, 66, 0.10);
+  border: 0;
+  border-radius: 4px;
+  padding: 0.18em 0.45em;
+  color: #B0432A;
+  font-weight: 500;
 }
 .prose pre {
   background: #1e1e2e;
   color: #cdd6f4;
   border-radius: var(--radius-md);
-  padding: 1.25em 1.5em;
+  padding: 1.1em 1.35em;
   overflow-x: auto;
   font-size: 0.875em;
   font-family: var(--font-mono), monospace;
   margin: 1.75em 0;
   line-height: 1.6;
+  border: 1px solid rgba(15, 23, 42, 0.06);
 }
 .prose pre code {
   background: none;
@@ -478,6 +1279,7 @@ a:hover {
   padding: 0;
   font-size: inherit;
   color: inherit;
+  font-weight: 400;
 }
 .prose hr {
   border: none;
@@ -489,41 +1291,144 @@ a:hover {
   border-collapse: collapse;
   font-size: 0.9em;
   margin: 1.75em 0;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
 }
 .prose th {
   text-align: left;
-  padding: 8px 14px;
-  border-bottom: 2px solid var(--color-border-strong);
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--color-border-strong);
+  background: #f7f6f2;
   font-weight: 600;
   color: var(--color-text-primary);
   font-size: 0.875em;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.01em;
 }
 .prose td {
   padding: 10px 14px;
   border-bottom: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
 }
+.prose tbody tr:nth-child(even) td { background: #fbfaf7; }
+.prose tbody tr:last-child td { border-bottom: 0; }
 .prose img {
   max-width: 100%;
   border-radius: var(--radius-md);
   margin: 1.5em 0;
+  box-shadow: 0 1px 0 var(--color-border);
 }
 .prose strong {
-  font-weight: 600;
-  color: var(--color-text-primary);
+  font-weight: 700;
+  color: #111;
+  background: linear-gradient(180deg, transparent 60%, rgba(255, 222, 89, 0.42) 60%);
+  padding: 0 1px;
 }
 .prose em {
   font-style: italic;
+  color: var(--color-text-primary);
 }
 .prose a {
   color: var(--color-link);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-style 0.12s ease;
 }
 .prose a:hover {
-  opacity: 0.8;
+  text-decoration-style: solid;
+  opacity: 1;
+}
+.prose kbd {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.78em;
+  border: 1px solid var(--color-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.05em 0.45em;
+  background: #fbfaf7;
+  color: var(--color-text-primary);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+.prose details {
+  margin: 1.25em 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fbfaf7;
+  padding: 0.5em 0.75em;
+  transition: background 0.12s ease;
+}
+.prose details:hover { background: #f7f6f2; }
+.prose details > summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.prose details > summary::before {
+  content: "›";
+  font-size: 1.2em;
+  color: var(--color-text-muted);
+  transition: transform 0.16s ease;
+}
+.prose details[open] > summary::before { transform: rotate(90deg); }
+.prose details > *:not(summary) { margin-top: 0.5em; }
+.prose .markdown-alert {
+  border-left: 4px solid var(--color-border-strong);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 0.85em 1.1em;
+  margin: 1.5em 0;
+  background: #fbfaf7;
+}
+.prose .markdown-alert > .markdown-alert-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-weight: 600;
+  margin-bottom: 0.35em;
+}
+.prose .markdown-alert-note    { border-left-color: #2563EB; background: #eef4ff; }
+.prose .markdown-alert-note    .markdown-alert-title { color: #2563EB; }
+.prose .markdown-alert-tip     { border-left-color: #16A34A; background: #effaf2; }
+.prose .markdown-alert-tip     .markdown-alert-title { color: #16A34A; }
+.prose .markdown-alert-warning { border-left-color: #CA8A04; background: #fdf8e7; }
+.prose .markdown-alert-warning .markdown-alert-title { color: #B8902D; }
+.prose .markdown-alert-caution { border-left-color: #DC2626; background: #fdeeee; }
+.prose .markdown-alert-caution .markdown-alert-title { color: #DC2626; }
+.prose .markdown-alert-important { border-left-color: #7C3AED; background: #f5f0ff; }
+.prose .markdown-alert-important .markdown-alert-title { color: #7C3AED; }
+.prose mark {
+  background: rgba(255, 222, 89, 0.55);
+  color: var(--color-text-primary);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.prose a.notion-bookmark {
+  display: block;
+  margin: 1.5em 0;
+  padding: 0.85em 1em;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fbfaf7;
+  color: var(--color-text-primary);
+  text-decoration: none;
+  word-break: break-all;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+.prose a.notion-bookmark::before {
+  content: "🔗 ";
+  margin-right: 0.35em;
+}
+.prose a.notion-bookmark:hover {
+  background: #f4f3ee;
+  border-color: var(--color-border-strong);
 }
 
 /* Table data font */
@@ -636,6 +1541,67 @@ a:hover {
 .ai-response .prose h4:first-child,
 .ai-response .prose p:first-child {
   margin-top: 0;
+}
+
+.sql-assistant-markdown .prose {
+  max-width: none;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.sql-assistant-markdown .prose p,
+.sql-assistant-markdown .prose ul,
+.sql-assistant-markdown .prose ol,
+.sql-assistant-markdown .prose blockquote,
+.sql-assistant-markdown .prose pre,
+.sql-assistant-markdown .prose table,
+.sql-assistant-markdown .prose details {
+  margin-bottom: 0.65em;
+}
+
+.sql-assistant-markdown .prose p:first-child,
+.sql-assistant-markdown .prose h1:first-child,
+.sql-assistant-markdown .prose h2:first-child,
+.sql-assistant-markdown .prose h3:first-child {
+  margin-top: 0;
+}
+
+.sql-assistant-markdown .prose .prose-code-block {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.sql-assistant-markdown .prose-code-block-toolbar {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.72);
+  opacity: 1;
+}
+
+.sql-assistant-markdown .prose-code-block-lang {
+  min-width: 0;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sql-assistant-markdown .prose-code-block-copy {
+  flex: 0 0 24px;
+}
+
+.sql-assistant-markdown .prose-code-block-select {
+  display: none;
+}
+
+.sql-assistant-markdown .prose .prose-code-block pre {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 @keyframes announcement-marquee {
@@ -757,6 +1723,10 @@ a:hover {
   max-width: 100%;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.tiptap-content .ProseMirror .tiptap-preserved-selection {
+  background: rgba(37, 99, 235, 0.22);
+  border-radius: 2px;
 }
 .tiptap-wrapper,
 .tiptap-wrapper * {
@@ -902,7 +1872,7 @@ a:hover {
   pointer-events: none;
   position: absolute;
   right: -2px;
-  top: 0;
+  top: 3.5rem;
   width: 4px;
 }
 .tiptap-content .ProseMirror.resize-cursor {
@@ -1025,20 +1995,25 @@ a:hover {
 /* NodeView wrapper provides the margin */
 .tiptap-content .ProseMirror .tiptap-code-block-pre { margin: 0; }
 .tiptap-code-block[data-theme="default"] .tiptap-code-block-pre,
-.tiptap-code-block[data-theme="dark"] .tiptap-code-block-pre {
+.tiptap-code-block[data-theme="dark"] .tiptap-code-block-pre,
+.prose-code-block[data-theme="default"] pre,
+.prose-code-block[data-theme="dark"] pre {
   background: #1e1e2e;
   color: #cdd6f4;
 }
-.tiptap-code-block[data-theme="github"] .tiptap-code-block-pre {
+.tiptap-code-block[data-theme="github"] .tiptap-code-block-pre,
+.prose-code-block[data-theme="github"] pre {
   background: #f6f8fa;
   color: #24292f;
   border: 1px solid #d0d7de;
 }
-.tiptap-code-block[data-theme="nord"] .tiptap-code-block-pre {
+.tiptap-code-block[data-theme="nord"] .tiptap-code-block-pre,
+.prose-code-block[data-theme="nord"] pre {
   background: #2e3440;
   color: #d8dee9;
 }
-.tiptap-code-block[data-theme="monokai"] .tiptap-code-block-pre {
+.tiptap-code-block[data-theme="monokai"] .tiptap-code-block-pre,
+.prose-code-block[data-theme="monokai"] pre {
   background: #272822;
   color: #f8f8f2;
 }
@@ -1046,6 +2021,71 @@ a:hover {
 .tiptap-code-block[data-theme="github"] span {
   border-color: rgba(36, 41, 47, 0.2);
   background: rgba(36, 41, 47, 0.08);
+  color: rgba(36, 41, 47, 0.75);
+}
+
+/* Reader-side code block (rendered in .prose) */
+.prose .prose-code-block {
+  position: relative;
+  margin: 1.6em 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.prose .prose-code-block pre {
+  margin: 0;
+  border-radius: var(--radius-md);
+}
+.prose-code-block-toolbar {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  z-index: 2;
+  opacity: 0.45;
+  transition: opacity 0.16s ease;
+}
+.prose .prose-code-block:hover .prose-code-block-toolbar { opacity: 1; }
+.prose-code-block-lang {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.7rem;
+  text-transform: lowercase;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.prose-code-block-lang-empty { font-style: italic; color: rgba(255, 255, 255, 0.4); }
+.prose-code-block-select {
+  appearance: none;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+.prose-code-block-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+.prose-code-block-copy:hover { background: rgba(255, 255, 255, 0.16); }
+
+/* GitHub theme (light) needs darker controls so they're visible */
+.prose-code-block[data-theme="github"] .prose-code-block-lang,
+.prose-code-block[data-theme="github"] .prose-code-block-select,
+.prose-code-block[data-theme="github"] .prose-code-block-copy {
+  background: rgba(36, 41, 47, 0.08);
+  border-color: rgba(36, 41, 47, 0.2);
   color: rgba(36, 41, 47, 0.75);
 }
 
@@ -1239,7 +2279,7 @@ a:hover {
   min-height: var(--app-viewport-height);
   max-width: 100vw;
   overflow-x: hidden;
-  padding-bottom: 80px; /* space for floating toolbar */
+  padding-bottom: 5rem;
 }
 
 .mobile-editor-topbar {

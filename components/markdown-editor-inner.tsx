@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react"
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor } from "@tiptap/react"
 import { BubbleMenu } from "@tiptap/react/menus"
 import type { NodeViewProps } from "@tiptap/core"
-import { Node, mergeAttributes } from "@tiptap/core"
+import { Extension, Node, mergeAttributes } from "@tiptap/core"
+import { Plugin, PluginKey } from "@tiptap/pm/state"
+import { Decoration, DecorationSet } from "@tiptap/pm/view"
 import { StarterKit } from "@tiptap/starter-kit"
 import { Image as TiptapImage } from "@tiptap/extension-image"
 import { Link } from "@tiptap/extension-link"
@@ -38,6 +40,7 @@ import { TABLE_VARIANTS, TableVariantExtension } from "@/components/editor/table
 import { Callout } from "@/components/editor/callout-extension"
 
 const lowlight = createLowlight(all)
+const MOBILE_MENU_SELECTION_META = "mobile-menu-selection"
 
 type MarkdownSerializeState = {
   write: (content: string) => void
@@ -46,6 +49,7 @@ type MarkdownSerializeState = {
 type MarkdownSerializeNode = {
   attrs: Record<string, string | number | null | undefined>
 }
+type PreservedSelectionRange = { from: number; to: number }
 
 function escapeHtml(value: string) {
   return value
@@ -54,6 +58,58 @@ function escapeHtml(value: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
 }
+
+const MobileMenuSelection = Extension.create({
+  name: "mobileMenuSelection",
+
+  addProseMirrorPlugins() {
+    const key = new PluginKey<PreservedSelectionRange | null>("mobileMenuSelection")
+
+    return [
+      new Plugin<PreservedSelectionRange | null>({
+        key,
+        state: {
+          init: (): PreservedSelectionRange | null => null,
+          apply(tr, value: PreservedSelectionRange | null) {
+            const meta = tr.getMeta(MOBILE_MENU_SELECTION_META)
+            if (meta !== undefined) {
+              if (
+                meta &&
+                typeof meta.from === "number" &&
+                typeof meta.to === "number" &&
+                meta.from < meta.to
+              ) {
+                const max = tr.doc.content.size
+                const from = Math.max(0, Math.min(meta.from, max))
+                const to = Math.max(0, Math.min(meta.to, max))
+                return from < to ? { from, to } : null
+              }
+              return null
+            }
+
+            if (value && tr.selectionSet) {
+              return tr.selection.empty ? null : { from: tr.selection.from, to: tr.selection.to }
+            }
+            if (!value || !tr.docChanged) return value
+            const max = tr.doc.content.size
+            const from = Math.max(0, Math.min(tr.mapping.map(value.from, -1), max))
+            const to = Math.max(0, Math.min(tr.mapping.map(value.to, 1), max))
+            return from < to ? { from, to } : null
+          },
+        },
+        props: {
+          decorations(state) {
+            const range = key.getState(state)
+            if (!range || range.from >= range.to) return DecorationSet.empty
+            return DecorationSet.create(state.doc, [
+              Decoration.inline(range.from, range.to, { class: "tiptap-preserved-selection" }),
+            ])
+          },
+        },
+      }),
+    ]
+  },
+})
 
 function normalizeMarkdownForEditor(markdown: string) {
   return markdown
@@ -502,6 +558,7 @@ export function MarkdownEditorInner({
   const [markdownSource, setMarkdownSource] = useState(value)
   const markdownRef = useRef(value)
   const isInternalChange = useRef(false)
+  const lastExternalValue = useRef(value)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -539,6 +596,7 @@ export function MarkdownEditorInner({
       Callout,
       Details,
       PageBreak,
+      MobileMenuSelection,
       Placeholder.configure({ placeholder: "开始写作..." }),
       Markdown.configure({ html: true, tightLists: true, linkify: false, breaks: true }),
     ],
@@ -548,6 +606,7 @@ export function MarkdownEditorInner({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const md = (ed.storage as any).markdown.getMarkdown() as string
       markdownRef.current = md
+      lastExternalValue.current = md
       setMarkdownSource(md)
       onChange(md)
     },
@@ -587,6 +646,22 @@ export function MarkdownEditorInner({
   useEffect(() => {
     if (editor && onEditorReady) onEditorReady(editor)
   }, [editor, onEditorReady])
+
+  // External value sync: e.g. draft restore replaces value programmatically
+  useEffect(() => {
+    if (!editor) return
+    if (value === lastExternalValue.current) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const current = (editor.storage as any).markdown.getMarkdown() as string
+    lastExternalValue.current = value
+    if (current === value) return
+    isInternalChange.current = true
+    editor.commands.setContent(normalizeMarkdownForEditor(value))
+    isInternalChange.current = false
+    markdownRef.current = value
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mirror external value into source-mode textarea
+    setMarkdownSource(value)
+  }, [value, editor])
 
   // When controlled editType changes externally, sync the editor
   useEffect(() => {

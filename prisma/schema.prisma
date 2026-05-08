@@ -89,6 +89,15 @@ model User {
   websiteResources         WebsiteResource[]
   websiteFolders           WebsiteFolder[]
   websiteVisits            WebsiteVisitLog[]
+  sqlAccessGrant           SqlAccessGrant?      @relation("sqlGrantUser")
+  updatedSqlAccessGrants   SqlAccessGrant[]     @relation("sqlGrantUpdater")
+  sqlSavedQueries          SqlSavedQuery[]
+  sqlAuditLogs             SqlAuditLog[]
+  sqlPrivateFolders        SqlPrivateFolder[]
+  sqlPrivateTables         SqlPrivateTable[]
+  sqlAssistantConversations SqlAssistantConversation[]
+  sqlAssistantMessages      SqlAssistantMessage[]
+  updatedSqlTableCatalogOverrides SqlTableCatalogOverride[] @relation("sqlCatalogOverrideUpdater")
 }
 
 model SoulWingRoundtableSettings {
@@ -253,6 +262,7 @@ model AdminPermission {
   manageUpdateLogs       Boolean  @default(false)
   refreshGeoLocations    Boolean  @default(false)
   manageAI               Boolean  @default(false)
+  manageSqlLab           Boolean  @default(false)
   updatedById            String?
   updatedBy              User?    @relation("adminPermissionUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
   createdAt              DateTime @default(now())
@@ -823,6 +833,176 @@ model Upload {
 
   @@index([userId])
   @@index([postId])
+}
+
+model SqlAccessGrant {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation("sqlGrantUser", fields: [userId], references: [id], onDelete: Cascade)
+  enabled          Boolean  @default(false)
+  defaultLimit     Int      @default(1000)
+  maxLimit         Int      @default(50000)
+  defaultTimeoutMs Int      @default(15000)
+  updatedById      String?
+  updatedBy        User?    @relation("sqlGrantUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tables           SqlAccessTableGrant[]
+
+  @@index([updatedById])
+}
+
+model SqlAccessTableGrant {
+  id             String   @id @default(cuid())
+  grantId        String
+  grant          SqlAccessGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  schemaName     String
+  tableName      String
+  access         String   @default("read")
+  blockedColumns String[] @default([])
+  rowFilter      String?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([grantId, schemaName, tableName])
+  @@index([schemaName, tableName])
+}
+
+model SqlSavedQuery {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  sql         String
+  description String   @default("")
+  pinned      Boolean  @default(false)
+  shared      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, pinned])
+  @@index([shared, updatedAt])
+}
+
+model SqlAuditLog {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt     DateTime @default(now())
+  durationMs    Int
+  ok            Boolean
+  rowCount      Int      @default(0)
+  truncated     Boolean  @default(false)
+  sqlPreview    String
+  fullSqlSha256 String
+  touchedTables String[] @default([])
+  errorCode     String?
+  errorMessage  String?
+  ipAddress     String?
+  userAgent     String?
+
+  @@index([userId, startedAt])
+  @@index([startedAt])
+}
+
+model SqlPrivateFolder {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String   @default("")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tables      SqlPrivateTable[]
+
+  @@unique([userId, name])
+  @@index([userId, sortOrder])
+}
+
+model SqlPrivateTable {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId    String?
+  folder      SqlPrivateFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  schemaName  String
+  tableName   String
+  displayName String   @default("")
+  description String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, schemaName, tableName])
+  @@index([userId, folderId])
+  @@index([schemaName, tableName])
+}
+
+model SqlAssistantConversation {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String   @default("新会话")
+  titleLocked   Boolean  @default(false)
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+  messages      SqlAssistantMessage[]
+
+  @@index([userId, deletedAt, lastMessageAt])
+  @@index([userId, updatedAt])
+}
+
+model SqlAssistantMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   SqlAssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String
+  contentMarkdown String @default("")
+  sql            String   @default("")
+  title          String   @default("")
+  thinkingSteps  Json?
+  reasoningMarkdown String @default("")
+  selectedTables Json?
+  catalogMatches Json?
+  confidence     Float?
+  actions        Json?
+  executedActions Json?
+  runResult      Json?
+  provider       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model SqlTableCatalogOverride {
+  id            String   @id @default(cuid())
+  schemaName    String
+  tableName     String
+  moduleId      String?
+  moduleName    String?
+  submoduleId   String?
+  submoduleName String?
+  description   String?
+  aliases       String[] @default([])
+  keywords      String[] @default([])
+  keyFields     String[] @default([])
+  relations     Json?
+  useCases      String[] @default([])
+  notes         String   @default("")
+  updatedById   String?
+  updatedBy     User?    @relation("sqlCatalogOverrideUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([schemaName, tableName])
+  @@index([schemaName, tableName])
+  @@index([moduleId, submoduleId])
+  @@index([updatedById])
 }
 
 model AIConversation {

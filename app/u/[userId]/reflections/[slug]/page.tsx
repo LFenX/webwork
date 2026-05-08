@@ -4,6 +4,10 @@ import { getOptionalSession } from "@/lib/auth"
 import { getCreatorProfile } from "@/lib/profile"
 import { canViewModule, getAccessLevel, recordVisit, visibleTo } from "@/lib/permissions"
 import { ArticleReader } from "@/components/article-reader"
+import { getDictionary } from "@/lib/i18n"
+import { getUserSiteSettings } from "@/lib/settings"
+import { buildArticleWorkspaceNav } from "@/lib/article-workspace"
+import { POST_TYPES, type PostType } from "@/lib/enums"
 
 export default async function UserReflectionPostPage({
   params,
@@ -11,13 +15,32 @@ export default async function UserReflectionPostPage({
   params: Promise<{ userId: string; slug: string }>
 }) {
   const [{ userId: ownerId, slug }, session] = await Promise.all([params, getOptionalSession()])
-  const creator = await getCreatorProfile(ownerId)
+  const [creator, settings] = await Promise.all([getCreatorProfile(ownerId), getUserSiteSettings(ownerId)])
   if (!creator) notFound()
 
   const level = await getAccessLevel(session?.userId ?? null, ownerId)
-  if (!(await canViewModule(ownerId, "reflections", level))) notFound()
-  const post = await getPost("reflections", decodeURIComponent(slug), ownerId, visibleTo(level))
+  const allowedTypes = (await Promise.all(
+    POST_TYPES.map(async (type) => (await canViewModule(ownerId, type, level)) ? type : null)
+  )).filter(Boolean) as PostType[]
+  if (!allowedTypes.includes("reflections")) notFound()
+
+  const visibilities = visibleTo(level)
+  const post = await getPost("reflections", decodeURIComponent(slug), ownerId, visibilities)
   if (!post) notFound()
+
+  const dict = getDictionary(settings.language)
+  const workspaceNav = await buildArticleWorkspaceNav({
+    userId: ownerId,
+    currentType: "reflections",
+    currentSlug: post.slug,
+    dict,
+    basePathPrefix: `/u/${ownerId}`,
+    visibilities,
+    includeNewActions: false,
+    allowedTypes,
+    title: creator.displayName || creator.email,
+  })
+
   await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "reflections", path: `/u/${ownerId}/reflections/${slug}`, postId: post.id })
 
   return (
@@ -25,7 +48,9 @@ export default async function UserReflectionPostPage({
       post={post}
       creator={creator}
       backHref={`/u/${ownerId}/reflections`}
-      backLabel={`返回 ${creator.displayName || creator.email} 的心得`}
+      backLabel={dict.article.backTo(dict.nav.reflections)}
+      workspaceNav={workspaceNav}
     />
   )
 }
+

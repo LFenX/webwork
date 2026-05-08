@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import {
-  BookOpen, Briefcase, Calendar, FileText, Globe, Home, Lightbulb,
+  BookOpen, Briefcase, Calendar, Database, FileText, Globe, Home, Lightbulb,
   LogIn, LogOut, Menu, MessageSquare, Settings, Shield,
   Sparkles, StickyNote, Users, Video, X,
 } from "lucide-react"
@@ -27,6 +27,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   "/jobs": <Briefcase size={16} />,
   "/interviews": <Video size={16} />,
   "/ai": <Sparkles size={16} />,
+  "/sql": <Database size={16} />,
   "/friends": <Users size={16} />,
   "/admin": <Shield size={16} />,
   "/settings": <Settings size={16} />,
@@ -47,6 +48,7 @@ interface SiteHeaderProps {
     jobs: string
     interviews: string
     ai: string
+    sql: string
     friends: string
     admin: string
     login: string
@@ -88,6 +90,7 @@ export function SiteHeader({
     { href: "/jobs", label: navDict.jobs },
     { href: "/interviews", label: navDict.interviews },
     { href: "/ai", label: navDict.ai },
+    { href: "/sql", label: navDict.sql },
   ]
 
   useEffect(() => {

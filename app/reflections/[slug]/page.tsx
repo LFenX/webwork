@@ -5,6 +5,7 @@ import { getCreatorProfile } from "@/lib/profile"
 import { getDictionary } from "@/lib/i18n"
 import { getUserSiteSettings } from "@/lib/settings"
 import { ArticleReader } from "@/components/article-reader"
+import { buildArticleWorkspaceNav } from "@/lib/article-workspace"
 
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
@@ -19,6 +20,13 @@ export default async function ReflectionPostPage({ params }: { params: Promise<{
   if (!post || !creator) notFound()
 
   const dict = getDictionary(settings.language)
+  const workspaceNav = await buildArticleWorkspaceNav({
+    userId,
+    currentType: "reflections",
+    currentSlug: post.slug,
+    dict,
+    title: settings.ownerName,
+  })
 
   return (
     <ArticleReader
@@ -29,6 +37,7 @@ export default async function ReflectionPostPage({ params }: { params: Promise<{
       editHref={`/reflections/${post.slug}/edit`}
       canEdit
       userId={userId}
+      workspaceNav={workspaceNav}
     />
   )
 }

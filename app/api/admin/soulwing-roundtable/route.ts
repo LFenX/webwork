@@ -4,7 +4,13 @@ import {
   deleteRoundtableDiscussion,
   deleteRoundtableMessage,
   getRoundtableState,
+  regenerateTodayMaterialCard,
+  setTodayDutyUser,
+  setTodayRoundtableTopics,
   startRoundtableDiscussion,
+  stopRoundtableDiscussion,
+  triggerRoundtableSchedulerRun,
+  updateRoundtableDiscussionMeta,
   updateRoundtableParticipantByAdmin,
   updateRoundtableSettings,
 } from "@/lib/soulwing-roundtable"
@@ -35,20 +41,73 @@ export async function PATCH(req: NextRequest) {
   if (!admin) return forbidden()
   const body = await req.json().catch(() => ({}))
 
-  if (body.action === "participant") {
-    const targetUserId = typeof body.targetUserId === "string" ? body.targetUserId : ""
-    if (!targetUserId) {
-      return NextResponse.json({ error: "targetUserId is required" }, { status: 400, headers: NO_STORE })
+  try {
+    if (body.action === "participant") {
+      const targetUserId = typeof body.targetUserId === "string" ? body.targetUserId : ""
+      if (!targetUserId) {
+        return NextResponse.json({ error: "targetUserId is required" }, { status: 400, headers: NO_STORE })
+      }
+      const participant = await updateRoundtableParticipantByAdmin(admin.id, targetUserId, {
+        adminPaused: Boolean(body.adminPaused),
+        pauseReason: typeof body.pauseReason === "string" ? body.pauseReason : "",
+      })
+      return NextResponse.json({ participant }, { headers: NO_STORE })
     }
-    const participant = await updateRoundtableParticipantByAdmin(admin.id, targetUserId, {
-      adminPaused: Boolean(body.adminPaused),
-      pauseReason: typeof body.pauseReason === "string" ? body.pauseReason : "",
-    })
-    return NextResponse.json({ participant }, { headers: NO_STORE })
-  }
 
-  const settings = await updateRoundtableSettings(admin.id, body)
-  return NextResponse.json({ settings }, { headers: NO_STORE })
+    if (body.action === "topics") {
+      const day = await setTodayRoundtableTopics(admin.id, {
+        morningTitle: typeof body.morningTitle === "string" ? body.morningTitle : undefined,
+        morningDescription: typeof body.morningDescription === "string" ? body.morningDescription : undefined,
+        eveningTitle: typeof body.eveningTitle === "string" ? body.eveningTitle : undefined,
+        eveningDescription: typeof body.eveningDescription === "string" ? body.eveningDescription : undefined,
+      })
+      return NextResponse.json({ day }, { headers: NO_STORE })
+    }
+
+    if (body.action === "material_card") {
+      const slot = body.slot === "evening" ? "evening" : "morning"
+      const day = await regenerateTodayMaterialCard(admin.id, slot)
+      return NextResponse.json({ day }, { headers: NO_STORE })
+    }
+
+    if (body.action === "duty") {
+      const targetUserId = typeof body.targetUserId === "string" && body.targetUserId ? body.targetUserId : null
+      const day = await setTodayDutyUser(admin.id, targetUserId)
+      return NextResponse.json({ day }, { headers: NO_STORE })
+    }
+
+    if (body.action === "stop_discussion") {
+      const discussionId = typeof body.discussionId === "string" ? body.discussionId : ""
+      if (!discussionId) {
+        return NextResponse.json({ error: "discussionId is required" }, { status: 400, headers: NO_STORE })
+      }
+      await stopRoundtableDiscussion(admin.id, discussionId)
+      return NextResponse.json({ ok: true }, { headers: NO_STORE })
+    }
+
+    if (body.action === "run_now") {
+      await triggerRoundtableSchedulerRun()
+      return NextResponse.json({ ok: true }, { headers: NO_STORE })
+    }
+
+    if (body.action === "discussion_meta") {
+      const discussionId = typeof body.discussionId === "string" ? body.discussionId : ""
+      if (!discussionId) {
+        return NextResponse.json({ error: "discussionId is required" }, { status: 400, headers: NO_STORE })
+      }
+      const discussion = await updateRoundtableDiscussionMeta(admin.id, discussionId, {
+        topicTitle: typeof body.topicTitle === "string" ? body.topicTitle : undefined,
+        topicDescription: typeof body.topicDescription === "string" ? body.topicDescription : undefined,
+        plannedTurns: typeof body.plannedTurns === "number" ? body.plannedTurns : undefined,
+      })
+      return NextResponse.json({ discussion }, { headers: NO_STORE })
+    }
+
+    const settings = await updateRoundtableSettings(admin.id, body)
+    return NextResponse.json({ settings }, { headers: NO_STORE })
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "操作失败" }, { status: 400, headers: NO_STORE })
+  }
 }
 
 export async function POST(req: NextRequest) {

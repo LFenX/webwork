@@ -299,6 +299,7 @@ export async function requestProviderChat(params: {
   tools?: ProviderToolSpec[]
   toolChoice?: "auto" | "none"
   stream?: boolean
+  timeoutMs?: number
   onReasoningStart?: () => Promise<void> | void
   onReasoningDelta?: (delta: string) => Promise<void> | void
   onAssistantStart?: () => Promise<void> | void
@@ -310,29 +311,48 @@ export async function requestProviderChat(params: {
     argumentsText: string
   }) => Promise<void> | void
 }) {
-  const response = await fetch(buildEndpoint(params.provider.baseUrl, "/chat/completions"), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${params.provider.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: params.provider.model,
-      temperature: params.provider.temperature,
-      stream: params.stream ?? false,
-      messages: params.messages,
-      ...(params.tools?.length ? { tools: params.tools, tool_choice: params.toolChoice ?? "auto" } : {}),
-    }),
-    cache: "no-store",
-  })
+  const timeoutMs = params.timeoutMs ?? Number(process.env.AI_PROVIDER_TIMEOUT_MS || 120_000)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs))
+  let response: Response
+  try {
+    response = await fetch(buildEndpoint(params.provider.baseUrl, "/chat/completions"), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.provider.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: params.provider.model,
+        temperature: params.provider.temperature,
+        stream: params.stream ?? false,
+        messages: params.messages,
+        ...(params.tools?.length ? { tools: params.tools, tool_choice: params.toolChoice ?? "auto" } : {}),
+      }),
+      cache: "no-store",
+      signal: controller.signal,
+    })
+  } catch (error) {
+    clearTimeout(timer)
+    if (controller.signal.aborted) {
+      throw new Error(`AI provider request timed out after ${Math.round(timeoutMs / 1000)}s`)
+    }
+    throw error
+  }
 
   if (!response.ok) {
     const text = await response.text().catch(() => "")
+    clearTimeout(timer)
     throw new Error(text || `Provider request failed with status ${response.status}`)
   }
 
   if (!params.stream || !response.body) {
-    const payload = await response.json().catch(() => null)
+    let payload: Awaited<ReturnType<Response["json"]>> | null = null
+    try {
+      payload = await response.json().catch(() => null)
+    } finally {
+      clearTimeout(timer)
+    }
     const message = payload?.choices?.[0]?.message ?? {}
     const toolCalls = Array.isArray(message.tool_calls)
       ? message.tool_calls.map((item: { id?: string; function?: { name?: string; arguments?: string } }) => ({
@@ -447,6 +467,7 @@ export async function requestProviderChat(params: {
     ...item,
     arguments: safeJsonParse(item.argumentsText) as Record<string, unknown> | null,
   }))
+  clearTimeout(timer)
 
   return {
     assistantText,

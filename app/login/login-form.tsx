@@ -61,7 +61,7 @@ export function LoginForm() {
       const res = await fetch("/api/auth/password-change", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: resetEmail, password: newPassword }),
+        body: JSON.stringify({ email: resetEmail, password: newPassword, confirmPassword: newPassword }),
         cache: "no-store",
       })
       const data = await res.json().catch(() => null)

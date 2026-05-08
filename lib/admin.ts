@@ -101,11 +101,12 @@ export async function getUserAdminInfo(userId: string): Promise<AdminUser | null
     manageUpdateLogs: boolean | null
     refreshGeoLocations: boolean | null
     manageAI: boolean | null
+    manageSqlLab: boolean | null
   }>>`
     SELECT u.id, u.email, u."displayName", u.role,
       p."approveRegistrations", p."approvePasswordChanges", p."viewActivityLogs", p."manageUsers",
       p."manageAnnouncements", p."manageStickers", p."manageUpdateLogs", p."refreshGeoLocations",
-      p."manageAI"
+      p."manageAI", p."manageSqlLab"
     FROM "User" u
     LEFT JOIN "AdminPermission" p ON p."userId" = u.id
     WHERE u.id = ${userId}
@@ -128,6 +129,7 @@ export async function getUserAdminInfo(userId: string): Promise<AdminUser | null
       manageUpdateLogs: row.manageUpdateLogs ?? undefined,
       refreshGeoLocations: row.refreshGeoLocations ?? undefined,
       manageAI: row.manageAI ?? undefined,
+      manageSqlLab: row.manageSqlLab ?? undefined,
     }),
   }
 }
