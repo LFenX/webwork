@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
+import { GuardianHost } from "@/components/sql-guardian/GuardianHost"
 import { Toaster } from "@/components/ui/sonner"
 import { getOptionalSession } from "@/lib/auth"
 import { ServiceWorkerCleanup } from "@/components/service-worker-cleanup"
@@ -85,6 +86,7 @@ export default async function RootLayout({
         </main>
         <SiteFooter />
         <Toaster position="bottom-right" />
+        {session && <GuardianHost />}
         {session && <SessionHeartbeat />}
         {session && <RealtimeNotifications userId={session.userId} />}
         {session && <RecentActivityReadTracker userId={session.userId} />}

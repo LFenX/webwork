@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { MarkdownContent } from "@/components/markdown-content"
+import { GuardianHomeIcon } from "@/components/sql-guardian/GuardianHomeIcon"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { apiDelete, apiFetch, apiPatch, apiPost } from "@/lib/api-client"
@@ -236,7 +237,10 @@ export function SqlAssistantPanel({
   }, [loadMessages])
 
   useEffect(() => {
-    void refreshConversations()
+    const timer = window.setTimeout(() => {
+      void refreshConversations()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [refreshConversations])
 
   function upsertConversation(conversation: AssistantConversation) {
@@ -360,10 +364,11 @@ export function SqlAssistantPanel({
               {activeConversation?.title ?? "会话已持久化，使用蝶灵当前 AI 配置"}
             </div>
           </div>
+          <GuardianHomeIcon compact className="ml-auto" />
           <button
             type="button"
             onClick={() => setConversationsOpen(true)}
-            className="ml-auto inline-flex h-7 items-center gap-1 rounded-md border border-[--color-border] bg-white px-2 font-mono text-[10px] text-[--color-text-muted] hover:text-[--color-text-primary]"
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-[--color-border] bg-white px-2 font-mono text-[10px] text-[--color-text-muted] hover:text-[--color-text-primary]"
             title="会话"
           >
             <MessageSquare size={11} />
