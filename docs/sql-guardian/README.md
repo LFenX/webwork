@@ -29,9 +29,6 @@ SQL Guardian 必须作为现有平台能力的延展，而不是另起一套孤�
 | `08-architecture-and-integration.md` | 前后端架构、服务拆分、AI Prompt Stack、模块接入路线 |
 | `09-test-plan.md` | 单测、集成、E2E、安全、性能、无障碍验收清单 |
 | `10-codex-task-list.md` | 可直接复制给 Codex 的分阶段任务卡 |
-| `11-qa-checklist.md` | MVP 上线前最终 QA、安全、性能和 smoke checklist |
-| `12-release-notes.md` | MVP release notes、边界、迁移注意事项和关闭策略 |
-| `13-user-controls-and-privacy.md` | 用户控制、隐私开关、记忆、共享桥和 reset 说明 |
 | `AGENTS.sql-guardian.template.md` | 可合并到仓库根目录 `AGENTS.md` 的 Codex 工作说明模板 |
 
 ## 推荐使用顺序
