@@ -16,6 +16,7 @@ import type {
   GuardianClientEventType,
   GuardianDockMode,
   GuardianRuntimeState,
+  GuardianSettings,
 } from "@/lib/sql-guardian/types"
 import { GuardianBubble } from "@/components/sql-guardian/GuardianBubble"
 import { GuardianControls } from "@/components/sql-guardian/GuardianControls"
@@ -26,6 +27,8 @@ import { useGuardianMemoryBridge } from "@/components/sql-guardian/useGuardianMe
 import { useGuardianMemories } from "@/components/sql-guardian/useGuardianMemories"
 import { useGuardianMotion } from "@/components/sql-guardian/useGuardianMotion"
 import { useGuardianProfile } from "@/components/sql-guardian/useGuardianProfile"
+import { useGuardianReset } from "@/components/sql-guardian/useGuardianReset"
+import { useGuardianSettings } from "@/components/sql-guardian/useGuardianSettings"
 
 const ACTIVITY_THROTTLE_MS = 1_200
 const THINKING_RESET_MS = 3_800
@@ -76,11 +79,13 @@ export function GuardianHost() {
     applyProfileUpdate,
     updateProfile,
   } = useGuardianProfile()
+  const guardianSettings = useGuardianSettings({ profile, onProfileUpdated: applyProfileUpdate })
   const guardianMemories = useGuardianMemories({ profile, updateProfile })
   const guardianMemoryBridge = useGuardianMemoryBridge({ profile })
   const stateRef = useRef<GuardianRuntimeState>(state)
   const handledLevelUpAtRef = useRef<number | null>(null)
   const [reducedMotion, setReducedMotion] = useState(false)
+  const effectiveReducedMotion = reducedMotion || !guardianSettings.settings.animationsEnabled
   const {
     position,
     dockMode,
@@ -90,16 +95,54 @@ export function GuardianHost() {
     style,
     teleportToDock,
     teleportToHome,
-  } = useGuardianMotion({ state, reducedMotion, send })
+  } = useGuardianMotion({
+    state,
+    reducedMotion: effectiveReducedMotion,
+    autoPatrolEnabled: guardianSettings.settings.guardianEnabled && guardianSettings.settings.autoPatrolEnabled,
+    send,
+  })
   const handleChatReply = useCallback((reply: string) => {
     send({ type: "OPEN_BUBBLE", line: reply })
   }, [send])
   const guardianChat = useGuardianChat({
     pagePath: pathname,
+    guardianEnabled: guardianSettings.settings.guardianEnabled,
+    chatHistoryEnabled: guardianSettings.settings.guardianChatHistoryEnabled,
     onReply: handleChatReply,
     onProfileUpdated: applyProfileUpdate,
     onMemoryCandidates: guardianMemories.handleChatMemoryCandidates,
   })
+  const guardianReset = useGuardianReset({
+    onReset: (response) => {
+      applyProfileUpdate(response)
+      void guardianMemories.refreshMemories()
+      void guardianMemoryBridge.refreshBridge()
+      void guardianChat.refreshDialogues()
+    },
+  })
+
+  const handleToggleSetting = useCallback(async <K extends keyof GuardianSettings>(
+    key: K,
+    value: GuardianSettings[K]
+  ) => {
+    const response = await guardianSettings.updateSetting(key, value)
+    if (!response) return response
+
+    if (key === "guardianMemoryEnabled") {
+      void guardianMemories.refreshMemories()
+    }
+    if (
+      key === "soulwingToGuardianMemoryBridgeEnabled" ||
+      key === "guardianToSoulWingMemoryBridgeEnabled"
+    ) {
+      void guardianMemoryBridge.refreshBridge()
+    }
+    if (key === "guardianChatHistoryEnabled") {
+      void guardianChat.refreshDialogues()
+    }
+
+    return response
+  }, [guardianChat, guardianMemoryBridge, guardianMemories, guardianSettings])
 
   useEffect(() => {
     stateRef.current = state
@@ -146,6 +189,7 @@ export function GuardianHost() {
   }, [send])
 
   useEffect(() => {
+    if (!guardianSettings.settings.guardianEnabled) return
     const timer = window.setTimeout(() => {
       const current = stateRef.current
       if (isSqlLab && !current.isSqlLab) {
@@ -160,9 +204,10 @@ export function GuardianHost() {
     }, 0)
 
     return () => window.clearTimeout(timer)
-  }, [dockMode, isSqlLab, recordGuardianEvent, send, teleportToDock])
+  }, [dockMode, guardianSettings.settings.guardianEnabled, isSqlLab, recordGuardianEvent, send, teleportToDock])
 
   useEffect(() => {
+    if (!guardianSettings.settings.guardianEnabled) return
     let idleTimer: number | undefined
     let lastActivityAt = 0
 
@@ -196,13 +241,14 @@ export function GuardianHost() {
       window.removeEventListener("scroll", handleActivity)
       window.removeEventListener("keydown", handleActivity)
     }
-  }, [send])
+  }, [guardianSettings.settings.guardianEnabled, send])
 
   const handleWake = useCallback((event: Event) => {
+    if (!guardianSettings.settings.guardianEnabled) return
     const { reason } = getGuardianWakeDetail(event)
     if (reason === "home-clicked" || reason === "sql-lab") {
-      send({ type: "HOME_CLICKED", useTeleport: !reducedMotion, line: HOME_WAKE_LINE })
-      teleportToHome({ immediate: reducedMotion })
+      send({ type: "HOME_CLICKED", useTeleport: !effectiveReducedMotion, line: HOME_WAKE_LINE })
+      teleportToHome({ immediate: effectiveReducedMotion })
       void recordGuardianEvent("HOME_CLICKED", "sql-assistant-home", { dockMode, reason })
       return
     }
@@ -211,7 +257,7 @@ export function GuardianHost() {
     if (!reason || reason === "manual" || reason === "minimized-dock") {
       void recordGuardianEvent("GUARDIAN_WOKE", "guardian-wake", { reason: reason ?? "manual" })
     }
-  }, [dockMode, recordGuardianEvent, reducedMotion, send, teleportToHome])
+  }, [dockMode, effectiveReducedMotion, guardianSettings.settings.guardianEnabled, recordGuardianEvent, send, teleportToHome])
 
   useEffect(() => {
     window.addEventListener(GUARDIAN_WAKE_EVENT, handleWake)
@@ -222,6 +268,7 @@ export function GuardianHost() {
     const handleCommand = (event: Event) => {
       const detail = getGuardianCommandDetail(event)
       if (!detail) return
+      if (!guardianSettings.settings.guardianEnabled) return
       send({ type: detail.command })
       if (detail.command === "WAKE" || detail.command === "RESTORE") {
         void recordGuardianEvent("GUARDIAN_WOKE", "guardian-command")
@@ -230,7 +277,7 @@ export function GuardianHost() {
 
     window.addEventListener(GUARDIAN_COMMAND_EVENT, handleCommand)
     return () => window.removeEventListener(GUARDIAN_COMMAND_EVENT, handleCommand)
-  }, [recordGuardianEvent, send])
+  }, [guardianSettings.settings.guardianEnabled, recordGuardianEvent, send])
 
   useEffect(() => {
     if (state.visualState !== "thinking") return
@@ -244,6 +291,10 @@ export function GuardianHost() {
   useEffect(() => {
     if (!lastLevelUp || handledLevelUpAtRef.current === lastLevelUp.at) return
     handledLevelUpAtRef.current = lastLevelUp.at
+    if (!guardianSettings.settings.autoBubbleEnabled) {
+      acknowledgeLevelUp()
+      return
+    }
     send({
       type: "LEVEL_UP",
       line: getGuardianLevelUpLine({
@@ -256,10 +307,17 @@ export function GuardianHost() {
     const timer = window.setTimeout(() => {
       send({ type: "LEVEL_UP_COMPLETE" })
       acknowledgeLevelUp()
-    }, reducedMotion ? 1_800 : LEVEL_UP_RESET_MS)
+    }, effectiveReducedMotion ? 1_800 : LEVEL_UP_RESET_MS)
 
     return () => window.clearTimeout(timer)
-  }, [acknowledgeLevelUp, lastLevelUp, profile.formStage, reducedMotion, send])
+  }, [
+    acknowledgeLevelUp,
+    effectiveReducedMotion,
+    guardianSettings.settings.autoBubbleEnabled,
+    lastLevelUp,
+    profile.formStage,
+    send,
+  ])
 
   useEffect(() => {
     if (!state.isSqlLab || !state.bubbleOpen || guardianChat.chatOpen || guardianChat.pending) return
@@ -268,7 +326,14 @@ export function GuardianHost() {
     }, SQL_LAB_BUBBLE_AUTO_CLOSE_MS)
 
     return () => window.clearTimeout(timer)
-  }, [guardianChat.chatOpen, guardianChat.pending, send, state.bubbleOpen, state.currentLine, state.isSqlLab])
+  }, [
+    guardianChat.chatOpen,
+    guardianChat.pending,
+    send,
+    state.bubbleOpen,
+    state.currentLine,
+    state.isSqlLab,
+  ])
 
   const handleMinimizedSpriteClick = useCallback(() => {
     send({ type: "WAKE" })
@@ -295,6 +360,69 @@ export function GuardianHost() {
   const controlsClass = getControlsPlacementClass(dockMode, bubblePlacement)
   const controlsMode = state.isSqlLab || dockMode === "compact" ? "minimal" : "full"
 
+  if (!guardianSettings.settings.guardianEnabled) {
+    return (
+      <div
+        data-sql-guardian-host
+        data-page-path={pathname}
+        data-dock-mode="disabled"
+        className="pointer-events-none fixed bottom-5 right-5 z-[39] max-w-[min(22rem,calc(100vw-2rem))]"
+      >
+        <div className="pointer-events-auto rounded-md border border-cyan-100 bg-[--color-bg-surface]/95 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.12)] backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleToggleSetting("guardianEnabled", true)}
+              className="rounded border border-cyan-200 bg-cyan-50 px-2 py-1 font-mono text-[10px] text-cyan-800 hover:bg-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+              aria-label="Resume SQL Guardian"
+              title="Resume SQL Guardian"
+            >
+              Resume Guardian
+            </button>
+            <button
+              type="button"
+              onClick={guardianSettings.settingsOpen ? guardianSettings.closeSettings : guardianSettings.openSettings}
+              className="rounded px-2 py-1 font-mono text-[10px] text-[--color-text-muted] hover:bg-[--color-bg-hover] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+              aria-label="Open SQL Guardian settings"
+              title="Settings"
+            >
+              Settings
+            </button>
+          </div>
+          {guardianSettings.settingsOpen ? (
+            <GuardianBubble
+              profile={profile}
+              progress={progress}
+              message="SQL Guardian is paused. You can resume it here without losing your privacy settings."
+              visualState="sleeping"
+              onClose={guardianSettings.closeSettings}
+              placement="above-left"
+              dockMode="floating"
+              maxWidth={320}
+              isSqlLab={isSqlLab}
+              settingsOnly
+              settings={guardianSettings.settings}
+              settingsOpen
+              settingsLoading={guardianSettings.loading}
+              settingsError={guardianSettings.error}
+              onCloseSettings={guardianSettings.closeSettings}
+              onToggleSetting={handleToggleSetting}
+              resetScope={guardianReset.scope}
+              resetConfirmText={guardianReset.confirmText}
+              resetPending={guardianReset.pending}
+              resetError={guardianReset.error}
+              resetLastResult={guardianReset.lastResult}
+              onResetScopeChange={guardianReset.setScope}
+              onResetConfirmTextChange={guardianReset.setConfirmText}
+              onSubmitReset={guardianReset.submitReset}
+              className="mt-2"
+            />
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
   if (state.minimized) {
     return (
       <div
@@ -311,7 +439,7 @@ export function GuardianHost() {
           <GuardianSprite
             profile={profile}
             visualState="sleeping"
-            reducedMotion={reducedMotion}
+            reducedMotion={effectiveReducedMotion}
             size="sm"
             onClick={handleMinimizedSpriteClick}
           />
@@ -379,6 +507,21 @@ export function GuardianHost() {
             onCloseBridge={guardianMemoryBridge.closeBridge}
             onToggleBridgeEnabled={guardianMemoryBridge.setSoulwingToGuardianEnabled}
             onRevokeBridge={guardianMemoryBridge.revokeBridge}
+            settings={guardianSettings.settings}
+            settingsOpen={guardianSettings.settingsOpen}
+            settingsLoading={guardianSettings.loading}
+            settingsError={guardianSettings.error}
+            onOpenSettings={guardianSettings.openSettings}
+            onCloseSettings={guardianSettings.closeSettings}
+            onToggleSetting={handleToggleSetting}
+            resetScope={guardianReset.scope}
+            resetConfirmText={guardianReset.confirmText}
+            resetPending={guardianReset.pending}
+            resetError={guardianReset.error}
+            resetLastResult={guardianReset.lastResult}
+            onResetScopeChange={guardianReset.setScope}
+            onResetConfirmTextChange={guardianReset.setConfirmText}
+            onSubmitReset={guardianReset.submitReset}
             onClose={() => send({ type: "CLOSE_BUBBLE" })}
             className={cn("absolute", bubbleClass)}
           />
@@ -397,7 +540,7 @@ export function GuardianHost() {
           <GuardianSprite
             profile={profile}
             visualState={state.visualState}
-            reducedMotion={reducedMotion}
+            reducedMotion={effectiveReducedMotion}
             size={spriteSize}
             onClick={handleSpriteClick}
           />

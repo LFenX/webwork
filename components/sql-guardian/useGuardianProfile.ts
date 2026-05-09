@@ -20,6 +20,8 @@ import type {
   GuardianProfileClient,
   GuardianProgress,
   GuardianProfileResponse,
+  GuardianResetResponse,
+  GuardianSettingsResponse,
 } from "@/lib/sql-guardian/types"
 
 type RecordGuardianEventInput = {
@@ -42,7 +44,12 @@ type GuardianLevelUp = {
   at: number
 }
 
-type GuardianProfileUpdatePayload = GuardianProfileResponse | GuardianEventResponse | GuardianChatResponse
+type GuardianProfileUpdatePayload =
+  | GuardianProfileResponse
+  | GuardianEventResponse
+  | GuardianChatResponse
+  | GuardianSettingsResponse
+  | GuardianResetResponse
 
 const MOCK_PROGRESS = {
   level: mockGuardianProfile.level,
@@ -50,6 +57,11 @@ const MOCK_PROGRESS = {
   nextLevelExp: 40,
   progress: 0,
 } satisfies GuardianProgress
+
+function canRecordEvents(profile: GuardianProfileClient) {
+  return profile.preferences?.guardianEnabled !== false &&
+    profile.preferences?.guardianEventTrackingEnabled !== false
+}
 
 export function useGuardianProfile() {
   const [profile, setProfile] = useState<GuardianProfileClient>(mockGuardianProfile)
@@ -133,6 +145,7 @@ export function useGuardianProfile() {
 
   const recordEvent = useCallback(async (input: RecordGuardianEventInput): Promise<GuardianEventResponse | null> => {
     if (!eventsEnabled) return null
+    if (!canRecordEvents(profileRef.current)) return null
     if (postInFlightRef.current.has(input.eventType)) return null
     if (!canSendGuardianClientEvent(input.eventType)) return null
 

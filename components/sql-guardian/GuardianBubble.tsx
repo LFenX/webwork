@@ -1,7 +1,7 @@
 "use client"
 
 import type { CSSProperties, FormEvent, KeyboardEvent } from "react"
-import { Ban, Brain, Check, MessageCircle, Send, Trash2, X } from "lucide-react"
+import { Ban, Brain, Check, MessageCircle, RotateCcw, Send, Settings, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type {
@@ -12,6 +12,9 @@ import type {
   GuardianMemoryClient,
   GuardianProfile,
   GuardianProgress,
+  GuardianResetResponse,
+  GuardianResetScope,
+  GuardianSettings,
   GuardianVisualState,
 } from "@/lib/sql-guardian/types"
 import { getGuardianMoodVisual, getGuardianVisualForm } from "@/lib/sql-guardian/visual-forms"
@@ -61,7 +64,73 @@ type GuardianBubbleProps = {
   onCloseBridge?: () => void
   onToggleBridgeEnabled?: (enabled: boolean) => void
   onRevokeBridge?: (id: string) => void
+  settings?: GuardianSettings
+  settingsOpen?: boolean
+  settingsLoading?: boolean
+  settingsError?: string | null
+  onOpenSettings?: () => void
+  onCloseSettings?: () => void
+  onToggleSetting?: <K extends keyof GuardianSettings>(key: K, value: GuardianSettings[K]) => void
+  resetScope?: GuardianResetScope
+  resetConfirmText?: string
+  resetPending?: boolean
+  resetError?: string | null
+  resetLastResult?: GuardianResetResponse | null
+  onResetScopeChange?: (scope: GuardianResetScope) => void
+  onResetConfirmTextChange?: (value: string) => void
+  onSubmitReset?: () => void
+  settingsOnly?: boolean
   className?: string
+}
+
+const SETTING_GROUPS: Array<{
+  label: string
+  items: Array<{ key: keyof GuardianSettings; label: string }>
+}> = [
+  {
+    label: "Basics",
+    items: [
+      { key: "guardianEnabled", label: "Show Guardian" },
+      { key: "animationsEnabled", label: "Animations" },
+      { key: "autoPatrolEnabled", label: "Auto patrol" },
+      { key: "autoBubbleEnabled", label: "Auto bubble" },
+      { key: "autoBubbleInSqlLab", label: "SQL Lab bubbles" },
+    ],
+  },
+  {
+    label: "Privacy",
+    items: [
+      { key: "guardianEventTrackingEnabled", label: "Growth events" },
+      { key: "guardianChatHistoryEnabled", label: "Chat history" },
+      { key: "guardianMemoryEnabled", label: "Long memory" },
+      { key: "sqlAssistantPersonaEnabled", label: "SQL Assistant style" },
+    ],
+  },
+  {
+    label: "Sharing",
+    items: [
+      { key: "soulwingToGuardianMemoryBridgeEnabled", label: "SoulWing to Guardian" },
+      { key: "guardianToSoulWingMemoryBridgeEnabled", label: "Guardian to SoulWing" },
+    ],
+  },
+]
+
+const RESET_SCOPE_LABELS: Record<GuardianResetScope, string> = {
+  dialogues: "Clear short dialogues",
+  events: "Clear growth events",
+  memories: "Clear Guardian memories",
+  bridge: "Revoke shared summaries",
+  profile: "Reset Guardian profile",
+  all: "Full Guardian reset",
+}
+
+const RESET_SCOPE_IMPACT: Record<GuardianResetScope, string> = {
+  dialogues: "Deletes only SQL Guardian short dialogue history.",
+  events: "Deletes Guardian growth events and resets level/EXP.",
+  memories: "Deletes SQL Guardian long memories.",
+  bridge: "Revokes active SoulWing shared summaries; audit remains.",
+  profile: "Resets name, visual seed, level, mood, and personality. Privacy settings stay.",
+  all: "Clears Guardian dialogues, events, memories, revokes bridge, and resets profile. Privacy settings stay.",
 }
 
 export function GuardianBubble({
@@ -109,6 +178,22 @@ export function GuardianBubble({
   onCloseBridge,
   onToggleBridgeEnabled,
   onRevokeBridge,
+  settings,
+  settingsOpen = false,
+  settingsLoading = false,
+  settingsError,
+  onOpenSettings,
+  onCloseSettings,
+  onToggleSetting,
+  resetScope = "dialogues",
+  resetConfirmText = "",
+  resetPending = false,
+  resetError,
+  resetLastResult,
+  onResetScopeChange,
+  onResetConfirmTextChange,
+  onSubmitReset,
+  settingsOnly = false,
   className,
 }: GuardianBubbleProps) {
   const compact = placement === "compact" || dockMode === "compact" || dockMode === "minimized"
@@ -124,6 +209,7 @@ export function GuardianBubble({
   const visibleBridgeItems = bridgeItems.slice(0, compact ? 0 : 4)
   const memoryDraftTooLong = memoryDraft.length > 500
   const canCreateMemory = memoryEnabled && Boolean(memoryDraft.trim()) && !memoryLoading && !memoryDraftTooLong
+  const canSubmitReset = resetConfirmText === "RESET SQL GUARDIAN" && !resetPending
   const style = {
     width: `min(${maxWidth}px, calc(100vw - ${compact ? "1.5rem" : "2rem"}))`,
   } satisfies CSSProperties
@@ -193,16 +279,124 @@ export function GuardianBubble({
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            onClick={memoryOpen ? onCloseMemory : onOpenMemory}
-            className="inline-flex items-center gap-1.5 rounded px-2 py-1 font-mono text-[10px] text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand] motion-reduce:transition-none"
-            aria-label="Open SQL Guardian memory"
-            title="SQL Guardian memory"
+            onClick={settingsOpen ? onCloseSettings : onOpenSettings}
+            className="inline-flex items-center gap-1.5 rounded px-2 py-1 font-mono text-[10px] text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand] motion-reduce:transition-none"
+            aria-label="Open SQL Guardian settings"
+            title="SQL Guardian settings"
           >
-            <Brain size={13} />
-            Memory{memoryNoticeCount ? ` ${memoryNoticeCount}` : ""}
+            <Settings size={13} />
+            Settings
           </button>
+          {!settingsOnly ? (
+            <button
+              type="button"
+              onClick={memoryOpen ? onCloseMemory : onOpenMemory}
+              className="inline-flex items-center gap-1.5 rounded px-2 py-1 font-mono text-[10px] text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand] motion-reduce:transition-none"
+              aria-label="Open SQL Guardian memory"
+              title="SQL Guardian memory"
+            >
+              <Brain size={13} />
+              Memory{memoryNoticeCount ? ` ${memoryNoticeCount}` : ""}
+            </button>
+          ) : null}
         </div>
-        {memoryOpen ? (
+        {settingsOpen ? (
+          <div className="mb-2 rounded border border-slate-200 bg-slate-50/55 p-2">
+            {compact ? (
+              <div className="flex items-center justify-between gap-2 font-mono text-[10px] text-slate-700">
+                <span>{settingsLoading ? "Loading settings..." : settings?.guardianEnabled === false ? "Guardian paused" : "Guardian on"}</span>
+                <button
+                  type="button"
+                  onClick={() => onToggleSetting?.("guardianEnabled", !(settings?.guardianEnabled ?? true))}
+                  className="rounded px-1.5 py-0.5 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                  aria-label="Toggle SQL Guardian"
+                  title="Toggle Guardian"
+                >
+                  {settings?.guardianEnabled === false ? "Resume" : "Pause"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {SETTING_GROUPS.map((group) => (
+                  <div key={group.label} className="rounded border border-white/70 bg-white/55 p-2">
+                    <div className="mb-1 font-mono text-[9px] uppercase text-slate-500">{group.label}</div>
+                    <div className="grid gap-1.5">
+                      {group.items.map((item) => {
+                        const checked = settings ? settings[item.key] : false
+                        return (
+                          <label key={item.key} className="flex items-center justify-between gap-2 text-[11px] leading-4 text-[--color-text-secondary]">
+                            <span>{item.label}</span>
+                            <button
+                              type="button"
+                              onClick={() => onToggleSetting?.(item.key, !checked)}
+                              className={cn(
+                                "rounded border px-2 py-0.5 font-mono text-[9px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand] motion-reduce:transition-none",
+                                checked
+                                  ? "border-cyan-200 bg-cyan-50 text-cyan-800"
+                                  : "border-slate-200 bg-white text-slate-500"
+                              )}
+                              aria-label={`Toggle ${item.label}`}
+                              title={item.label}
+                            >
+                              {checked ? "On" : "Off"}
+                            </button>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <div className="rounded border border-rose-100 bg-rose-50/45 p-2">
+                  <div className="mb-1 flex items-center gap-1.5 font-mono text-[9px] uppercase text-rose-700">
+                    <RotateCcw size={12} />
+                    Danger zone
+                  </div>
+                  <select
+                    value={resetScope}
+                    onChange={(event) => onResetScopeChange?.(event.target.value as GuardianResetScope)}
+                    className="w-full rounded border border-rose-100 bg-white px-2 py-1 text-[11px] text-[--color-text-secondary] outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+                    aria-label="SQL Guardian reset scope"
+                  >
+                    {(Object.keys(RESET_SCOPE_LABELS) as GuardianResetScope[]).map((scope) => (
+                      <option key={scope} value={scope}>{RESET_SCOPE_LABELS[scope]}</option>
+                    ))}
+                  </select>
+                  <div className="mt-1 text-[10px] leading-4 text-rose-700">
+                    {RESET_SCOPE_IMPACT[resetScope]}
+                  </div>
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <input
+                      value={resetConfirmText}
+                      onChange={(event) => onResetConfirmTextChange?.(event.target.value)}
+                      className="min-w-0 flex-1 rounded border border-rose-100 bg-white px-2 py-1 font-mono text-[10px] outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+                      placeholder="RESET SQL GUARDIAN"
+                      aria-label="Reset confirmation text"
+                    />
+                    <button
+                      type="button"
+                      disabled={!canSubmitReset}
+                      onClick={onSubmitReset}
+                      className="rounded border border-rose-200 bg-rose-50 px-2 py-1 font-mono text-[10px] text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                      aria-label="Confirm SQL Guardian reset"
+                      title="Reset"
+                    >
+                      {resetPending ? "Resetting" : "Reset"}
+                    </button>
+                  </div>
+                  {resetError || resetLastResult ? (
+                    <div className={cn("mt-1 font-mono text-[9px]", resetError ? "text-rose-700" : "text-emerald-700")}>
+                      {resetError ?? `Done: ${RESET_SCOPE_LABELS[resetLastResult!.scope]}`}
+                    </div>
+                  ) : null}
+                </div>
+                {settingsError ? (
+                  <div className="font-mono text-[9px] text-rose-600">{settingsError}</div>
+                ) : null}
+              </div>
+            )}
+          </div>
+        ) : null}
+        {!settingsOnly && memoryOpen ? (
           <div className="mb-2 rounded border border-emerald-100 bg-emerald-50/40 p-2">
             <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
               <span className="text-emerald-900">Memory {memoryEnabled ? "on" : "paused"}</span>
@@ -374,7 +568,7 @@ export function GuardianBubble({
             )}
           </div>
         ) : null}
-        {!chatOpen ? (
+        {!settingsOnly && !chatOpen ? (
           <button
             type="button"
             onClick={onOpenChat}
@@ -385,7 +579,7 @@ export function GuardianBubble({
             <MessageCircle size={13} />
             和我说话
           </button>
-        ) : (
+        ) : !settingsOnly ? (
           <div className="space-y-2">
             {!compact && visibleDialogues.length ? (
               <div className="max-h-32 space-y-1 overflow-y-auto pr-1 text-[11px] leading-4 text-[--color-text-muted]">
@@ -451,8 +645,9 @@ export function GuardianBubble({
               </div>
             </form>
           </div>
-        )}
+        ) : null}
       </div>
+      {!settingsOnly ? (
       <div className="mt-2 flex items-center gap-2">
         <div className="h-1 flex-1 overflow-hidden rounded-full bg-cyan-100">
           <div
@@ -466,6 +661,7 @@ export function GuardianBubble({
           </span>
         ) : null}
       </div>
+      ) : null}
     </div>
   )
 }

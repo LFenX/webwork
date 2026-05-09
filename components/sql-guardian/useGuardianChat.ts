@@ -19,6 +19,8 @@ const LOCAL_COOLDOWN_REPLY = "我还在整理上一段潮汐，稍等几秒再�
 
 type UseGuardianChatOptions = {
   pagePath: string
+  guardianEnabled?: boolean
+  chatHistoryEnabled?: boolean
   onReply?: (reply: string) => void
   onProfileUpdated?: (payload: GuardianProfileResponse | GuardianEventResponse | GuardianChatResponse) => void
   onLevelUp?: (level: number, title: string) => void
@@ -27,6 +29,8 @@ type UseGuardianChatOptions = {
 
 export function useGuardianChat({
   pagePath,
+  guardianEnabled = true,
+  chatHistoryEnabled = true,
   onReply,
   onProfileUpdated,
   onLevelUp,
@@ -45,6 +49,10 @@ export function useGuardianChat({
   const abortRef = useRef<AbortController | null>(null)
 
   const refreshDialogues = useCallback(async (signal?: AbortSignal) => {
+    if (!guardianEnabled || !chatHistoryEnabled) {
+      setDialogues([])
+      return null
+    }
     if (mountedRef.current) setLoadingDialogues(true)
     const response = await fetchGuardianDialogues({ limit: 12, signal })
     if (signal?.aborted || !mountedRef.current) return null
@@ -53,7 +61,7 @@ export function useGuardianChat({
     if (!response) return null
     setDialogues(response.items)
     return response
-  }, [])
+  }, [chatHistoryEnabled, guardianEnabled])
 
   useEffect(() => {
     mountedRef.current = true
@@ -73,13 +81,14 @@ export function useGuardianChat({
 
   const openChat = useCallback(() => {
     setChatOpen(true)
+    if (!guardianEnabled || !chatHistoryEnabled) return
     if (!dialogues.length && !loadingDialogues) {
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
       void refreshDialogues(controller.signal)
     }
-  }, [dialogues.length, loadingDialogues, refreshDialogues])
+  }, [chatHistoryEnabled, dialogues.length, guardianEnabled, loadingDialogues, refreshDialogues])
 
   const closeChat = useCallback(() => {
     setChatOpen(false)
@@ -88,6 +97,10 @@ export function useGuardianChat({
   const sendMessage = useCallback(async () => {
     const message = input.trim()
     if (!message || pendingRef.current) return null
+    if (!guardianEnabled) {
+      setError("guardian-disabled")
+      return null
+    }
 
     if (message.length > 1000) {
       setError("message-too-long")
@@ -121,6 +134,9 @@ export function useGuardianChat({
       setDialogues((current) => [...current, response.dialogue!.user, response.dialogue!.assistant].slice(-12))
       setInput("")
       setError(null)
+    } else if (!chatHistoryEnabled && !response.fallback) {
+      setInput("")
+      setError(null)
     } else if (response.fallbackReason) {
       setError(response.fallbackReason)
     }
@@ -135,7 +151,7 @@ export function useGuardianChat({
     onMemoryCandidates?.(response.memoryCandidates)
     onReply?.(response.reply)
     return response
-  }, [input, onLevelUp, onMemoryCandidates, onProfileUpdated, onReply, pagePath])
+  }, [chatHistoryEnabled, guardianEnabled, input, onLevelUp, onMemoryCandidates, onProfileUpdated, onReply, pagePath])
 
   return {
     dialogues,

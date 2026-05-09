@@ -16,6 +16,10 @@ import type {
   GuardianMood,
   GuardianPreferences,
   GuardianProfileResponse,
+  GuardianResetResponse,
+  GuardianResetScope,
+  GuardianSettings,
+  GuardianSettingsResponse,
 } from "@/lib/sql-guardian/types"
 
 const PROFILE_ENDPOINT = "/api/sql-guardian/profile"
@@ -24,6 +28,8 @@ const CHAT_ENDPOINT = "/api/sql-guardian/chat"
 const DIALOGUES_ENDPOINT = "/api/sql-guardian/dialogues"
 const MEMORIES_ENDPOINT = "/api/sql-guardian/memories"
 const MEMORY_BRIDGE_ENDPOINT = "/api/sql-guardian/memory-bridge"
+const SETTINGS_ENDPOINT = "/api/sql-guardian/settings"
+const RESET_ENDPOINT = "/api/sql-guardian/reset"
 
 async function readJson<T>(response: Response): Promise<T | null> {
   if (response.status === 401) return null
@@ -89,6 +95,58 @@ export async function patchGuardianProfile(input: {
     })
 
     return readJson<GuardianProfileResponse>(response)
+  } catch {
+    return null
+  }
+}
+
+export async function fetchGuardianSettings(options?: {
+  signal?: AbortSignal
+}): Promise<GuardianSettingsResponse | null> {
+  try {
+    const response = await fetch(SETTINGS_ENDPOINT, {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: options?.signal,
+    })
+
+    return readJson<GuardianSettingsResponse>(response)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return null
+    return null
+  }
+}
+
+export async function patchGuardianSettings(input: Partial<GuardianSettings>): Promise<GuardianSettingsResponse | null> {
+  try {
+    const response = await fetch(SETTINGS_ENDPOINT, {
+      method: "PATCH",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    })
+
+    return readJson<GuardianSettingsResponse>(response)
+  } catch {
+    return null
+  }
+}
+
+export async function postGuardianReset(input: {
+  scope: GuardianResetScope
+  confirmText: string
+}): Promise<GuardianResetResponse | null> {
+  try {
+    const response = await fetch(RESET_ENDPOINT, {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    })
+
+    return readJson<GuardianResetResponse>(response)
   } catch {
     return null
   }

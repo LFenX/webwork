@@ -15,6 +15,7 @@ import type { GuardianEvent, GuardianPosition, GuardianRuntimeState } from "@/li
 type UseGuardianMotionOptions = {
   state: GuardianRuntimeState
   reducedMotion: boolean
+  autoPatrolEnabled?: boolean
   send: (event: GuardianEvent) => void
 }
 
@@ -34,7 +35,7 @@ function readViewport(): GuardianViewport {
   }
 }
 
-export function useGuardianMotion({ state, reducedMotion, send }: UseGuardianMotionOptions) {
+export function useGuardianMotion({ state, reducedMotion, autoPatrolEnabled = true, send }: UseGuardianMotionOptions) {
   const [viewport, setViewport] = useState<GuardianViewport | null>(null)
   const [position, setPosition] = useState<GuardianPosition | null>(null)
   const positionRef = useRef<GuardianPosition | null>(null)
@@ -126,6 +127,7 @@ export function useGuardianMotion({ state, reducedMotion, send }: UseGuardianMot
   useEffect(() => {
     if (
       reducedMotion ||
+      !autoPatrolEnabled ||
       state.minimized ||
       state.bubbleOpen ||
       state.visualState === "sleeping" ||
@@ -166,6 +168,7 @@ export function useGuardianMotion({ state, reducedMotion, send }: UseGuardianMot
     return () => window.clearInterval(interval)
   }, [
     finishTeleport,
+    autoPatrolEnabled,
     reducedMotion,
     send,
     state.bubbleOpen,

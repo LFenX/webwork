@@ -29,10 +29,31 @@ export type GuardianFormStage =
 export type GuardianPreferences = {
   dockMode?: GuardianDockMode
   reducedMotionAware?: boolean
+  guardianEnabled?: boolean
+  animationsEnabled?: boolean
+  autoPatrolEnabled?: boolean
+  autoBubbleEnabled?: boolean
   autoBubbleInSqlLab?: boolean
+  guardianEventTrackingEnabled?: boolean
+  guardianChatHistoryEnabled?: boolean
   guardianMemoryEnabled?: boolean
+  sqlAssistantPersonaEnabled?: boolean
   soulwingToGuardianMemoryBridgeEnabled?: boolean
   guardianToSoulWingMemoryBridgeEnabled?: boolean
+}
+
+export type GuardianSettings = {
+  guardianEnabled: boolean
+  animationsEnabled: boolean
+  autoPatrolEnabled: boolean
+  autoBubbleEnabled: boolean
+  autoBubbleInSqlLab: boolean
+  guardianEventTrackingEnabled: boolean
+  guardianChatHistoryEnabled: boolean
+  guardianMemoryEnabled: boolean
+  sqlAssistantPersonaEnabled: boolean
+  soulwingToGuardianMemoryBridgeEnabled: boolean
+  guardianToSoulWingMemoryBridgeEnabled: boolean
 }
 
 export type GuardianPersonality = {
@@ -73,6 +94,29 @@ export type GuardianProgress = {
 export type GuardianProfileResponse = {
   profile: GuardianProfileClient
   progress: GuardianProgress
+}
+
+export type GuardianSettingsResponse = GuardianProfileResponse & {
+  settings: GuardianSettings
+}
+
+export type GuardianResetScope =
+  | "dialogues"
+  | "events"
+  | "memories"
+  | "bridge"
+  | "profile"
+  | "all"
+
+export type GuardianResetResponse = GuardianSettingsResponse & {
+  scope: GuardianResetScope
+  counts: {
+    dialoguesDeleted: number
+    eventsDeleted: number
+    memoriesDeleted: number
+    bridgesRevoked: number
+    profileReset: boolean
+  }
 }
 
 export type GuardianEventResponse = {

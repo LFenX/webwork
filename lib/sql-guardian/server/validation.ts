@@ -48,10 +48,36 @@ export function normalizeJsonInput(value: unknown) {
 export const guardianPreferencesSchema = z.object({
   dockMode: z.enum(["floating", "docked", "compact", "minimized"]).optional(),
   reducedMotionAware: z.boolean().optional(),
+  guardianEnabled: z.boolean().optional(),
+  animationsEnabled: z.boolean().optional(),
+  autoPatrolEnabled: z.boolean().optional(),
+  autoBubbleEnabled: z.boolean().optional(),
   autoBubbleInSqlLab: z.boolean().optional(),
+  guardianEventTrackingEnabled: z.boolean().optional(),
+  guardianChatHistoryEnabled: z.boolean().optional(),
   guardianMemoryEnabled: z.boolean().optional(),
+  sqlAssistantPersonaEnabled: z.boolean().optional(),
   soulwingToGuardianMemoryBridgeEnabled: z.boolean().optional(),
   guardianToSoulWingMemoryBridgeEnabled: z.boolean().optional(),
+}).strict()
+
+export const guardianSettingsSchema = z.object({
+  guardianEnabled: z.boolean().optional(),
+  animationsEnabled: z.boolean().optional(),
+  autoPatrolEnabled: z.boolean().optional(),
+  autoBubbleEnabled: z.boolean().optional(),
+  autoBubbleInSqlLab: z.boolean().optional(),
+  guardianEventTrackingEnabled: z.boolean().optional(),
+  guardianChatHistoryEnabled: z.boolean().optional(),
+  guardianMemoryEnabled: z.boolean().optional(),
+  sqlAssistantPersonaEnabled: z.boolean().optional(),
+  soulwingToGuardianMemoryBridgeEnabled: z.boolean().optional(),
+  guardianToSoulWingMemoryBridgeEnabled: z.boolean().optional(),
+}).strict()
+
+export const guardianResetSchema = z.object({
+  scope: z.enum(["dialogues", "events", "memories", "bridge", "profile", "all"]),
+  confirmText: z.literal("RESET SQL GUARDIAN"),
 }).strict()
 
 export const updateGuardianProfileSchema = z.object({
@@ -133,6 +159,8 @@ export const createGuardianMemoryBridgeShareSchema = z.object({
 }).strict()
 
 export type UpdateGuardianProfileInput = z.infer<typeof updateGuardianProfileSchema>
+export type GuardianSettingsInput = z.infer<typeof guardianSettingsSchema>
+export type GuardianResetInput = z.infer<typeof guardianResetSchema>
 export type CreateGuardianEventInput = z.infer<typeof createGuardianEventSchema>
 export type GuardianEventsQueryInput = z.infer<typeof guardianEventsQuerySchema>
 export type GuardianChatInput = z.infer<typeof guardianChatSchema>

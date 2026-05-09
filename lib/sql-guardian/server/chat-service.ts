@@ -16,14 +16,19 @@ import {
   selectMemoriesForGuardianChat,
 } from "@/lib/sql-guardian/server/memory-service"
 import {
+  GuardianServiceError,
   recordGuardianEvent,
   serializeGuardianProfileResponse,
 } from "@/lib/sql-guardian/server/profile-service"
+import { normalizeGuardianSettings } from "@/lib/sql-guardian/server/settings-service"
 import type { GuardianChatInput } from "@/lib/sql-guardian/server/validation"
 
 const RECENT_DIALOGUE_LIMIT = 6
 const PROVIDER_TIMEOUT_MS = 30_000
 const MAX_REPLY_CHARS = 520
+const CHAT_HISTORY_DISABLED_MIN_INTERVAL_MS = 5_000
+const CHAT_HISTORY_DISABLED_MAX_PER_MINUTE = 10
+const inMemoryChatAttempts = new Map<string, number[]>()
 
 const FALLBACK_REPLIES = {
   unavailable: "I am here, but the signal to the data harbor is not stable yet. Once AI access is available, we can keep talking.",
@@ -181,11 +186,33 @@ export function getGuardianChatRateLimitFallback() {
   return "I am still sorting the last tide. Give me a few seconds before calling again."
 }
 
+function assertInMemoryChatRateLimit(userId: string, now = Date.now()) {
+  const recent = (inMemoryChatAttempts.get(userId) ?? []).filter((at) => now - at < 60_000)
+  const latest = recent.at(-1)
+  if (latest && now - latest < CHAT_HISTORY_DISABLED_MIN_INTERVAL_MS) {
+    throw new GuardianServiceError("RATE_LIMITED", "Guardian chat is cooling down", 429)
+  }
+  if (recent.length >= CHAT_HISTORY_DISABLED_MAX_PER_MINUTE) {
+    throw new GuardianServiceError("RATE_LIMITED", "Guardian chat is rate limited", 429)
+  }
+  recent.push(now)
+  inMemoryChatAttempts.set(userId, recent)
+}
+
 export async function runGuardianChat(userId: string, input: GuardianChatInput) {
   const profile = await getGuardianProfileForDialogue(userId)
   const profileResponse = serializeGuardianProfileResponse(profile)
+  const settings = normalizeGuardianSettings(profile.preferencesJson)
 
-  await assertGuardianChatRateLimit(userId)
+  if (!settings.guardianEnabled) {
+    throw new GuardianServiceError("GUARDIAN_DISABLED", "SQL Guardian is disabled", 403)
+  }
+
+  if (settings.guardianChatHistoryEnabled) {
+    await assertGuardianChatRateLimit(userId)
+  } else {
+    assertInMemoryChatRateLimit(userId)
+  }
 
   const status = await getAIStatusSnapshot(userId)
   if (!status.canUseAI || !status.config) {
@@ -209,7 +236,9 @@ export async function runGuardianChat(userId: string, input: GuardianChatInput) 
     }
   }
 
-  const recentDialogues = await listRecentGuardianDialogues(userId, RECENT_DIALOGUE_LIMIT)
+  const recentDialogues = settings.guardianChatHistoryEnabled
+    ? await listRecentGuardianDialogues(userId, RECENT_DIALOGUE_LIMIT)
+    : []
   const selectedMemories = await selectMemoriesForGuardianChat(userId)
   const memoryContextText = buildGuardianMemoryContext(selectedMemories)
   const sharedSoulWingSummaries = await selectSoulWingSharedSummariesForGuardian(userId)
@@ -266,43 +295,47 @@ export async function runGuardianChat(userId: string, input: GuardianChatInput) 
       finishReason: result.finishReason,
     })
 
-    const dialogue = await saveGuardianDialoguePair(userId, {
-      guardianProfileId: profile.id,
-      userContent: input.message,
-      assistantContent: reply,
-      mood: profile.mood,
-      pagePath: input.pagePath,
-      metadataJson: {
-        feature: "sql-guardian-chat",
-        providerLabel: provider.providerLabel,
-        model: provider.model,
-        configSource: provider.source,
-      },
-    })
+    const dialogue = settings.guardianChatHistoryEnabled
+      ? await saveGuardianDialoguePair(userId, {
+          guardianProfileId: profile.id,
+          userContent: input.message,
+          assistantContent: reply,
+          mood: profile.mood,
+          pagePath: input.pagePath,
+          metadataJson: {
+            feature: "sql-guardian-chat",
+            providerLabel: provider.providerLabel,
+            model: provider.model,
+            configSource: provider.source,
+          },
+        })
+      : null
 
     const memoryCandidate = await maybeCreateGuardianMemoryCandidate(userId, {
       message: input.message,
-      sourceDialogueId: dialogue.user.id,
+      sourceDialogueId: dialogue?.user.id,
     }).catch(() => null)
     if (selectedMemories.length) {
       await markGuardianMemoriesUsed(userId, selectedMemories.map((memory) => memory.id)).catch(() => undefined)
     }
 
-    const eventResult = await recordGuardianEvent(userId, {
-      eventType: "USER_CHATTED_PLACEHOLDER",
-      source: "guardian-chat",
-      pagePath: input.pagePath,
-      eventPayloadJson: {
-        dialogueUserId: dialogue.user.id,
-        dialogueAssistantId: dialogue.assistant.id,
-      },
-    })
+    const eventResult = settings.guardianChatHistoryEnabled && settings.guardianEventTrackingEnabled
+      ? await recordGuardianEvent(userId, {
+          eventType: "USER_CHATTED_PLACEHOLDER",
+          source: "guardian-chat",
+          pagePath: input.pagePath,
+          eventPayloadJson: {
+            dialogueUserId: dialogue?.user.id,
+            dialogueAssistantId: dialogue?.assistant.id,
+          },
+        })
+      : null
 
     return {
       reply,
       dialogue,
-      profile: eventResult.profile,
-      progress: eventResult.progress,
+      profile: eventResult?.profile ?? profileResponse.profile,
+      progress: eventResult?.progress ?? profileResponse.progress,
       memoryCandidates: memoryCandidate ? [memoryCandidate] : [],
     }
   } catch (error) {

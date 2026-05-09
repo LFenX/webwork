@@ -30,8 +30,15 @@ export const DEFAULT_GUARDIAN_PERSONALITY = {
 export const DEFAULT_GUARDIAN_PREFERENCES = {
   dockMode: "docked",
   reducedMotionAware: true,
+  guardianEnabled: true,
+  animationsEnabled: true,
+  autoPatrolEnabled: true,
+  autoBubbleEnabled: true,
   autoBubbleInSqlLab: false,
+  guardianEventTrackingEnabled: true,
+  guardianChatHistoryEnabled: true,
   guardianMemoryEnabled: true,
+  sqlAssistantPersonaEnabled: true,
   soulwingToGuardianMemoryBridgeEnabled: false,
   guardianToSoulWingMemoryBridgeEnabled: false,
 } as const
@@ -78,6 +85,16 @@ function normalizeEventType(eventType: string): GuardianServerEventType {
     throw new GuardianServiceError("INVALID_EVENT_TYPE", "Unsupported Guardian event type")
   }
   return eventType
+}
+
+function assertEventTrackingAllowed(preferencesJson: unknown) {
+  const preferences = isRecord(preferencesJson) ? preferencesJson : {}
+  if (preferences.guardianEnabled === false) {
+    throw new GuardianServiceError("GUARDIAN_DISABLED", "SQL Guardian is disabled", 403)
+  }
+  if (preferences.guardianEventTrackingEnabled === false) {
+    throw new GuardianServiceError("EVENT_TRACKING_DISABLED", "SQL Guardian event tracking is disabled", 403)
+  }
 }
 
 function serializeProfile(profile: {
@@ -223,6 +240,7 @@ export async function recordGuardianEvent(
         preferencesJson: toJsonValue(DEFAULT_GUARDIAN_PREFERENCES),
       },
     })
+    assertEventTrackingAllowed(profile.preferencesJson)
     const baseExp = getGuardianEventExp(eventType)
     const cooldownMs = getGuardianEventCooldownMs(eventType)
     const latestSameEvent = await tx.guardianEvent.findFirst({
