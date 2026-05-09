@@ -1,5 +1,7 @@
 # 09 - 测试与验收计划
 
+> MVP 上线前最终 checklist 见 `11-qa-checklist.md`。本文件保留早期测试设计建议；实际验证命令、隐私开关、reset 和 smoke 流程以 `11-qa-checklist.md` 为准。
+
 ## 1. 测试目标
 
 SQL Guardian 涉及 UI、动画、AI、记忆、数据库、SQL Assistant 和全站挂载。测试重点不是只验证“能显示”，还要验证：
