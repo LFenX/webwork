@@ -155,6 +155,24 @@ export function reduceGuardianState(
         lastInteractionAt: at,
       }
 
+    case "LEVEL_UP":
+      return advanceLine(state, {
+        visualState: "celebrating",
+        mood: "proud",
+        bubbleOpen: true,
+        minimized: false,
+        currentLine: nextLine(state, "wake", event.line),
+        lastInteractionAt: at,
+      })
+
+    case "LEVEL_UP_COMPLETE":
+      return {
+        ...state,
+        visualState: state.minimized ? "hidden" : state.bubbleOpen ? "talking" : "idle",
+        mood: state.isSqlLab ? "focused" : "proud",
+        lastInteractionAt: at,
+      }
+
     case "START_WALKING":
       if (state.minimized || state.bubbleOpen || state.visualState === "sleeping") return state
       return advanceLine(state, {

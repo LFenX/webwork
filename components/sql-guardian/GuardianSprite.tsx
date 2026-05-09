@@ -38,6 +38,15 @@ const STATE_CLASS: Record<GuardianVisualState, string> = {
   hidden: "",
 }
 
+const FORM_STAGE_CLASS: Record<string, string> = {
+  seed: "border-cyan-200",
+  harbor: "border-cyan-200",
+  voyager: "border-sky-200",
+  sailor: "border-sky-300",
+  navigator: "border-amber-300",
+  guardian: "border-emerald-300",
+}
+
 export function GuardianSprite({
   profile,
   visualState,
@@ -63,10 +72,13 @@ export function GuardianSprite({
     <button
       type="button"
       onClick={onClick}
+      data-form-stage={profile.formStage}
       className={cn(
         styles.spriteButton,
         reducedMotion ? styles.reduced : STATE_CLASS[visualState],
-        "group relative isolate flex items-center justify-center rounded-full border border-[--color-border] bg-[--color-bg-surface] shadow-[0_12px_30px_rgba(15,23,42,0.13)] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        "group relative isolate flex items-center justify-center rounded-full border bg-[--color-bg-surface] shadow-[0_12px_30px_rgba(15,23,42,0.13)] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        FORM_STAGE_CLASS[profile.formStage] ?? "border-[--color-border]",
+        `guardian-form-${profile.formStage}`,
         isCompact ? "size-12" : isSqlSize ? "size-[68px]" : "size-20",
         className
       )}

@@ -3,11 +3,13 @@
 import { Compass, Minimize2, Moon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import type { GuardianProfile } from "@/lib/sql-guardian/types"
 
 type GuardianControlsProps = {
   onThink: () => void
   onSleep: () => void
   onMinimize: () => void
+  profile?: GuardianProfile
   mode?: "full" | "minimal"
   className?: string
 }
@@ -16,6 +18,7 @@ export function GuardianControls({
   onThink,
   onSleep,
   onMinimize,
+  profile,
   mode = "full",
   className,
 }: GuardianControlsProps) {
@@ -27,6 +30,11 @@ export function GuardianControls({
         className
       )}
     >
+      {profile ? (
+        <span className={cn("max-w-28 truncate px-2 font-mono text-[10px] text-[--color-text-muted]", mode === "minimal" ? "hidden" : "")}>
+          {profile.name} · Lv.{profile.level}
+        </span>
+      ) : null}
       {mode === "full" ? (
         <>
           <Button type="button" variant="ghost" size="icon" className="size-7" onClick={onThink} aria-label="让 SQL Guardian 思考" title="思考">

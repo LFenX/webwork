@@ -18,15 +18,78 @@ export type GuardianVisualState =
   | "celebrating"
   | "hidden"
 
-export type GuardianFormStage = "seed" | "harbor" | "voyager"
+export type GuardianFormStage =
+  | "seed"
+  | "harbor"
+  | "voyager"
+  | "sailor"
+  | "navigator"
+  | "guardian"
+
+export type GuardianPreferences = {
+  dockMode?: GuardianDockMode
+  reducedMotionAware?: boolean
+  autoBubbleInSqlLab?: boolean
+}
+
+export type GuardianPersonality = {
+  curiosity: number
+  warmth: number
+  mischief: number
+  rigor: number
+  patience: number
+  melancholy: number
+  bravery: number
+  sqlPurism: number
+}
 
 export type GuardianProfile = {
+  id?: string
   name: string
   level: number
   title: string
   mood: GuardianMood
   formStage: GuardianFormStage
+  exp?: number
+  avatarSeed?: string
+  personality?: GuardianPersonality
+  preferences?: GuardianPreferences
 }
+
+export type GuardianProfileClient = GuardianProfile & {
+  exp: number
+}
+
+export type GuardianProgress = {
+  level: number
+  currentLevelExp: number
+  nextLevelExp: number
+  progress: number
+}
+
+export type GuardianProfileResponse = {
+  profile: GuardianProfileClient
+  progress: GuardianProgress
+}
+
+export type GuardianEventResponse = {
+  event: {
+    id: string
+    eventType: string
+    expDelta: number
+    createdAt: string
+  }
+  profile: GuardianProfileClient
+  progress: GuardianProgress
+  cooldownApplied?: boolean
+}
+
+export type GuardianClientEventType =
+  | "HOME_CLICKED"
+  | "SPRITE_CLICKED"
+  | "BUBBLE_OPENED"
+  | "ENTER_SQL_LAB"
+  | "GUARDIAN_WOKE"
 
 export type GuardianContext = {
   pagePath: string
@@ -47,6 +110,8 @@ export type GuardianEventType =
   | "SPRITE_CLICKED"
   | "START_THINKING"
   | "STOP_THINKING"
+  | "LEVEL_UP"
+  | "LEVEL_UP_COMPLETE"
   | "START_WALKING"
   | "BOUNDARY_BLOCKED"
   | "JUMP_COMPLETE"

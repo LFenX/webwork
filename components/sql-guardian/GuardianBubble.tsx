@@ -8,11 +8,13 @@ import type {
   GuardianBubblePlacement,
   GuardianDockMode,
   GuardianProfile,
+  GuardianProgress,
   GuardianVisualState,
 } from "@/lib/sql-guardian/types"
 
 type GuardianBubbleProps = {
   profile: GuardianProfile
+  progress?: GuardianProgress
   message: string
   visualState: GuardianVisualState
   onClose: () => void
@@ -25,6 +27,7 @@ type GuardianBubbleProps = {
 
 export function GuardianBubble({
   profile,
+  progress,
   message,
   visualState,
   onClose,
@@ -35,6 +38,8 @@ export function GuardianBubble({
   className,
 }: GuardianBubbleProps) {
   const compact = placement === "compact" || dockMode === "compact" || dockMode === "minimized"
+  const progressPercent = progress ? Math.max(0, Math.min(100, Math.round(progress.progress * 100))) : null
+  const currentExp = profile.exp ?? 0
   const style = {
     width: `min(${maxWidth}px, calc(100vw - ${compact ? "1.5rem" : "2rem"}))`,
   } satisfies CSSProperties
@@ -84,7 +89,19 @@ export function GuardianBubble({
       >
         {message}
       </p>
-      <div className={cn("mt-2 h-1 rounded-full bg-cyan-300/45", compact ? "w-8" : "w-12")} />
+      <div className="mt-2 flex items-center gap-2">
+        <div className="h-1 flex-1 overflow-hidden rounded-full bg-cyan-100">
+          <div
+            className="h-full rounded-full bg-cyan-400/70 transition-[width] duration-500 motion-reduce:transition-none"
+            style={{ width: `${progressPercent ?? 12}%` }}
+          />
+        </div>
+        {progress ? (
+          <span className={cn("font-mono text-[9px] text-[--color-text-muted]", compact ? "hidden" : "")}>
+            EXP {currentExp}/{progress.nextLevelExp}
+          </span>
+        ) : null}
+      </div>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import type { GuardianProfile } from "@/lib/sql-guardian/types"
+import type { GuardianProfileClient } from "@/lib/sql-guardian/types"
 
 export const mockGuardianProfile = {
   name: "Query",
@@ -6,4 +6,5 @@ export const mockGuardianProfile = {
   title: "迷失的数据水手",
   mood: "curious",
   formStage: "seed",
-} satisfies GuardianProfile
+  exp: 0,
+} satisfies GuardianProfileClient

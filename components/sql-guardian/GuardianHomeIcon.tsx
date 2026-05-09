@@ -1,8 +1,7 @@
 "use client"
 
-import { cn } from "@/lib/utils"
-import { mockGuardianProfile } from "@/lib/sql-guardian/mock-profile"
 import { wakeGuardian } from "@/lib/sql-guardian/client-events"
+import { cn } from "@/lib/utils"
 
 type GuardianHomeIconProps = {
   className?: string
@@ -32,9 +31,6 @@ export function GuardianHomeIcon({ className, compact = false }: GuardianHomeIco
         <path d="M20 30h9" stroke="#0E7490" strokeLinecap="round" strokeWidth="1.5" />
         <circle cx="37" cy="14" r="3" fill="#22D3EE" className="motion-safe:group-hover:animate-pulse" />
       </svg>
-      <span className="pointer-events-none absolute -right-1 -top-1 rounded-full border border-white bg-cyan-700 px-1 font-mono text-[8px] leading-4 text-white">
-        {mockGuardianProfile.level}
-      </span>
       <span className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] hidden whitespace-nowrap rounded-md border border-cyan-100 bg-white px-2 py-1 font-mono text-[10px] text-cyan-900 shadow-sm group-hover:block">
         数据小屋
       </span>
