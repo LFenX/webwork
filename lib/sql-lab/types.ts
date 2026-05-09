@@ -78,6 +78,18 @@ export type SqlRunRequest = {
   forceReadOnly?: boolean
 }
 
+export type SqlValidateRequest = {
+  sql: string
+}
+
+export type SqlValidateResult = {
+  ok: boolean
+  durationMs: number
+  warnings: string[]
+  error?: { code: string; message: string; hint?: string; line?: number; column?: number }
+  touchedTables?: string[]
+}
+
 export type SqlRunColumn = {
   name: string
   type: string

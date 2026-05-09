@@ -17,6 +17,8 @@ import type {
   SqlRunResult,
   SqlSchema,
   SqlTableInfo,
+  SqlValidateRequest,
+  SqlValidateResult,
 } from "@/lib/sql-lab/types"
 
 type PgFieldInfo = {
@@ -57,12 +59,6 @@ type ColumnRow = {
   dataType: string
   isNullable: string
   ordinalPosition: number
-}
-
-type TableEstimateRow = {
-  schemaName: string
-  tableName: string
-  rowCountEstimate: bigint | number | null
 }
 
 type PrivateTableMetaRow = {
@@ -198,10 +194,6 @@ function splitTableParam(value: string) {
 
 function privateSchemaName(userId: string) {
   return `${PRIVATE_SCHEMA_PREFIX}${userId.toLowerCase().replace(/[^a-z0-9_]/g, "_")}`
-}
-
-function isPrivateSchemaForUser(schema: string, userId: string) {
-  return schema === privateSchemaName(userId)
 }
 
 function assertIdentifier(value: string, label: string) {
@@ -906,6 +898,55 @@ export async function executeSql(
       durationMs,
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
+      warnings: [],
+      error: err,
+      touchedTables: analysis?.touchedTables ?? [],
+    }
+  }
+}
+
+export async function validateSql(viewerId: string, request: SqlValidateRequest): Promise<SqlValidateResult> {
+  const startedAt = new Date()
+  let analysis: SqlAnalysis | null = null
+  try {
+    const allowed = await assertAllowedSql(viewerId, request.sql)
+    analysis = allowed.analysis
+    const privateSchema = await ensurePrivateSchema(viewerId)
+    const runnableSql = rewriteSqlIdentifiers(allowed.analysis.normalizedSql, await readTables(viewerId))
+    const timeoutMs = Math.max(1000, Math.min(allowed.grant.defaultTimeoutMs, 10_000))
+    const client = await getPool().connect()
+    const statementName = `sqllab_validate_${crypto.randomUUID().replace(/-/g, "")}`
+    try {
+      await client.query("BEGIN")
+      await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`)
+      await client.query(`SET LOCAL idle_in_transaction_session_timeout = ${timeoutMs + 1000}`)
+      await client.query(`SET LOCAL search_path = ${quoteIdent(privateSchema)}, public`)
+      if (allowed.analysis.isDdl) {
+        throw new SqlLabError("VALIDATE_DDL_UNSUPPORTED", "Private DDL syntax can only be checked by running it in a transaction.", 400)
+      }
+      await client.query(`PREPARE ${quoteIdent(statementName)} AS ${runnableSql}`)
+      await client.query(`DEALLOCATE ${quoteIdent(statementName)}`)
+      await client.query("ROLLBACK")
+      return {
+        ok: true,
+        durationMs: Date.now() - startedAt.getTime(),
+        warnings: [],
+        touchedTables: allowed.analysis.touchedTables,
+      }
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined)
+      throw error
+    } finally {
+      client.release()
+    }
+  } catch (error) {
+    const err =
+      error instanceof SqlLabError
+        ? { code: error.code, message: error.message, hint: error.hint }
+        : pgError(error)
+    return {
+      ok: false,
+      durationMs: Date.now() - startedAt.getTime(),
       warnings: [],
       error: err,
       touchedTables: analysis?.touchedTables ?? [],
