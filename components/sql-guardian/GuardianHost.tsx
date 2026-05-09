@@ -21,6 +21,7 @@ import { GuardianControls } from "@/components/sql-guardian/GuardianControls"
 import { GuardianSprite } from "@/components/sql-guardian/GuardianSprite"
 import { useGuardianChat } from "@/components/sql-guardian/useGuardianChat"
 import { useGuardianController } from "@/components/sql-guardian/useGuardianController"
+import { useGuardianMemoryBridge } from "@/components/sql-guardian/useGuardianMemoryBridge"
 import { useGuardianMemories } from "@/components/sql-guardian/useGuardianMemories"
 import { useGuardianMotion } from "@/components/sql-guardian/useGuardianMotion"
 import { useGuardianProfile } from "@/components/sql-guardian/useGuardianProfile"
@@ -79,6 +80,7 @@ export function GuardianHost() {
     updateProfile,
   } = useGuardianProfile()
   const guardianMemories = useGuardianMemories({ profile, updateProfile })
+  const guardianMemoryBridge = useGuardianMemoryBridge({ profile })
   const stateRef = useRef<GuardianRuntimeState>(state)
   const handledLevelUpAtRef = useRef<number | null>(null)
   const [reducedMotion, setReducedMotion] = useState(false)
@@ -363,6 +365,16 @@ export function GuardianHost() {
             onRejectMemory={guardianMemories.rejectMemory}
             onDeleteMemory={guardianMemories.deleteMemory}
             onToggleMemoryEnabled={guardianMemories.setMemoryEnabled}
+            bridgeItems={guardianMemoryBridge.items}
+            bridgeOpen={guardianMemoryBridge.bridgeOpen}
+            bridgeLoading={guardianMemoryBridge.loading}
+            bridgeError={guardianMemoryBridge.error}
+            bridgeEnabled={guardianMemoryBridge.soulwingToGuardianEnabled}
+            bridgeSoulWingAvailable={guardianMemoryBridge.soulWingMemoryAvailable}
+            onOpenBridge={guardianMemoryBridge.openBridge}
+            onCloseBridge={guardianMemoryBridge.closeBridge}
+            onToggleBridgeEnabled={guardianMemoryBridge.setSoulwingToGuardianEnabled}
+            onRevokeBridge={guardianMemoryBridge.revokeBridge}
             onClose={() => send({ type: "CLOSE_BUBBLE" })}
             className={cn("absolute", bubbleClass)}
           />

@@ -32,6 +32,8 @@ export const DEFAULT_GUARDIAN_PREFERENCES = {
   reducedMotionAware: true,
   autoBubbleInSqlLab: false,
   guardianMemoryEnabled: true,
+  soulwingToGuardianMemoryBridgeEnabled: false,
+  guardianToSoulWingMemoryBridgeEnabled: false,
 } as const
 
 type GuardianProfileRecord = Awaited<ReturnType<typeof getOrCreateGuardianProfile>>

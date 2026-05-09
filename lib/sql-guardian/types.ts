@@ -31,6 +31,8 @@ export type GuardianPreferences = {
   reducedMotionAware?: boolean
   autoBubbleInSqlLab?: boolean
   guardianMemoryEnabled?: boolean
+  soulwingToGuardianMemoryBridgeEnabled?: boolean
+  guardianToSoulWingMemoryBridgeEnabled?: boolean
 }
 
 export type GuardianPersonality = {
@@ -162,6 +164,58 @@ export type GuardianMemoryListResponse = {
 
 export type GuardianMemoryMutationResponse = {
   memory: GuardianMemoryClient
+}
+
+export type GuardianMemoryBridgeDirection =
+  | "soulwing_to_guardian"
+  | "guardian_to_soulwing"
+
+export type GuardianMemoryBridgeStatus =
+  | "active"
+  | "revoked"
+
+export type GuardianMemoryBridgeSharedType =
+  | "nickname"
+  | "communicationPreference"
+  | "learningGoal"
+  | "sqlPreference"
+  | "projectContext"
+  | "boundary"
+  | "safePreference"
+
+export type GuardianMemoryBridgeClient = {
+  id: string
+  direction: GuardianMemoryBridgeDirection
+  sourceType: string
+  sourceId: string
+  target: string
+  type: GuardianMemoryBridgeSharedType
+  status: GuardianMemoryBridgeStatus
+  sharedSummary: string
+  sensitivity: "low"
+  lastReadAt: string | null
+  readCount: number
+  createdAt: string
+  updatedAt: string
+  revokedAt: string | null
+}
+
+export type GuardianMemoryBridgeSettings = {
+  soulwingToGuardianMemoryBridgeEnabled: boolean
+  guardianToSoulWingMemoryBridgeEnabled: boolean
+}
+
+export type GuardianMemoryBridgeSettingsResponse = {
+  settings: GuardianMemoryBridgeSettings
+  soulWingMemoryAvailable: boolean
+}
+
+export type GuardianMemoryBridgeListResponse = {
+  items: GuardianMemoryBridgeClient[]
+}
+
+export type GuardianMemoryBridgeMutationResponse = {
+  bridge: GuardianMemoryBridgeClient
 }
 
 export type GuardianClientEventType =

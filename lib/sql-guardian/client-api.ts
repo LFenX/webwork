@@ -2,6 +2,12 @@ import type {
   GuardianChatResponse,
   GuardianClientEventType,
   GuardianDialogueListResponse,
+  GuardianMemoryBridgeDirection,
+  GuardianMemoryBridgeListResponse,
+  GuardianMemoryBridgeMutationResponse,
+  GuardianMemoryBridgeSettingsResponse,
+  GuardianMemoryBridgeSharedType,
+  GuardianMemoryBridgeStatus,
   GuardianEventResponse,
   GuardianMemoryListResponse,
   GuardianMemoryMutationResponse,
@@ -17,6 +23,7 @@ const EVENTS_ENDPOINT = "/api/sql-guardian/events"
 const CHAT_ENDPOINT = "/api/sql-guardian/chat"
 const DIALOGUES_ENDPOINT = "/api/sql-guardian/dialogues"
 const MEMORIES_ENDPOINT = "/api/sql-guardian/memories"
+const MEMORY_BRIDGE_ENDPOINT = "/api/sql-guardian/memory-bridge"
 
 async function readJson<T>(response: Response): Promise<T | null> {
   if (response.status === 401) return null
@@ -210,6 +217,106 @@ export async function deleteGuardianMemory(id: string): Promise<{ deleted: true;
     })
 
     return readJson<{ deleted: true; id: string }>(response)
+  } catch {
+    return null
+  }
+}
+
+export async function fetchGuardianMemoryBridgeSettings(options?: {
+  signal?: AbortSignal
+}): Promise<GuardianMemoryBridgeSettingsResponse | null> {
+  try {
+    const response = await fetch(`${MEMORY_BRIDGE_ENDPOINT}/settings`, {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: options?.signal,
+    })
+
+    return readJson<GuardianMemoryBridgeSettingsResponse>(response)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return null
+    return null
+  }
+}
+
+export async function patchGuardianMemoryBridgeSettings(input: {
+  soulwingToGuardianMemoryBridgeEnabled?: boolean
+  guardianToSoulWingMemoryBridgeEnabled?: boolean
+}): Promise<GuardianMemoryBridgeSettingsResponse | null> {
+  try {
+    const response = await fetch(`${MEMORY_BRIDGE_ENDPOINT}/settings`, {
+      method: "PATCH",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    })
+
+    return readJson<GuardianMemoryBridgeSettingsResponse>(response)
+  } catch {
+    return null
+  }
+}
+
+export async function fetchGuardianMemoryBridges(options?: {
+  status?: GuardianMemoryBridgeStatus[]
+  direction?: GuardianMemoryBridgeDirection
+  signal?: AbortSignal
+}): Promise<GuardianMemoryBridgeListResponse | null> {
+  const params = new URLSearchParams()
+  if (options?.status?.length) params.set("status", options.status.join(","))
+  if (options?.direction) params.set("direction", options.direction)
+  const endpoint = params.size
+    ? `${MEMORY_BRIDGE_ENDPOINT}/shared?${params.toString()}`
+    : `${MEMORY_BRIDGE_ENDPOINT}/shared`
+
+  try {
+    const response = await fetch(endpoint, {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: options?.signal,
+    })
+
+    return readJson<GuardianMemoryBridgeListResponse>(response)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return null
+    return null
+  }
+}
+
+export async function createGuardianMemoryBridgeShare(input: {
+  direction: "soulwing_to_guardian"
+  sourceType: "soulwingMemoryFact"
+  sourceId: string
+  target: "guardian"
+  type: GuardianMemoryBridgeSharedType
+  sharedSummary: string
+  sensitivity: "low"
+}): Promise<GuardianMemoryBridgeMutationResponse | null> {
+  try {
+    const response = await fetch(`${MEMORY_BRIDGE_ENDPOINT}/share`, {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    })
+
+    return readJson<GuardianMemoryBridgeMutationResponse>(response)
+  } catch {
+    return null
+  }
+}
+
+export async function revokeGuardianMemoryBridge(id: string): Promise<GuardianMemoryBridgeMutationResponse | null> {
+  try {
+    const response = await fetch(`${MEMORY_BRIDGE_ENDPOINT}/share/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      cache: "no-store",
+      credentials: "same-origin",
+    })
+
+    return readJson<GuardianMemoryBridgeMutationResponse>(response)
   } catch {
     return null
   }

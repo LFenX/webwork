@@ -7,4 +7,5 @@ export { useGuardianController } from "@/components/sql-guardian/useGuardianCont
 export { useGuardianChat } from "@/components/sql-guardian/useGuardianChat"
 export { useGuardianMotion } from "@/components/sql-guardian/useGuardianMotion"
 export { useGuardianMemories } from "@/components/sql-guardian/useGuardianMemories"
+export { useGuardianMemoryBridge } from "@/components/sql-guardian/useGuardianMemoryBridge"
 export { useGuardianProfile } from "@/components/sql-guardian/useGuardianProfile"

@@ -4,6 +4,11 @@ import {
   GUARDIAN_MEMORY_STATUSES,
   GUARDIAN_MEMORY_TYPES,
 } from "@/lib/sql-guardian/server/memory-safety"
+import {
+  GUARDIAN_MEMORY_BRIDGE_DIRECTIONS,
+  GUARDIAN_MEMORY_BRIDGE_SHARED_TYPES,
+  GUARDIAN_MEMORY_BRIDGE_STATUSES,
+} from "@/lib/sql-guardian/server/shared-memory-safety"
 
 const ALLOWED_MOODS = [
   "calm",
@@ -45,6 +50,8 @@ export const guardianPreferencesSchema = z.object({
   reducedMotionAware: z.boolean().optional(),
   autoBubbleInSqlLab: z.boolean().optional(),
   guardianMemoryEnabled: z.boolean().optional(),
+  soulwingToGuardianMemoryBridgeEnabled: z.boolean().optional(),
+  guardianToSoulWingMemoryBridgeEnabled: z.boolean().optional(),
 }).strict()
 
 export const updateGuardianProfileSchema = z.object({
@@ -100,6 +107,31 @@ export const updateGuardianMemorySchema = z.object({
   importance: z.coerce.number().int().min(1).max(5).optional(),
 }).strict()
 
+const guardianMemoryBridgeStatusSchema = z.enum(GUARDIAN_MEMORY_BRIDGE_STATUSES)
+
+export const guardianMemoryBridgeSettingsSchema = z.object({
+  soulwingToGuardianMemoryBridgeEnabled: z.boolean().optional(),
+  guardianToSoulWingMemoryBridgeEnabled: z.boolean().optional(),
+}).strict()
+
+export const guardianMemoryBridgeListQuerySchema = z.object({
+  status: z.preprocess((value) => {
+    if (typeof value !== "string" || !value.trim()) return undefined
+    return value.split(",").map((item) => item.trim()).filter(Boolean)
+  }, z.array(guardianMemoryBridgeStatusSchema).max(2).optional().default(["active"])),
+  direction: z.enum(GUARDIAN_MEMORY_BRIDGE_DIRECTIONS).optional(),
+})
+
+export const createGuardianMemoryBridgeShareSchema = z.object({
+  direction: z.literal("soulwing_to_guardian"),
+  sourceType: z.literal("soulwingMemoryFact"),
+  sourceId: z.string().trim().min(1).max(120),
+  target: z.literal("guardian"),
+  type: z.enum(GUARDIAN_MEMORY_BRIDGE_SHARED_TYPES),
+  sharedSummary: z.string().trim().min(1).max(300),
+  sensitivity: z.literal("low"),
+}).strict()
+
 export type UpdateGuardianProfileInput = z.infer<typeof updateGuardianProfileSchema>
 export type CreateGuardianEventInput = z.infer<typeof createGuardianEventSchema>
 export type GuardianEventsQueryInput = z.infer<typeof guardianEventsQuerySchema>
@@ -108,3 +140,6 @@ export type GuardianDialoguesQueryInput = z.infer<typeof guardianDialoguesQueryS
 export type GuardianMemoriesQueryInput = z.infer<typeof guardianMemoriesQuerySchema>
 export type CreateGuardianMemoryInput = z.infer<typeof createGuardianMemorySchema>
 export type UpdateGuardianMemoryInput = z.infer<typeof updateGuardianMemorySchema>
+export type GuardianMemoryBridgeSettingsInput = z.infer<typeof guardianMemoryBridgeSettingsSchema>
+export type GuardianMemoryBridgeListQueryInput = z.infer<typeof guardianMemoryBridgeListQuerySchema>
+export type CreateGuardianMemoryBridgeShareInput = z.infer<typeof createGuardianMemoryBridgeShareSchema>

@@ -8,6 +8,7 @@ import type {
   GuardianBubblePlacement,
   GuardianDialogueClient,
   GuardianDockMode,
+  GuardianMemoryBridgeClient,
   GuardianMemoryClient,
   GuardianProfile,
   GuardianProgress,
@@ -49,6 +50,16 @@ type GuardianBubbleProps = {
   onRejectMemory?: (id: string) => void
   onDeleteMemory?: (id: string) => void
   onToggleMemoryEnabled?: (enabled: boolean) => void
+  bridgeItems?: GuardianMemoryBridgeClient[]
+  bridgeOpen?: boolean
+  bridgeLoading?: boolean
+  bridgeError?: string | null
+  bridgeEnabled?: boolean
+  bridgeSoulWingAvailable?: boolean
+  onOpenBridge?: () => void
+  onCloseBridge?: () => void
+  onToggleBridgeEnabled?: (enabled: boolean) => void
+  onRevokeBridge?: (id: string) => void
   className?: string
 }
 
@@ -87,6 +98,16 @@ export function GuardianBubble({
   onRejectMemory,
   onDeleteMemory,
   onToggleMemoryEnabled,
+  bridgeItems = [],
+  bridgeOpen = false,
+  bridgeLoading = false,
+  bridgeError,
+  bridgeEnabled = false,
+  bridgeSoulWingAvailable = true,
+  onOpenBridge,
+  onCloseBridge,
+  onToggleBridgeEnabled,
+  onRevokeBridge,
   className,
 }: GuardianBubbleProps) {
   const compact = placement === "compact" || dockMode === "compact" || dockMode === "minimized"
@@ -97,6 +118,7 @@ export function GuardianBubble({
   const canSubmitChat = Boolean(trimmedInput) && !chatPending && !inputTooLong
   const visibleDialogues = dialogues.slice(-6)
   const visibleMemories = memories.slice(0, compact ? 0 : 6)
+  const visibleBridgeItems = bridgeItems.slice(0, compact ? 0 : 4)
   const memoryDraftTooLong = memoryDraft.length > 500
   const canCreateMemory = memoryEnabled && Boolean(memoryDraft.trim()) && !memoryLoading && !memoryDraftTooLong
   const style = {
@@ -274,6 +296,72 @@ export function GuardianBubble({
                     {memoryDraftTooLong ? "Memory text is too long." : memoryError}
                   </div>
                 ) : null}
+                <div className="rounded border border-cyan-100 bg-cyan-50/40 p-2">
+                  <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                    <button
+                      type="button"
+                      onClick={bridgeOpen ? onCloseBridge : onOpenBridge}
+                      className="rounded px-1.5 py-0.5 text-cyan-800 hover:bg-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                      aria-label="Open SoulWing memory bridge"
+                      title="SoulWing memory bridge"
+                    >
+                      与蝶灵共享记忆
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onToggleBridgeEnabled?.(!bridgeEnabled)}
+                      className="rounded px-1.5 py-0.5 text-cyan-700 hover:bg-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                      aria-label={bridgeEnabled ? "Disable SoulWing to Guardian memory bridge" : "Enable SoulWing to Guardian memory bridge"}
+                      title={bridgeEnabled ? "Disable bridge" : "Enable bridge"}
+                    >
+                      {bridgeEnabled ? "On" : "Off"}
+                    </button>
+                  </div>
+                  <div className="mt-1 text-[10px] leading-4 text-[--color-text-muted]">
+                    只有你授权的摘要会被 Guardian 看到，蝶灵的完整记忆不会被直接读取。
+                  </div>
+                  {!bridgeSoulWingAvailable ? (
+                    <div className="mt-1 font-mono text-[9px] text-amber-700">
+                      SoulWing memory recall is paused.
+                    </div>
+                  ) : null}
+                  {bridgeOpen ? (
+                    <div className="mt-2 space-y-1">
+                      {visibleBridgeItems.length ? (
+                        visibleBridgeItems.map((item) => (
+                          <div key={item.id} className="rounded border border-cyan-100 bg-white/60 p-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="font-mono text-[9px] uppercase text-cyan-700">
+                                  {item.type}
+                                </div>
+                                <div className="line-clamp-2 text-[11px] leading-4 text-[--color-text-secondary]">
+                                  {item.sharedSummary}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => onRevokeBridge?.(item.id)}
+                                className="rounded p-1 text-rose-600 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                                aria-label="Revoke shared SoulWing memory summary"
+                                title="Revoke"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="font-mono text-[10px] text-[--color-text-muted]">
+                          {bridgeLoading ? "Loading bridge..." : "No shared summaries yet."}
+                        </div>
+                      )}
+                      {bridgeError ? (
+                        <div className="font-mono text-[9px] text-rose-600">{bridgeError}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               </div>
             )}
           </div>

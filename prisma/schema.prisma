@@ -102,6 +102,8 @@ model User {
   guardianEvents  GuardianEvent[]
   guardianDialogues GuardianDialogue[]
   guardianMemories GuardianMemory[]
+  guardianMemoryBridges GuardianMemoryBridge[]
+  guardianMemoryBridgeAuditLogs GuardianMemoryBridgeAuditLog[]
 }
 
 model SoulWingRoundtableSettings {
@@ -1062,6 +1064,50 @@ model GuardianMemory {
   @@index([userId, status, updatedAt])
   @@index([guardianProfileId, status, updatedAt])
   @@index([userId, type])
+}
+
+model GuardianMemoryBridge {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  direction     String
+  sourceType    String
+  sourceId      String
+  target        String
+  type          String
+  status        String   @default("active")
+  sharedSummary String
+  sensitivity   String   @default("low")
+  lastReadAt    DateTime?
+  readCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  revokedAt     DateTime?
+  auditLogs     GuardianMemoryBridgeAuditLog[]
+
+  @@index([userId, direction, status])
+  @@index([userId, sourceType, sourceId])
+  @@index([userId, target, status])
+}
+
+model GuardianMemoryBridgeAuditLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bridgeId     String?
+  bridge       GuardianMemoryBridge? @relation(fields: [bridgeId], references: [id], onDelete: SetNull)
+  action       String
+  direction    String?
+  sourceType   String?
+  sourceId     String?
+  target       String?
+  type         String?
+  status       String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, action, createdAt])
+  @@index([bridgeId, createdAt])
 }
 
 model SqlTableCatalogOverride {
