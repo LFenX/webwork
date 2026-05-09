@@ -9,6 +9,7 @@ import type {
   GuardianChatResponse,
   GuardianDialogueClient,
   GuardianEventResponse,
+  GuardianMemoryClient,
   GuardianProfileResponse,
 } from "@/lib/sql-guardian/types"
 
@@ -21,6 +22,7 @@ type UseGuardianChatOptions = {
   onReply?: (reply: string) => void
   onProfileUpdated?: (payload: GuardianProfileResponse | GuardianEventResponse | GuardianChatResponse) => void
   onLevelUp?: (level: number, title: string) => void
+  onMemoryCandidates?: (candidates?: GuardianMemoryClient[]) => void
 }
 
 export function useGuardianChat({
@@ -28,6 +30,7 @@ export function useGuardianChat({
   onReply,
   onProfileUpdated,
   onLevelUp,
+  onMemoryCandidates,
 }: UseGuardianChatOptions) {
   const [dialogues, setDialogues] = useState<GuardianDialogueClient[]>([])
   const [loadingDialogues, setLoadingDialogues] = useState(false)
@@ -129,9 +132,10 @@ export function useGuardianChat({
     }
 
     onProfileUpdated?.(response)
+    onMemoryCandidates?.(response.memoryCandidates)
     onReply?.(response.reply)
     return response
-  }, [input, onLevelUp, onProfileUpdated, onReply, pagePath])
+  }, [input, onLevelUp, onMemoryCandidates, onProfileUpdated, onReply, pagePath])
 
   return {
     dialogues,

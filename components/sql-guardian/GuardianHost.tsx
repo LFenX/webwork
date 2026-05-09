@@ -21,6 +21,7 @@ import { GuardianControls } from "@/components/sql-guardian/GuardianControls"
 import { GuardianSprite } from "@/components/sql-guardian/GuardianSprite"
 import { useGuardianChat } from "@/components/sql-guardian/useGuardianChat"
 import { useGuardianController } from "@/components/sql-guardian/useGuardianController"
+import { useGuardianMemories } from "@/components/sql-guardian/useGuardianMemories"
 import { useGuardianMotion } from "@/components/sql-guardian/useGuardianMotion"
 import { useGuardianProfile } from "@/components/sql-guardian/useGuardianProfile"
 
@@ -75,7 +76,9 @@ export function GuardianHost() {
     lastLevelUp,
     acknowledgeLevelUp,
     applyProfileUpdate,
+    updateProfile,
   } = useGuardianProfile()
+  const guardianMemories = useGuardianMemories({ profile, updateProfile })
   const stateRef = useRef<GuardianRuntimeState>(state)
   const handledLevelUpAtRef = useRef<number | null>(null)
   const [reducedMotion, setReducedMotion] = useState(false)
@@ -96,6 +99,7 @@ export function GuardianHost() {
     pagePath: pathname,
     onReply: handleChatReply,
     onProfileUpdated: applyProfileUpdate,
+    onMemoryCandidates: guardianMemories.handleChatMemoryCandidates,
   })
 
   useEffect(() => {
@@ -344,6 +348,21 @@ export function GuardianHost() {
             onOpenChat={guardianChat.openChat}
             onCloseChat={guardianChat.closeChat}
             onSubmitChat={handleSubmitChat}
+            memories={guardianMemories.memories}
+            memoryOpen={guardianMemories.memoryOpen}
+            memoryLoading={guardianMemories.loading}
+            memoryError={guardianMemories.error}
+            memoryEnabled={guardianMemories.memoryEnabled}
+            memoryDraft={guardianMemories.draft}
+            memoryNoticeCount={guardianMemories.candidateNoticeCount}
+            onMemoryDraftChange={guardianMemories.setDraft}
+            onOpenMemory={guardianMemories.openMemory}
+            onCloseMemory={guardianMemories.closeMemory}
+            onCreateMemory={guardianMemories.createMemory}
+            onConfirmMemory={guardianMemories.confirmMemory}
+            onRejectMemory={guardianMemories.rejectMemory}
+            onDeleteMemory={guardianMemories.deleteMemory}
+            onToggleMemoryEnabled={guardianMemories.setMemoryEnabled}
             onClose={() => send({ type: "CLOSE_BUBBLE" })}
             className={cn("absolute", bubbleClass)}
           />

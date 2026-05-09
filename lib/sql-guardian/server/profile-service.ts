@@ -31,6 +31,7 @@ export const DEFAULT_GUARDIAN_PREFERENCES = {
   dockMode: "docked",
   reducedMotionAware: true,
   autoBubbleInSqlLab: false,
+  guardianMemoryEnabled: true,
 } as const
 
 type GuardianProfileRecord = Awaited<ReturnType<typeof getOrCreateGuardianProfile>>

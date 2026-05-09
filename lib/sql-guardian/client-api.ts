@@ -3,6 +3,10 @@ import type {
   GuardianClientEventType,
   GuardianDialogueListResponse,
   GuardianEventResponse,
+  GuardianMemoryListResponse,
+  GuardianMemoryMutationResponse,
+  GuardianMemoryStatus,
+  GuardianMemoryType,
   GuardianMood,
   GuardianPreferences,
   GuardianProfileResponse,
@@ -12,6 +16,7 @@ const PROFILE_ENDPOINT = "/api/sql-guardian/profile"
 const EVENTS_ENDPOINT = "/api/sql-guardian/events"
 const CHAT_ENDPOINT = "/api/sql-guardian/chat"
 const DIALOGUES_ENDPOINT = "/api/sql-guardian/dialogues"
+const MEMORIES_ENDPOINT = "/api/sql-guardian/memories"
 
 async function readJson<T>(response: Response): Promise<T | null> {
   if (response.status === 401) return null
@@ -123,6 +128,89 @@ export async function fetchGuardianDialogues(options?: {
     return readJson<GuardianDialogueListResponse>(response)
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") return null
+    return null
+  }
+}
+
+export async function fetchGuardianMemories(options?: {
+  status?: GuardianMemoryStatus[]
+  type?: GuardianMemoryType
+  limit?: number
+  signal?: AbortSignal
+}): Promise<GuardianMemoryListResponse | null> {
+  const params = new URLSearchParams()
+  if (options?.status?.length) params.set("status", options.status.join(","))
+  if (options?.type) params.set("type", options.type)
+  if (options?.limit) params.set("limit", String(options.limit))
+  const endpoint = params.size ? `${MEMORIES_ENDPOINT}?${params.toString()}` : MEMORIES_ENDPOINT
+
+  try {
+    const response = await fetch(endpoint, {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: options?.signal,
+    })
+
+    return readJson<GuardianMemoryListResponse>(response)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return null
+    return null
+  }
+}
+
+export async function createGuardianMemory(input: {
+  type: GuardianMemoryType
+  content: string
+  importance?: number
+  summary?: string
+}): Promise<GuardianMemoryMutationResponse | null> {
+  try {
+    const response = await fetch(MEMORIES_ENDPOINT, {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    })
+
+    return readJson<GuardianMemoryMutationResponse>(response)
+  } catch {
+    return null
+  }
+}
+
+export async function updateGuardianMemory(id: string, input: {
+  type?: GuardianMemoryType
+  status?: GuardianMemoryStatus
+  content?: string
+  importance?: number
+  summary?: string | null
+}): Promise<GuardianMemoryMutationResponse | null> {
+  try {
+    const response = await fetch(`${MEMORIES_ENDPOINT}/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    })
+
+    return readJson<GuardianMemoryMutationResponse>(response)
+  } catch {
+    return null
+  }
+}
+
+export async function deleteGuardianMemory(id: string): Promise<{ deleted: true; id: string } | null> {
+  try {
+    const response = await fetch(`${MEMORIES_ENDPOINT}/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      cache: "no-store",
+      credentials: "same-origin",
+    })
+
+    return readJson<{ deleted: true; id: string }>(response)
+  } catch {
     return null
   }
 }

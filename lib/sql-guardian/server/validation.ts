@@ -1,5 +1,9 @@
 import { z } from "zod"
 import { GUARDIAN_SERVER_EVENT_TYPES } from "@/lib/sql-guardian/server/events"
+import {
+  GUARDIAN_MEMORY_STATUSES,
+  GUARDIAN_MEMORY_TYPES,
+} from "@/lib/sql-guardian/server/memory-safety"
 
 const ALLOWED_MOODS = [
   "calm",
@@ -40,6 +44,7 @@ export const guardianPreferencesSchema = z.object({
   dockMode: z.enum(["floating", "docked", "compact", "minimized"]).optional(),
   reducedMotionAware: z.boolean().optional(),
   autoBubbleInSqlLab: z.boolean().optional(),
+  guardianMemoryEnabled: z.boolean().optional(),
 }).strict()
 
 export const updateGuardianProfileSchema = z.object({
@@ -69,8 +74,37 @@ export const guardianDialoguesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(20).optional().default(12),
 })
 
+const guardianMemoryStatusSchema = z.enum(GUARDIAN_MEMORY_STATUSES)
+
+export const guardianMemoriesQuerySchema = z.object({
+  status: z.preprocess((value) => {
+    if (typeof value !== "string" || !value.trim()) return undefined
+    return value.split(",").map((item) => item.trim()).filter(Boolean)
+  }, z.array(guardianMemoryStatusSchema).max(4).optional().default(["active", "candidate"])),
+  type: z.enum(GUARDIAN_MEMORY_TYPES).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(30),
+})
+
+export const createGuardianMemorySchema = z.object({
+  type: z.enum(GUARDIAN_MEMORY_TYPES),
+  content: z.string().trim().min(1).max(500),
+  summary: z.string().trim().max(160).optional(),
+  importance: z.coerce.number().int().min(1).max(5).optional().default(1),
+}).strict()
+
+export const updateGuardianMemorySchema = z.object({
+  type: z.enum(GUARDIAN_MEMORY_TYPES).optional(),
+  status: guardianMemoryStatusSchema.optional(),
+  content: z.string().trim().min(1).max(500).optional(),
+  summary: z.string().trim().max(160).nullable().optional(),
+  importance: z.coerce.number().int().min(1).max(5).optional(),
+}).strict()
+
 export type UpdateGuardianProfileInput = z.infer<typeof updateGuardianProfileSchema>
 export type CreateGuardianEventInput = z.infer<typeof createGuardianEventSchema>
 export type GuardianEventsQueryInput = z.infer<typeof guardianEventsQuerySchema>
 export type GuardianChatInput = z.infer<typeof guardianChatSchema>
 export type GuardianDialoguesQueryInput = z.infer<typeof guardianDialoguesQuerySchema>
+export type GuardianMemoriesQueryInput = z.infer<typeof guardianMemoriesQuerySchema>
+export type CreateGuardianMemoryInput = z.infer<typeof createGuardianMemorySchema>
+export type UpdateGuardianMemoryInput = z.infer<typeof updateGuardianMemorySchema>

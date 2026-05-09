@@ -1,13 +1,14 @@
 "use client"
 
 import type { CSSProperties, FormEvent, KeyboardEvent } from "react"
-import { MessageCircle, Send, X } from "lucide-react"
+import { Ban, Brain, Check, MessageCircle, Send, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type {
   GuardianBubblePlacement,
   GuardianDialogueClient,
   GuardianDockMode,
+  GuardianMemoryClient,
   GuardianProfile,
   GuardianProgress,
   GuardianVisualState,
@@ -33,6 +34,21 @@ type GuardianBubbleProps = {
   onOpenChat?: () => void
   onCloseChat?: () => void
   onSubmitChat?: () => void
+  memories?: GuardianMemoryClient[]
+  memoryOpen?: boolean
+  memoryLoading?: boolean
+  memoryError?: string | null
+  memoryEnabled?: boolean
+  memoryDraft?: string
+  memoryNoticeCount?: number
+  onMemoryDraftChange?: (value: string) => void
+  onOpenMemory?: () => void
+  onCloseMemory?: () => void
+  onCreateMemory?: () => void
+  onConfirmMemory?: (id: string) => void
+  onRejectMemory?: (id: string) => void
+  onDeleteMemory?: (id: string) => void
+  onToggleMemoryEnabled?: (enabled: boolean) => void
   className?: string
 }
 
@@ -56,6 +72,21 @@ export function GuardianBubble({
   onOpenChat,
   onCloseChat,
   onSubmitChat,
+  memories = [],
+  memoryOpen = false,
+  memoryLoading = false,
+  memoryError,
+  memoryEnabled = true,
+  memoryDraft = "",
+  memoryNoticeCount = 0,
+  onMemoryDraftChange,
+  onOpenMemory,
+  onCloseMemory,
+  onCreateMemory,
+  onConfirmMemory,
+  onRejectMemory,
+  onDeleteMemory,
+  onToggleMemoryEnabled,
   className,
 }: GuardianBubbleProps) {
   const compact = placement === "compact" || dockMode === "compact" || dockMode === "minimized"
@@ -65,6 +96,9 @@ export function GuardianBubble({
   const inputTooLong = chatInput.length > 1000
   const canSubmitChat = Boolean(trimmedInput) && !chatPending && !inputTooLong
   const visibleDialogues = dialogues.slice(-6)
+  const visibleMemories = memories.slice(0, compact ? 0 : 6)
+  const memoryDraftTooLong = memoryDraft.length > 500
+  const canCreateMemory = memoryEnabled && Boolean(memoryDraft.trim()) && !memoryLoading && !memoryDraftTooLong
   const style = {
     width: `min(${maxWidth}px, calc(100vw - ${compact ? "1.5rem" : "2rem"}))`,
   } satisfies CSSProperties
@@ -126,6 +160,124 @@ export function GuardianBubble({
         {message}
       </p>
       <div className="mt-2 border-t border-[--color-border]/70 pt-2">
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={memoryOpen ? onCloseMemory : onOpenMemory}
+            className="inline-flex items-center gap-1.5 rounded px-2 py-1 font-mono text-[10px] text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand] motion-reduce:transition-none"
+            aria-label="Open SQL Guardian memory"
+            title="SQL Guardian memory"
+          >
+            <Brain size={13} />
+            Memory{memoryNoticeCount ? ` ${memoryNoticeCount}` : ""}
+          </button>
+        </div>
+        {memoryOpen ? (
+          <div className="mb-2 rounded border border-emerald-100 bg-emerald-50/40 p-2">
+            <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+              <span className="text-emerald-900">Memory {memoryEnabled ? "on" : "paused"}</span>
+              <button
+                type="button"
+                onClick={() => onToggleMemoryEnabled?.(!memoryEnabled)}
+                className="rounded px-1.5 py-0.5 text-emerald-700 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                aria-label={memoryEnabled ? "Pause SQL Guardian memory" : "Resume SQL Guardian memory"}
+                title={memoryEnabled ? "Pause memory" : "Resume memory"}
+              >
+                {memoryEnabled ? "Pause" : "Resume"}
+              </button>
+            </div>
+            {compact ? (
+              <div className="mt-1 font-mono text-[9px] text-[--color-text-muted]">
+                {memoryLoading ? "Loading..." : `${memories.length} saved or pending`}
+              </div>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {visibleMemories.length ? (
+                  <div className="max-h-36 space-y-1 overflow-y-auto pr-1">
+                    {visibleMemories.map((memory) => (
+                      <div key={memory.id} className="rounded border border-emerald-100 bg-white/60 p-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-mono text-[9px] uppercase text-emerald-700">
+                              {memory.status} · {memory.type}
+                            </div>
+                            <div className="line-clamp-2 text-[11px] leading-4 text-[--color-text-secondary]">
+                              {memory.summary || memory.content}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-0.5">
+                            {memory.status === "candidate" ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => onConfirmMemory?.(memory.id)}
+                                  className="rounded p-1 text-emerald-700 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                                  aria-label="Confirm Guardian memory"
+                                  title="Confirm"
+                                >
+                                  <Check size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onRejectMemory?.(memory.id)}
+                                  className="rounded p-1 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                                  aria-label="Reject Guardian memory"
+                                  title="Reject"
+                                >
+                                  <Ban size={12} />
+                                </button>
+                              </>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => onDeleteMemory?.(memory.id)}
+                              className="rounded p-1 text-rose-600 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                              aria-label="Delete Guardian memory"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="font-mono text-[10px] text-[--color-text-muted]">
+                    {memoryLoading ? "Loading memories..." : "No visible memories yet."}
+                  </div>
+                )}
+                <div className="flex items-end gap-1.5">
+                  <textarea
+                    value={memoryDraft}
+                    onChange={(event) => onMemoryDraftChange?.(event.target.value)}
+                    rows={1}
+                    maxLength={500}
+                    disabled={!memoryEnabled}
+                    className="min-h-8 flex-1 resize-none rounded border border-emerald-100 bg-white/70 px-2 py-1.5 text-xs leading-4 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+                    placeholder={memoryEnabled ? "Add a small preference..." : "Memory is paused"}
+                    aria-label="New SQL Guardian memory"
+                  />
+                  <button
+                    type="button"
+                    disabled={!canCreateMemory}
+                    onClick={onCreateMemory}
+                    className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 font-mono text-[10px] text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                    aria-label="Create Guardian memory"
+                    title="Remember"
+                  >
+                    Save
+                  </button>
+                </div>
+                {memoryError || memoryDraftTooLong ? (
+                  <div className="font-mono text-[9px] text-rose-600">
+                    {memoryDraftTooLong ? "Memory text is too long." : memoryError}
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+        ) : null}
         {!chatOpen ? (
           <button
             type="button"

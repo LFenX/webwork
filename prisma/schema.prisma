@@ -101,6 +101,7 @@ model User {
   guardianProfile GuardianProfile?
   guardianEvents  GuardianEvent[]
   guardianDialogues GuardianDialogue[]
+  guardianMemories GuardianMemory[]
 }
 
 model SoulWingRoundtableSettings {
@@ -999,6 +1000,7 @@ model GuardianProfile {
   updatedAt       DateTime        @updatedAt
   events          GuardianEvent[]
   dialogues       GuardianDialogue[]
+  memories        GuardianMemory[]
 }
 
 model GuardianEvent {
@@ -1036,6 +1038,30 @@ model GuardianDialogue {
   @@index([userId, createdAt])
   @@index([guardianProfileId, createdAt])
   @@index([userId, role, createdAt])
+}
+
+model GuardianMemory {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guardianProfileId String
+  guardianProfile   GuardianProfile @relation(fields: [guardianProfileId], references: [id], onDelete: Cascade)
+  type              String
+  status            String          @default("active")
+  source            String          @default("manual")
+  sensitivity       String          @default("low")
+  content           String
+  summary           String?
+  importance        Int             @default(1)
+  visibility        String          @default("private")
+  metadataJson      Json?
+  lastUsedAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([userId, status, updatedAt])
+  @@index([guardianProfileId, status, updatedAt])
+  @@index([userId, type])
 }
 
 model SqlTableCatalogOverride {

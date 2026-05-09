@@ -30,6 +30,7 @@ export type GuardianPreferences = {
   dockMode?: GuardianDockMode
   reducedMotionAware?: boolean
   autoBubbleInSqlLab?: boolean
+  guardianMemoryEnabled?: boolean
 }
 
 export type GuardianPersonality = {
@@ -107,8 +108,60 @@ export type GuardianChatResponse = {
   } | null
   profile: GuardianProfileClient
   progress: GuardianProgress
+  memoryCandidates?: GuardianMemoryClient[]
   fallback?: boolean
   fallbackReason?: string
+}
+
+export type GuardianMemoryType =
+  | "preference"
+  | "nickname"
+  | "sqlHabit"
+  | "learningGoal"
+  | "relationship"
+  | "projectContext"
+  | "boundary"
+  | "other"
+
+export type GuardianMemoryStatus =
+  | "active"
+  | "candidate"
+  | "archived"
+  | "rejected"
+
+export type GuardianMemorySource =
+  | "manual"
+  | "guardianChat"
+  | "userConfirmed"
+  | "system"
+
+export type GuardianMemorySensitivity =
+  | "low"
+  | "medium"
+  | "high"
+
+export type GuardianMemoryClient = {
+  id: string
+  type: GuardianMemoryType
+  status: GuardianMemoryStatus
+  source: GuardianMemorySource
+  sensitivity: GuardianMemorySensitivity
+  content: string
+  summary: string | null
+  importance: number
+  visibility: string
+  metadataJson?: unknown
+  lastUsedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type GuardianMemoryListResponse = {
+  items: GuardianMemoryClient[]
+}
+
+export type GuardianMemoryMutationResponse = {
+  memory: GuardianMemoryClient
 }
 
 export type GuardianClientEventType =
