@@ -14,6 +14,7 @@ import type {
   GuardianProgress,
   GuardianVisualState,
 } from "@/lib/sql-guardian/types"
+import { getGuardianMoodVisual, getGuardianVisualForm } from "@/lib/sql-guardian/visual-forms"
 
 type GuardianBubbleProps = {
   profile: GuardianProfile
@@ -111,6 +112,8 @@ export function GuardianBubble({
   className,
 }: GuardianBubbleProps) {
   const compact = placement === "compact" || dockMode === "compact" || dockMode === "minimized"
+  const visualForm = getGuardianVisualForm({ formStage: profile.formStage, level: profile.level })
+  const moodVisual = getGuardianMoodVisual(profile.mood)
   const progressPercent = progress ? Math.max(0, Math.min(100, Math.round(progress.progress * 100))) : null
   const currentExp = profile.exp ?? 0
   const trimmedInput = chatInput.trim()
@@ -147,20 +150,25 @@ export function GuardianBubble({
       style={style}
       role="status"
       aria-live="polite"
+      data-form-stage={visualForm.formStage}
+      data-mood={moodVisual.mood}
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-mono text-[11px] font-semibold">{profile.name}</span>
-            <Badge variant="secondary" className="px-2 py-0 font-mono text-[9px]">
+            <Badge variant="secondary" className={cn("px-2 py-0 font-mono text-[9px]", visualForm.borderClassName)}>
               Lv.{profile.level}
             </Badge>
+            <Badge variant="secondary" className={cn("px-1.5 py-0 font-mono text-[9px]", compact ? "hidden" : "")}>
+              {visualForm.shortLabel}
+            </Badge>
             <span className={cn("font-mono text-[9px] text-[--color-text-muted]", compact ? "hidden" : "")}>
-              {visualState}
+              {moodVisual.label} / {visualState}
             </span>
           </div>
           <div className={cn("mt-0.5 truncate font-mono text-[9px] text-[--color-text-muted]", compact ? "max-w-[150px]" : "max-w-[230px]")}>
-            {profile.title}
+            {profile.title} / {visualForm.label}
           </div>
         </div>
         <button
@@ -448,7 +456,7 @@ export function GuardianBubble({
       <div className="mt-2 flex items-center gap-2">
         <div className="h-1 flex-1 overflow-hidden rounded-full bg-cyan-100">
           <div
-            className="h-full rounded-full bg-cyan-400/70 transition-[width] duration-500 motion-reduce:transition-none"
+            className={cn("h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none", visualForm.progressClassName)}
             style={{ width: `${progressPercent ?? 12}%` }}
           />
         </div>

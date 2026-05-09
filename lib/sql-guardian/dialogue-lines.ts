@@ -54,3 +54,43 @@ export function pickGuardianLine(kind: GuardianLineKind, cursor: number) {
 export function getContextLineKind(isSqlLab: boolean): GuardianLineKind {
   return isSqlLab ? "sqlLab" : "default"
 }
+
+export const guardianFormStageLines = {
+  seed: [
+    "My compass is small, but it is awake.",
+    "The data shell is warm today.",
+    "I am learning the harbor one light at a time.",
+  ],
+  sailor: [
+    "A new query route is coming into view.",
+    "The little data sail caught a steady wind.",
+    "I can trace this harbor edge a bit farther now.",
+  ],
+  navigator: [
+    "The index star map is opening.",
+    "I can read more of the table tides now.",
+    "The query lighthouse is clearer from here.",
+  ],
+  guardian: [
+    "The star harbor light is steady.",
+    "I will keep this data gate calm and bright.",
+    "The deep-space route is quiet. I am on watch.",
+  ],
+} as const
+
+export const guardianMoodLines = {
+  calm: ["The harbor is quiet. I will keep watch."],
+  curious: ["I wonder where this query route leads."],
+  focused: ["Compass steady. Boundaries clear."],
+  sleepy: ["I will dim the light until you call."],
+  excited: ["The data wind just picked up."],
+  confused: ["I may need one more bearing mark."],
+  proud: ["The gate light is holding strong."],
+} as const
+
+export const guardianLevelUpLines = {
+  seed: "My little compass just caught a new glimmer.",
+  sailor: "A fresh query route is coming into view.",
+  navigator: "The index star map opened a little wider.",
+  guardian: "The star harbor light is brighter now.",
+} as const

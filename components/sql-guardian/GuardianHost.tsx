@@ -10,6 +10,7 @@ import {
   getGuardianCommandDetail,
   getGuardianWakeDetail,
 } from "@/lib/sql-guardian/client-events"
+import { getGuardianLevelUpLine } from "@/lib/sql-guardian/visual-forms"
 import type {
   GuardianBubblePlacement,
   GuardianClientEventType,
@@ -60,10 +61,6 @@ function getSpriteShellClass(size: GuardianSpriteSize) {
   if (size === "sm") return "size-12"
   if (size === "sql") return "size-[68px]"
   return "size-20"
-}
-
-function getLevelUpLine(level: number, title: string) {
-  return `数据港的灯更亮了，Lv.${level} 守门人归位。现在我是：${title}。`
 }
 
 export function GuardianHost() {
@@ -247,7 +244,14 @@ export function GuardianHost() {
   useEffect(() => {
     if (!lastLevelUp || handledLevelUpAtRef.current === lastLevelUp.at) return
     handledLevelUpAtRef.current = lastLevelUp.at
-    send({ type: "LEVEL_UP", line: getLevelUpLine(lastLevelUp.level, lastLevelUp.title) })
+    send({
+      type: "LEVEL_UP",
+      line: getGuardianLevelUpLine({
+        level: lastLevelUp.level,
+        title: lastLevelUp.title,
+        formStage: profile.formStage,
+      }),
+    })
 
     const timer = window.setTimeout(() => {
       send({ type: "LEVEL_UP_COMPLETE" })
@@ -255,7 +259,7 @@ export function GuardianHost() {
     }, reducedMotion ? 1_800 : LEVEL_UP_RESET_MS)
 
     return () => window.clearTimeout(timer)
-  }, [acknowledgeLevelUp, lastLevelUp, reducedMotion, send])
+  }, [acknowledgeLevelUp, lastLevelUp, profile.formStage, reducedMotion, send])
 
   useEffect(() => {
     if (!state.isSqlLab || !state.bubbleOpen || guardianChat.chatOpen || guardianChat.pending) return
