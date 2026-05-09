@@ -1,6 +1,8 @@
 # 07 - API 契约
 
 > 本文件定义 SQL Guardian 第一版 API。Codex 实施时必须对照项目现有 Route Handler、认证、错误返回、审计和 AI 调用风格进行适配。
+>
+> 当前实现使用 `/api/sql-guardian/*` 路由。最终上线前 QA、settings/reset 和隐私控制以 `11-qa-checklist.md`、`12-release-notes.md`、`13-user-controls-and-privacy.md` 以及当前代码为准；本文件中的早期 `/api/guardian/*` 示例仅保留为设计历史参考。
 
 ## 1. API 总原则
 
