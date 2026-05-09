@@ -12,6 +12,7 @@ import {
 } from "@/lib/sql-guardian/client-throttle"
 import { mockGuardianProfile } from "@/lib/sql-guardian/mock-profile"
 import type {
+  GuardianChatResponse,
   GuardianClientEventType,
   GuardianEventResponse,
   GuardianMood,
@@ -40,6 +41,8 @@ type GuardianLevelUp = {
   expDelta: number
   at: number
 }
+
+type GuardianProfileUpdatePayload = GuardianProfileResponse | GuardianEventResponse | GuardianChatResponse
 
 const MOCK_PROGRESS = {
   level: mockGuardianProfile.level,
@@ -70,6 +73,27 @@ export function useGuardianProfile() {
     setProgress(response.progress)
     setError(null)
     setEventsEnabled(true)
+  }, [])
+
+  const applyProfileUpdate = useCallback((response: GuardianProfileUpdatePayload) => {
+    if (!mountedRef.current) return
+    const previousProfile = profileRef.current
+    const expDelta = "event" in response ? response.event.expDelta : null
+
+    setLastExpDelta(expDelta)
+    setProfile(response.profile)
+    setProgress(response.progress)
+    setError(null)
+    setEventsEnabled(true)
+
+    if (response.profile.level > previousProfile.level) {
+      setLastLevelUp({
+        level: response.profile.level,
+        title: response.profile.title,
+        expDelta: expDelta ?? 0,
+        at: Date.now(),
+      })
+    }
   }, [])
 
   const refreshProfile = useCallback(async (signal?: AbortSignal) => {
@@ -157,6 +181,7 @@ export function useGuardianProfile() {
     refreshProfile,
     recordEvent,
     updateProfile,
+    applyProfileUpdate,
     lastExpDelta,
     lastLevelUp,
     acknowledgeLevelUp,

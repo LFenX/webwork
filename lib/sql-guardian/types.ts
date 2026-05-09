@@ -84,6 +84,33 @@ export type GuardianEventResponse = {
   cooldownApplied?: boolean
 }
 
+export type GuardianDialogueRole = "user" | "assistant"
+
+export type GuardianDialogueClient = {
+  id: string
+  role: GuardianDialogueRole
+  content: string
+  mood: string | null
+  pagePath: string | null
+  createdAt: string
+}
+
+export type GuardianDialogueListResponse = {
+  items: GuardianDialogueClient[]
+}
+
+export type GuardianChatResponse = {
+  reply: string
+  dialogue: {
+    user: GuardianDialogueClient
+    assistant: GuardianDialogueClient
+  } | null
+  profile: GuardianProfileClient
+  progress: GuardianProgress
+  fallback?: boolean
+  fallbackReason?: string
+}
+
 export type GuardianClientEventType =
   | "HOME_CLICKED"
   | "SPRITE_CLICKED"

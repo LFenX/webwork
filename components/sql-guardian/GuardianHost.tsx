@@ -19,6 +19,7 @@ import type {
 import { GuardianBubble } from "@/components/sql-guardian/GuardianBubble"
 import { GuardianControls } from "@/components/sql-guardian/GuardianControls"
 import { GuardianSprite } from "@/components/sql-guardian/GuardianSprite"
+import { useGuardianChat } from "@/components/sql-guardian/useGuardianChat"
 import { useGuardianController } from "@/components/sql-guardian/useGuardianController"
 import { useGuardianMotion } from "@/components/sql-guardian/useGuardianMotion"
 import { useGuardianProfile } from "@/components/sql-guardian/useGuardianProfile"
@@ -73,6 +74,7 @@ export function GuardianHost() {
     recordEvent,
     lastLevelUp,
     acknowledgeLevelUp,
+    applyProfileUpdate,
   } = useGuardianProfile()
   const stateRef = useRef<GuardianRuntimeState>(state)
   const handledLevelUpAtRef = useRef<number | null>(null)
@@ -87,6 +89,14 @@ export function GuardianHost() {
     teleportToDock,
     teleportToHome,
   } = useGuardianMotion({ state, reducedMotion, send })
+  const handleChatReply = useCallback((reply: string) => {
+    send({ type: "OPEN_BUBBLE", line: reply })
+  }, [send])
+  const guardianChat = useGuardianChat({
+    pagePath: pathname,
+    onReply: handleChatReply,
+    onProfileUpdated: applyProfileUpdate,
+  })
 
   useEffect(() => {
     stateRef.current = state
@@ -242,13 +252,13 @@ export function GuardianHost() {
   }, [acknowledgeLevelUp, lastLevelUp, reducedMotion, send])
 
   useEffect(() => {
-    if (!state.isSqlLab || !state.bubbleOpen) return
+    if (!state.isSqlLab || !state.bubbleOpen || guardianChat.chatOpen || guardianChat.pending) return
     const timer = window.setTimeout(() => {
       send({ type: "CLOSE_BUBBLE" })
     }, SQL_LAB_BUBBLE_AUTO_CLOSE_MS)
 
     return () => window.clearTimeout(timer)
-  }, [send, state.bubbleOpen, state.currentLine, state.isSqlLab])
+  }, [guardianChat.chatOpen, guardianChat.pending, send, state.bubbleOpen, state.currentLine, state.isSqlLab])
 
   const handleMinimizedSpriteClick = useCallback(() => {
     send({ type: "WAKE" })
@@ -263,6 +273,11 @@ export function GuardianHost() {
       void recordGuardianEvent("BUBBLE_OPENED", "guardian-sprite")
     }
   }, [recordGuardianEvent, send])
+
+  const handleSubmitChat = useCallback(() => {
+    send({ type: "START_THINKING", line: "让我听听这条查询航线的回声。" })
+    void guardianChat.sendMessage()
+  }, [guardianChat, send])
 
   const spriteSize = getSpriteSize(dockMode, state.isSqlLab)
   const shellClass = getSpriteShellClass(spriteSize)
@@ -319,6 +334,16 @@ export function GuardianHost() {
             dockMode={dockMode}
             maxWidth={bubbleMaxWidth}
             isSqlLab={state.isSqlLab}
+            dialogues={guardianChat.dialogues}
+            loadingDialogues={guardianChat.loadingDialogues}
+            chatOpen={guardianChat.chatOpen}
+            chatPending={guardianChat.pending}
+            chatError={guardianChat.error}
+            chatInput={guardianChat.input}
+            onChatInputChange={guardianChat.setInput}
+            onOpenChat={guardianChat.openChat}
+            onCloseChat={guardianChat.closeChat}
+            onSubmitChat={handleSubmitChat}
             onClose={() => send({ type: "CLOSE_BUBBLE" })}
             className={cn("absolute", bubbleClass)}
           />

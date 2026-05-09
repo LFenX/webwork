@@ -60,6 +60,17 @@ export const guardianEventsQuerySchema = z.object({
   cursor: z.string().trim().min(1).max(120).optional(),
 })
 
+export const guardianChatSchema = z.object({
+  message: z.string().trim().min(1).max(1000),
+  pagePath: z.string().trim().max(200).optional(),
+}).strict()
+
+export const guardianDialoguesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(20).optional().default(12),
+})
+
 export type UpdateGuardianProfileInput = z.infer<typeof updateGuardianProfileSchema>
 export type CreateGuardianEventInput = z.infer<typeof createGuardianEventSchema>
 export type GuardianEventsQueryInput = z.infer<typeof guardianEventsQuerySchema>
+export type GuardianChatInput = z.infer<typeof guardianChatSchema>
+export type GuardianDialoguesQueryInput = z.infer<typeof guardianDialoguesQuerySchema>
