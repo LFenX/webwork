@@ -1,31 +1,39 @@
 import { requireAuth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { FriendsClient } from "./friends-client"
+import { FriendsHubClient, type InitialConversation } from "./friends-hub-client"
 
-export const metadata = { title: "好友 — My Space" }
+export const metadata = { title: "好友与群聊 - My Space" }
 
-export default async function FriendsPage() {
-  const { userId, email } = await requireAuth()
+export default async function FriendsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string; id?: string; discussion?: string }>
+}) {
+  const [{ userId, email }, query] = await Promise.all([requireAuth(), searchParams])
+  const initialConversation: InitialConversation = {
+    type: query.type === "direct" || query.type === "channel" ? query.type : undefined,
+    id: query.id,
+    discussion: query.discussion,
+  }
   const currentUser = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true },
   })
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10">
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold mb-1">好友</h1>
-        <p className="text-sm text-[--color-text-muted]">管理好友关系，查看好友的公开内容。</p>
+    <div className="h-[calc(var(--app-viewport-height)-3.5rem)] min-h-0 overflow-hidden bg-[#eef3f8] px-3 py-4 sm:px-4 lg:px-8 lg:py-6 xl:px-12">
+      <div className="mx-auto h-full min-h-0 max-w-[1760px]">
+        <FriendsHubClient
+          userId={userId}
+          initialConversation={initialConversation}
+          currentUser={{
+            id: currentUser?.id ?? userId,
+            email: currentUser?.email ?? email,
+            displayName: currentUser?.displayName ?? currentUser?.email ?? email,
+            avatarText: currentUser?.avatarText ?? "",
+            avatarUrl: currentUser?.avatarUrl ?? null,
+          }}
+        />
       </div>
-      <FriendsClient
-        userId={userId}
-        currentUser={{
-          id: currentUser?.id ?? userId,
-          email: currentUser?.email ?? email,
-          displayName: currentUser?.displayName ?? currentUser?.email ?? email,
-          avatarText: currentUser?.avatarText ?? "",
-          avatarUrl: currentUser?.avatarUrl ?? null,
-        }}
-      />
     </div>
   )
 }

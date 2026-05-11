@@ -1,6 +1,6 @@
 "use client"
 
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { format as formatSqlText } from "sql-formatter"
 import {
   Activity,
@@ -48,6 +48,8 @@ type Layout = {
   assistantWidth: number
   theme: SqlEditorTheme
 }
+
+type MobilePanel = "editor" | "schema" | "results" | "assistant"
 
 const STORAGE_KEY = "sql-lab.tabs.v1"
 const LAYOUT_KEY = "sql-lab.layout.v1"
@@ -125,6 +127,7 @@ export function SqlLabClient() {
   const [loading, setLoading] = useState(true)
   const [layout, setLayoutState] = useState<Layout>(DEFAULT_LAYOUT)
   const [layoutHydrated, setLayoutHydrated] = useState(false)
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("editor")
 
   const editorRef = useRef<SqlEditorHandle>(null)
   const mainRowRef = useRef<HTMLDivElement>(null)
@@ -232,8 +235,8 @@ export function SqlLabClient() {
   const setAssistantWidth = useCallback((next: number) => {
     setLayoutState((prev) => {
       const containerW = rightColRef.current?.clientWidth ?? 1100
-      const max = Math.max(380, Math.floor(containerW * 0.48))
-      const assistantWidth = clamp(Math.round(next), 340, max)
+      const max = Math.max(340, Math.floor(containerW * 0.46))
+      const assistantWidth = clamp(Math.round(next), 300, max)
       return assistantWidth === prev.assistantWidth ? prev : { ...prev, assistantWidth }
     })
   }, [])
@@ -253,6 +256,7 @@ export function SqlLabClient() {
   const replaceSql = useCallback((sql: string) => {
     setTabs((prev) => prev.map((tab) => (tab.id === activeTabId ? { ...tab, sql } : tab)))
     editorRef.current?.replaceAll(sql)
+    setMobilePanel("editor")
   }, [activeTabId, setTabs])
 
   const createTabWithSql = useCallback((sql: string, title?: string) => {
@@ -288,6 +292,7 @@ export function SqlLabClient() {
     try {
       const res = await apiPost<SqlRunResult>("/api/sql/run", { sql, limit })
       recordRunResult(sql, res)
+      setMobilePanel("results")
       return res
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Run failed")
@@ -416,7 +421,7 @@ export function SqlLabClient() {
   const assistantStyle = { "--sql-assistant-width": `${layout.assistantWidth}px` } as CSSProperties
 
   return (
-    <div className="mx-auto flex min-h-[calc(var(--app-viewport-height)-3.5rem)] max-w-[1600px] flex-col px-2 pb-2 pt-2 sm:px-3 sm:pt-3 md:px-5 lg:h-[calc(var(--app-viewport-height)-3.5rem)]">
+    <div className="sql-lab-viewport mx-auto flex h-[calc(var(--app-viewport-height)-3.5rem)] max-w-[1760px] flex-col overflow-hidden px-2 pb-2 pt-2 sm:px-3 sm:pt-3 md:px-5">
       <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-[--color-border] bg-[--color-bg-surface] px-2 py-1.5 shadow-[0_2px_10px_rgba(15,23,42,0.04)]">
         <div className="flex shrink-0 items-center gap-2 rounded bg-slate-900 px-2 py-1.5 text-white">
           <Terminal size={12} />
@@ -450,6 +455,43 @@ export function SqlLabClient() {
         </div>
       </div>
 
+      <div
+        data-sql-mobile-nav
+        className="mb-2 grid shrink-0 grid-cols-4 gap-1 rounded-md border border-[--color-border] bg-[--color-bg-surface] p-1 shadow-[0_2px_10px_rgba(15,23,42,0.04)] lg:hidden"
+      >
+        <MobilePanelButton
+          active={mobilePanel === "editor"}
+          icon={<Terminal size={13} />}
+          label="查询"
+          panel="editor"
+          onClick={() => setMobilePanel("editor")}
+        />
+        <MobilePanelButton
+          active={mobilePanel === "schema"}
+          icon={<Database size={13} />}
+          label="结构"
+          panel="schema"
+          onClick={() => {
+            setSidebarOpen(true)
+            setMobilePanel("schema")
+          }}
+        />
+        <MobilePanelButton
+          active={mobilePanel === "results"}
+          icon={<Activity size={13} />}
+          label="结果"
+          panel="results"
+          onClick={() => setMobilePanel("results")}
+        />
+        <MobilePanelButton
+          active={mobilePanel === "assistant"}
+          icon={<Sparkles size={13} />}
+          label="助教"
+          panel="assistant"
+          onClick={() => setMobilePanel("assistant")}
+        />
+      </div>
+
       {!loading && !enabled ? (
         <div className="flex flex-1 items-center justify-center rounded-md border border-[--color-border] bg-[--color-bg-surface] p-10 text-center">
           <div className="max-w-md">
@@ -459,14 +501,15 @@ export function SqlLabClient() {
           </div>
         </div>
       ) : (
-        <div ref={mainRowRef} data-sql-lab-main className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row lg:gap-0">
+        <div ref={mainRowRef} data-sql-lab-main className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden lg:flex-row lg:gap-0">
           <aside
             style={sidebarStyle}
             className={cn(
-              "overflow-hidden rounded-md border border-[--color-border] bg-[--color-bg-surface] shadow-[0_4px_18px_rgba(15,23,42,0.04)] lg:shrink-0",
+              "min-h-0 overflow-hidden rounded-md border border-[--color-border] bg-[--color-bg-surface] shadow-[0_4px_18px_rgba(15,23,42,0.04)] lg:block lg:shrink-0",
+              mobilePanel === "schema" ? "block" : "hidden",
               sidebarOpen
-                ? "h-[min(420px,46vh)] w-full lg:h-auto lg:w-[var(--sql-sidebar-width)]"
-                : "h-10 w-full lg:h-auto lg:w-[40px]"
+                ? "flex-1 w-full lg:h-auto lg:flex-none lg:w-[var(--sql-sidebar-width)]"
+                : "h-10 w-full shrink-0 lg:h-auto lg:w-[40px]"
             )}
           >
             {sidebarOpen ? (
@@ -508,8 +551,19 @@ export function SqlLabClient() {
             />
           ) : null}
 
-          <div ref={rightColRef} className="flex min-w-0 flex-1 flex-col">
-            <div className="flex shrink-0 flex-col rounded-md border border-[--color-border] bg-[--color-bg-surface] shadow-[0_4px_18px_rgba(15,23,42,0.04)]">
+          <div
+            ref={rightColRef}
+            className={cn(
+              "min-w-0 flex-1 flex-col overflow-hidden lg:flex",
+              mobilePanel === "schema" ? "hidden" : "flex"
+            )}
+          >
+            <div
+              className={cn(
+                "shrink-0 flex-col rounded-md border border-[--color-border] bg-[--color-bg-surface] shadow-[0_4px_18px_rgba(15,23,42,0.04)] lg:flex",
+                mobilePanel === "editor" ? "flex" : "hidden"
+              )}
+            >
               <div className="flex items-center gap-0.5 overflow-x-auto border-b border-[--color-border] bg-[#FAFBFC] px-1 py-1">
                 {tabs.map((tab) => {
                   const isActive = tab.id === activeTabId
@@ -591,10 +645,19 @@ export function SqlLabClient() {
               </div>
             </div>
 
-            <div data-sql-lab-workbench className="mt-2 flex min-h-0 flex-1 flex-col gap-2 xl:flex-row">
-              <div className="flex min-w-0 flex-1 flex-col">
+            <div data-sql-lab-workbench className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden lg:flex-row lg:gap-0">
+              <div
+                className={cn(
+                  "min-w-0 flex-col lg:flex lg:flex-1",
+                  mobilePanel === "assistant" ? "hidden" : "flex"
+                )}
+              >
                 <div
-                  className="h-[clamp(180px,var(--sql-editor-height),46vh)] shrink-0 lg:h-[var(--sql-editor-height)]"
+                  className={cn(
+                    "min-h-0",
+                    mobilePanel === "editor" ? "flex-1" : "hidden",
+                    "lg:block lg:h-[var(--sql-editor-height)] lg:flex-none"
+                  )}
                   style={editorHeightStyle}
                 >
                   <SqlEditor
@@ -613,9 +676,15 @@ export function SqlLabClient() {
                   ariaLabel="Resize editor"
                   getValue={() => layout.editorHeight}
                   onChange={setEditorHeight}
-                  className="my-1"
+                  className="my-1 hidden lg:block"
                 />
-                <div className="min-h-[320px] flex-1 xl:min-h-0">
+                <div
+                  className={cn(
+                    "min-h-0",
+                    mobilePanel === "results" ? "flex-1" : "hidden",
+                    "lg:block lg:flex-1"
+                  )}
+                >
                   <ResultsPanel
                     result={result}
                     running={running}
@@ -641,10 +710,13 @@ export function SqlLabClient() {
                 ariaLabel="Resize SQL assistant"
                 getValue={() => -layout.assistantWidth}
                 onChange={(next) => setAssistantWidth(-next)}
-                className="hidden xl:block"
+                className="hidden lg:block"
               />
               <aside
-                className="h-[min(560px,72vh)] w-full shrink-0 xl:h-auto xl:min-h-0 xl:w-[var(--sql-assistant-width)]"
+                className={cn(
+                  "min-h-0 w-full shrink-0 lg:block lg:h-auto lg:w-[clamp(320px,32vw,var(--sql-assistant-width))] 2xl:w-[var(--sql-assistant-width)]",
+                  mobilePanel === "assistant" ? "flex flex-1" : "hidden"
+                )}
                 style={assistantStyle}
               >
                 <SqlAssistantPanel
@@ -714,6 +786,37 @@ function StatusBar({
         )}
       </span>
     </div>
+  )
+}
+
+function MobilePanelButton({
+  active,
+  icon,
+  label,
+  panel,
+  onClick,
+}: {
+  active: boolean
+  icon: ReactNode
+  label: string
+  panel: MobilePanel
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      data-sql-mobile-panel={panel}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
+        active
+          ? "bg-[--color-brand] text-white shadow-[0_8px_20px_rgba(37,99,235,0.18)]"
+          : "text-[--color-text-secondary] hover:bg-[--color-brand-soft] hover:text-[--color-brand]"
+      )}
+    >
+      {icon}
+      <span className="truncate">{label}</span>
+    </button>
   )
 }
 

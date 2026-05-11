@@ -14,13 +14,18 @@ type UserAvatarProps = {
 }
 
 const SIZE_CLASS = {
-  sm: "h-8 w-8 text-xs",
-  md: "h-14 w-14 text-sm",
-  lg: "h-20 w-20 text-xl",
-  xl: "h-24 w-24 text-2xl",
+  sm: "text-xs",
+  md: "text-sm",
+  lg: "text-xl",
+  xl: "text-2xl",
 }
 
-const PRESENCE_LABELS: Record<string, string> = {}
+const SIZE_STYLE = {
+  sm: { width: 32, height: 32 },
+  md: { width: 56, height: 56 },
+  lg: { width: 80, height: 80 },
+  xl: { width: 96, height: 96 },
+}
 
 function fallbackText(name?: string | null, email?: string | null, avatarText?: string | null) {
   const source = avatarText || name || email || "?"
@@ -40,6 +45,7 @@ export function UserAvatar({ name, email, avatarText, avatarUrl, size = "md", pr
     <div className={`relative shrink-0 ${className}`}>
       <div
         className={`${SIZE_CLASS[size]} overflow-hidden rounded-full border border-[--color-border-strong] bg-[--color-bg-hover] ${presenceStatus === "offline" ? "grayscale" : presenceStatus === "away" ? "opacity-70" : ""}`}
+        style={SIZE_STYLE[size]}
       >
         {showImage ? (
           // eslint-disable-next-line @next/next/no-img-element

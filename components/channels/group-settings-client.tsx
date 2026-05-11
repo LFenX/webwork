@@ -107,7 +107,7 @@ export function GroupSettingsClient({
         return
       }
       toast.success(labels.leftGroup)
-      router.push("/channels")
+      router.push(`/friends?type=channel&id=${encodeURIComponent(channel.id)}`)
       router.refresh()
     } finally {
       setSubmitting(false)
@@ -125,7 +125,7 @@ export function GroupSettingsClient({
         return
       }
       toast.success(labels.dissolvedGroup)
-      router.push("/channels")
+      router.push("/friends?type=channel&id=world")
       router.refresh()
     } finally {
       setSubmitting(false)

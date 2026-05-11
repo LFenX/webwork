@@ -1,7 +1,7 @@
 "use client"
 
+import { ResumeThemeCard } from "@/components/resume-theme-card"
 import type { ResumeThemeInfo } from "@/lib/resume/types"
-import { ResumeThemeCard } from "./resume-theme-card"
 
 interface TemplateCategoryBoardProps {
   themes: ResumeThemeInfo[]
@@ -14,8 +14,8 @@ interface TemplateCategoryBoardProps {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  zh: "中文模板",
-  en: "英文模板",
+  zh: "Chinese templates",
+  en: "English templates",
 }
 
 export function TemplateCategoryBoard({
@@ -30,35 +30,39 @@ export function TemplateCategoryBoard({
   const groups: Record<string, ResumeThemeInfo[]> = {}
 
   for (const theme of themes) {
-    const cat = categoryMap[theme.slug] || "en"
-    if (!groups[cat]) groups[cat] = []
-    groups[cat].push(theme)
+    const category = categoryMap[theme.slug] || "en"
+    if (!groups[category]) groups[category] = []
+    groups[category].push(theme)
   }
 
-  for (const cat of Object.keys(groups)) {
-    groups[cat].sort((a, b) => {
-      const oa = sortOrderMap[a.slug] ?? 0
-      const ob = sortOrderMap[b.slug] ?? 0
-      if (oa !== ob) return oa - ob
+  for (const category of Object.keys(groups)) {
+    groups[category].sort((a, b) => {
+      const aOrder = sortOrderMap[a.slug] ?? 0
+      const bOrder = sortOrderMap[b.slug] ?? 0
+      if (aOrder !== bOrder) return aOrder - bOrder
       return a.label.localeCompare(b.label)
     })
   }
 
-  const orderedCategories = ["zh", "en"].filter((cat) => groups[cat]?.length > 0)
-  // Append any unknown categories
-  for (const cat of Object.keys(groups)) {
-    if (!orderedCategories.includes(cat)) orderedCategories.push(cat)
+  const orderedCategories = ["zh", "en"].filter((category) => groups[category]?.length > 0)
+  for (const category of Object.keys(groups)) {
+    if (!orderedCategories.includes(category)) orderedCategories.push(category)
   }
 
   return (
-    <div className="space-y-10">
-      {orderedCategories.map((cat) => (
-        <section key={cat}>
-          <h2 className="mb-4 text-sm font-semibold text-[--color-text-secondary]">
-            {CATEGORY_LABELS[cat] || cat} ({groups[cat].length})
-          </h2>
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
-            {groups[cat].map((theme) => (
+    <div className="space-y-6">
+      {orderedCategories.map((category) => (
+        <section key={category} className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">
+              {CATEGORY_LABELS[category] || category}
+            </h2>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+              {groups[category].length} templates
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {groups[category].map((theme) => (
               <ResumeThemeCard
                 key={theme.slug}
                 theme={theme}

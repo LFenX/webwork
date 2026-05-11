@@ -179,7 +179,7 @@ export async function getRecentActivityHub(userId: string): Promise<RecentActivi
         id: `direct-${friendId}-${latest.id}`,
         title: `${normalizeFriendName(latest.sender)}的私聊`,
         description: compactText(latest.text, latest.stickerEmoji ? `发来表情 ${latest.stickerEmoji}` : latest.attachments.length > 0 ? "发送了新的附件" : "有新的好友消息"),
-        href: `/friends/chat/${friendId}`,
+        href: `/friends?type=direct&id=${encodeURIComponent(friendId)}`,
         meta: "好友新消息",
         time: latest.createdAt.toISOString(),
         badge: `${unreadCount} 条新消息`,
@@ -193,7 +193,7 @@ export async function getRecentActivityHub(userId: string): Promise<RecentActivi
         id: `channel-${channel.id}-${channel._count.messages}`,
         title: channel.name,
         description: `${normalizeFriendName(latest.sender)}：${compactText(latest.text, latest.stickerEmoji ? `发了表情 ${latest.stickerEmoji}` : latest.attachments.length > 0 ? "分享了附件" : "群里有新讨论")}`,
-        href: `/channels?channel=${encodeURIComponent(channel.id)}`,
+        href: `/friends?type=channel&id=${encodeURIComponent(channel.id)}`,
         meta: "群聊动态",
         time: latest.createdAt.toISOString(),
         badge: "群聊",
@@ -287,7 +287,7 @@ export async function getRecentActivityHub(userId: string): Promise<RecentActivi
       id: `roundtable-${discussion.id}-${activityTime.getTime()}`,
       title: discussion.topicTitle,
       description: latest ? `${latest.authorName}：${compactText(latest.text, "圆桌正在继续")}` : compactText(discussion.topicDescription, "新的圆桌议题已准备好"),
-      href: `/channels?channel=soulwing-roundtable&discussion=${encodeURIComponent(discussion.id)}`,
+      href: `/friends?type=channel&id=soulwing-roundtable&discussion=${encodeURIComponent(discussion.id)}`,
       meta: discussion.status === "running" ? "正在讨论" : discussion.status === "completed" ? "可追问" : "待开始",
       time: activityTime.toISOString(),
       badge: discussion.slot === "morning" ? "晨间" : discussion.slot === "evening" ? "夜间" : "圆桌",
@@ -296,10 +296,10 @@ export async function getRecentActivityHub(userId: string): Promise<RecentActivi
   })
 
   const groups: RecentActivityGroup[] = [
-    { key: "chat", title: "聊天动态", subtitle: "按会话聚合未读消息", href: "/channels", icon: "chat", pulse: "bg-[#2563eb]", items: chatItems },
+    { key: "chat", title: "聊天动态", subtitle: "按会话聚合未读消息", href: "/friends?type=channel&id=world", icon: "chat", pulse: "bg-[#2563eb]", items: chatItems },
     { key: "friends", title: "好友动态", subtitle: "文章、求职、简历更新", href: "/friends", icon: "friends", pulse: "bg-[#c96442]", items: friendItems },
     { key: "community", title: "社区动态", subtitle: "新网站与新表情包", href: "/community/resources", icon: "community", pulse: "bg-[#3a7d5c]", items: communityItems },
-    { key: "roundtable", title: "蝶灵圆桌", subtitle: "从频道进入具体议题", href: "/channels?channel=soulwing-roundtable", icon: "roundtable", pulse: "bg-[#b8902d]", items: roundtableItems },
+    { key: "roundtable", title: "蝶灵圆桌", subtitle: "从频道进入具体议题", href: "/friends?type=channel&id=soulwing-roundtable", icon: "roundtable", pulse: "bg-[#b8902d]", items: roundtableItems },
   ]
   const readIds = await getReadRecentActivityIds(userId, groups.flatMap((group) => group.key === "chat" ? [] : group.items.map((item) => item.id)))
   return groups.map((group) => group.key === "chat" ? group : { ...group, items: group.items.filter((item) => !readIds.has(item.id)) })

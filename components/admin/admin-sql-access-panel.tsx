@@ -67,7 +67,7 @@ export function AdminSqlAccessPanel() {
         setAllTables(tables.items ?? [])
         setAudit(auditPage.items ?? [])
       } catch (error) {
-        if (!cancelled) toast.error(error instanceof Error ? error.message : "加载失败")
+        if (!cancelled) toast.error(error instanceof Error ? error.message : "鍔犺浇澶辫触")
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -86,7 +86,7 @@ export function AdminSqlAccessPanel() {
         const detail = await apiFetch<SqlGrant>(`/api/admin/sql-access/users/${editingUserId}`)
         if (!cancelled) setGrant(detail)
       } catch (error) {
-        if (!cancelled) toast.error(error instanceof Error ? error.message : "加载失败")
+        if (!cancelled) toast.error(error instanceof Error ? error.message : "鍔犺浇澶辫触")
       }
     }
     void load()
@@ -116,7 +116,7 @@ export function AdminSqlAccessPanel() {
       )
       if (grant?.userId === userId) setGrant({ ...grant, enabled: updated.enabled })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "更新失败")
+      toast.error(error instanceof Error ? error.message : "鏇存柊澶辫触")
     }
   }
 
@@ -135,7 +135,7 @@ export function AdminSqlAccessPanel() {
         rowFilter: next.rowFilter ?? null,
       })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "保存失败")
+      toast.error(error instanceof Error ? error.message : "淇濆瓨澶辫触")
     } finally {
       setSavingTable(null)
     }
@@ -143,7 +143,7 @@ export function AdminSqlAccessPanel() {
 
   async function removeTableGrant(table: SqlGrantTable) {
     if (!grant) return
-    if (!window.confirm(`移除对 ${table.schema}.${table.table} 的访问?`)) return
+    if (!window.confirm(`绉婚櫎瀵?${table.schema}.${table.table} 鐨勮闂?`)) return
     try {
       await apiDelete(`/api/admin/sql-access/users/${grant.userId}/tables/${table.schema}.${table.table}`)
       setGrant({ ...grant, tables: grant.tables.filter((t) => !(t.schema === table.schema && t.table === table.table)) })
@@ -155,7 +155,7 @@ export function AdminSqlAccessPanel() {
         )
       )
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "删除失败")
+      toast.error(error instanceof Error ? error.message : "鍒犻櫎澶辫触")
     }
   }
 
@@ -181,25 +181,24 @@ export function AdminSqlAccessPanel() {
         prev.map((s) => (s.userId === grant.userId ? { ...s, tableCount: s.tableCount + 1, readOnlyCount: s.readOnlyCount + 1 } : s))
       )
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "保存失败")
+      toast.error(error instanceof Error ? error.message : "淇濆瓨澶辫触")
     }
   }
 
   return (
-    <section>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Database size={16} className="text-[--color-brand]" />
-        <h2 className="text-sm font-semibold">SQL 实验室访问</h2>
-        <span className="text-[11px] text-[--color-text-muted]">
-          为成员开放数据库表读取或写入权限,可逐表配置受限列与行过滤
-        </span>
-        <div className="ml-auto">
+    <section className="rounded-[22px] border border-white/80 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.07)] ring-1 ring-slate-200/70 sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Database size={16} className="text-blue-600" />
+        <h2 className="text-lg font-semibold text-slate-950">SQL 实验室访问</h2>
+        <span className="text-xs text-slate-500">
+          为成员开放数据库表读取或写入权限，可逐表配置受限列与行过滤。
+        </span>        <div className="ml-auto">
           <label className="flex items-center gap-1.5 rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-soft] px-2.5 py-1.5">
             <Search size={12} className="text-[--color-text-muted]" />
             <input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              placeholder="搜索成员"
+              placeholder="鎼滅储鎴愬憳"
               className="w-44 bg-transparent text-xs outline-none placeholder:text-[--color-text-muted]"
             />
           </label>
@@ -217,7 +216,7 @@ export function AdminSqlAccessPanel() {
           </div>
           <div className="max-h-[440px] overflow-y-auto">
             {loading ? (
-              <p className="px-4 py-6 text-sm text-[--color-text-muted]">加载中…</p>
+              <p className="px-4 py-6 text-sm text-[--color-text-muted]">加载中...</p>
             ) : filteredSummaries.length === 0 ? (
               <p className="px-4 py-6 text-sm text-[--color-text-muted]">暂无成员匹配</p>
             ) : (
@@ -238,17 +237,16 @@ export function AdminSqlAccessPanel() {
                     </span>
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <span className="rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-sky-700">
-                        读 {s.readOnlyCount}
+                        璇?{s.readOnlyCount}
                       </span>
                       <span className="rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-emerald-700">
-                        写 {s.writableCount}
+                        鍐?{s.writableCount}
                       </span>
                       <span className="rounded-full border border-[--color-border] bg-[--color-bg-soft] px-1.5 py-0.5 text-[--color-text-muted]">
-                        {s.tableCount} 表
-                      </span>
+                        {s.tableCount} 琛?                      </span>
                     </div>
                     <label className="flex items-center gap-2 text-[11px] text-[--color-text-muted]">
-                      <span>启用</span>
+                      <span>鍚敤</span>
                       <input
                         type="checkbox"
                         checked={s.enabled}
@@ -261,7 +259,7 @@ export function AdminSqlAccessPanel() {
                       className="h-8 px-3 text-xs"
                       onClick={() => setEditingUserId(s.userId)}
                     >
-                      配置授权
+                      閰嶇疆鎺堟潈
                     </Button>
                   </li>
                 ))}
@@ -270,14 +268,13 @@ export function AdminSqlAccessPanel() {
           </div>
         </div>
 
-        {/* 审计 */}
+        {/* 瀹¤ */}
         <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
           <div className="flex items-center gap-1.5 border-b border-[--color-border] px-4 py-2 text-xs text-[--color-text-muted]">
-            <HistoryIcon size={12} /> 最近执行审计
-          </div>
+            <HistoryIcon size={12} /> 鏈€杩戞墽琛屽璁?          </div>
           <div className="max-h-[440px] overflow-y-auto">
             {audit.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-[--color-text-muted]">暂无记录</p>
+              <p className="px-4 py-6 text-sm text-[--color-text-muted]">鏆傛棤璁板綍</p>
             ) : (
               <ul>
                 {audit.map((a) => (
@@ -312,7 +309,7 @@ export function AdminSqlAccessPanel() {
         </div>
       </div>
 
-      {/* 配置弹窗 */}
+      {/* 閰嶇疆寮圭獥 */}
       <Dialog
         open={Boolean(editingUserId)}
         onOpenChange={(open) => {
@@ -331,7 +328,7 @@ export function AdminSqlAccessPanel() {
               </span>
             </DialogTitle>
             <DialogDescription>
-              逐表设置读 / 写权限、要遮罩的列、可选行过滤(如 <code className="rounded bg-[--color-bg-soft] px-1 py-0.5 font-mono text-[11px]">userId = :viewerId</code> 限定本人)。
+              逐表设置读 / 写权限、需要遮蔽的列，以及可选行过滤，例如 <code className="rounded bg-[--color-bg-soft] px-1 py-0.5 font-mono text-[11px]">userId = :viewerId</code> 限定本人。
             </DialogDescription>
           </DialogHeader>
 
@@ -348,7 +345,7 @@ export function AdminSqlAccessPanel() {
                 </label>
                 <div className="flex items-center gap-3 text-[--color-text-muted]">
                   <label className="inline-flex items-center gap-1.5">
-                    <span>默认 LIMIT</span>
+                    <span>榛樿 LIMIT</span>
                     <input
                       type="number"
                       min={1}
@@ -360,7 +357,7 @@ export function AdminSqlAccessPanel() {
                     />
                   </label>
                   <label className="inline-flex items-center gap-1.5">
-                    <span>超时(ms)</span>
+                    <span>瓒呮椂(ms)</span>
                     <input
                       type="number"
                       min={1000}
@@ -405,7 +402,7 @@ export function AdminSqlAccessPanel() {
                               {ACCESS_LABEL[t.access]}
                             </span>
                             {savingTable === key ? (
-                              <span className="text-[10px] text-[--color-text-muted]">保存中…</span>
+                              <span className="text-[10px] text-[--color-text-muted]">保存中...</span>
                             ) : null}
                             <span className="ml-auto inline-flex items-center gap-1">
                               {(["none", "read", "write"] as SqlAccessLevel[]).map((lvl) => (
@@ -436,7 +433,7 @@ export function AdminSqlAccessPanel() {
                           <div className="grid gap-2 md:grid-cols-2">
                             <div>
                               <label className="mb-1 flex items-center gap-1 text-[11px] font-medium text-[--color-text-secondary]">
-                                受限列(用户不可读取)
+                                鍙楅檺鍒?鐢ㄦ埛涓嶅彲璇诲彇)
                               </label>
                               {tableMeta ? (
                                 <div className="flex flex-wrap gap-1">
@@ -470,7 +467,7 @@ export function AdminSqlAccessPanel() {
                             </div>
                             <div>
                               <label className="mb-1 flex items-center gap-1 text-[11px] font-medium text-[--color-text-secondary]">
-                                行过滤(可选,SQL 片段)
+                                行过滤（可选 SQL 片段）
                               </label>
                               <input
                                 defaultValue={t.rowFilter ?? ""}
@@ -479,7 +476,7 @@ export function AdminSqlAccessPanel() {
                                 className="w-full rounded-[--radius-sm] border border-[--color-border] bg-white px-2 py-1.5 font-mono text-[11px] text-[--color-text-primary] outline-none focus:border-[--color-brand-border]"
                               />
                               <p className="mt-1 text-[10px] text-[--color-text-muted]">
-                                后端会将该过滤合并到用户每条 WHERE 子句中,占位符 :viewerId 自动替换。
+                                后端会将该过滤合并到用户每条 WHERE 子句中，占位符 :viewerId 会自动替换。
                               </p>
                             </div>
                           </div>
@@ -491,7 +488,7 @@ export function AdminSqlAccessPanel() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-[--color-text-muted]">加载授权数据…</p>
+            <p className="text-sm text-[--color-text-muted]">加载授权数据...</p>
           )}
 
           <DialogFooter>
@@ -507,7 +504,7 @@ export function AdminSqlAccessPanel() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>添加可访问的表</DialogTitle>
-            <DialogDescription>选择要授予 {grant?.displayName} 的表,默认权限为只读。</DialogDescription>
+            <DialogDescription>选择要授予 {grant?.displayName} 的表，默认权限为只读。</DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] overflow-y-auto">
             {allTables.map((t) => {

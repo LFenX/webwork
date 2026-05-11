@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { type ClipboardEvent as ReactClipboardEvent, type FormEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { type ClipboardEvent as ReactClipboardEvent, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { File as FileIcon, Loader2, Megaphone, Menu, MessageCircle, Paperclip, Plus, RefreshCcw, Send, Sparkles, UserPlus, X } from "lucide-react"
 import { toast } from "sonner"
 import { ComposerReplyPreview, MessageActionSurface, MessageReplyReference, type MessageActionItem } from "@/components/chat-message-actions"
@@ -38,7 +38,7 @@ type Friend = {
   avatarUrl: string | null
 }
 
-type Channel = {
+export type Channel = {
   id: string
   type: string
   name: string
@@ -96,7 +96,7 @@ type ChannelMessage = {
   localStatus?: "sending" | "failed"
 }
 
-type ChannelSummary = {
+export type ChannelSummary = {
   channelId: string
   totalCount: number
   latest: { id: string; text: string; createdAt: string } | null
@@ -439,7 +439,7 @@ export function AnnouncementChannelBar({
     <section className="mb-8 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
       <div className="flex min-w-0 items-center gap-3 px-3 py-2">
         <Button asChild size="sm" className="relative h-9 shrink-0 gap-1.5 md:hidden">
-          <Link href="/channels" className="!text-primary-foreground hover:!text-primary-foreground">
+          <Link href="/friends?type=channel&id=world" className="!text-primary-foreground hover:!text-primary-foreground">
             <MessageCircle size={14} />
             {dict.channels.channels}
             {channelUnreadCount > 0 ? (
@@ -526,6 +526,10 @@ export function GroupChatClient({
   onWorldAnnouncement = noopWorldAnnouncement,
   initialChannelId,
   initialRoundtableDiscussionId,
+  hideSidebar = false,
+  className = "",
+  headerPrefix,
+  headerActions,
 }: {
   userId: string
   currentUser: Friend
@@ -533,6 +537,10 @@ export function GroupChatClient({
   onWorldAnnouncement?: () => void
   initialChannelId?: string
   initialRoundtableDiscussionId?: string
+  hideSidebar?: boolean
+  className?: string
+  headerPrefix?: ReactNode
+  headerActions?: ReactNode
 }) {
   const dict = getDict()
   const [channels, setChannels] = useState<Channel[]>([])
@@ -576,6 +584,9 @@ export function GroupChatClient({
   const selected = channels.find((channel) => channel.id === selectedId) ?? channels[0]
   const isWorld = selected?.id === WORLD_CHANNEL_ID
   const isRoundtable = selected?.id === SOULWING_ROUNDTABLE_CHANNEL_ID
+  const embeddedHeaderButtonClass = hideSidebar
+    ? "h-8 rounded-full border-blue-100 bg-white px-3 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+    : "h-8"
   const friendIds = useMemo(() => new Set(friends.map((friend) => friend.id)), [friends])
   const inputDraftKey = selectedId ? userStorageKey(userId, "chat-input", `channel:${selectedId}`) : ""
   const channelSeenKey = getChannelSeenStorageKey(userId)
@@ -585,6 +596,19 @@ export function GroupChatClient({
     [messages, replyTo]
   )
   const forceScrollToBottomRef = useRef(false)
+
+  const scrollToLatestMessage = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const scroll = () => {
+      container.scrollTop = container.scrollHeight
+      shouldStickToBottomRef.current = true
+    }
+    scroll()
+    window.requestAnimationFrame(scroll)
+    window.setTimeout(scroll, 120)
+    window.setTimeout(scroll, 360)
+  }, [])
 
   useEffect(() => {
     activeChannelIdRef.current = selectedId
@@ -899,36 +923,47 @@ export function GroupChatClient({
     return () => window.removeEventListener("app:realtime", handler)
   }, [channelSummaries, persistSeenCounts, seenCounts, selectedId])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    lastMessageIdRef.current = null
+    shouldStickToBottomRef.current = true
+    forceScrollToBottomRef.current = Boolean(selectedId)
+    scrollToLatestMessage()
+  }, [scrollToLatestMessage, selectedId])
+
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
     const currentLastMessageId = messages[messages.length - 1]?.id ?? null
-    if (!selectedId) {
+    if (revealPrependedHistoryRef.current) {
+      revealPrependedHistoryRef.current = false
       lastMessageIdRef.current = currentLastMessageId
+      container.scrollTop = 0
       return
     }
     const lastMessageChanged = lastMessageIdRef.current !== currentLastMessageId
     const latestMessage = messages[messages.length - 1]
     const latestMessageIsMine = latestMessage ? latestMessage.senderId === (currentUserId || userId) : false
-    if (lastMessageChanged && (lastMessageIdRef.current === null || shouldStickToBottomRef.current || latestMessageIsMine)) {
-      endRef.current?.scrollIntoView({ block: "end" })
+    const shouldForce = forceScrollToBottomRef.current || lastMessageIdRef.current === null
+    if (currentLastMessageId && lastMessageChanged && (shouldForce || shouldStickToBottomRef.current || latestMessageIsMine)) {
+      forceScrollToBottomRef.current = false
+      scrollToLatestMessage()
+    } else if (forceScrollToBottomRef.current) {
+      forceScrollToBottomRef.current = false
+      scrollToLatestMessage()
     }
     lastMessageIdRef.current = currentLastMessageId
-  }, [currentUserId, messages, selectedId, userId])
+  }, [currentUserId, messages, scrollToLatestMessage, userId])
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const container = scrollContainerRef.current
-    if (!container) return
-    if (forceScrollToBottomRef.current) {
-      forceScrollToBottomRef.current = false
-      container.scrollTop = container.scrollHeight
-      window.requestAnimationFrame(() => {
-        container.scrollTop = container.scrollHeight
-      })
-      return
-    }
-    if (!revealPrependedHistoryRef.current) return
-    revealPrependedHistoryRef.current = false
-    container.scrollTop = 0
-  }, [messages])
+    const content = container?.firstElementChild
+    if (!container || !content || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(() => {
+      if (forceScrollToBottomRef.current || shouldStickToBottomRef.current) scrollToLatestMessage()
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [loading, messages.length, scrollToLatestMessage])
 
   async function sendMessage(stickerOverride?: StickerPick | null) {
     const activeSticker = stickerOverride ?? sticker
@@ -1095,8 +1130,8 @@ export function GroupChatClient({
   }, [])
 
   return (
-    <div className="relative flex min-h-0 w-full max-w-full flex-1 overflow-hidden md:grid md:grid-cols-[260px_minmax(0,1fr)]">
-      {channelMenuOpen && (
+    <div className={`relative flex min-h-0 w-full max-w-full flex-1 overflow-hidden ${hideSidebar ? "" : "md:grid md:grid-cols-[260px_minmax(0,1fr)]"} ${className}`}>
+      {!hideSidebar && channelMenuOpen && (
         <button
           type="button"
           aria-label={dict.common.close}
@@ -1104,6 +1139,7 @@ export function GroupChatClient({
           className="absolute inset-0 z-10 bg-black/30 backdrop-blur-[2px] transition-opacity md:hidden"
         />
       )}
+      {!hideSidebar && (
       <aside className={`absolute inset-y-0 left-0 z-20 isolate flex min-h-0 w-[min(82vw,280px)] flex-col border-r border-[--color-border] bg-[--color-bg-primary]/95 shadow-xl backdrop-blur-md transition-transform duration-200 md:static md:z-auto md:w-auto md:translate-x-0 md:bg-[--color-bg-primary] md:shadow-none md:backdrop-blur-none ${channelMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center justify-between border-b border-[--color-border] bg-[--color-bg-primary]/95 p-3 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
           <p className="text-sm font-semibold">{dict.channels.channels}</p>
@@ -1167,13 +1203,17 @@ export function GroupChatClient({
           })}
         </div>
       </aside>
+      )}
 
       <main className="flex min-h-0 min-w-0 w-full flex-col">
-        <div className="flex items-center justify-between gap-2 border-b border-[--color-border] px-3 py-3 sm:px-4">
-          <Button type="button" size="sm" variant="ghost" className="h-8 shrink-0 px-2 md:hidden" onClick={() => setChannelMenuOpen(true)}>
-            <Menu size={15} />
-            <span>{dict.channels.channels}</span>
-          </Button>
+        <div className={`flex items-center justify-between gap-2 px-3 py-3 sm:px-4 ${hideSidebar ? "border-b border-slate-100 bg-white/95" : "border-b border-[--color-border]"}`}>
+          {headerPrefix}
+          {!hideSidebar && (
+            <Button type="button" size="sm" variant="ghost" className="h-8 shrink-0 px-2 md:hidden" onClick={() => setChannelMenuOpen(true)}>
+              <Menu size={15} />
+              <span>{dict.channels.channels}</span>
+            </Button>
+          )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{selected?.name ?? dict.channels.channels}</p>
             <p className="truncate text-xs text-[--color-text-muted]">
@@ -1181,8 +1221,9 @@ export function GroupChatClient({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {headerActions}
             {isWorld && (
-              <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => {
+              <Button type="button" size="sm" variant="outline" className={embeddedHeaderButtonClass} onClick={() => {
                 setWorldMembersOpen(true)
                 if (worldMembers.length === 0) {
                   setWorldMembersLoading(true)
@@ -1198,25 +1239,25 @@ export function GroupChatClient({
               </Button>
             )}
             {!isWorld && !isRoundtable && (
-              <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setInviteOpen(true)}>
+              <Button type="button" size="sm" variant="outline" className={embeddedHeaderButtonClass} onClick={() => setInviteOpen(true)}>
                 <UserPlus size={14} />
                 <span className="hidden sm:inline">{dict.channels.invite}</span>
               </Button>
             )}
             {!isWorld && !isRoundtable && selected ? (
-              <Button asChild type="button" size="sm" variant="outline" className="h-8">
+              <Button asChild type="button" size="sm" variant="outline" className={embeddedHeaderButtonClass}>
                 <Link href={`/channels/${selected.id}`}>{dict.channels.manage}</Link>
               </Button>
             ) : null}
             {isRoundtable ? (
-              <Button asChild type="button" size="sm" variant="outline" className="h-8">
+              <Button asChild type="button" size="sm" variant="outline" className={embeddedHeaderButtonClass}>
                 <Link href="/channels/soulwing-roundtable">
                   <Sparkles size={14} />
                   <span className="hidden sm:inline">圆桌管理</span>
                 </Link>
               </Button>
             ) : null}
-            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => selected && (isRoundtable ? window.dispatchEvent(new CustomEvent("soulwing-roundtable:refresh")) : loadMessages(selected.id))}>
+            <Button type="button" size="sm" variant="outline" className={embeddedHeaderButtonClass} onClick={() => selected && (isRoundtable ? window.dispatchEvent(new CustomEvent("soulwing-roundtable:refresh")) : loadMessages(selected.id))}>
               <RefreshCcw size={14} />
               <span className="hidden sm:inline">{dict.common.refresh}</span>
             </Button>
@@ -1701,7 +1742,7 @@ function UserProfileDialog({ user, currentUserId, isFriend, onOpenChange }: { us
                   <Link href={`/u/${user.id}`}>{dict.nav.home}</Link>
                 </Button>
                 <Button asChild>
-                  <Link href={`/friends/chat/${user.id}`}>{dict.nav.friends}</Link>
+                  <Link href={`/friends?type=direct&id=${encodeURIComponent(user.id)}`}>{dict.nav.friends}</Link>
                 </Button>
               </DialogFooter>
             ) : (

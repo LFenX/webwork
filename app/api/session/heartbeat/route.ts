@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { closeUserSession, deleteSession, EXPIRE_AFTER_MS, FOREGROUND_OFFLINE_AFTER_MS, getSessionCookiePayload } from "@/lib/session"
+import { closeUserSession, deleteSession, FOREGROUND_OFFLINE_AFTER_MS, SESSION_EXPIRE_AFTER_MS, getSessionCookiePayload } from "@/lib/session"
 import { presenceFromSession } from "@/lib/presence"
 import { recordActivity } from "@/lib/admin"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
+const SESSION_EXPIRED_MESSAGE = "登录状态已过期，请重新登录。"
 
 function replacedMessage(location: string, device: string) {
   const where = location || "未知地点"
@@ -54,10 +55,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: session.status === "expired" ? "expired" : "offline" }, { status: 401, headers: NO_STORE })
   }
 
-  if (Date.now() - session.lastSeenAt.getTime() >= EXPIRE_AFTER_MS) {
-    await closeUserSession(payload.sessionId, "expired", "expired", "登录已超过 12 小时未操作", req)
+  if (Date.now() - session.lastSeenAt.getTime() >= SESSION_EXPIRE_AFTER_MS) {
+    await closeUserSession(payload.sessionId, "expired", "expired", SESSION_EXPIRED_MESSAGE, req)
     await deleteSession()
-    return NextResponse.json({ status: "expired", message: "登录已超过 12 小时未操作，请重新登录。" }, { status: 401, headers: NO_STORE })
+    return NextResponse.json({ status: "expired", message: SESSION_EXPIRED_MESSAGE }, { status: 401, headers: NO_STORE })
   }
 
   const now = new Date()

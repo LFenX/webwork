@@ -9,6 +9,25 @@ import { DEFAULT_HOME_LAYOUT, HOME_WIDGET_LABELS, type HomeWidgetId, type HomeWi
 
 type Widget = { id: HomeWidgetId; content: ReactNode }
 
+function widgetSpanClass(width: number) {
+  const span = Math.min(12, Math.max(1, Math.round(width)))
+  const map: Record<number, string> = {
+    1: "md:col-span-1",
+    2: "md:col-span-2",
+    3: "md:col-span-3",
+    4: "md:col-span-4",
+    5: "md:col-span-5",
+    6: "md:col-span-6",
+    7: "md:col-span-7",
+    8: "md:col-span-8",
+    9: "md:col-span-9",
+    10: "md:col-span-10",
+    11: "md:col-span-11",
+    12: "md:col-span-12",
+  }
+  return map[span] ?? "md:col-span-12"
+}
+
 export function HomeLayoutBoard({
   widgets,
   initialLayout,
@@ -139,7 +158,7 @@ export function HomeLayoutBoard({
           ))}
         </div>
       )}
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-12">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-12">
         {visible.map((item) => (
           <div
             key={item.id}
@@ -169,9 +188,9 @@ export function HomeLayoutBoard({
             }}
             onPointerCancel={clearLongPressTimer}
             className={editing
-              ? `relative rounded-[--radius-lg] outline outline-1 outline-dashed ${dragging === item.id ? "outline-[--color-link] bg-[--color-bg-hover]" : "outline-[--color-accent]"}`
-              : "border-b border-[rgba(15,23,42,0.06)] pb-8"}
-            style={{ gridColumn: `span ${Math.min(12, Math.max(1, item.w))} / span ${Math.min(12, Math.max(1, item.w))}`, minHeight: editing ? `${Math.max(1, item.h) * 72}px` : undefined }}
+              ? `relative min-w-0 rounded-[--radius-lg] outline outline-1 outline-dashed ${widgetSpanClass(item.w)} ${dragging === item.id ? "outline-[--color-link] bg-[--color-bg-hover]" : "outline-[--color-accent]"}`
+              : `min-w-0 ${widgetSpanClass(item.w)}`}
+            style={{ minHeight: editing ? `${Math.max(1, item.h) * 72}px` : undefined }}
           >
             {editing && (
               <div className="absolute right-2 top-2 z-20 flex items-center gap-1 rounded border border-[--color-border] bg-[--color-bg-primary] p-1 shadow-md">

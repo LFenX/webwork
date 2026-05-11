@@ -14,11 +14,11 @@ type RichEvent = { date: string; type: ActivityType; count: number; details: Ric
 
 type RichDetail = { title: string; sub?: string; href?: string; date: string }
 
-type PostItem = { type?: string; slug?: string; title?: string; date?: string; typeLabel?: string }
+type PostItem = { type?: string; slug?: string; title?: string; date?: string; typeLabel?: string; href?: string }
 
 type JobItem = { id: string; company?: string; position?: string; appliedAt?: string | Date; status?: string }
 
-type DailyItem = { slug?: string; title?: string; date?: string }
+type DailyItem = { slug?: string; title?: string; date?: string; href?: string }
 
 type ChatActivitySummary = { directCount: number; channelCount: number; weeklyActive: number; heatmap: Record<string, number> }
 
@@ -392,11 +392,11 @@ function buildRichEvents(
 
   // Content
   const contentMap = new Map<string, RichDetail[]>()
-  const allItems: Array<{ title?: string; date?: string; slug?: string; type?: string; typeLabel?: string }> = [...recentPosts, ...recentDaily]
+  const allItems: Array<{ title?: string; date?: string; slug?: string; type?: string; typeLabel?: string; href?: string }> = [...recentPosts, ...recentDaily]
   allItems.forEach((p) => {
     const d = p.date?.slice(0, 10) ?? ""; if (!d || !d.startsWith(prefix)) return
     const hrefBase = p.type === "daily" ? "/daily" : p.type ? `/${p.type}` : "/blog"
-    const href = p.slug ? `${hrefBase}/${encodeURIComponent(p.slug)}` : undefined
+    const href = p.href ?? (p.slug ? `${hrefBase}/${encodeURIComponent(p.slug)}` : undefined)
     if (!contentMap.has(d)) contentMap.set(d, [])
     contentMap.get(d)!.push({ title: p.title || "未命名", sub: p.typeLabel ? `${p.typeLabel}` : undefined, href, date: d })
   })
@@ -430,7 +430,7 @@ function buildRichEvents(
         chatDetails.push({ title: "私聊互动", sub: `${chatSummary.directCount} 次 · 本周活跃 ${chatSummary.weeklyActive} 次`, href: "/friends", date: lastDate })
       }
       if (chatSummary.channelCount > 0) {
-        chatDetails.push({ title: "群聊发言", sub: `${chatSummary.channelCount} 次`, href: "/channels", date: lastDate })
+        chatDetails.push({ title: "群聊发言", sub: `${chatSummary.channelCount} 次`, href: "/friends?type=channel&id=world", date: lastDate })
       }
     }
     if (chatDetails.length === 0) {
@@ -481,21 +481,24 @@ export function ContributionActivityPanel({
   const timelineToShow = timelineOpen ? filteredEvents : filteredEvents.slice(0, 20)
 
   return (
-    <section className="space-y-4">
+    <section className="flex min-w-0 flex-col gap-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">
-          <span className="text-xl font-bold">{filteredTotal}</span>
-          <span className="ml-2 text-sm font-normal text-[--color-text-secondary]">activities in {activeYear}</span>
-        </h2>
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-[--color-text-primary]">活跃度</h2>
+          <p className="mt-1 text-sm text-[--color-text-muted]">
+            <span className="font-mono text-base font-semibold tabular-nums text-[--color-text-primary]">{filteredTotal}</span>
+            <span className="ml-1">次活动记录于 {activeYear}</span>
+          </p>
+        </div>
         <TypeFilter selected={selectedTypes} onToggle={toggleType} />
       </div>
 
       {/* Main card */}
-      <div className="overflow-hidden rounded-[--radius-xl] border border-[rgba(15,23,42,0.07)]"
+      <div className="overflow-hidden rounded-[22px] border border-[--color-border]"
         style={{
-          background: "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.48) 100%)",
-          boxShadow: "0 18px 50px rgba(15,23,42,0.05)",
+          background: "linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.58) 100%)",
+          boxShadow: "var(--shadow-profile-card)",
           backdropFilter: "blur(18px)",
           WebkitBackdropFilter: "blur(18px)",
         }}>
@@ -523,10 +526,10 @@ export function ContributionActivityPanel({
       </div>
 
       {/* Timeline */}
-      <div className="overflow-hidden rounded-[--radius-xl] border border-[rgba(15,23,42,0.07)]"
+      <div className="overflow-hidden rounded-[22px] border border-[--color-border]"
         style={{
-          background: "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.48) 100%)",
-          boxShadow: "0 18px 50px rgba(15,23,42,0.05)",
+          background: "linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.58) 100%)",
+          boxShadow: "var(--shadow-profile-card)",
           backdropFilter: "blur(18px)",
           WebkitBackdropFilter: "blur(18px)",
         }}>

@@ -110,8 +110,8 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       onClick={onClick}
       className={`relative h-10 rounded-full px-4 text-[13px] sm:px-5 sm:text-sm font-medium transition-all whitespace-nowrap ${
         active
-          ? "bg-[--color-text-primary] text-[--color-bg-primary] shadow-[0_10px_24px_rgba(15,23,42,0.16)]"
-          : "text-[--color-text-secondary] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
+          ? "bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.20)]"
+          : "text-slate-600 hover:bg-blue-50 hover:text-blue-600"
       }`}
     >
       {children}
@@ -121,7 +121,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 
 function Toggle({ label, description, value, onChange, warning }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void; warning?: string }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-[--radius-md] bg-[--color-bg-surface]/50 px-4 py-3">
+    <div className="flex items-start justify-between gap-4 rounded-[16px] border border-slate-100 bg-white px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.025)]">
       <div className="min-w-0">
         <p className="text-sm font-medium text-[--color-text-primary]">{label}</p>
         <p className="mt-0.5 text-xs text-[--color-text-muted]">{description}</p>
@@ -500,7 +500,7 @@ export function SoulWingSettingsClient() {
       if (lRes.ok) { const d = await lRes.json(); setAutoReplyLogs(d.items ?? []) }
     } catch { /* silent */ }
     finally { setAutoReplyLoading(false) }
-  }, [])
+  }, [setAutoReplySettings])
 
   // After creating/patching a setting the response includes featureEnabled
   const syncFeatureEnabled = (data: { featureEnabled?: boolean }) => {
@@ -547,9 +547,9 @@ export function SoulWingSettingsClient() {
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <div className="soulwing-settings-console space-y-5">
       {/* Tabs */}
-      <div className="mb-6 flex w-fit max-w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-full bg-[--color-bg-surface]/75 p-1 shadow-[inset_0_0_0_1px_var(--color-border)]">
+      <div className="flex max-w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-[18px] border border-slate-200/80 bg-white p-1 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
         <TabButton active={tab === "persona"} onClick={() => setTab("persona")}>人格设置</TabButton>
         <TabButton active={tab === "memory"} onClick={() => setTab("memory")}>长期记忆</TabButton>
         <TabButton active={tab === "logs"} onClick={() => setTab("logs")}>自动记忆日志</TabButton>
@@ -563,12 +563,12 @@ export function SoulWingSettingsClient() {
           {profileLoading ? <p className="text-sm text-[--color-text-muted]">加载中...</p> : (
             <>
               {!profile?.enabled ? (
-                <div className="rounded-[--radius-lg] bg-[--color-warning-bg] px-4 py-3 text-sm text-[--color-warning]">
+                <div className="rounded-[18px] border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                   当前已关闭用户专属人格上下文。蝶灵将使用最简默认身份回复。
                 </div>
               ) : null}
 
-              <div className="rounded-[--radius-lg] bg-[--color-bg-surface] p-4 shadow-[0_8px_22px_rgba(15,23,42,0.04)] sm:p-5">
+              <div className="rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.045)] sm:p-5">
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-[--color-border-strong] bg-[--color-bg-hover]">
                     {profile?.avatarUrl ? (
@@ -634,7 +634,7 @@ export function SoulWingSettingsClient() {
 
                 <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
                   <aside className="min-w-0">
-                    <div className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:rounded-[--radius-lg] lg:bg-[--color-bg-surface]/60 lg:p-2">
+                    <div className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:rounded-[18px] lg:border lg:border-slate-200/80 lg:bg-white lg:p-2 lg:shadow-[0_10px_24px_rgba(15,23,42,0.035)]">
                       {personaSections.map(section => {
                         const active = section.id === activePersona.id
                         return (
@@ -644,8 +644,8 @@ export function SoulWingSettingsClient() {
                             onClick={() => setActivePersonaSection(section.id)}
                             className={`relative min-w-[148px] rounded-full px-4 py-2 text-left transition-all lg:min-w-0 lg:w-full lg:rounded-[--radius-md] lg:px-4 lg:py-3 ${
                               active
-                                ? "bg-[--color-text-primary] pl-8 text-[--color-bg-primary] shadow-[0_8px_20px_rgba(15,23,42,0.14)] lg:bg-[--color-bg-primary] lg:pl-8 lg:text-[--color-text-primary] lg:shadow-[0_8px_22px_rgba(15,23,42,0.08)] lg:ring-1 lg:ring-[--color-border]"
-                                : "bg-[--color-bg-hover] text-[--color-text-secondary] hover:text-[--color-text-primary] lg:bg-transparent lg:hover:bg-[--color-bg-hover]"
+                                ? "bg-blue-600 pl-8 text-white shadow-[0_10px_24px_rgba(37,99,235,0.18)] lg:bg-blue-50 lg:pl-8 lg:text-slate-950 lg:shadow-none lg:ring-1 lg:ring-blue-100"
+                                : "bg-slate-50 text-slate-600 hover:text-blue-600 lg:bg-transparent lg:hover:bg-slate-50"
                             }`}
                           >
                             {active ? <span className="pointer-events-none absolute bottom-3 left-3 top-3 z-10 w-[5px] rounded-full bg-[#2563EB] shadow-[0_0_0_1px_rgba(255,255,255,0.85)]" aria-hidden="true" /> : null}
@@ -661,7 +661,7 @@ export function SoulWingSettingsClient() {
                     </div>
                   </aside>
 
-                  <section className="flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-[--radius-lg] bg-[--color-bg-surface] shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+                  <section className="flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-[18px] border border-slate-200/80 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.045)]">
                     <div className="px-4 py-4 sm:px-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -683,10 +683,10 @@ export function SoulWingSettingsClient() {
                       onChange={e => activePersona.setValue(e.target.value)}
                       placeholder={activePersona.placeholder}
                       style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                      className="min-h-[420px] w-full max-w-full flex-1 resize-none overflow-x-hidden whitespace-pre-wrap rounded-none border-0 bg-[--color-bg-primary]/45 px-4 py-4 text-sm leading-6 shadow-none [overflow-wrap:anywhere] [word-break:break-word] focus-visible:ring-0 focus-visible:ring-offset-0 sm:px-5"
+                      className="min-h-[420px] w-full max-w-full flex-1 resize-none overflow-x-hidden whitespace-pre-wrap rounded-none border-0 bg-[#f8fbff] px-4 py-4 text-sm leading-6 shadow-none [overflow-wrap:anywhere] [word-break:break-word] focus-visible:ring-0 focus-visible:ring-offset-0 sm:px-5"
                     />
 
-                    <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 bg-[--color-bg-surface]/95 px-4 py-3 backdrop-blur sm:px-5">
+                    <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:px-5">
                       <p className="text-xs text-[--color-text-muted]">
                         当前分区 {activePersona.value.trim().length || 0} 字；保存会写入所有分区。
                       </p>
@@ -711,8 +711,8 @@ export function SoulWingSettingsClient() {
       {tab === "memory" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <Input placeholder="搜索记忆..." value={factSearch} onChange={e => setFactSearch(e.target.value)} className="w-full sm:max-w-[240px] rounded-full bg-[--color-bg-surface] text-sm shadow-none" />
-            <select value={factCategory} onChange={e => setFactCategory(e.target.value)} className="rounded-full border border-[--color-border] bg-[--color-bg-surface] px-3 py-1.5 text-sm text-[--color-text-primary] shadow-none">
+            <Input placeholder="搜索记忆..." value={factSearch} onChange={e => setFactSearch(e.target.value)} className="h-11 w-full rounded-full border-slate-200 bg-white text-sm shadow-none sm:max-w-[260px]" />
+            <select value={factCategory} onChange={e => setFactCategory(e.target.value)} className="h-11 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-700 shadow-none">
               <option value="">全部分类</option>
               {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
             </select>
@@ -722,7 +722,7 @@ export function SoulWingSettingsClient() {
           </div>
 
           {showNewFact && (
-            <div className="space-y-3 rounded-[--radius-lg] bg-[--color-bg-surface]/60 p-4">
+            <div className="space-y-3 rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
               <div className="grid grid-cols-2 gap-3">
                 <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] px-3 py-2 text-sm shadow-none">
                   {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
@@ -770,14 +770,14 @@ export function SoulWingSettingsClient() {
           {factsLoading ? (
             <p className="py-8 text-center text-sm text-[--color-text-muted]">加载中...</p>
           ) : facts.length === 0 ? (
-            <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/40 px-6 py-10 text-center">
+            <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-6 py-10 text-center shadow-[0_10px_24px_rgba(15,23,42,0.025)]">
               <p className="text-sm text-[--color-text-muted]">蝶灵还没有长期记忆。</p>
               <p className="mt-1 text-xs text-[--color-text-muted]/70">你可以在聊天中说&ldquo;记住&hellip;&hellip;&rdquo;，也可以手动新增一条。</p>
             </div>
           ) : (
             <div className="space-y-2">
               {facts.map(fact => (
-                <div key={fact.id} className="rounded-[--radius-lg] bg-[--color-bg-surface]/60 px-4 py-3 transition-colors hover:bg-[--color-bg-surface]/80">
+                <div key={fact.id} className="rounded-[18px] border border-slate-100 bg-white px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.025)] transition-colors hover:border-blue-100 hover:bg-blue-50/30">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -815,14 +815,14 @@ export function SoulWingSettingsClient() {
             <>
               {logTab === "events" && (
                 events.length === 0 ? (
-                  <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/40 px-6 py-10 text-center">
+                  <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-6 py-10 text-center shadow-[0_10px_24px_rgba(15,23,42,0.025)]">
                     <p className="text-sm text-[--color-text-muted]">暂无对话摘要。</p>
                     <p className="mt-1 text-xs text-[--color-text-muted]/70">每次蝶灵对话完成后会自动生成对话摘要。</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {events.map(e => (
-                      <div key={e.id} className="rounded-[--radius-lg] bg-[--color-bg-surface]/60 px-4 py-3">
+                      <div key={e.id} className="rounded-[18px] border border-slate-100 bg-white px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.025)]">
                         <p className="text-sm font-medium text-[--color-text-primary] line-clamp-1">{e.topicSummary}</p>
                         {e.keyTakeaways ? <p className="mt-1 line-clamp-2 text-xs text-[--color-text-secondary]">{e.keyTakeaways}</p> : null}
                         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-[--color-text-muted]">
@@ -837,14 +837,14 @@ export function SoulWingSettingsClient() {
               )}
               {logTab === "tools" && (
                 toolEvents.length === 0 ? (
-                  <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/40 px-6 py-10 text-center">
+                  <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-6 py-10 text-center shadow-[0_10px_24px_rgba(15,23,42,0.025)]">
                     <p className="text-sm text-[--color-text-muted]">暂无工具操作记录。</p>
                     <p className="mt-1 text-xs text-[--color-text-muted]/70">当蝶灵通过工具创建或修改内容时，操作记录会自动保存。</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {toolEvents.map(t => (
-                      <div key={t.id} className="rounded-[--radius-lg] bg-[--color-bg-surface]/60 px-4 py-3">
+                      <div key={t.id} className="rounded-[18px] border border-slate-100 bg-white px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.025)]">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">{ACTION_LABELS[t.action] ?? t.action}</span>
                           {t.module ? <span className="text-xs text-[--color-text-muted]">{t.module}</span> : null}
@@ -891,7 +891,7 @@ export function SoulWingSettingsClient() {
         <div className="space-y-5">
           {/* Feature gate banner */}
           {!autoReplyFeatureEnabled && (
-            <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-warning-bg] px-4 py-3 text-sm text-[--color-warning]">
+            <div className="rounded-[18px] border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
               <p className="font-medium">自动回复功能尚未开放</p>
               <p className="mt-1 text-xs">你可以提前查看和配置设置，正式开放后将按照你的配置生效。此期间即使设置了开关也不会自动发送任何消息。</p>
             </div>
@@ -900,7 +900,7 @@ export function SoulWingSettingsClient() {
           {autoReplyLoading ? (
             <p className="py-8 text-center text-sm text-[--color-text-muted]">加载中...</p>
           ) : autoReplySettings.length === 0 ? (
-            <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/40 px-6 py-10 text-center">
+            <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-6 py-10 text-center shadow-[0_10px_24px_rgba(15,23,42,0.025)]">
               <p className="text-sm text-[--color-text-muted]">尚未创建自动回复配置。</p>
               <p className="mt-1 text-xs text-[--color-text-muted]/70">创建后可设置回复方式、冷却时间和每日上限。</p>
               <Button size="sm" onClick={createGlobalSetting} disabled={savingAutoReply} className="mt-4 rounded-full shadow-none">
@@ -908,7 +908,7 @@ export function SoulWingSettingsClient() {
               </Button>
             </div>
           ) : autoReplySettings.map(s => (
-            <div key={s.id} className="space-y-4 rounded-[--radius-lg] bg-[--color-bg-surface]/60 p-4">
+            <div key={s.id} className="space-y-4 rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
               {/* Enable toggle */}
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -1069,7 +1069,7 @@ export function SoulWingSettingsClient() {
               <p className="mb-2 text-sm font-medium text-[--color-text-primary]">最近自动回复记录</p>
               <div className="space-y-2">
                 {autoReplyLogs.map(log => (
-                  <div key={log.id} className="rounded-[--radius-md] bg-[--color-bg-surface]/60 px-4 py-2.5">
+                  <div key={log.id} className="rounded-[16px] border border-slate-100 bg-white px-4 py-2.5 shadow-[0_8px_20px_rgba(15,23,42,0.025)]">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-[--color-bg-hover] px-2 py-0.5 text-[11px] text-[--color-text-muted]">
                         {log.chatType === "direct" ? "单聊" : "群聊"}

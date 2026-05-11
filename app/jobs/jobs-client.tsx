@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { ExternalLink, Eye, Pencil, Plus, Search, Trash2, X } from "lucide-react"
+import { BarChart3, BriefcaseBusiness, ExternalLink, Eye, Pencil, Plus, Search, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -21,6 +21,7 @@ import { formatChinaDate } from "@/lib/time"
 import { getDict } from "@/lib/i18n"
 import { confirmAction } from "@/lib/interaction-feedback"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
+import { ModuleHero, ModulePageShell, ModulePanel, ModuleStatGrid, ModuleToolbar, modulePillClass } from "@/components/module/module-shell"
 
 interface Job {
   id: string
@@ -65,13 +66,13 @@ type JobForm = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  [JOB_STATUS[0] ?? ""]: "#9A9A9A",
-  [JOB_STATUS[1] ?? ""]: "#B8902D",
-  [JOB_STATUS[2] ?? ""]: "#0969DA",
-  [JOB_STATUS[3] ?? ""]: "#A8463A",
-  [JOB_STATUS[4] ?? ""]: "#3A7D5C",
-  [JOB_STATUS[5] ?? ""]: "#3A7D5C",
-  [JOB_STATUS[6] ?? ""]: "#D4D1C7",
+  [JOB_STATUS[0] ?? ""]: "#94a3b8",
+  [JOB_STATUS[1] ?? ""]: "#f59e0b",
+  [JOB_STATUS[2] ?? ""]: "#2563eb",
+  [JOB_STATUS[3] ?? ""]: "#ef4444",
+  [JOB_STATUS[4] ?? ""]: "#10b981",
+  [JOB_STATUS[5] ?? ""]: "#10b981",
+  [JOB_STATUS[6] ?? ""]: "#cbd5e1",
 }
 
 const defaultForm: JobForm = {
@@ -146,9 +147,9 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: "private
     }
     load()
     return () => { cancelled = true }
-  }, [loadJobs, refreshKey, refreshStats])
+  }, [loadJobs, refreshKey, refreshStats, dict.error.title])
 
-  function triggerRefresh() { setRefreshKey(k => k + 1) }
+  function triggerRefresh() { setRefreshKey((key) => key + 1) }
 
   function openCreate() {
     setEditingJob(null)
@@ -205,7 +206,7 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: "private
   }
 
   async function handleDelete(id: string, closeSheet = false) {
-    const job = jobs.find(j => j.id === id)
+    const job = jobs.find((item) => item.id === id)
     if (!confirmAction(`${dict.jobs.deleteConfirm(job?.company ?? "")}\n删除后该求职记录及关联展示将从列表中移除。`)) return
     setDeletingId(id)
     try {
@@ -240,208 +241,235 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: "private
     }
   }
 
-  const statusDist = useMemo(() => stats?.statusDist.map((d) => ({
-    ...d,
-    color: STATUS_COLORS[d.name] ?? "#9A9A9A",
+  const statusDist = useMemo(() => stats?.statusDist.map((item) => ({
+    ...item,
+    color: STATUS_COLORS[item.name] ?? "#94a3b8",
   })) ?? [], [stats])
 
-  return (
-    <div className="mx-auto max-w-[1200px] px-6 pt-4 pb-10">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="mb-1 text-xl font-semibold">{dict.jobs.title}</h1>
-          <p className="text-sm text-[--color-text-muted]">{dict.jobs.description}</p>
-        </div>
-        {initialVisibility !== undefined && (
-          <ModuleVisibilitySelect module="jobs" initialVisibility={initialVisibility} />
+  const toolbar = (
+    <ModuleToolbar>
+      <div className="relative min-w-0 flex-1">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Input
+          placeholder={dict.jobs.search}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="h-11 rounded-full border-slate-200 bg-slate-50 pl-10 pr-10 text-sm shadow-none focus-visible:border-blue-300 focus-visible:bg-white"
+        />
+        {search && (
+          <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+            <X size={14} />
+          </button>
         )}
       </div>
-
-      {stats && (
-        <section className="mb-8">
-          <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3 rounded-[--radius-lg] bg-[--color-bg-surface]/60 p-3 sm:p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
-            <StatsCard title={dict.jobs.total} value={stats.total} sub={dict.jobs.total} />
-            <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? dict.jobs.replied : dict.jobs.replyRate} trend={stats.replyRate > 50 ? "up" : "neutral"} />
-            <StatsCard title={dict.jobs.interviewRate} value={`${stats.interviewRate}%`} sub={dict.jobs.interviewRate} />
-            <StatsCard title={dict.jobs.offerRate} value={`${stats.offerRate}%`} trend={stats.offerRate > 0 ? "up" : "neutral"} />
-          </div>
-
-          {stats.total > 0 && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
-                <p className="mb-3 text-xs text-[--color-text-muted]">{dict.jobs.statusChart}</p>
-                <SimpleBarChart data={statusDist} height={Math.max(120, statusDist.length * 32)} />
-              </div>
-              <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
-                <p className="mb-3 text-xs text-[--color-text-muted]">{dict.jobs.channelChart}</p>
-                <SimpleBarChart data={stats.channelDist} height={Math.max(120, stats.channelDist.length * 32)} />
-              </div>
-              {stats.monthlyTrend.length > 1 && (
-                <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-4 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
-                  <p className="mb-3 text-xs text-[--color-text-muted]">{dict.jobs.trendChart}</p>
-                  <SimpleLineChart data={stats.monthlyTrend} height={180} />
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[200px] flex-1">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[--color-text-muted]" />
-          <Input
-            placeholder={dict.jobs.search}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8 border-[--color-border] pl-8 text-sm"
-          />
-          {search && (
-            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[--color-text-muted] hover:text-[--color-text-primary]">
-              <X size={12} />
-            </button>
-          )}
-        </div>
-
+      <div className="flex flex-wrap items-center gap-2">
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="h-8 w-32 border-[--color-border] text-sm">
+          <SelectTrigger className="h-11 w-36 rounded-full border-slate-200 bg-white text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={dict.jobs.allStatus}>{dict.jobs.allStatus}</SelectItem>
-            {JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            {JOB_STATUS.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}
           </SelectContent>
         </Select>
-
-        <Button size="sm" onClick={openCreate} className="h-8 gap-1.5">
-          <Plus size={14} /> {dict.jobs.newApplication}
+        <Button onClick={openCreate} className="min-h-11 gap-2">
+          <Plus size={16} /> {dict.jobs.newApplication}
         </Button>
       </div>
+    </ModuleToolbar>
+  )
 
-      <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-        {loading ? (
-          <div className="py-16 text-center text-sm text-[--color-text-muted]">{dict.common.loading}</div>
-        ) : jobs.length === 0 ? (
-          <EmptyState
-            title={dict.common.noData}
-            description={dict.jobs.noData}
-            action={{ label: dict.jobs.newApplication, onClick: openCreate }}
-          />
-        ) : (
-          <div className="overflow-x-auto bg-[--color-bg-surface]">
-            <div className="min-w-[1180px]">
-              <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
-                <thead>
-                  <tr>
-                    <th className="w-[150px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.company}</th>
-                    <th className="w-[180px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.position}</th>
-                    <th className="w-[110px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.channel}</th>
-                    <th className="w-[100px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">{dict.jobs.appliedAt}</th>
-                    <th className="w-[120px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.status}</th>
-                    <th className="w-[90px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.baseLocation}</th>
-                    <th className="w-[120px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.hrContact}</th>
-                    <th className="w-[70px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">{dict.nav.interviews}</th>
-                    <th className="w-[86px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.link}</th>
-                    <th className="w-[170px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{dict.jobs.notes}</th>
-                    <th className="w-[90px] border-b-2 border-[--color-border-strong] bg-[--color-bg-hover] px-4 py-2.5" />
-                  </tr>
-                </thead>
-              </table>
-              <div>
-                <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+  return (
+    <ModulePageShell maxWidth="full">
+      <div className="space-y-5">
+        <ModuleHero
+          icon={BriefcaseBusiness}
+          title={dict.jobs.title}
+          description={dict.jobs.description}
+          meta={
+            <>
+              <span className={modulePillClass(false)}>{jobs.length}{hasMore ? "+" : ""} {dict.jobs.total}</span>
+              {filterStatus !== dict.jobs.allStatus && <span className={modulePillClass(true)}>{filterStatus}</span>}
+            </>
+          }
+          actions={
+            <>
+              {initialVisibility !== undefined && <ModuleVisibilitySelect module="jobs" initialVisibility={initialVisibility} />}
+              <Button onClick={openCreate} className="min-h-11 gap-2">
+                <Plus size={16} /> {dict.jobs.newApplication}
+              </Button>
+            </>
+          }
+        />
+
+        {stats && (
+          <>
+            <ModuleStatGrid>
+              <StatsCard title={dict.jobs.total} value={stats.total} sub="累计投递" icon={BriefcaseBusiness} />
+              <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? dict.jobs.replied : dict.jobs.replyRate} trend={stats.replyRate > 50 ? "up" : "neutral"} icon={BarChart3} tone="green" />
+              <StatsCard title={dict.jobs.interviewRate} value={`${stats.interviewRate}%`} sub={dict.jobs.interviewRate} icon={Eye} tone="amber" />
+              <StatsCard title={dict.jobs.offerRate} value={`${stats.offerRate}%`} trend={stats.offerRate > 0 ? "up" : "neutral"} icon={BriefcaseBusiness} tone="coral" />
+            </ModuleStatGrid>
+
+            {stats.total > 0 && (
+              <div className="grid gap-4 lg:grid-cols-3">
+                <ModulePanel title={dict.jobs.statusChart} icon={BarChart3} contentClassName="pt-3">
+                  <SimpleBarChart data={statusDist} height={Math.max(140, statusDist.length * 34)} />
+                </ModulePanel>
+                <ModulePanel title={dict.jobs.channelChart} icon={BarChart3} contentClassName="pt-3">
+                  <SimpleBarChart data={stats.channelDist} height={Math.max(140, stats.channelDist.length * 34)} />
+                </ModulePanel>
+                {stats.monthlyTrend.length > 1 && (
+                  <ModulePanel title={dict.jobs.trendChart} icon={BarChart3} contentClassName="pt-3">
+                    <SimpleLineChart data={stats.monthlyTrend} height={190} />
+                  </ModulePanel>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {toolbar}
+
+        <ModulePanel title="求职记录" description="桌面端为紧凑表格，手机端自动切换为卡片列表。" icon={BriefcaseBusiness} contentClassName="p-0">
+          {loading ? (
+            <div className="py-16 text-center text-sm text-slate-500">{dict.common.loading}</div>
+          ) : jobs.length === 0 ? (
+            <div className="p-4 sm:p-5">
+              <EmptyState
+                title={dict.common.noData}
+                description={dict.jobs.noData}
+                action={{ label: dict.jobs.newApplication, onClick: openCreate }}
+              />
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 p-4 md:hidden">
+                {jobs.map((job) => (
+                  <button
+                    key={job.id}
+                    type="button"
+                    onClick={() => openDetail(job)}
+                    className="rounded-[18px] border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-bold text-slate-950">{job.company}</p>
+                        <p className="mt-1 truncate text-sm text-slate-500">{job.position}</p>
+                      </div>
+                      <StatusBadge status={job.status} type="job" />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-2 py-1">{formatChinaDate(job.appliedAt, { month: "2-digit", day: "2-digit" })}</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1">{job.channel}</span>
+                      {job.baseLocation && <span className="rounded-full bg-slate-100 px-2 py-1">{job.baseLocation}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="min-w-[1180px] w-full table-fixed border-separate border-spacing-0 text-sm">
+                  <thead className="sticky top-0 z-10">
+                    <tr>
+                      {[dict.jobs.company, dict.jobs.position, dict.jobs.channel, dict.jobs.appliedAt, dict.jobs.status, dict.jobs.baseLocation, dict.jobs.hrContact, dict.nav.interviews, dict.jobs.link, dict.jobs.notes, ""].map((header, index) => (
+                        <th key={`${header}-${index}`} className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
                   <tbody>
                     {jobs.map((job) => (
-                      <tr
-                        key={job.id}
-                        className="group cursor-pointer transition-colors hover:bg-[--color-bg-hover]"
-                        onClick={() => openDetail(job)}
-                      >
-                        <td className="w-[150px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-medium group-hover:bg-[--color-bg-hover]">{job.company}</td>
-                        <td className="w-[180px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-[--color-text-secondary] group-hover:bg-[--color-bg-hover]">{job.position}</td>
-                        <td className="w-[110px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job.channel}</td>
-                        <td className="w-[100px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{formatChinaDate(job.appliedAt, { month: "2-digit", day: "2-digit" })}</td>
-                        <td className="w-[120px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]" onClick={(e) => e.stopPropagation()}>
-                          <Select value={job.status} onValueChange={(v) => handleStatusChange(job.id, v)}>
-                            <SelectTrigger className="h-6 w-auto gap-1 border-0 bg-transparent p-0 shadow-none focus:ring-0">
+                      <tr key={job.id} className="group cursor-pointer transition-colors hover:bg-blue-50/40" onClick={() => openDetail(job)}>
+                        <td className="truncate border-b border-slate-100 px-4 py-3 font-semibold text-slate-950">{job.company}</td>
+                        <td className="truncate border-b border-slate-100 px-4 py-3 text-slate-600">{job.position}</td>
+                        <td className="truncate border-b border-slate-100 px-4 py-3 text-xs text-slate-500">{job.channel}</td>
+                        <td className="border-b border-slate-100 px-4 py-3 font-mono text-xs text-slate-500">{formatChinaDate(job.appliedAt, { month: "2-digit", day: "2-digit" })}</td>
+                        <td className="border-b border-slate-100 px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          <Select value={job.status} onValueChange={(value) => handleStatusChange(job.id, value)}>
+                            <SelectTrigger className="h-7 w-auto gap-1 border-0 bg-transparent p-0 shadow-none focus:ring-0">
                               <StatusBadge status={job.status} type="job" />
                             </SelectTrigger>
                             <SelectContent>
-                              {JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                              {JOB_STATUS.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </td>
-                        <td className="w-[90px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job.baseLocation || "-"}</td>
-                        <td className="w-[120px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job.hrContact || "-"}</td>
-                        <td className="w-[70px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-center font-mono text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job._count?.interviews ?? 0}</td>
-                        <td className="w-[86px] whitespace-nowrap border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]" onClick={(e) => e.stopPropagation()}>
+                        <td className="truncate border-b border-slate-100 px-4 py-3 text-xs text-slate-500">{job.baseLocation || "-"}</td>
+                        <td className="truncate border-b border-slate-100 px-4 py-3 text-xs text-slate-500">{job.hrContact || "-"}</td>
+                        <td className="border-b border-slate-100 px-4 py-3 text-center font-mono text-xs text-slate-500">{job._count?.interviews ?? 0}</td>
+                        <td className="border-b border-slate-100 px-4 py-3" onClick={(event) => event.stopPropagation()}>
                           {job.link ? (
-                            <a href={job.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[--color-link] hover:underline">
-                              {dict.jobs.link} <ExternalLink size={10} />
+                            <a href={job.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+                              {dict.jobs.link} <ExternalLink size={11} />
                             </a>
-                          ) : <span className="text-xs text-[--color-text-muted]">-</span>}
+                          ) : <span className="text-xs text-slate-400">-</span>}
                         </td>
-                        <td className="w-[170px] truncate border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted] group-hover:bg-[--color-bg-hover]">{job.notes}</td>
-                        <td className="w-[90px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 group-hover:bg-[--color-bg-hover]" onClick={(e) => e.stopPropagation()}>
+                        <td className="truncate border-b border-slate-100 px-4 py-3 text-xs text-slate-500">{job.notes}</td>
+                        <td className="border-b border-slate-100 px-4 py-3" onClick={(event) => event.stopPropagation()}>
                           <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                            <button onClick={() => openDetail(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-link]" title={dict.jobs.detail}><Eye size={13} /></button>
-                            <button onClick={() => openEdit(job)} className="p-1 text-[--color-text-muted] hover:text-[--color-text-primary]" title={dict.common.edit}><Pencil size={13} /></button>
-                            <button onClick={() => handleDelete(job.id)} disabled={deletingId === job.id} aria-busy={deletingId === job.id || undefined} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[--color-text-muted] hover:bg-[--color-danger-bg] hover:text-[--color-danger] disabled:opacity-50" title={dict.common.delete}><Trash2 size={13} /></button>
+                            <button onClick={() => openDetail(job)} className="rounded-full p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600" title={dict.jobs.detail}><Eye size={14} /></button>
+                            <button onClick={() => openEdit(job)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title={dict.common.edit}><Pencil size={14} /></button>
+                            <button onClick={() => handleDelete(job.id)} disabled={deletingId === job.id} aria-busy={deletingId === job.id || undefined} className="rounded-full p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50" title={dict.common.delete}><Trash2 size={14} /></button>
                           </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {loadingMore && <p className="p-3 text-center text-xs text-[--color-text-muted]">{dict.common.loadMore}</p>}
-                {hasMore && !loadingMore && (
-                  <div className="border-t border-[--color-border] p-3 text-center">
+              </div>
+
+              {(loadingMore || hasMore) && (
+                <div className="border-t border-slate-100 p-3 text-center">
+                  {loadingMore ? (
+                    <p className="text-xs text-slate-400">{dict.common.loadMore}</p>
+                  ) : (
                     <Button type="button" variant="outline" size="sm" onClick={() => void loadJobs(nextCursor, true)}>
                       {dict.common.loadMore}
                     </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </ModulePanel>
       </div>
 
-      {jobs.length > 0 && <p className="mt-2 font-mono text-xs text-[--color-text-muted]">{jobs.length}{hasMore ? "+" : ""} {dict.jobs.total}</p>}
-
       <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <SheetContent className="w-full overflow-y-auto bg-white sm:max-w-md">
           {detailJob && (
             <>
               <SheetHeader className="mb-4">
                 <SheetTitle>{detailJob.company}</SheetTitle>
-                <p className="text-sm text-[--color-text-secondary]">{detailJob.position}</p>
+                <p className="text-sm text-slate-500">{detailJob.position}</p>
               </SheetHeader>
               <div className="space-y-4 text-sm">
                 <StatusBadge status={detailJob.status} type="job" />
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-                  <div><span className="mb-0.5 block text-[--color-text-muted]">{dict.jobs.channel}</span><span>{detailJob.channel}</span></div>
-                  <div><span className="mb-0.5 block text-[--color-text-muted]">{dict.jobs.appliedAt}</span><span className="font-mono">{formatChinaDate(detailJob.appliedAt)}</span></div>
-                  <div><span className="mb-0.5 block text-[--color-text-muted]">{dict.jobs.baseLocation}</span><span>{detailJob.baseLocation || "-"}</span></div>
-                  <div><span className="mb-0.5 block text-[--color-text-muted]">{dict.jobs.hrContact}</span><span>{detailJob.hrContact || "-"}</span></div>
-                  <div><span className="mb-0.5 block text-[--color-text-muted]">{dict.nav.interviews}</span><span className="font-mono">{detailJob._count?.interviews ?? 0}</span></div>
+                  <div><span className="mb-0.5 block text-slate-400">{dict.jobs.channel}</span><span>{detailJob.channel}</span></div>
+                  <div><span className="mb-0.5 block text-slate-400">{dict.jobs.appliedAt}</span><span className="font-mono">{formatChinaDate(detailJob.appliedAt)}</span></div>
+                  <div><span className="mb-0.5 block text-slate-400">{dict.jobs.baseLocation}</span><span>{detailJob.baseLocation || "-"}</span></div>
+                  <div><span className="mb-0.5 block text-slate-400">{dict.jobs.hrContact}</span><span>{detailJob.hrContact || "-"}</span></div>
+                  <div><span className="mb-0.5 block text-slate-400">{dict.nav.interviews}</span><span className="font-mono">{detailJob._count?.interviews ?? 0}</span></div>
                   {detailJob.link && (
                     <div>
-                      <span className="mb-0.5 block text-[--color-text-muted]">{dict.jobs.link}</span>
-                      <a href={detailJob.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 whitespace-nowrap text-[--color-link] hover:underline">
-                        {dict.jobs.link} <ExternalLink size={10} />
+                      <span className="mb-0.5 block text-slate-400">{dict.jobs.link}</span>
+                      <a href={detailJob.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+                        {dict.jobs.link} <ExternalLink size={11} />
                       </a>
                     </div>
                   )}
                 </div>
                 {detailJob.notes && (
                   <div>
-                    <span className="mb-1 block text-xs text-[--color-text-muted]">{dict.jobs.notes}</span>
-                    <p className="rounded border border-[--color-border] bg-[--color-bg-hover] p-2 text-sm">{detailJob.notes}</p>
+                    <span className="mb-1 block text-xs text-slate-400">{dict.jobs.notes}</span>
+                    <p className="rounded-[14px] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">{detailJob.notes}</p>
                   </div>
                 )}
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" onClick={() => openEdit(detailJob)} className="gap-1.5"><Pencil size={13} /> {dict.common.edit}</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleDelete(detailJob.id, true)} loading={deletingId === detailJob.id} loadingText={dict.common.delete} className="gap-1.5 text-[--color-danger] hover:text-[--color-danger]"><Trash2 size={13} /> {dict.common.delete}</Button>
+                  <Button size="sm" variant="outline" onClick={() => openEdit(detailJob)}><Pencil size={13} /> {dict.common.edit}</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleDelete(detailJob.id, true)} loading={deletingId === detailJob.id} loadingText={dict.common.delete} className="text-rose-600 hover:text-rose-600"><Trash2 size={13} /> {dict.common.delete}</Button>
                 </div>
               </div>
             </>
@@ -450,58 +478,58 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: "private
       </Sheet>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingJob ? dict.jobs.editApplication : dict.jobs.newApplication}</DialogTitle>
           </DialogHeader>
           <div className="mt-2 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label className="mb-1 block text-xs">{dict.jobs.company} *</Label>
-                <Input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} placeholder={dict.jobs.company} className="h-8 text-sm" />
+                <Input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} placeholder={dict.jobs.company} />
               </div>
               <div>
                 <Label className="mb-1 block text-xs">{dict.jobs.position} *</Label>
-                <Input value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} placeholder={dict.jobs.position} className="h-8 text-sm" />
+                <Input value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} placeholder={dict.jobs.position} />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <Label className="mb-1 block text-xs">{dict.jobs.channel}</Label>
-                <Select value={form.channel} onValueChange={(v) => setForm((f) => ({ ...f, channel: v }))}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>{JOB_CHANNELS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                <Select value={form.channel} onValueChange={(value) => setForm((f) => ({ ...f, channel: value }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{JOB_CHANNELS.map((channel) => <SelectItem key={channel} value={channel}>{channel}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
                 <Label className="mb-1 block text-xs">{dict.jobs.appliedAt}</Label>
-                <Input type="date" value={form.appliedAt} onChange={(e) => setForm((f) => ({ ...f, appliedAt: e.target.value }))} className="h-8 font-mono text-sm" />
+                <Input type="date" value={form.appliedAt} onChange={(e) => setForm((f) => ({ ...f, appliedAt: e.target.value }))} className="font-mono" />
               </div>
               <div>
                 <Label className="mb-1 block text-xs">{dict.jobs.status}</Label>
-                <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>{JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                <Select value={form.status} onValueChange={(value) => setForm((f) => ({ ...f, status: value }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{JOB_STATUS.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label className="mb-1 block text-xs">{dict.jobs.baseLocation}</Label>
-                <Input value={form.baseLocation} onChange={(e) => setForm((f) => ({ ...f, baseLocation: e.target.value }))} placeholder={dict.jobs.baseLocation} className="h-8 text-sm" />
+                <Input value={form.baseLocation} onChange={(e) => setForm((f) => ({ ...f, baseLocation: e.target.value }))} placeholder={dict.jobs.baseLocation} />
               </div>
               <div>
                 <Label className="mb-1 block text-xs">{dict.jobs.hrContact}</Label>
-                <Input value={form.hrContact} onChange={(e) => setForm((f) => ({ ...f, hrContact: e.target.value }))} placeholder={dict.jobs.hrContact} className="h-8 text-sm" />
+                <Input value={form.hrContact} onChange={(e) => setForm((f) => ({ ...f, hrContact: e.target.value }))} placeholder={dict.jobs.hrContact} />
               </div>
             </div>
             <div>
               <Label className="mb-1 block text-xs">{dict.jobs.link}</Label>
-              <Input value={form.link} onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))} placeholder="https://..." className="h-8 font-mono text-sm" />
+              <Input value={form.link} onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))} placeholder="https://..." className="font-mono" />
             </div>
             <div>
               <Label className="mb-1 block text-xs">{dict.jobs.notes}</Label>
-              <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder={dict.jobs.notes} className="resize-none text-sm" rows={2} />
+              <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder={dict.jobs.notes} rows={3} />
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>{dict.jobs.cancel}</Button>
@@ -510,6 +538,6 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: "private
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </ModulePageShell>
   )
 }

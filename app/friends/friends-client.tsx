@@ -804,7 +804,7 @@ function FriendRow({
         </span>
       </Link>
       <div className="flex shrink-0 items-center gap-2">
-        <Link href={`/friends/chat/${friend.id}`} className="inline-flex h-8 items-center gap-1.5 px-1 text-xs font-medium text-[--color-link] hover:text-[--color-accent] hover:no-underline lg:hidden">
+        <Link href={`/friends?type=direct&id=${encodeURIComponent(friend.id)}`} className="inline-flex h-8 items-center gap-1.5 px-1 text-xs font-medium text-[--color-link] hover:text-[--color-accent] hover:no-underline lg:hidden">
           {labels.openChat}
         </Link>
         <button onClick={() => onOpenChat(friend.id)} className="hidden h-8 items-center gap-1.5 px-1 text-xs font-medium text-[--color-link] transition-colors hover:text-[--color-accent] lg:inline-flex">
@@ -846,7 +846,7 @@ function ConversationRow({
 
   return (
     <div className={`border-b border-[--color-border] last:border-b-0 ${selected ? "bg-[--color-bg-hover]" : ""}`}>
-      <Link href={`/friends/chat/${friend.id}`} className="flex min-w-0 items-center gap-3 p-3 hover:bg-[--color-bg-hover] hover:no-underline lg:hidden">
+      <Link href={`/friends?type=direct&id=${encodeURIComponent(friend.id)}`} className="flex min-w-0 items-center gap-3 p-3 hover:bg-[--color-bg-hover] hover:no-underline lg:hidden">
         {content}
       </Link>
       <button onClick={() => onSelect(friend.id)} className="hidden w-full min-w-0 items-center gap-3 p-3 text-left hover:bg-[--color-bg-hover] lg:flex">

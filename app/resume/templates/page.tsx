@@ -6,7 +6,7 @@ import { getAvailableResumeThemes, getDefaultResumeTheme } from "@/lib/resume/th
 import { prisma } from "@/lib/db"
 import { ResumeTemplatesClient } from "./templates-client"
 
-export const metadata = { title: "模板中心 — My Space" }
+export const metadata = { title: "Resume templates - My Space" }
 export const dynamic = "force-dynamic"
 
 const SNAPSHOT_DIR = path.join(process.cwd(), "data", "resume-theme-snapshots")

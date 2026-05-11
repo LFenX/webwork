@@ -1,105 +1,71 @@
 import Link from "next/link"
-import { Globe, Sparkles, Boxes } from "lucide-react"
-import { getOptionalSession } from "@/lib/auth"
-import { getDictionary } from "@/lib/i18n"
-import { getUserSiteSettings } from "@/lib/settings"
+import { ArrowRight, Boxes, Globe, Sparkles, UsersRound } from "lucide-react"
+import { ModuleHero, ModulePageShell, ModulePanel, ModuleStatGrid } from "@/components/module/module-shell"
+import { StatsCard } from "@/components/stats-card"
 
 export const dynamic = "force-dynamic"
 
 export default async function CommunityPage() {
-  const session = await getOptionalSession()
-  const settings = session ? await getUserSiteSettings(session.userId) : null
-  const dict = getDictionary(settings?.language ?? "zh-CN")
-
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10">
-      {/* Hero */}
-      <div className="mb-12 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[--color-brand-soft]">
-          <Globe size={28} className="text-[--color-brand]" />
-        </div>
-        <h1 className="text-2xl font-semibold text-[--color-text-primary]">
-          欢迎来到社区
-        </h1>
-        <p className="mt-2 text-sm text-[--color-text-muted] max-w-md mx-auto">
-          发现、分享、贡献——这里是大家共同建设的资源空间
-        </p>
-      </div>
+    <ModulePageShell maxWidth="wide">
+      <div className="space-y-5">
+        <ModuleHero
+          icon={UsersRound}
+          title="社区"
+          description="发现、分享、贡献资源。这里会把网站收藏、表情资源和后续社区能力统一收纳。"
+          actions={
+            <Link
+              href="/community/resources"
+              prefetch={false}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-blue-600 px-5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(37,99,235,0.24)] transition hover:-translate-y-px hover:bg-blue-700 hover:no-underline"
+            >
+              进入资源中心
+              <ArrowRight size={16} />
+            </Link>
+          }
+        />
 
-      {/* Main Entry Card */}
-      <div className="mb-10">
-        <Link
-          href="/community/resources"
-          prefetch={false}
-          className="group block rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-6 transition-all duration-200 hover:border-[--color-brand-border] hover:shadow-[--shadow-md] hover:-translate-y-0.5 hover:no-underline"
-        >
-          <div className="flex items-start gap-5">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[--color-brand-soft] transition-colors group-hover:bg-[--color-brand]">
-              <Boxes size={24} className="text-[--color-brand] transition-colors group-hover:text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold text-[--color-text-primary]">
-                社区资源
-              </h2>
-              <p className="mt-1 text-sm text-[--color-text-secondary]">
-                表情包社区 · 网站分享 · 更多资源
-              </p>
-              <p className="mt-2 text-xs text-[--color-text-muted]">
-                发现大家分享的实用网站和有趣表情，共建社区资源库
-              </p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-[--color-bg-hover] px-3 py-1.5 text-xs text-[--color-text-secondary]">
-                  <span className="text-base">😀</span>
-                  <span>表情包社区</span>
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-[--color-bg-hover] px-3 py-1.5 text-xs text-[--color-text-secondary]">
-                  <Globe size={12} />
-                  <span>网站分享</span>
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-[--color-bg-hover] px-3 py-1.5 text-xs text-[--color-text-muted] opacity-60">
-                  <Sparkles size={12} />
-                  <span>更多即将到来</span>
+        <ModuleStatGrid className="lg:grid-cols-3">
+          <StatsCard title="资源入口" value={2} unit="个" sub="网站与表情" icon={Boxes} />
+          <StatsCard title="开放访问" value="Public" sub="社区资源可浏览" icon={Globe} tone="green" />
+          <StatsCard title="持续扩展" value="Next" sub="更多社区能力准备中" icon={Sparkles} tone="amber" />
+        </ModuleStatGrid>
+
+        <div className="grid gap-4 lg:grid-cols-5">
+          <Link
+            href="/community/resources"
+            prefetch={false}
+            className="group block overflow-hidden rounded-[22px] border border-slate-200/80 bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.055)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_22px_46px_rgba(15,23,42,0.075)] hover:no-underline lg:col-span-3"
+          >
+            <div className="flex min-w-0 items-start gap-4">
+              <span className="flex size-14 shrink-0 items-center justify-center rounded-[18px] bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                <Boxes size={25} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xl font-bold text-slate-950">社区资源</p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">网站分享、表情社区和更多资源入口统一收纳在这里。</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-600">网站分享</span>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-600">表情社区</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">更多即将到来</span>
                 </div>
               </div>
+              <ArrowRight size={18} className="mt-1 shrink-0 text-blue-600 transition-transform group-hover:translate-x-1" />
             </div>
-            <div className="hidden shrink-0 items-center self-center text-[--color-text-muted] transition-transform group-hover:translate-x-1 sm:flex">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M7 4L14 10L7 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-          </div>
-        </Link>
-      </div>
+          </Link>
 
-      {/* Future expansion area */}
-      <div className="rounded-[--radius-lg] border border-dashed border-[--color-border-strong] bg-[--color-bg-soft] p-6">
-        <h3 className="text-sm font-medium text-[--color-text-muted] mb-4">
-          即将推出
-        </h3>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-4 opacity-60">
-            <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-[--color-bg-hover]">
-              <Sparkles size={14} className="text-[--color-text-muted]" />
+          <ModulePanel className="lg:col-span-2" title="即将推出" description="后续社区能力会沿用同一套卡片和工作台结构。" icon={Sparkles}>
+            <div className="grid gap-3">
+              {["代码片段分享", "设计资源库", "更多社区功能"].map((name) => (
+                <div key={name} className="rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-700">{name}</p>
+                  <p className="mt-1 text-xs text-slate-400">持续建设中</p>
+                </div>
+              ))}
             </div>
-            <p className="text-sm font-medium text-[--color-text-primary]">代码片段分享</p>
-            <p className="text-xs text-[--color-text-muted]">分享实用的代码片段和脚本</p>
-          </div>
-          <div className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-4 opacity-60">
-            <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-[--color-bg-hover]">
-              <Sparkles size={14} className="text-[--color-text-muted]" />
-            </div>
-            <p className="text-sm font-medium text-[--color-text-primary]">设计资源库</p>
-            <p className="text-xs text-[--color-text-muted]">收集优质设计素材和灵感</p>
-          </div>
-          <div className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-4 opacity-60">
-            <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-[--color-bg-hover]">
-              <Sparkles size={14} className="text-[--color-text-muted]" />
-            </div>
-            <p className="text-sm font-medium text-[--color-text-primary]">更多社区功能</p>
-            <p className="text-xs text-[--color-text-muted]">持续建设中，敬请期待</p>
-          </div>
+          </ModulePanel>
         </div>
       </div>
-    </div>
+    </ModulePageShell>
   )
 }

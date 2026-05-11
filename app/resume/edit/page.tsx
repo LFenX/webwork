@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth"
 import { getAvailableResumeThemes } from "@/lib/resume/themes"
 import { ResumeEditorClient } from "./resume-editor-client"
 
-export const metadata = { title: "编辑简历 — My Space" }
+export const metadata = { title: "Resume editor - My Space" }
 
 export default async function ResumeEditPage() {
   const { userId } = await requireAuth()

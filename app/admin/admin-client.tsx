@@ -1,19 +1,36 @@
 "use client"
 
-import { ChangeEvent, UIEvent, useEffect, useMemo, useState } from "react"
+import { ChangeEvent, type ReactNode, UIEvent, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
+  Activity,
+  BarChart3,
+  Bell,
+  Bot,
+  ClipboardList,
+  Database,
+  FileClock,
   GitCommitHorizontal,
   Image as ImageIcon,
+  Inbox,
   KeyRound,
+  LayoutDashboard,
+  Megaphone,
+  Palette,
   RotateCcw,
   Save,
+  Settings2,
   ShieldCheck,
+  Sparkles,
   Trash2,
   Upload,
   UserCheck,
   UserCog,
+  UsersRound,
 } from "lucide-react"
 import { toast } from "sonner"
+import { AdminEmptyState, AdminInlineLink, AdminPanel, AdminShell, AdminStatCard, AdminToolbar, type AdminNavItem } from "@/components/admin/admin-shell"
 import { AdminAIPanel } from "@/components/admin/admin-ai-panel"
 import { AdminAIUsagePanel } from "@/components/admin/admin-ai-usage-panel"
 import { AdminSqlAccessPanel } from "@/components/admin/admin-sql-access-panel"
@@ -109,6 +126,12 @@ type Overview = {
   requests: RegistrationRequest[]
   passwordRequests: PasswordChangeRequest[]
   updates: UpdateLogItem[]
+  counts?: {
+    totalUsers?: number
+    admins?: number
+    pendingRegistrations?: number
+    pendingPasswordRequests?: number
+  }
 }
 
 type PageResult<T> = {
@@ -152,9 +175,39 @@ function isNearBottom(event: UIEvent<HTMLDivElement>) {
   return target.scrollTop + target.clientHeight >= target.scrollHeight - 120
 }
 
+type AdminSectionKey =
+  | "overview"
+  | "review"
+  | "users"
+  | "activity"
+  | "announcements"
+  | "stickers"
+  | "updates"
+  | "ai"
+  | "ai-usage"
+  | "sql"
+  | "permissions"
+
+const ADMIN_SECTION_KEYS = new Set<AdminSectionKey>([
+  "overview",
+  "review",
+  "users",
+  "activity",
+  "announcements",
+  "stickers",
+  "updates",
+  "ai",
+  "ai-usage",
+  "sql",
+  "permissions",
+])
+
 export function AdminClient() {
   const dict = getDict()
   const d = dict.admin
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const [data, setData] = useState<Overview | null>(null)
   const [users, setUsers] = useState<UserItem[]>([])
@@ -277,7 +330,7 @@ export function AdminClient() {
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [d.failedToLoad, refreshKey])
 
   useEffect(() => {
     if (!data?.permissions?.viewActivityLogs) return
@@ -308,9 +361,11 @@ export function AdminClient() {
 
   const stats = useMemo(
     () => ({
-      users: users.length,
-      admins: users.filter((user) => user.role === "admin" || user.role === "owner").length,
-      pending: (data?.requests.length ?? 0) + (data?.passwordRequests.length ?? 0),
+      users: data?.counts?.totalUsers ?? users.length,
+      admins: data?.counts?.admins ?? users.filter((user) => user.role === "admin" || user.role === "owner").length,
+      pending:
+        (data?.counts?.pendingRegistrations ?? data?.requests.length ?? 0) +
+        (data?.counts?.pendingPasswordRequests ?? data?.passwordRequests.length ?? 0),
     }),
     [data, users]
   )
@@ -323,6 +378,149 @@ export function AdminClient() {
     ownerTransferCandidates.find((user) => user.id === effectiveOwnerTransferTargetId) ?? null
   const selectedAdminPermission =
     adminPermissions.find((item) => item.id === selectedAdminPermissionId) ?? null
+  const requestedSection = searchParams.get("section") as AdminSectionKey | null
+  const reviewCount = (data?.requests.length ?? 0) + (data?.passwordRequests.length ?? 0)
+
+  const availableSections = useMemo(() => {
+    const permissions = data?.permissions
+    const sections: Array<{ key: AdminSectionKey; label: string; href: string; icon: ReactNode; badge?: string | number; description?: string }> = [
+      {
+        key: "overview",
+        label: "概览",
+        href: "/admin?section=overview",
+        icon: <LayoutDashboard size={17} />,
+        description: "关键指标与快捷入口",
+      },
+    ]
+
+    if (permissions?.approveRegistrations || permissions?.approvePasswordChanges) {
+      sections.push({
+        key: "review",
+        label: "待审核",
+        href: "/admin?section=review",
+        icon: <Inbox size={17} />,
+        badge: reviewCount || undefined,
+        description: "注册与密码申请",
+      })
+    }
+    if (permissions?.manageUsers) {
+      sections.push({
+        key: "users",
+        label: "成员管理",
+        href: "/admin?section=users",
+        icon: <UsersRound size={17} />,
+        description: "角色、删除与登录状态",
+      })
+    }
+    if (permissions?.viewActivityLogs) {
+      sections.push({
+        key: "activity",
+        label: "活动日志",
+        href: "/admin?section=activity",
+        icon: <Activity size={17} />,
+        description: "登录、设备与安全轨迹",
+      })
+    }
+    if (permissions?.manageAnnouncements) {
+      sections.push({
+        key: "announcements",
+        label: "公告广播",
+        href: "/admin?section=announcements",
+        icon: <Megaphone size={17} />,
+        description: "站内公告与世界广播",
+      })
+    }
+    if (permissions?.manageStickers) {
+      sections.push({
+        key: "stickers",
+        label: "公共表情",
+        href: "/admin?section=stickers",
+        icon: <ImageIcon size={17} />,
+        badge: stickers.length || undefined,
+        description: "公共表情库维护",
+      })
+    }
+    if (permissions?.manageUpdateLogs) {
+      sections.push({
+        key: "updates",
+        label: "更新日志",
+        href: "/admin?section=updates",
+        icon: <GitCommitHorizontal size={17} />,
+        description: "版本记录展示控制",
+      })
+    }
+    if (permissions?.manageAI) {
+      sections.push(
+        {
+          key: "ai",
+          label: "AI 授权",
+          href: "/admin?section=ai",
+          icon: <Bot size={17} />,
+          description: "访问申请与模型授权",
+        },
+        {
+          key: "ai-usage",
+          label: "AI 用量",
+          href: "/admin?section=ai-usage",
+          icon: <BarChart3 size={17} />,
+          description: "Token 与调用统计",
+        }
+      )
+    }
+    if (permissions?.manageSqlLab) {
+      sections.push({
+        key: "sql",
+        label: "SQL 授权",
+        href: "/admin?section=sql",
+        icon: <Database size={17} />,
+        description: "实验室数据表权限",
+      })
+    }
+    if (data?.currentAdmin.role === "owner") {
+      sections.push({
+        key: "permissions",
+        label: "管理员权限",
+        href: "/admin?section=permissions",
+        icon: <ShieldCheck size={17} />,
+        description: "权限矩阵与所有权",
+      })
+    }
+
+    return sections
+  }, [data, reviewCount, stickers.length])
+
+  const firstSection = availableSections[0]?.key ?? "overview"
+  const activeSection =
+    requestedSection && ADMIN_SECTION_KEYS.has(requestedSection) && availableSections.some((item) => item.key === requestedSection)
+      ? requestedSection
+      : firstSection
+  const shellNavItems: AdminNavItem[] = [
+    ...availableSections,
+    ...(data?.currentAdmin.role === "owner"
+      ? [
+          {
+            key: "resume-themes",
+            label: "简历主题",
+            href: "/admin/resume-themes",
+            icon: <Palette size={17} />,
+            description: "主题验证与配置",
+          },
+          {
+            key: "roundtable",
+            label: "圆桌管理",
+            href: "/channels/soulwing-roundtable",
+            icon: <Sparkles size={17} />,
+            description: "蝶灵圆桌控制台",
+          },
+        ]
+      : []),
+  ]
+
+  useEffect(() => {
+    if (!data) return
+    if (requestedSection === activeSection) return
+    router.replace(`${pathname}?section=${activeSection}`)
+  }, [activeSection, data, pathname, requestedSection, router])
 
   async function approve(id: string) {
     await runAdminAction(`approve:${id}`, "Approving registration...", async () => {
@@ -498,57 +696,197 @@ export function AdminClient() {
   }
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10">
-      <div className="mb-8">
-        <h1 className="mb-1 text-xl font-semibold">{d.title}</h1>
-        <p className="text-sm text-[--color-text-muted]">{d.description}</p>
-      </div>
-
-      <div className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-2 text-xs text-[--color-text-muted]">{d.pendingApprovals}</p>
-          <p className="text-2xl font-semibold">{stats.pending}</p>
-        </div>
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-2 text-xs text-[--color-text-muted]">{d.loadedUsers}</p>
-          <p className="text-2xl font-semibold">
-            {stats.users}
-            {usersHasMore ? "+" : ""}
-          </p>
-        </div>
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-          <p className="mb-2 text-xs text-[--color-text-muted]">{d.admins}</p>
-          <p className="text-2xl font-semibold">{stats.admins}</p>
-        </div>
-      </div>
-
+    <AdminShell
+      title="管理后台"
+      description="集中处理审核、成员、公告、AI、SQL 与系统维护。每次只打开一个工作区，减少后台操作时的上下滚动。"
+      eyebrow={data?.currentAdmin.role === "owner" ? "Owner Console" : "Admin Console"}
+      navItems={shellNavItems}
+      activeKey={activeSection}
+      actions={
+        <Button variant="outline" onClick={() => setRefreshKey((key) => key + 1)} disabled={loading}>
+          <RotateCcw size={15} />
+          {loading ? d.refreshing : "刷新数据"}
+        </Button>
+      }
+    >
       {loading ? (
-        <div className="py-16 text-center text-sm text-[--color-text-muted]">{d.loading}</div>
+        <AdminPanel>
+          <div className="py-16 text-center text-sm text-slate-500">{d.loading}</div>
+        </AdminPanel>
       ) : data ? (
-        <div className="space-y-8">
-          <AdminAIPanel enabled={hasPermission("manageAI")} />
-
-          <AdminAIUsagePanel enabled={hasPermission("manageAI")} />
-
-          {data.currentAdmin.role === "owner" ? (
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <ShieldCheck size={16} />
-                <h2 className="text-sm font-semibold">{d.adminPermissions}</h2>
+        <>
+          {activeSection === "overview" ? (
+            <div className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <AdminStatCard label={d.pendingApprovals} value={stats.pending} hint="注册与密码修改待处理" icon={<Inbox size={18} />} tone={stats.pending > 0 ? "orange" : "blue"} />
+                <AdminStatCard label={d.loadedUsers} value={`${stats.users}${usersHasMore ? "+" : ""}`} hint="当前后台可见成员规模" icon={<UsersRound size={18} />} />
+                <AdminStatCard label={d.admins} value={stats.admins} hint="Owner 与管理员总数" icon={<ShieldCheck size={18} />} tone="green" />
+                <AdminStatCard label="可用模块" value={availableSections.length} hint="按当前权限动态展示" icon={<LayoutDashboard size={18} />} tone="slate" />
               </div>
 
-              <div className="mb-3 rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                <p className="text-sm font-medium">{d.transferOwnership}</p>
-                <p className="mt-1 text-xs text-[--color-text-muted]">
-                  {d.transferOwnerDesc}
-                </p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+                <AdminPanel title="待处理队列" description="需要管理员介入的事项会集中在这里。" icon={<Inbox size={18} />}>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-[18px] border border-slate-200 bg-slate-50/70 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-slate-800">{d.registrationApprovals}</p>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs text-slate-500 ring-1 ring-slate-200">{data.requests.length}</span>
+                      </div>
+                      {data.requests.length === 0 ? (
+                        <AdminEmptyState title={d.noRegistrationRequests} icon={<UserCheck size={18} />} />
+                      ) : (
+                        <div className="space-y-2">
+                          {data.requests.slice(0, 4).map((request) => (
+                            <div key={request.id} className="rounded-[14px] bg-white p-3 ring-1 ring-slate-200">
+                              <p className="truncate text-sm font-medium text-slate-900">{request.displayName}</p>
+                              <p className="truncate font-mono text-xs text-slate-500">{request.email}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="rounded-[18px] border border-slate-200 bg-slate-50/70 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-slate-800">{d.passwordApprovals}</p>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs text-slate-500 ring-1 ring-slate-200">{data.passwordRequests.length}</span>
+                      </div>
+                      {data.passwordRequests.length === 0 ? (
+                        <AdminEmptyState title={d.noPasswordRequests} icon={<KeyRound size={18} />} />
+                      ) : (
+                        <div className="space-y-2">
+                          {data.passwordRequests.slice(0, 4).map((request) => (
+                            <div key={request.id} className="rounded-[14px] bg-white p-3 ring-1 ring-slate-200">
+                              <p className="truncate text-sm font-medium text-slate-900">{request.user.displayName || request.user.email}</p>
+                              <p className="truncate font-mono text-xs text-slate-500">{request.user.email}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {availableSections.some((item) => item.key === "review") ? (
+                    <div className="mt-4">
+                      <AdminInlineLink href="/admin?section=review">处理审核</AdminInlineLink>
+                    </div>
+                  ) : null}
+                </AdminPanel>
+
+                <AdminPanel title={d.recentActivity} description={activitiesRefreshedAt ? `${d.lastRefresh}: ${formatTime(activitiesRefreshedAt, dict)}` : d.notRefreshedYet} icon={<Activity size={18} />}>
+                  {activities.length === 0 ? (
+                    <AdminEmptyState title={d.noActivity} icon={<FileClock size={18} />} />
+                  ) : (
+                    <div className="space-y-2">
+                      {activities.slice(0, 6).map((activity) => (
+                        <div key={activity.id} className="rounded-[14px] border border-slate-200 bg-slate-50/70 px-3 py-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`inline-flex min-w-[72px] items-center justify-center rounded-full border px-2.5 py-1 font-mono text-xs ${activityActionClass(activity.action)}`}>
+                              {formatActivityAction(activity.action)}
+                            </span>
+                            <span className="text-xs text-slate-500">{formatTime(activity.createdAt, dict)}</span>
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-sm text-slate-600">
+                            {(activity.user?.displayName || activity.user?.email || d.system)}: {activity.detail}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {availableSections.some((item) => item.key === "activity") ? (
+                    <div className="mt-4">
+                      <AdminInlineLink href="/admin?section=activity">查看活动日志</AdminInlineLink>
+                    </div>
+                  ) : null}
+                </AdminPanel>
+              </div>
+
+              <AdminPanel title="管理入口" description="按权限显示当前可操作的后台模块。" icon={<LayoutDashboard size={18} />}>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {shellNavItems.filter((item) => item.key !== "overview").map((item) => (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      className="group rounded-[18px] border border-slate-200 bg-slate-50/70 p-4 transition hover:border-blue-200 hover:bg-blue-50 hover:no-underline"
+                    >
+                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[14px] bg-white text-blue-600 shadow-sm ring-1 ring-slate-200 group-hover:ring-blue-200">
+                        {item.icon}
+                      </div>
+                      <p className="font-semibold text-slate-900">{item.label}</p>
+                      {item.description ? <p className="mt-1 text-sm leading-5 text-slate-500">{item.description}</p> : null}
+                    </Link>
+                  ))}
+                </div>
+              </AdminPanel>
+            </div>
+          ) : null}
+
+          {activeSection === "review" ? (
+            <div className="grid gap-5 xl:grid-cols-2">
+              {hasPermission("approveRegistrations") ? (
+                <AdminPanel title={d.registrationApprovals} description="审核新成员注册请求。" icon={<UserCheck size={18} />}>
+                  <div className="max-h-[620px] overflow-y-auto pr-1">
+                    {data.requests.length === 0 ? (
+                      <AdminEmptyState title={d.noRegistrationRequests} icon={<UserCheck size={18} />} />
+                    ) : (
+                      <div className="space-y-3">
+                        {data.requests.map((request) => (
+                          <div key={request.id} className="flex flex-col gap-3 rounded-[18px] border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-center">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-slate-900">{request.displayName}</p>
+                              <p className="break-all font-mono text-xs text-slate-500">{request.email}</p>
+                              <p className="mt-1 text-xs text-slate-400">{formatTime(request.createdAt, dict)}</p>
+                            </div>
+                            <Button onClick={() => approve(request.id)} loading={isBusy(`approve:${request.id}`)} loadingText={d.approve}>
+                              {d.approve}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </AdminPanel>
+              ) : null}
+
+              {hasPermission("approvePasswordChanges") ? (
+                <AdminPanel title={d.passwordApprovals} description="处理成员密码修改请求。" icon={<KeyRound size={18} />}>
+                  <div className="max-h-[620px] overflow-y-auto pr-1">
+                    {data.passwordRequests.length === 0 ? (
+                      <AdminEmptyState title={d.noPasswordRequests} icon={<KeyRound size={18} />} />
+                    ) : (
+                      <div className="space-y-3">
+                        {data.passwordRequests.map((request) => (
+                          <div key={request.id} className="flex flex-col gap-3 rounded-[18px] border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-center">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-slate-900">{request.user.displayName || request.user.email}</p>
+                              <p className="break-all font-mono text-xs text-slate-500">{request.user.email}</p>
+                              <p className="mt-1 text-xs text-slate-400">{formatTime(request.requestedAt, dict)}</p>
+                            </div>
+                            <Button onClick={() => approvePassword(request.id)} loading={isBusy(`approve-password:${request.id}`)} loadingText={d.approve}>
+                              {d.approve}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </AdminPanel>
+              ) : null}
+            </div>
+          ) : null}
+
+          {activeSection === "ai" ? <AdminAIPanel enabled={hasPermission("manageAI")} /> : null}
+          {activeSection === "ai-usage" ? <AdminAIUsagePanel enabled={hasPermission("manageAI")} /> : null}
+          {activeSection === "sql" && hasPermission("manageSqlLab") ? <AdminSqlAccessPanel /> : null}
+
+          {activeSection === "permissions" && data.currentAdmin.role === "owner" ? (
+            <div className="space-y-5">
+              <AdminPanel title={d.transferOwnership} description={d.transferOwnerDesc} icon={<ShieldCheck size={18} />}>
+                <AdminToolbar>
                   <Select
                     value={effectiveOwnerTransferTargetId}
                     onValueChange={setOwnerTransferTargetId}
                     disabled={ownerTransferCandidates.length === 0}
                   >
-                    <SelectTrigger className="h-9 w-[280px] text-xs">
+                    <SelectTrigger className="h-11 w-full bg-white text-sm sm:w-[320px]">
                       <SelectValue placeholder={d.selectNewOwner} />
                     </SelectTrigger>
                     <SelectContent>
@@ -560,7 +898,6 @@ export function AdminClient() {
                     </SelectContent>
                   </Select>
                   <Button
-                    size="sm"
                     variant="outline"
                     onClick={() => selectedOwnerTransferUser && transferOwner(selectedOwnerTransferUser)}
                     disabled={!selectedOwnerTransferUser}
@@ -569,191 +906,128 @@ export function AdminClient() {
                   >
                     {d.transferOwner}
                   </Button>
-                </div>
-              </div>
+                </AdminToolbar>
+              </AdminPanel>
 
-              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+              <AdminPanel title={d.adminPermissions} description={d.chooseAdminEdit} icon={<Settings2 size={18} />}>
                 {adminPermissions.length === 0 ? (
-                  <p className="text-sm text-[--color-text-muted]">{d.noExtraAdmins}</p>
+                  <AdminEmptyState title={d.noExtraAdmins} icon={<ShieldCheck size={18} />} />
                 ) : (
-                  <>
-                    <p className="mb-3 text-sm font-medium">{d.chooseAdminEdit}</p>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {adminPermissions.map((admin) => (
-                        <button
-                          key={admin.id}
-                          type="button"
-                          onClick={() => setSelectedAdminPermissionId(admin.id)}
-                          className="rounded-[--radius-md] border border-[--color-border] p-4 text-left transition hover:border-[--color-border-strong] hover:bg-[--color-bg-hover]"
-                        >
-                          <p className="truncate text-sm font-medium">{admin.displayName || admin.email}</p>
-                          <p className="mt-1 truncate font-mono text-xs text-[--color-text-muted]">{admin.email}</p>
-                          <p className="mt-3 text-xs text-[--color-text-muted]">
-                            {d.permissionsEnabled(ADMIN_PERMISSION_DEFS.filter((permission) => admin.permissions[permission.key]).length)}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  </>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {adminPermissions.map((admin) => (
+                      <button
+                        key={admin.id}
+                        type="button"
+                        onClick={() => setSelectedAdminPermissionId(admin.id)}
+                        className="rounded-[18px] border border-slate-200 bg-slate-50/70 p-4 text-left transition hover:border-blue-200 hover:bg-blue-50"
+                      >
+                        <p className="truncate text-sm font-semibold text-slate-900">{admin.displayName || admin.email}</p>
+                        <p className="mt-1 truncate font-mono text-xs text-slate-500">{admin.email}</p>
+                        <p className="mt-3 text-xs text-slate-500">
+                          {d.permissionsEnabled(ADMIN_PERMISSION_DEFS.filter((permission) => admin.permissions[permission.key]).length)}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
                 )}
-              </div>
-            </section>
+              </AdminPanel>
+            </div>
           ) : null}
 
-          {hasPermission("approveRegistrations") ? (
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <UserCheck size={16} />
-                <h2 className="text-sm font-semibold">{d.registrationApprovals}</h2>
-              </div>
-              <div className="max-h-[320px] overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-                {data.requests.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noRegistrationRequests}</p>
-                ) : (
-                  data.requests.map((request) => (
-                    <div key={request.id} className="flex items-center gap-4 border-b border-[--color-border] px-4 py-3 last:border-b-0">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{request.displayName}</p>
-                        <p className="break-all font-mono text-xs text-[--color-text-muted]">{request.email}</p>
-                      </div>
-                      <span className="text-xs text-[--color-text-muted]">{formatTime(request.createdAt, dict)}</span>
-                      <Button size="sm" onClick={() => approve(request.id)} loading={isBusy(`approve:${request.id}`)} loadingText={d.approve}>
-                        {d.approve}
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          ) : null}
-
-          {hasPermission("approvePasswordChanges") ? (
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <KeyRound size={16} />
-                <h2 className="text-sm font-semibold">{d.passwordApprovals}</h2>
-              </div>
-              <div className="max-h-[320px] overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-                {data.passwordRequests.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noPasswordRequests}</p>
-                ) : (
-                  data.passwordRequests.map((request) => (
-                    <div key={request.id} className="flex items-center gap-4 border-b border-[--color-border] px-4 py-3 last:border-b-0">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{request.user.displayName || request.user.email}</p>
-                        <p className="break-all font-mono text-xs text-[--color-text-muted]">{request.user.email}</p>
-                      </div>
-                      <span className="text-xs text-[--color-text-muted]">{formatTime(request.requestedAt, dict)}</span>
-                      <Button size="sm" onClick={() => approvePassword(request.id)} loading={isBusy(`approve-password:${request.id}`)} loadingText={d.approve}>
-                        {d.approve}
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          ) : null}
-
-          {hasPermission("manageAnnouncements") ? (
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <ShieldCheck size={16} />
-                <h2 className="text-sm font-semibold">{d.announcements}</h2>
-              </div>
-              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+          {activeSection === "announcements" && hasPermission("manageAnnouncements") ? (
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <AdminPanel title={d.announcements} description="发布导航公告并查看历史记录。" icon={<Bell size={18} />}>
                 <textarea
                   value={announcementDraft}
                   onChange={(event) => setAnnouncementDraft(event.target.value)}
                   maxLength={500}
                   placeholder={d.announcementPlaceholder}
-                  className="min-h-24 w-full rounded-[--radius-sm] border border-[--color-border] bg-[--color-bg-primary] p-2 text-sm outline-none focus:border-[--color-accent]"
+                  className="min-h-32 w-full rounded-[18px] border border-slate-200 bg-slate-50/70 p-3 text-sm outline-none transition focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 />
                 <div className="mt-3 flex items-center justify-between">
-                  <span className="font-mono text-xs text-[--color-text-muted]">{announcementDraft.length}/500</span>
-                  <Button size="sm" onClick={publishAnnouncement} disabled={!announcementDraft.trim()} loading={announcementSaving} loadingText={d.publishing}>
+                  <span className="font-mono text-xs text-slate-400">{announcementDraft.length}/500</span>
+                  <Button onClick={publishAnnouncement} disabled={!announcementDraft.trim()} loading={announcementSaving} loadingText={d.publishing}>
                     {d.publishAnnouncement}
                   </Button>
                 </div>
-              </div>
-              <div className="mt-3 max-h-[420px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
-                {announcements.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noAnnouncements}</p>
-                ) : (
-                  announcements.map((item) => (
-                    <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                      <div className="mb-2 flex items-start justify-between gap-3">
-                        <p className="font-mono text-xs text-[--color-text-muted]">
-                          {formatTime(item.createdAt, dict)} / {item.fromWorldChannel ? d.worldChannel : d.adminSource}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => deleteAnnouncement(item)}
-                          disabled={isBusy(`delete-announcement:${item.id}`)}
-                          aria-busy={isBusy(`delete-announcement:${item.id}`) || undefined}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[--color-text-muted] hover:bg-[--color-danger-bg] hover:text-[--color-danger] disabled:opacity-50"
-                          title={d.deleteAnnouncement}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                <div className="mt-4 max-h-[520px] space-y-3 overflow-y-auto pr-1">
+                  {announcements.length === 0 ? (
+                    <AdminEmptyState title={d.noAnnouncements} icon={<Bell size={18} />} />
+                  ) : (
+                    announcements.map((item) => (
+                      <div key={item.id} className="rounded-[18px] border border-slate-200 bg-slate-50/70 p-4">
+                        <div className="mb-2 flex items-start justify-between gap-3">
+                          <p className="font-mono text-xs text-slate-500">
+                            {formatTime(item.createdAt, dict)} / {item.fromWorldChannel ? d.worldChannel : d.adminSource}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => deleteAnnouncement(item)}
+                            disabled={isBusy(`delete-announcement:${item.id}`)}
+                            aria-busy={isBusy(`delete-announcement:${item.id}`) || undefined}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                            title={d.deleteAnnouncement}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{item.content}</p>
                       </div>
-                      <p className="whitespace-pre-wrap break-words text-sm">{item.content}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
+                    ))
+                  )}
+                </div>
+              </AdminPanel>
+
+              <AdminPanel title={d.worldBroadcasts} description="世界频道广播记录与清理。" icon={<Megaphone size={18} />}>
+                <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1">
+                  {broadcasts.length === 0 ? (
+                    <AdminEmptyState title={d.noBroadcasts} icon={<Megaphone size={18} />} />
+                  ) : (
+                    broadcasts.map((item) => (
+                      <div key={item.id} className="rounded-[18px] border border-slate-200 bg-slate-50/70 p-4">
+                        <div className="mb-2 flex items-start justify-between gap-3">
+                          <p className="font-mono text-xs text-slate-500">
+                            {formatTime(item.createdAt, dict)} / {item.author.displayName || item.author.email}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => deleteBroadcast(item)}
+                            disabled={isBusy(`delete-broadcast:${item.id}`)}
+                            aria-busy={isBusy(`delete-broadcast:${item.id}`) || undefined}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                            title={d.deleteBroadcast}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{item.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </AdminPanel>
+            </div>
           ) : null}
 
-          {hasPermission("manageAnnouncements") ? (
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <ShieldCheck size={16} />
-                <h2 className="text-sm font-semibold">{d.worldBroadcasts}</h2>
-              </div>
-              <div className="max-h-[420px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
-                {broadcasts.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noBroadcasts}</p>
-                ) : (
-                  broadcasts.map((item) => (
-                    <div key={item.id} className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                      <div className="mb-2 flex items-start justify-between gap-3">
-                        <p className="font-mono text-xs text-[--color-text-muted]">
-                          {formatTime(item.createdAt, dict)} / {item.author.displayName || item.author.email}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => deleteBroadcast(item)}
-                          disabled={isBusy(`delete-broadcast:${item.id}`)}
-                          aria-busy={isBusy(`delete-broadcast:${item.id}`) || undefined}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[--color-text-muted] hover:bg-[--color-danger-bg] hover:text-[--color-danger] disabled:opacity-50"
-                          title={d.deleteBroadcast}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      <p className="whitespace-pre-wrap break-words text-sm">{item.content}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          ) : null}
-
-          {hasPermission("manageStickers") ? (
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <ImageIcon size={16} />
-                <h2 className="text-sm font-semibold">{d.manageStickers}</h2>
-              </div>
-              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-[--radius-sm] border border-[--color-border] px-3 py-2 text-sm hover:bg-[--color-bg-hover]">
+          {activeSection === "stickers" && hasPermission("manageStickers") ? (
+            <AdminPanel
+              title={d.manageStickers}
+              description="维护公共表情库，上传后会出现在聊天表情入口。"
+              icon={<ImageIcon size={18} />}
+              action={
+                <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 text-sm font-medium text-blue-700 transition hover:bg-blue-100">
                   <Upload size={14} />
                   {stickerUploading ? dict.common.uploading : d.uploadPublicStickers}
                   <input type="file" accept="image/*" multiple className="hidden" onChange={uploadPublicStickers} disabled={stickerUploading} />
                 </label>
-                <div className="mt-4 grid max-h-[360px] grid-cols-4 gap-3 overflow-y-auto pr-1 sm:grid-cols-8">
+              }
+            >
+              {stickers.length === 0 ? (
+                <AdminEmptyState title="还没有公共表情" description="上传常用表情后，成员可以在聊天中直接使用。" icon={<ImageIcon size={18} />} />
+              ) : (
+                <div className="grid max-h-[680px] grid-cols-3 gap-3 overflow-y-auto pr-1 sm:grid-cols-5 lg:grid-cols-8 2xl:grid-cols-10">
                   {stickers.map((item) => (
-                    <div key={item.id} className="group relative flex aspect-square items-center justify-center overflow-hidden rounded border border-[--color-border] bg-white">
+                    <div key={item.id} className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50/70 p-2">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={item.url} alt={item.name || item.originalName} className="max-h-full max-w-full object-contain" />
                       <button
@@ -761,7 +1035,7 @@ export function AdminClient() {
                         onClick={() => deletePublicSticker(item)}
                         disabled={isBusy(`delete-sticker:${item.id}`)}
                         aria-busy={isBusy(`delete-sticker:${item.id}`) || undefined}
-                        className="absolute right-1 top-1 hidden h-8 w-8 items-center justify-center rounded-full bg-white text-[--color-danger] shadow transition hover:bg-[--color-danger-bg] disabled:opacity-50 group-hover:flex"
+                        className="absolute right-2 top-2 hidden h-8 w-8 items-center justify-center rounded-full bg-white text-rose-600 shadow transition hover:bg-rose-50 disabled:opacity-50 group-hover:flex"
                         title={d.deleteSticker}
                       >
                         <Trash2 size={13} />
@@ -769,32 +1043,28 @@ export function AdminClient() {
                     </div>
                   ))}
                 </div>
-              </div>
-            </section>
+              )}
+            </AdminPanel>
           ) : null}
 
-          {hasPermission("manageUsers") ? (
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <UserCog size={16} />
-                <h2 className="text-sm font-semibold">{d.userManagement}</h2>
-              </div>
-              <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+          {activeSection === "users" && hasPermission("manageUsers") ? (
+            <AdminPanel title={d.userManagement} description="成员角色、所有权转让与删除规则集中在这里。" icon={<UserCog size={18} />}>
+              <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-white">
                 <div
-                  className="max-h-[470px] overflow-auto bg-[--color-bg-surface]"
+                  className="max-h-[680px] overflow-auto"
                   onScroll={(event) => {
                     if (isNearBottom(event) && usersHasMore && !usersLoading) void loadUsers(usersCursor, true)
                   }}
                 >
                   <div className="min-w-[950px]">
-                    <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
+                    <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
                       <thead className="sticky top-0 z-10">
                         <tr>
-                          <th className="glass-nav-bg w-[290px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.userTable.displayName}</th>
-                          <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.userTable.role}</th>
-                          <th className="glass-nav-bg w-[190px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.userTable.lastLogin}</th>
-                          <th className="glass-nav-bg w-[150px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.userTable.deleteRule}</th>
-                          {data.canManageUsers ? <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5" /> : null}
+                          <th className="w-[290px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">{d.userTable.displayName}</th>
+                          <th className="w-[150px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">{d.userTable.role}</th>
+                          <th className="w-[190px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">{d.userTable.lastLogin}</th>
+                          <th className="w-[150px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">{d.userTable.deleteRule}</th>
+                          {data.canManageUsers ? <th className="w-[170px] border-b border-slate-200 bg-slate-50 px-4 py-3" /> : null}
                         </tr>
                       </thead>
                       <tbody>
@@ -811,15 +1081,15 @@ export function AdminClient() {
                             user.role !== "owner"
 
                           return (
-                            <tr key={user.id}>
-                              <td className="w-[290px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
-                                <p className="truncate font-medium">{user.displayName || user.email}</p>
-                                <p className="truncate font-mono text-xs text-[--color-text-muted]">{user.email}</p>
+                            <tr key={user.id} className="hover:bg-blue-50/40">
+                              <td className="w-[290px] border-b border-slate-100 bg-white px-4 py-3">
+                                <p className="truncate font-medium text-slate-900">{user.displayName || user.email}</p>
+                                <p className="truncate font-mono text-xs text-slate-500">{user.email}</p>
                               </td>
-                              <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
+                              <td className="w-[150px] border-b border-slate-100 bg-white px-4 py-3">
                                 {canEditRole ? (
                                   <Select value={user.role === "admin" ? "admin" : "user"} onValueChange={(role) => updateRole(user.id, role)}>
-                                    <SelectTrigger className="h-8 text-xs">
+                                    <SelectTrigger className="h-9 bg-slate-50 text-xs">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -828,20 +1098,20 @@ export function AdminClient() {
                                     </SelectContent>
                                   </Select>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 text-xs">
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 text-xs text-slate-600 ring-1 ring-slate-200">
                                     {user.role === "owner" ? <ShieldCheck size={13} /> : null}
                                     {user.role === "owner" ? d.role.owner : user.role === "admin" ? d.role.admin : d.role.user}
                                   </span>
                                 )}
                               </td>
-                              <td className="w-[190px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                              <td className="w-[190px] border-b border-slate-100 bg-white px-4 py-3 text-xs text-slate-500">
                                 {formatTime(user.lastLoginAt, dict)}
                               </td>
-                              <td className="w-[150px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
+                              <td className="w-[150px] border-b border-slate-100 bg-white px-4 py-3 text-xs text-slate-500">
                                 {deleteBlockedReason ?? d.deletable}
                               </td>
                               {data.canManageUsers ? (
-                                <td className="w-[170px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3">
+                                <td className="w-[170px] border-b border-slate-100 bg-white px-4 py-3">
                                   <div className="flex items-center justify-end gap-2">
                                     {canTransferOwner ? (
                                       <Button size="sm" variant="outline" onClick={() => transferOwner(user)} loading={isBusy(`transfer-owner:${user.id}`)} loadingText={d.transfer} className="h-8 px-2 text-xs">
@@ -852,7 +1122,7 @@ export function AdminClient() {
                                       onClick={() => deleteUser(user)}
                                       disabled={Boolean(deleteBlockedReason) || isBusy(`delete-user:${user.id}`)}
                                       aria-busy={isBusy(`delete-user:${user.id}`) || undefined}
-                                      className="p-1 text-[--color-text-muted] hover:text-[--color-danger] disabled:cursor-not-allowed disabled:opacity-40"
+                                      className="rounded-full p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
                                       title={deleteBlockedReason ?? d.deleteUser}
                                     >
                                       <Trash2 size={14} />
@@ -865,118 +1135,109 @@ export function AdminClient() {
                         })}
                       </tbody>
                     </table>
-                    {usersLoading ? <p className="p-3 text-center text-xs text-[--color-text-muted]">{d.loadingMoreUsers}</p> : null}
+                    {usersLoading ? <p className="p-3 text-center text-xs text-slate-500">{d.loadingMoreUsers}</p> : null}
                   </div>
                 </div>
               </div>
-            </section>
+            </AdminPanel>
           ) : null}
 
-          {hasPermission("viewActivityLogs") ? (
-            <section>
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={16} />
-                  <h2 className="text-sm font-semibold">{d.recentActivity}</h2>
-                  <span className="text-xs text-[--color-text-muted]">
-                    {d.lastRefresh}: {activitiesRefreshedAt ? formatTime(activitiesRefreshedAt, dict) : d.notRefreshedYet}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => void loadActivities(null, false)} disabled={activitiesLoading}>
+          {activeSection === "activity" && hasPermission("viewActivityLogs") ? (
+            <AdminPanel
+              title={d.recentActivity}
+              description={`${d.lastRefresh}: ${activitiesRefreshedAt ? formatTime(activitiesRefreshedAt, dict) : d.notRefreshedYet}`}
+              icon={<Activity size={18} />}
+              action={
+                <>
+                  <Button variant="outline" onClick={() => void loadActivities(null, false)} disabled={activitiesLoading}>
                     <RotateCcw size={14} /> {activitiesLoading ? d.refreshing : d.refreshLogs}
                   </Button>
                   {hasPermission("refreshGeoLocations") ? (
-                    <Button size="sm" variant="outline" onClick={refreshGeoLocations} disabled={geoRefreshing}>
+                    <Button variant="outline" onClick={refreshGeoLocations} disabled={geoRefreshing}>
                       <RotateCcw size={14} /> {geoRefreshing ? d.refreshing : d.refreshGeo}
                     </Button>
                   ) : null}
-                </div>
-              </div>
-              <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-                {activities.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noActivity}</p>
-                ) : (
-                  <div
-                    className="max-h-[500px] overflow-auto bg-[--color-bg-surface]"
-                    onScroll={(event) => {
-                      if (isNearBottom(event) && activitiesHasMore && !activitiesLoading) void loadActivities(activitiesCursor, true)
-                    }}
-                  >
-                    <div className="min-w-[1080px]">
-                      <table className="w-full table-fixed border-separate border-spacing-0 bg-[--color-bg-surface] text-sm">
-                        <thead className="sticky top-0 z-10">
-                          <tr>
-                            <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.time}</th>
-                            <th className="glass-nav-bg w-[170px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.action}</th>
-                            <th className="glass-nav-bg w-[300px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.userDetail}</th>
-                            <th className="glass-nav-bg w-[180px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.ipAddress}</th>
-                            <th className="glass-nav-bg w-[160px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.geo}</th>
-                            <th className="glass-nav-bg w-[140px] border-b-2 border-[--color-border-strong] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">{d.activityTable.device}</th>
+                </>
+              }
+            >
+              {activities.length === 0 ? (
+                <AdminEmptyState title={d.noActivity} icon={<Activity size={18} />} />
+              ) : (
+                <div
+                  className="max-h-[680px] overflow-auto rounded-[18px] border border-slate-200"
+                  onScroll={(event) => {
+                    if (isNearBottom(event) && activitiesHasMore && !activitiesLoading) void loadActivities(activitiesCursor, true)
+                  }}
+                >
+                  <div className="min-w-[1080px]">
+                    <table className="w-full table-fixed border-separate border-spacing-0 bg-white text-sm">
+                      <thead className="sticky top-0 z-10">
+                        <tr>
+                          <th className="w-[160px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">{d.activityTable.time}</th>
+                          <th className="w-[170px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">{d.activityTable.action}</th>
+                          <th className="w-[300px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">{d.activityTable.userDetail}</th>
+                          <th className="w-[180px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">{d.activityTable.ipAddress}</th>
+                          <th className="w-[160px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">{d.activityTable.geo}</th>
+                          <th className="w-[140px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-500">{d.activityTable.device}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activities.map((activity) => (
+                          <tr key={activity.id} className="hover:bg-blue-50/40">
+                            <td className="w-[160px] border-b border-slate-100 bg-white px-4 py-3 text-xs text-slate-500">
+                              {formatTime(activity.createdAt, dict)}
+                            </td>
+                            <td className="w-[170px] break-words border-b border-slate-100 bg-white px-4 py-3 text-xs">
+                              <span className={`inline-flex min-w-[72px] items-center justify-center rounded-full border px-2.5 py-1 font-mono ${activityActionClass(activity.action)}`}>
+                                {formatActivityAction(activity.action)}
+                              </span>
+                            </td>
+                            <td className="w-[300px] break-words border-b border-slate-100 bg-white px-4 py-3 text-xs text-slate-500">
+                              {(activity.user?.displayName || activity.user?.email || d.system)}: {activity.detail}
+                            </td>
+                            <td className="w-[180px] break-all border-b border-slate-100 bg-white px-4 py-3 font-mono text-xs text-slate-500">
+                              {activity.ipAddress || d.unknown}
+                            </td>
+                            <td className="w-[160px] break-words border-b border-slate-100 bg-white px-4 py-3 text-xs text-slate-500">
+                              {activity.geoLocation || d.unknown}
+                            </td>
+                            <td className="w-[140px] break-words border-b border-slate-100 bg-white px-4 py-3 text-xs text-slate-500">
+                              {activity.deviceInfo || d.unknown}
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {activities.map((activity) => (
-                            <tr key={activity.id}>
-                              <td className="w-[160px] border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {formatTime(activity.createdAt, dict)}
-                              </td>
-                              <td className="w-[170px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs">
-                                <span className={`inline-flex min-w-[72px] items-center justify-center rounded-full border px-2.5 py-1 font-mono ${activityActionClass(activity.action)}`}>
-                                  {formatActivityAction(activity.action)}
-                                </span>
-                              </td>
-                              <td className="w-[300px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {(activity.user?.displayName || activity.user?.email || d.system)}: {activity.detail}
-                              </td>
-                              <td className="w-[180px] break-all border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 font-mono text-xs text-[--color-text-muted]">
-                                {activity.ipAddress || d.unknown}
-                              </td>
-                              <td className="w-[160px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {activity.geoLocation || d.unknown}
-                              </td>
-                              <td className="w-[140px] break-words border-b border-[--color-border] bg-[--color-bg-surface] px-4 py-3 text-xs text-[--color-text-muted]">
-                                {activity.deviceInfo || d.unknown}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {activitiesLoading ? <p className="p-3 text-center text-xs text-[--color-text-muted]">{d.loadingMoreActivity}</p> : null}
-                    </div>
+                        ))}
+                      </tbody>
+                    </table>
+                    {activitiesLoading ? <p className="p-3 text-center text-xs text-slate-500">{d.loadingMoreActivity}</p> : null}
                   </div>
-                )}
-              </div>
-            </section>
+                </div>
+              )}
+            </AdminPanel>
           ) : null}
 
-          {hasPermission("manageUpdateLogs") ? (
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <GitCommitHorizontal size={16} />
-                <h2 className="text-sm font-semibold">{d.changelogDisplay}</h2>
-              </div>
-              <div className="max-h-[520px] space-y-3 overflow-y-auto rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-3">
+          {activeSection === "updates" && hasPermission("manageUpdateLogs") ? (
+            <AdminPanel title={d.changelogDisplay} description="编辑对外展示的更新记录，或隐藏不适合展示的提交。" icon={<GitCommitHorizontal size={18} />}>
+              <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
                 {data.updates.length === 0 ? (
-                  <p className="p-4 text-sm text-[--color-text-muted]">{d.noUpdateRecords}</p>
+                  <AdminEmptyState title={d.noUpdateRecords} icon={<ClipboardList size={18} />} />
                 ) : (
                   data.updates.map((item) => (
-                    <div key={item.hash} className={`rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4 ${item.hidden ? "opacity-55" : ""}`}>
+                    <div key={item.hash} className={`rounded-[18px] border border-slate-200 bg-slate-50/70 p-4 ${item.hidden ? "opacity-55" : ""}`}>
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="font-mono text-xs text-[--color-text-muted]">
+                          <p className="font-mono text-xs text-slate-500">
                             {formatTime(item.date, dict)} - {item.hash.slice(0, 12)}
                           </p>
-                          <p className="mt-1 text-xs text-[--color-text-muted]">{d.originalNote}: {item.originalMessage}</p>
+                          <p className="mt-1 text-xs text-slate-500">{d.originalNote}: {item.originalMessage}</p>
                         </div>
-                        <span className="text-xs text-[--color-text-muted]">
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
                           {item.hidden ? d.status.hidden : item.useOriginal ? d.status.showingOriginalNote : d.status.showingCustomNote}
                         </span>
                       </div>
                       <textarea
                         value={updateDrafts[item.hash] ?? item.customMessage ?? item.originalMessage}
                         onChange={(event) => setUpdateDrafts((drafts) => ({ ...drafts, [item.hash]: event.target.value }))}
-                        className="min-h-20 w-full rounded-[--radius-sm] border border-[--color-border-strong] bg-[--color-bg-primary] p-2 text-sm outline-none focus:border-[--color-text-primary]"
+                        className="min-h-24 w-full rounded-[16px] border border-slate-200 bg-white p-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
                       />
                       <div className="mt-3 flex flex-wrap justify-end gap-2">
                         <Button size="sm" variant="outline" onClick={() => saveUpdateLog(item)} loading={isBusy(`update-log:${item.hash}`)} loadingText={d.saveCustomNote}>
@@ -985,7 +1246,7 @@ export function AdminClient() {
                         <Button size="sm" variant="outline" onClick={() => resetUpdateLog(item)} loading={isBusy(`reset-log:${item.hash}`)} loadingText={d.restoreOriginal}>
                           <RotateCcw size={14} /> {d.restoreOriginal}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => hideUpdateLog(item)} loading={isBusy(`hide-log:${item.hash}`)} loadingText={d.hideEntry} className="text-[--color-danger]">
+                        <Button size="sm" variant="outline" onClick={() => hideUpdateLog(item)} loading={isBusy(`hide-log:${item.hash}`)} loadingText={d.hideEntry} className="text-rose-600">
                           <Trash2 size={14} /> {d.hideEntry}
                         </Button>
                       </div>
@@ -993,11 +1254,9 @@ export function AdminClient() {
                   ))
                 )}
               </div>
-            </section>
+            </AdminPanel>
           ) : null}
-
-          {hasPermission("manageSqlLab") ? <AdminSqlAccessPanel /> : null}
-        </div>
+        </>
       ) : null}
 
       <Dialog open={Boolean(selectedAdminPermission)} onOpenChange={(open) => !open && setSelectedAdminPermissionId(null)}>
@@ -1040,6 +1299,6 @@ export function AdminClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminShell>
   )
 }

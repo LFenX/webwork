@@ -236,7 +236,10 @@ export function SqlAssistantPanel({
   }, [loadMessages])
 
   useEffect(() => {
-    void refreshConversations()
+    const timer = window.setTimeout(() => {
+      void refreshConversations()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [refreshConversations])
 
   function upsertConversation(conversation: AssistantConversation) {
@@ -345,16 +348,16 @@ export function SqlAssistantPanel({
   return (
     <section
       className={cn(
-        "flex min-h-[190px] shrink-0 overflow-hidden rounded-md border border-[--color-border] bg-[--color-bg-surface] shadow-[0_4px_18px_rgba(15,23,42,0.04)]",
+        "flex min-h-[190px] min-w-0 w-full max-w-full shrink-0 overflow-hidden rounded-md border border-[--color-border] bg-[--color-bg-surface] shadow-[0_4px_18px_rgba(15,23,42,0.04)]",
         className
       )}
     >
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-center gap-2 border-b border-[--color-border] bg-[#FAFBFC] px-2.5 py-1.5">
+        <div className="flex min-w-0 shrink-0 items-center gap-2 border-b border-[--color-border] bg-[#FAFBFC] px-2.5 py-1.5">
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-cyan-950 text-cyan-100">
             <Bot size={13} />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="font-mono text-[11px] font-semibold text-[--color-text-primary]">SQL 助教</div>
             <div className="truncate font-mono text-[9px] text-[--color-text-muted]">
               {activeConversation?.title ?? "会话已持久化，使用蝶灵当前 AI 配置"}
@@ -363,7 +366,7 @@ export function SqlAssistantPanel({
           <button
             type="button"
             onClick={() => setConversationsOpen(true)}
-            className="ml-auto inline-flex h-7 items-center gap-1 rounded-md border border-[--color-border] bg-white px-2 font-mono text-[10px] text-[--color-text-muted] hover:text-[--color-text-primary]"
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-[--color-border] bg-white px-2 font-mono text-[10px] text-[--color-text-muted] hover:text-[--color-text-primary]"
             title="会话"
           >
             <MessageSquare size={11} />
@@ -373,7 +376,7 @@ export function SqlAssistantPanel({
             type="button"
             onClick={() => setTakeover((value) => !value)}
             className={cn(
-              "inline-flex h-7 items-center gap-1 rounded-md border px-2 font-mono text-[10px]",
+              "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 font-mono text-[10px]",
               takeover
                 ? "border-cyan-300 bg-cyan-50 text-cyan-800"
                 : "border-[--color-border] bg-white text-[--color-text-muted] hover:text-[--color-text-primary]"
@@ -396,7 +399,7 @@ export function SqlAssistantPanel({
                 <div
                   key={message.id}
                   className={cn(
-                    "rounded-md border px-2.5 py-2",
+                    "min-w-0 max-w-full rounded-md border px-2.5 py-2",
                     message.role === "user" ? "ml-6 border-slate-200 bg-slate-50" : "mr-6 border-cyan-100 bg-cyan-50/40"
                   )}
                 >
@@ -462,7 +465,7 @@ export function SqlAssistantPanel({
         </div>
 
         <form
-          className="flex shrink-0 items-end gap-2 border-t border-[--color-border] bg-white px-2.5 py-2"
+          className="flex min-w-0 shrink-0 items-end gap-2 border-t border-[--color-border] bg-white px-2.5 py-2"
           onSubmit={(event) => {
             event.preventDefault()
             void sendPrompt()
@@ -478,10 +481,10 @@ export function SqlAssistantPanel({
               }
             }}
             rows={2}
-            className="min-h-10 flex-1 resize-none rounded-md border border-[--color-border] bg-[--color-bg-soft] px-2 py-1.5 text-xs leading-5 outline-none focus:border-[--color-brand-border] focus:bg-white"
+            className="min-h-10 min-w-0 flex-1 resize-none rounded-md border border-[--color-border] bg-[--color-bg-soft] px-2 py-1.5 text-xs leading-5 outline-none focus:border-[--color-brand-border] focus:bg-white"
             placeholder="描述取数需求、粘贴报错，或说：帮我在 Private 创建一个客户线索表..."
           />
-          <Button type="submit" size="sm" className="h-9 px-3 text-xs" disabled={!input.trim() || loading}>
+          <Button type="submit" size="sm" className="h-9 shrink-0 px-3 text-xs" disabled={!input.trim() || loading}>
             {loading ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
             发送
           </Button>

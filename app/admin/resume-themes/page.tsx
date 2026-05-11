@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { ResumeThemesAdminClient } from "./admin-client"
 
-export const metadata = { title: "简历模板管理 — 管理后台" }
+export const metadata = { title: "简历模板管理 · 管理后台" }
 export const dynamic = "force-dynamic"
 
 export default async function ResumeThemesAdminPage() {

@@ -1,25 +1,29 @@
-import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { BookOpen, BriefcaseBusiness, CalendarDays, Edit3, FileText, MessageCircle, PenLine, Share2, UsersRound } from "lucide-react"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { requireAuth } from "@/lib/auth"
-import { getAnnouncementFeed } from "@/lib/announcement-feed"
-import { AnnouncementChannelBar } from "@/components/announcement-channel-bar"
-import { ContributionActivityPanel } from "@/components/contribution-activity-panel"
-import { FunnelChart } from "@/components/funnel-chart"
 import { GuestbookSection } from "@/components/guestbook-section"
-import { HomeLayoutBoard } from "@/components/home-layout-board"
-import { StatsCard } from "@/components/stats-card"
-import { StatusBadge } from "@/components/status-badge"
-import { UserAvatar } from "@/components/user-avatar"
-import { VisitStatsPanel } from "@/components/visit-stats-panel"
-import { formatChinaDate, formatDateKey } from "@/lib/time"
-import { normalizeHomeLayout } from "@/lib/home-layout"
+import { formatDateKey } from "@/lib/time"
 import { countWords } from "@/lib/text-stats"
-import { getUserSiteSettings } from "@/lib/settings"
-import { getDictionary } from "@/lib/i18n"
 import { RecentActivityPanel, type RecentActivityGroup, type RecentActivityItem } from "@/components/recent-activity-panel"
 import { getReadRecentActivityIds } from "@/lib/recent-activity-reads"
+import {
+  ChatActivityCard,
+  type ChatParticipant,
+  CompactHeatmapCard,
+  CompactListPanel,
+  ContentListPanel,
+  JobFunnelCard,
+  MetricStrip,
+  PersonalHeroCard,
+  PersonalHomeGrid,
+  PersonalHomeShell,
+  VisitOverviewCard,
+  WritingStatsCard,
+  type VisitDetailItem,
+  type PersonalContentItem,
+  type PersonalMetric,
+} from "@/components/profile/personal-home"
 
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
@@ -90,11 +94,38 @@ async function getJobActivityData(userId: string) {
 }
 
 async function getChatActivityData(userId: string) {
-  const [directSent, directReceived, channelMessages] = await Promise.all([
+  const [directSent, directReceived, channelMessages, recentDirectMessages, friendships] = await Promise.all([
     prisma.chatMessage.findMany({ where: { senderId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
     prisma.chatMessage.findMany({ where: { receiverId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
     prisma.channelMessage.findMany({ where: { senderId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
+    prisma.chatMessage.findMany({
+      where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+      include: {
+        sender: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+        receiver: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+      },
+    }),
+    prisma.friendship.findMany({
+      where: { OR: [{ userAId: userId }, { userBId: userId }] },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      include: {
+        userA: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+        userB: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+      },
+    }),
   ])
+  const participantsMap = new Map<string, ChatParticipant>()
+  recentDirectMessages.forEach((message) => {
+    const participant = message.senderId === userId ? message.receiver : message.sender
+    if (!participantsMap.has(participant.id)) participantsMap.set(participant.id, participant)
+  })
+  friendships.forEach((friendship) => {
+    const participant = friendship.userAId === userId ? friendship.userB : friendship.userA
+    if (!participantsMap.has(participant.id)) participantsMap.set(participant.id, participant)
+  })
   const heatmap = [...directSent, ...directReceived, ...channelMessages].reduce<Record<string, number>>((data, message) => {
     const key = formatDateKey(message.createdAt)
     data[key] = (data[key] ?? 0) + 1
@@ -109,6 +140,7 @@ async function getChatActivityData(userId: string) {
     channelCount: channelMessages.length,
     weeklyActive,
     heatmap,
+    participants: Array.from(participantsMap.values()).slice(0, 6),
   }
 }
 
@@ -298,7 +330,7 @@ async function getRecentActivityHub(userId: string): Promise<RecentActivityGroup
         id: `direct-${friendId}-${latest.id}`,
         title: `${normalizeFriendName(latest.sender)}的私聊`,
         description: compactText(latest.text, latest.stickerEmoji ? `发来表情 ${latest.stickerEmoji}` : latest.attachments.length > 0 ? "发送了新的附件" : "有新的好友消息"),
-        href: `/friends/chat/${friendId}`,
+        href: `/friends?type=direct&id=${encodeURIComponent(friendId)}`,
         meta: "好友新消息",
         time: latest.createdAt.toISOString(),
         badge: `${unreadCount} 条新消息`,
@@ -312,7 +344,7 @@ async function getRecentActivityHub(userId: string): Promise<RecentActivityGroup
         id: `channel-${channel.id}-${channel._count.messages}`,
         title: channel.name,
         description: `${normalizeFriendName(latest.sender)}：${compactText(latest.text, latest.stickerEmoji ? `发了表情 ${latest.stickerEmoji}` : latest.attachments.length > 0 ? "分享了附件" : "群里有新讨论")}`,
-        href: `/channels?channel=${encodeURIComponent(channel.id)}`,
+        href: `/friends?type=channel&id=${encodeURIComponent(channel.id)}`,
         meta: "群聊动态",
         time: latest.createdAt.toISOString(),
         badge: "群聊",
@@ -406,7 +438,7 @@ async function getRecentActivityHub(userId: string): Promise<RecentActivityGroup
       id: `roundtable-${discussion.id}-${activityTime.getTime()}`,
       title: discussion.topicTitle,
       description: latest ? `${latest.authorName}：${compactText(latest.text, "圆桌正在继续")}` : compactText(discussion.topicDescription, "新的圆桌议题已准备好"),
-      href: `/channels?channel=soulwing-roundtable&discussion=${encodeURIComponent(discussion.id)}`,
+      href: `/friends?type=channel&id=soulwing-roundtable&discussion=${encodeURIComponent(discussion.id)}`,
       meta: discussion.status === "running" ? "正在讨论" : discussion.status === "completed" ? "可追问" : "待开始",
       time: activityTime.toISOString(),
       badge: discussion.slot === "morning" ? "晨间" : discussion.slot === "evening" ? "夜间" : "圆桌",
@@ -415,38 +447,77 @@ async function getRecentActivityHub(userId: string): Promise<RecentActivityGroup
   })
 
   const groups: RecentActivityGroup[] = [
-    { key: "chat", title: "聊天动态", subtitle: "按会话聚合未读消息", href: "/channels", icon: "chat", pulse: "bg-[#2563eb]", items: chatItems },
+    { key: "chat", title: "聊天动态", subtitle: "按会话聚合未读消息", href: "/friends?type=channel&id=world", icon: "chat", pulse: "bg-[#2563eb]", items: chatItems },
     { key: "friends", title: "好友动态", subtitle: "文章、求职、简历更新", href: "/friends", icon: "friends", pulse: "bg-[#c96442]", items: friendItems },
     { key: "community", title: "社区动态", subtitle: "新网站与新表情包", href: "/community/resources", icon: "community", pulse: "bg-[#3a7d5c]", items: communityItems },
-    { key: "roundtable", title: "蝶灵圆桌", subtitle: "从频道进入具体议题", href: "/channels?channel=soulwing-roundtable", icon: "roundtable", pulse: "bg-[#b8902d]", items: roundtableItems },
+    { key: "roundtable", title: "蝶灵圆桌", subtitle: "从频道进入具体议题", href: "/friends?type=channel&id=soulwing-roundtable", icon: "roundtable", pulse: "bg-[#b8902d]", items: roundtableItems },
   ]
   const readIds = await getReadRecentActivityIds(userId, groups.flatMap((group) => group.key === "chat" ? [] : group.items.map((item) => item.id)))
   return groups.map((group) => group.key === "chat" ? group : { ...group, items: group.items.filter((item) => !readIds.has(item.id)) })
 }
-function SectionTitle({ title, href, allLabel }: { title: string; href?: string; allLabel?: string }) {
-  return (
-    <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-[--color-text-muted]">{title}</h2>
-      {href && (
-        <Link href={href} className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium text-[--color-text-muted] transition-colors hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline">
-          {allLabel ?? "鍏ㄩ儴"} <ArrowRight size={12} />
-        </Link>
-      )}
-    </div>
-  )
+
+async function getVisitDashboardData(userId: string) {
+  const since = new Date()
+  since.setDate(since.getDate() - 29)
+  since.setHours(0, 0, 0, 0)
+
+  const [total, recent, uniqueVisitors, recentVisitors] = await Promise.all([
+    prisma.visitLog.count({ where: { ownerId: userId, module: "home" } }),
+    prisma.visitLog.findMany({
+      where: { ownerId: userId, createdAt: { gte: since } },
+      select: { createdAt: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.visitLog.groupBy({
+      by: ["visitorId"],
+      where: { ownerId: userId, visitorId: { not: null } },
+      _count: { _all: true },
+    }),
+    prisma.visitLog.findMany({
+      where: { ownerId: userId, createdAt: { gte: since } },
+      select: {
+        id: true,
+        module: true,
+        path: true,
+        createdAt: true,
+        visitor: { select: { displayName: true, email: true, avatarText: true, avatarUrl: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ])
+
+  const daily = recent.reduce<Record<string, number>>((data, item) => {
+    const key = formatDateKey(item.createdAt)
+    data[key] = (data[key] ?? 0) + 1
+    return data
+  }, {})
+  const trend = Array.from({ length: 30 }, (_, index) => {
+    const day = new Date(since)
+    day.setDate(since.getDate() + index)
+    return daily[formatDateKey(day)] ?? 0
+  })
+
+  return {
+    total,
+    last30: recent.length,
+    uniqueVisitors: uniqueVisitors.length,
+    trend,
+    recentVisitors: recentVisitors.map((visit): VisitDetailItem => ({
+      id: visit.id,
+      visitorName: visit.visitor?.displayName || visit.visitor?.email || "匿名访客",
+      visitorEmail: visit.visitor?.email,
+      visitorAvatarText: visit.visitor?.avatarText,
+      visitorAvatarUrl: visit.visitor?.avatarUrl,
+      module: visit.module,
+      path: visit.path,
+      createdAt: visit.createdAt.toISOString(),
+    })),
+  }
 }
 
-export default async function HomePage({ searchParams }: { searchParams: Promise<{ layout?: string }> }) {
-  const [session, query] = await Promise.all([requireAuth(), searchParams])
+export default async function HomePage() {
+  const session = await requireAuth()
   const { userId } = session
-  const userSettings = await getUserSiteSettings(userId)
-  const dict = getDictionary(userSettings.language)
-
-  const articleLabelMap: Record<string, string> = {
-    blog: dict.nav.blog,
-    reflections: dict.nav.reflections,
-    notes: dict.nav.notes,
-  }
 
   const [
     stats,
@@ -457,11 +528,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     writingStats,
     profile,
     guestbookMessages,
-    announcements,
-    homeLayout,
     articleGroups,
     recentDaily,
     recentActivity,
+    visitDashboard,
   ] = await Promise.all([
     getJobStats(userId),
     getRecentJobs(userId),
@@ -491,212 +561,150 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         author: message.author,
       }))
     ),
-    getAnnouncementFeed(userId, 50),
-    prisma.homeLayout.findUnique({ where: { userId }, select: { config: true } }).then((row) => normalizeHomeLayout(row?.config)),
-    Promise.all(ARTICLE_TYPES.map(async (type) => (await getPosts(type, userId)).map((post) => ({ ...post, typeLabel: articleLabelMap[type] })))),
+    Promise.all(ARTICLE_TYPES.map(async (type) => (await getPosts(type, userId)).map((post) => ({ ...post, typeLabel: ARTICLE_ACTIVITY_LABELS[type] })))),
     getPosts("daily", userId),
     getRecentActivityHub(userId),
+    getVisitDashboardData(userId),
   ])
 
-  const allPosts = articleGroups.flat().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 5)
+  const displayName = profile?.displayName || profile?.email || session.email
+  const email = profile?.email || session.email
   const allPostsFull = articleGroups.flat().sort((a, b) => (a.date < b.date ? 1 : -1))
+  const latestArticles = allPostsFull.slice(0, 5)
+  const latestDaily = recentDaily.slice(0, 5)
+
+  const latestArticleItems: PersonalContentItem[] = latestArticles.map((post) => ({
+    key: `${post.type}-${post.slug}`,
+    title: post.title,
+    href: `/${post.type}/${encodeURIComponent(post.slug)}`,
+    date: post.date,
+    summary: post.summary,
+    label: post.typeLabel,
+    tags: post.tags,
+  }))
+  const latestDailyItems: PersonalContentItem[] = latestDaily.map((post) => ({
+    key: post.slug,
+    title: post.title,
+    href: `/daily/${encodeURIComponent(post.slug)}`,
+    date: post.date,
+    summary: post.summary,
+    tags: post.tags,
+  }))
+  const recentJobItems: PersonalContentItem[] = recentJobs.slice(0, 5).map((job) => ({
+    key: job.id,
+    title: `${job.company} · ${job.position}`,
+    href: "/jobs",
+    date: job.appliedAt.toISOString().slice(0, 10),
+    summary: job.notes || job.baseLocation || "求职进展已更新",
+    meta: job.status,
+  }))
+
+  const coreMetrics: PersonalMetric[] = [
+    { label: "文章", value: allPostsFull.length, unit: "篇", sub: "持续沉淀", icon: FileText, tone: "blue" },
+    { label: "日常", value: recentDaily.length, unit: "条", sub: "轻量记录", icon: CalendarDays, tone: "blue" },
+    { label: "求职", value: stats.total, unit: "项", sub: `回复率 ${stats.replyRate}%`, icon: BriefcaseBusiness, tone: "orange" },
+    { label: "访客", value: visitDashboard.total, unit: "次", sub: `近 30 天 ${visitDashboard.last30}`, icon: UsersRound, tone: "green" },
+    { label: "互动", value: chatActivity.directCount + chatActivity.channelCount, unit: "次", sub: `本周 ${chatActivity.weeklyActive}`, icon: MessageCircle, tone: "green" },
+    { label: "留言", value: guestbookMessages.length, unit: "条", sub: "欢迎交流", icon: MessageCircle, tone: "blue" },
+  ]
+
   const funnelSteps = [
-    { label: "累计投递", value: stats.total, color: "#9A9A9A" },
-    { label: "收到回复", value: stats.replied, color: "#B8902D" },
-    { label: "进入面试", value: stats.hasInterview, color: "#0969DA" },
-    { label: "拿到 Offer", value: stats.offers, color: "#3A7D5C" },
+    { label: "投递", value: stats.total, color: "#6d9df8" },
+    { label: "回复", value: stats.replied, color: "#69c08b" },
+    { label: "面试", value: stats.hasInterview, color: "#f5a343" },
+    { label: "Offer", value: stats.offers, color: "#ef6b73" },
   ]
-  const homeWidgets = [
-    {
-      id: "recentActivity" as const,
-      content: <RecentActivityPanel groups={recentActivity} userId={userId} />,
-    },
-    {
-      id: "writingStats" as const,
-      content: (
-        <section>
-          <SectionTitle title="写作统计" />
-          <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3">
-            <StatsCard title="累计文章" value={writingStats.total} sub="篇" />
-            <StatsCard title={dict.article.wordCount} value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
-            <StatsCard title="连续写作" value={writingStats.streak} sub="天" trend={writingStats.streak > 0 ? "up" : "neutral"} />
-            <StatsCard title="本月新增" value={writingStats.thisMonth} sub="篇" />
-          </div>
-          {writingStats.topTags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {writingStats.topTags.map(({ tag, count }) => (
-                <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[--color-bg-hover] px-2.5 py-0.5 text-xs font-medium text-[--color-text-secondary]">
-                  {tag}
-                  <span className="font-mono text-[--color-text-muted]">{count}</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </section>
-      ),
-    },
-    {
-      id: "recentPosts" as const,
-      content: (
-        <div className="grid min-w-0 gap-8 md:grid-cols-2">
-          <section className="min-w-0">
-            <SectionTitle title={dict.home.latestArticles} href="/blog" allLabel={dict.common.all} />
-            <div className="min-w-0 overflow-hidden">
-              {allPosts.length === 0 ? (
-                <p className="text-sm text-[--color-text-muted]">还没有文章</p>
-              ) : (
-                allPosts.map((post) => (
-                  <Link key={`${post.type}-${post.slug}`} href={`/${post.type}/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                    <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
-                      <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
-                        {post.summary && <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">{post.summary}</p>}
-                      </div>
-                      <span className="max-w-[3rem] shrink-0 truncate text-xs text-[--color-text-muted]">{post.typeLabel}</span>
-                    </div>
-                  </Link>
-                ))
-              )}
-            </div>
-          </section>
-          <section className="min-w-0">
-            <SectionTitle title="最近日常" href="/daily" allLabel={dict.common.all} />
-            <div className="min-w-0 overflow-hidden">
-              {recentDaily.length === 0 ? (
-                <p className="text-sm text-[--color-text-muted]">还没有日常记录</p>
-              ) : (
-                recentDaily.slice(0, 5).map((post) => (
-                  <Link key={post.slug} href={`/daily/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                    <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
-                      <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
-                        {post.summary && <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">{post.summary}</p>}
-                      </div>
-                    </div>
-                  </Link>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-      ),
-    },
-    {
-      id: "chatActivity" as const,
-      content: (
-        <section>
-          <SectionTitle title="聊天活跃度" />
-          <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3">
-            <StatsCard title="单聊参与" value={chatActivity.directCount} sub="次" />
-            <StatsCard title="群聊发言" value={chatActivity.channelCount} sub="次" />
-            <StatsCard title="总互动" value={chatActivity.directCount + chatActivity.channelCount} sub="次" />
-            <StatsCard title="本周活跃" value={chatActivity.weeklyActive} sub="次" />
-          </div>
-        </section>
-      ),
-    },
-    {
-      id: "jobFunnel" as const,
-      content: (
-        <section>
-          <SectionTitle title="求职漏斗" href="/jobs" allLabel={dict.common.all} />
-          <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3">
-            <StatsCard title="累计投递" value={stats.total} sub="家公司" />
-            <StatsCard title={dict.jobs.replyRate} value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
-            <StatsCard title={dict.home.interviews} value={stats.hasInterview} sub="次" />
-            <StatsCard title={dict.home.offers} value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
-          </div>
-          {stats.total > 0 && (
-            <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
-              <p className="mb-3 text-xs font-medium text-[--color-text-muted]">投递转化漏斗</p>
-              <FunnelChart steps={funnelSteps} />
-            </div>
-          )}
-        </section>
-      ),
-    },
-    {
-      id: "recentJobs" as const,
-      content: (
-        <section>
-          <SectionTitle title="最近求职动态" href="/jobs" allLabel={dict.common.all} />
-          {recentJobs.length === 0 ? (
-            <p className="text-sm text-[--color-text-muted]">{dict.common.noData}</p>
-          ) : (
-            <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
-              {recentJobs.slice(0, 5).map((job, index) => (
-                <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${index < Math.min(recentJobs.length, 5) - 1 ? "border-b border-[--color-border]" : ""}`}>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{job.company}</p>
-                    <p className="truncate text-xs text-[--color-text-secondary] sm:text-sm">{job.position}</p>
-                  </div>
-                  <StatusBadge status={job.status} type="job" />
-                  <span className="hidden shrink-0 font-mono text-xs text-[--color-text-muted] sm:inline">{formatChinaDate(job.appliedAt)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      ),
-    },
-    { id: "visitStats" as const, content: <VisitStatsPanel userId={userId} /> },
-  ]
+  const offerConversion = stats.total > 0 ? Math.round((stats.offers / stats.total) * 100) : 0
+
   return (
-    <div className="mx-auto max-w-[1200px] px-6 pb-10 pt-6">
-      <AnnouncementChannelBar
-        initialAnnouncements={announcements}
-        userId={userId}
-        locale={userSettings.language}
-        currentUser={{
-          id: userId,
-          email: profile?.email ?? session.email,
-          displayName: profile?.displayName ?? profile?.email ?? session.email,
-          avatarText: profile?.avatarText ?? "",
-          avatarUrl: profile?.avatarUrl ?? null,
-        }}
-      />
+    <PersonalHomeShell>
+      <PersonalHomeGrid
+        main={
+          <>
+            <PersonalHeroCard
+              name={displayName}
+              email={email}
+              bio={profile?.bio}
+              location={profile?.location}
+              avatarText={profile?.avatarText}
+              avatarUrl={profile?.avatarUrl}
+              actions={[
+                { label: "编辑资料", href: "/settings/profile", icon: Edit3, variant: "primary" },
+                { label: "写文章", href: "/blog/new", icon: PenLine, variant: "secondary" },
+                { label: "分享主页", href: `/u/${userId}`, icon: Share2, variant: "ghost" },
+              ]}
+            />
 
-      {profile && (
-        <section className="mb-8 flex items-center gap-5 rounded-[--radius-xl] bg-[linear-gradient(135deg,rgba(37,99,235,0.04)_0%,rgba(255,255,255,0.6)_40%,rgba(255,255,255,0.82)_100%)] px-6 py-5 shadow-[--shadow-sm] ring-1 ring-[--color-border]">
-          <UserAvatar size="md" name={profile.displayName} email={profile.email} avatarText={profile.avatarText} avatarUrl={profile.avatarUrl} />
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h1 className="text-lg font-bold tracking-tight text-[--color-text-primary]">{profile.displayName || profile.email}</h1>
-              {profile.location && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[--color-bg-hover] px-2.5 py-0.5 text-xs text-[--color-text-secondary]">{profile.location}</span>
-              )}
+            <MetricStrip metrics={coreMetrics} />
+
+            <ContentListPanel
+              title="最新文章"
+              icon={BookOpen}
+              href="/blog"
+              items={latestArticleItems}
+              emptyTitle="还没有发布文章"
+              emptyDescription="写下第一篇文章后，这里会成为你的内容入口。"
+              featureFirst
+            />
+
+            <CompactListPanel
+              title="最近日常"
+              icon={CalendarDays}
+              href="/daily"
+              items={latestDailyItems}
+              emptyTitle="暂无日常记录"
+              emptyDescription="生活片段会在这里形成清爽的时间流。"
+              tone="green"
+            />
+
+            <RecentActivityPanel groups={recentActivity} userId={userId} variant="list" />
+
+            <CompactListPanel
+              title="最近求职动态"
+              icon={BriefcaseBusiness}
+              href="/jobs"
+              items={recentJobItems}
+              emptyTitle="暂无求职动态"
+              emptyDescription="开始记录投递后，这里会显示最近的公司和状态变化。"
+              tone="orange"
+            />
+
+            <div id="guestbook" className="scroll-mt-20">
+              <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={true} />
             </div>
-            {profile.bio && <p className="line-clamp-2 text-sm leading-relaxed text-[--color-text-secondary]">{profile.bio}</p>}
-            <p className="break-all text-xs text-[--color-text-muted]">{profile.email}</p>
-          </div>
-        </section>
-      )}
-      <HomeLayoutBoard
-        widgets={homeWidgets}
-        initialLayout={homeLayout}
-        editable
-        initialEditing={query.layout === "edit"}
-        showEditTrigger={false}
+          </>
+        }
+        aside={
+          <>
+            <WritingStatsCard
+              articleCount={writingStats.total}
+              totalWords={writingStats.totalWords}
+              streak={writingStats.streak}
+              thisMonth={writingStats.thisMonth}
+            />
+            <ChatActivityCard
+              directCount={chatActivity.directCount}
+              channelCount={chatActivity.channelCount}
+              weeklyActive={chatActivity.weeklyActive}
+              participants={chatActivity.participants}
+            />
+            <JobFunnelCard steps={funnelSteps} conversionRate={offerConversion} />
+            <VisitOverviewCard
+              total={visitDashboard.total}
+              uniqueVisitors={visitDashboard.uniqueVisitors}
+              last30={visitDashboard.last30}
+              trend={visitDashboard.trend}
+              recentVisitors={visitDashboard.recentVisitors}
+            />
+            <CompactHeatmapCard
+              contentData={articleActivityData}
+              chatData={chatActivity.heatmap}
+              careerData={jobActivityData}
+              days={180}
+            />
+          </>
+        }
       />
-
-      <div className="mt-8">
-        <ContributionActivityPanel
-          contentData={articleActivityData}
-          chatData={chatActivity.heatmap}
-          careerData={jobActivityData}
-          recentPosts={allPostsFull}
-          recentDaily={recentDaily}
-          recentJobs={recentJobs}
-          chatActivity={chatActivity}
-        />
-      </div>
-
-      <div className="mt-10">
-        <GuestbookSection ownerId={userId} initialMessages={guestbookMessages} isOwner={true} canPost={true} />
-      </div>
-
-    </div>
+    </PersonalHomeShell>
   )
 }

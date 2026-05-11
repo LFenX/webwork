@@ -792,6 +792,7 @@ export function ChatPanel({
   onDiscardMessage,
   className = "",
   headerPrefix,
+  headerActions,
   composerExtra,
   userId,
 }: {
@@ -818,6 +819,7 @@ export function ChatPanel({
   onDiscardMessage?: (messageId: string) => void
   className?: string
   headerPrefix?: ReactNode
+  headerActions?: ReactNode
   composerExtra?: ReactNode
   userId?: string
 }) {
@@ -836,6 +838,19 @@ export function ChatPanel({
   const [profileOpen, setProfileOpen] = useState(false)
   const [previewImage, setPreviewImage] = useState<ChatAttachment | null>(null)
 
+  const scrollToLatestMessage = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const scroll = () => {
+      container.scrollTop = container.scrollHeight
+      shouldStickToBottomRef.current = true
+    }
+    scroll()
+    window.requestAnimationFrame(scroll)
+    window.setTimeout(scroll, 120)
+    window.setTimeout(scroll, 360)
+  }, [])
+
   const trailingMineMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index]
@@ -845,49 +860,47 @@ export function ChatPanel({
     return null
   }, [friend?.id, messages])
 
-  useEffect(() => {
-    if (friend?.id) forceScrollToBottomRef.current = true
-  }, [friend?.id])
-
-  useEffect(() => {
-    const currentLastMessageId = messages[messages.length - 1]?.id ?? null
-    if (!friend?.id) {
-      lastMessageIdRef.current = currentLastMessageId
-      return
-    }
-    const lastMessageChanged = lastMessageIdRef.current !== currentLastMessageId
-    const latestMessage = messages[messages.length - 1]
-    const latestMessageIsMine = latestMessage ? latestMessage.senderId !== friend.id : false
-    if (lastMessageChanged && (lastMessageIdRef.current === null || shouldStickToBottomRef.current || latestMessageIsMine)) {
-      endRef.current?.scrollIntoView({ block: "end" })
-    }
-    lastMessageIdRef.current = currentLastMessageId
-  }, [friend?.id, messages])
+  useLayoutEffect(() => {
+    lastMessageIdRef.current = null
+    shouldStickToBottomRef.current = true
+    forceScrollToBottomRef.current = Boolean(friend?.id)
+    scrollToLatestMessage()
+  }, [friend?.id, scrollToLatestMessage])
 
   useLayoutEffect(() => {
     const container = scrollContainerRef.current
     if (!container) return
     const currentLastMessageId = messages[messages.length - 1]?.id ?? null
-    if (currentLastMessageId && lastMessageIdRef.current === null) {
-      forceScrollToBottomRef.current = false
-      container.scrollTop = container.scrollHeight
-      window.requestAnimationFrame(() => {
-        container.scrollTop = container.scrollHeight
-      })
+    if (revealPrependedHistoryRef.current) {
+      revealPrependedHistoryRef.current = false
+      lastMessageIdRef.current = currentLastMessageId
+      container.scrollTop = 0
       return
     }
-    if (forceScrollToBottomRef.current) {
+    const lastMessageChanged = lastMessageIdRef.current !== currentLastMessageId
+    const latestMessage = messages[messages.length - 1]
+    const latestMessageIsMine = latestMessage ? latestMessage.senderId !== friend?.id : false
+    const shouldForce = forceScrollToBottomRef.current || lastMessageIdRef.current === null
+    if (currentLastMessageId && lastMessageChanged && (shouldForce || shouldStickToBottomRef.current || latestMessageIsMine)) {
       forceScrollToBottomRef.current = false
-      container.scrollTop = container.scrollHeight
-      window.requestAnimationFrame(() => {
-        container.scrollTop = container.scrollHeight
-      })
-      return
+      scrollToLatestMessage()
+    } else if (forceScrollToBottomRef.current) {
+      forceScrollToBottomRef.current = false
+      scrollToLatestMessage()
     }
-    if (!revealPrependedHistoryRef.current) return
-    revealPrependedHistoryRef.current = false
-    container.scrollTop = 0
-  }, [messages])
+    lastMessageIdRef.current = currentLastMessageId
+  }, [friend?.id, messages, scrollToLatestMessage])
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    const content = container?.firstElementChild
+    if (!container || !content || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(() => {
+      if (forceScrollToBottomRef.current || shouldStickToBottomRef.current) scrollToLatestMessage()
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [messages.length, loading, scrollToLatestMessage])
 
   const handleLoadOlder = useCallback(async () => {
     if (!onLoadOlder || loadingOlder || loadOlderInFlightRef.current) return
@@ -954,10 +967,13 @@ export function ChatPanel({
             <p className="truncate text-xs text-[--color-text-muted]">{presenceLabel(friend.presenceStatus)} / {friend.email}</p>
           </div>
         </div>
-        <Button type="button" size="sm" variant="outline" onClick={onReload} className="h-8 shrink-0 gap-1.5">
-          <RefreshCcw size={13} />
-          <span className="hidden sm:inline">{labels.refresh}</span>
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {headerActions}
+          <Button type="button" size="sm" variant="outline" onClick={onReload} className="h-8 shrink-0 gap-1.5">
+            <RefreshCcw size={13} />
+            <span className="hidden sm:inline">{labels.refresh}</span>
+          </Button>
+        </div>
       </div>
 
       <div ref={scrollContainerRef} className="mobile-chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-4">
@@ -1238,7 +1254,7 @@ export function ChatPanel({
               <Link href={`/u/${friend.id}`}>{labels.viewProfile}</Link>
             </Button>
             <Button asChild>
-              <Link href={`/friends/chat/${friend.id}`}>{labels.openChatPage}</Link>
+              <Link href={`/friends?type=direct&id=${encodeURIComponent(friend.id)}`}>{labels.openChatPage}</Link>
             </Button>
           </DialogFooter>
         </DialogContent>

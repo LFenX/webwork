@@ -46,7 +46,7 @@ export function VolunteerSection({
       </div>
 
       {values.length === 0 && (
-        <p className="text-xs text-[--color-text-muted]">暂无志愿经历，点击"添加"新增。</p>
+        <p className="text-xs text-[--color-text-muted]">暂无志愿经历，点击&quot;添加&quot;新增。</p>
       )}
 
       <div className="space-y-2">

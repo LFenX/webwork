@@ -4,9 +4,12 @@ import { getDictionary } from "@/lib/i18n"
 import { getUserSiteSettings } from "@/lib/settings"
 import { getGroupChannelDetails, WORLD_CHANNEL_ID } from "@/lib/channel-chat"
 import { SOULWING_ROUNDTABLE_CHANNEL_ID } from "@/lib/soulwing-roundtable"
+import { getUserAdminInfo } from "@/lib/admin"
+import { AdminShell } from "@/components/admin/admin-shell"
 import { SettingsShell } from "@/components/settings/settings-shell"
 import { GroupSettingsClient } from "@/components/channels/group-settings-client"
 import { SoulWingRoundtableManageClient } from "@/components/ai/soulwing-roundtable-manage-client"
+import { LayoutDashboard, Palette, Sparkles } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
@@ -17,15 +20,40 @@ export default async function ChannelDetailsPage({
 }) {
   const session = await requireAuth()
   const { channelId } = await params
-  if (channelId === WORLD_CHANNEL_ID) redirect("/channels")
+  if (channelId === WORLD_CHANNEL_ID) redirect("/friends?type=channel&id=world")
 
   const settings = await getUserSiteSettings(session.userId)
   const dict = getDictionary(settings.language)
   if (channelId === SOULWING_ROUNDTABLE_CHANNEL_ID) {
+    const adminInfo = await getUserAdminInfo(session.userId)
+    const isAdmin = adminInfo?.role === "admin" || adminInfo?.role === "owner"
+    const isOwner = adminInfo?.role === "owner"
+    const navItems = [
+      ...(isAdmin
+        ? [
+            { key: "overview", label: "后台概览", href: "/admin?section=overview", icon: <LayoutDashboard size={17} />, description: "回到主后台" },
+          ]
+        : []),
+      ...(isOwner
+        ? [
+            { key: "resume-themes", label: "简历主题", href: "/admin/resume-themes", icon: <Palette size={17} />, description: "主题验证与配置" },
+          ]
+        : []),
+      { key: "roundtable", label: "圆桌管理", href: "/channels/soulwing-roundtable", icon: <Sparkles size={17} />, description: "蝶灵圆桌控制台" },
+    ]
+
     return (
-      <SettingsShell title="蝶灵圆桌管理" backHref="/channels" backLabel={dict.common.back}>
+      <AdminShell
+        title="蝶灵圆桌管理"
+        description="管理今日议题、资料卡、自动讨论、成员参与状态与历史讨论。"
+        eyebrow="Roundtable Console"
+        backHref="/friends?type=channel&id=soulwing-roundtable"
+        backLabel="返回频道"
+        activeKey="roundtable"
+        navItems={navItems}
+      >
         <SoulWingRoundtableManageClient currentUserId={session.userId} />
-      </SettingsShell>
+      </AdminShell>
     )
   }
 
@@ -33,7 +61,7 @@ export default async function ChannelDetailsPage({
   if (!channel) notFound()
 
   return (
-    <SettingsShell title={dict.channels.groupInfo} backHref="/channels" backLabel={dict.common.back}>
+    <SettingsShell title={dict.channels.groupInfo} backHref={`/friends?type=channel&id=${encodeURIComponent(channelId)}`} backLabel={dict.common.back}>
       <GroupSettingsClient
         channel={channel}
         labels={{

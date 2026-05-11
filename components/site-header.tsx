@@ -1,17 +1,18 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import {
   BookOpen, Briefcase, Calendar, Database, FileText, Globe, Home, Lightbulb,
-  LogIn, LogOut, Menu, MessageSquare, Settings, Shield,
+  LogIn, LogOut, Menu, Settings, Shield,
   Sparkles, StickyNote, Users, Video, X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { UserAvatar } from "@/components/user-avatar"
+import { HeaderAnnouncementTicker } from "@/components/header-announcement-ticker"
 import { clearChatOutboxForUser } from "@/lib/chat-outbox"
-import { clearUserLocalState } from "@/lib/client-storage"
+import { clearUserLocalState, readUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 import { getActiveChatContext, subscribeActiveChatContext } from "@/lib/active-chat"
 import type { AppLocale } from "@/lib/i18n"
 
@@ -76,8 +77,9 @@ export function SiteHeader({
   const pathname = usePathname()
   const [presenceStatus, setPresenceStatus] = useState<"online" | "away" | "offline">(session ? "online" : "offline")
   const [friendUnreadCount, setFriendUnreadCount] = useState(0)
+  const [channelUnreadCount, setChannelUnreadCount] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const visibleFriendUnreadCount = session ? friendUnreadCount : 0
+  const visibleFriendUnreadCount = session ? friendUnreadCount + channelUnreadCount : 0
 
   const navItems = [
     { href: "/", label: navDict.home },
@@ -128,6 +130,47 @@ export function SiteHeader({
     }
   }, [session])
 
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    const userId = session.userId
+    const storageKey = userStorageKey(userId, "channel-seen-count", "channels")
+    async function refreshChannelUnread() {
+      const res = await fetch(`/api/channels/summary?_t=${Date.now()}`, { cache: "no-store" }).catch(() => null)
+      if (!res?.ok) return
+      const data = await res.json().catch(() => null)
+      if (cancelled) return
+      const items = Array.isArray(data?.items) ? data.items as Array<{ channelId: string; totalCount: number }> : []
+      let seen = readUserStorage<Record<string, number>>({
+        kind: "local",
+        key: storageKey,
+        userId,
+        ttlMs: 30 * 24 * 60 * 60 * 1000,
+      })
+      if (!seen) {
+        seen = Object.fromEntries(items.map((item) => [item.channelId, item.totalCount]))
+        writeUserStorage({ kind: "local", key: storageKey, userId, value: seen })
+      }
+      setChannelUnreadCount(items.reduce((sum, item) => {
+        if (item.channelId === "soulwing-roundtable") return sum
+        return sum + Math.max(0, item.totalCount - (seen?.[item.channelId] ?? item.totalCount))
+      }, 0))
+    }
+    void refreshChannelUnread()
+    const onSeen = () => void refreshChannelUnread()
+    const onRealtime = (event: Event) => {
+      const payload = (event as CustomEvent).detail
+      if (payload?.type === "channel:message") void refreshChannelUnread()
+    }
+    window.addEventListener("channel-seen-counts-changed", onSeen)
+    window.addEventListener("app:realtime", onRealtime)
+    return () => {
+      cancelled = true
+      window.removeEventListener("channel-seen-counts-changed", onSeen)
+      window.removeEventListener("app:realtime", onRealtime)
+    }
+  }, [session])
+
   async function handleLogout() {
     if (session?.userId) {
       clearUserLocalState(session.userId)
@@ -144,9 +187,9 @@ export function SiteHeader({
     <>
     <header
       data-locale={locale}
-      className="fixed inset-x-0 top-0 z-50 border-b border-[--color-border] bg-[--color-bg-soft]/72 backdrop-blur-[18px] [-webkit-backdrop-filter:blur(18px)]"
+      className="site-header fixed inset-x-0 top-0 z-50 bg-transparent px-3 pt-2 sm:px-4"
     >
-      <div className="mx-auto flex h-14 max-w-[1200px] items-center gap-6 px-6">
+      <div className="mx-auto flex h-12 max-w-[1760px] items-center gap-4 rounded-[14px] border border-slate-200/80 bg-white/90 px-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-[18px] [-webkit-backdrop-filter:blur(18px)] sm:px-5 lg:gap-6">
         {/* Desktop: brand name; Mobile: menu button */}
         <Link
           href="/"
@@ -164,10 +207,11 @@ export function SiteHeader({
         >
           <Menu size={18} />
         </button>
+        {session && <HeaderAnnouncementTicker enabled compact className="flex-1 md:hidden" />}
 
         {session ? (
           <>
-            <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
+            <nav className="hidden min-w-0 max-w-[920px] shrink items-center gap-1 overflow-x-auto md:flex">
               {navItems.map((item) => {
                 const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
                 return (
@@ -188,6 +232,8 @@ export function SiteHeader({
               })}
             </nav>
 
+            <HeaderAnnouncementTicker enabled className="hidden min-w-0 flex-1 lg:block" />
+
             <div className="flex shrink-0 items-center gap-1.5">
               <Link href="/" prefetch={false} className="hover:no-underline" title={displayName || session.email}>
                 <UserAvatar
@@ -204,7 +250,7 @@ export function SiteHeader({
                 prefetch={false}
                 className={cn(
                   "relative inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-sm transition-all duration-200 hover:no-underline",
-                  pathname === "/friends"
+                  pathname.startsWith("/friends")
                     ? "bg-[--color-brand] text-white shadow-[0_8px_22px_rgba(37,99,235,0.22)]"
                     : "text-[--color-text-secondary] hover:bg-[--color-brand-soft] hover:text-[--color-brand]"
                 )}
@@ -413,4 +459,3 @@ export function SiteHeader({
     )}
   </>
 )}
-

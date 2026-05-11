@@ -3,6 +3,8 @@
 import { useCallback, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/empty-state"
+import { SectionCard } from "@/components/profile/section-card"
 import { StickerPicker, type StickerPick } from "@/components/sticker-picker"
 import { ThreadedDiscussion, type ThreadItem } from "@/components/threaded-discussion"
 import { getDict } from "@/lib/i18n"
@@ -29,12 +31,12 @@ type Props = {
 
 function SelectedStickerView({ sticker: s, onClear }: { sticker: StickerPick; onClear: () => void }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full bg-[--color-bg-surface] px-2.5 py-1.5 shadow-[inset_0_0_0_1px_var(--color-border)]">
+    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm">
       {s.type === "emoji" ? <span className="text-2xl">{s.emoji}</span> : (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={s.url} alt={s.name} className="h-10 w-10 object-contain" />
       )}
-      <button type="button" onClick={onClear} className="text-[--color-text-muted] hover:text-[--color-danger]">×</button>
+      <button type="button" onClick={onClear} className="text-slate-400 hover:text-rose-500">×</button>
     </div>
   )
 }
@@ -119,25 +121,22 @@ export function GuestbookSection({ ownerId, initialMessages, isOwner, canPost }:
   }
 
   return (
-    <section>
-      <div className="mb-5 flex items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-[--color-text-primary]">{gb.title}</h2>
-          <p className="mt-1 text-sm text-[--color-text-muted]">把想法、祝福或一张表情留在这里。</p>
-        </div>
-        {messages.length > 0 ? <span className="rounded-full bg-[--color-brand-soft] px-3 py-1 text-xs font-medium text-[--color-brand]">{messages.length} 条</span> : null}
-      </div>
-
-      <div className="rounded-[--radius-xl] border border-white/60 bg-[--color-bg-surface]/35 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_18px_48px_rgba(15,23,42,0.055)] backdrop-blur-md">
+    <SectionCard
+      title={gb.title}
+      description="欢迎留下建议、问题，或者随便打个招呼。"
+      action={messages.length > 0 ? <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">{messages.length} 条</span> : null}
+      contentClassName="p-4 sm:p-5"
+    >
+      <div className="flex flex-col gap-5">
         {canPost && (
-          <div className="mb-5 rounded-[--radius-lg] bg-[--color-bg-surface]/45 p-3 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)]">
+          <div className="rounded-[16px] border border-slate-200 bg-slate-50/70 p-3">
             <textarea
               value={content}
               onChange={(event) => setContent(event.target.value)}
               onKeyDown={(event) => handleEnterToSubmit(event, handleSubmit, { disabled: sending || (!content.trim() && !sticker) })}
               placeholder={gb.placeholder}
               rows={2}
-              className="min-h-[70px] w-full resize-none rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary]/45 p-3 text-sm leading-6 outline-none transition-shadow placeholder:text-[--color-text-muted] focus:border-[--color-brand-border] focus:ring-2 focus:ring-[--color-brand]/20"
+              className="min-h-[76px] w-full resize-none rounded-[14px] border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-800 outline-none transition-shadow placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-500/15"
             />
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -159,7 +158,7 @@ export function GuestbookSection({ ownerId, initialMessages, isOwner, canPost }:
         )}
 
         {messages.length === 0 ? (
-          <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/45 px-5 py-8 text-center text-sm text-[--color-text-muted] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">{gb.noMessages}</div>
+          <EmptyState title={gb.noMessages} description="这里会展示好友和主页主人的互动。" compact className="border-slate-200 bg-slate-50/70" />
         ) : (
           <ThreadedDiscussion
             items={messages}
@@ -172,6 +171,6 @@ export function GuestbookSection({ ownerId, initialMessages, isOwner, canPost }:
           />
         )}
       </div>
-    </section>
+    </SectionCard>
   )
 }

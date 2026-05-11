@@ -16,7 +16,7 @@ export function StickerCommunityBackButton() {
           router.back()
           return
         }
-        router.push("/channels")
+        router.push("/friends?type=channel&id=world")
       }}
       className="inline-flex items-center gap-2 rounded-full border border-[--color-border] bg-[--color-bg-surface] px-3 py-2 text-sm text-[--color-text-secondary] transition-colors hover:text-[--color-text-primary]"
     >

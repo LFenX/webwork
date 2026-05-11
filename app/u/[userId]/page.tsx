@@ -1,19 +1,30 @@
 import { notFound } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft, ArrowRight, BookOpen, BriefcaseBusiness, CalendarDays, FileText, MessageSquareText, NotebookText, type LucideIcon } from "lucide-react"
+import { BookOpen, BriefcaseBusiness, CalendarDays, Edit3, FileText, MessageCircle, MessageSquareText, NotebookText, PenLine, Share2, UsersRound } from "lucide-react"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
 import { canViewModule, getAccessLevel, recordVisit, visibleTo, type ModuleKey } from "@/lib/permissions"
-import { ContributionActivityPanel } from "@/components/contribution-activity-panel"
-import { FunnelChart } from "@/components/funnel-chart"
 import { GuestbookSection } from "@/components/guestbook-section"
-import { StatsCard } from "@/components/stats-card"
-import { StatusBadge } from "@/components/status-badge"
-import { UserAvatar } from "@/components/user-avatar"
-import { VisitStatsPanel } from "@/components/visit-stats-panel"
-import { formatChinaDate, formatDateKey } from "@/lib/time"
+import { formatDateKey } from "@/lib/time"
 import { countWords } from "@/lib/text-stats"
+import {
+  ChatActivityCard,
+  type ChatParticipant,
+  CompactHeatmapCard,
+  CompactListPanel,
+  ContentListPanel,
+  JobFunnelCard,
+  MetricStrip,
+  ModuleLinksCard,
+  PersonalHeroCard,
+  PersonalHomeGrid,
+  PersonalHomeShell,
+  VisitOverviewCard,
+  WritingStatsCard,
+  type VisitDetailItem,
+  type PersonalContentItem,
+  type PersonalMetric,
+} from "@/components/profile/personal-home"
 
 const ARTICLE_MODULES = [
   { key: "blog" as const, label: "博客" },
@@ -90,12 +101,39 @@ async function getJobActivityData(userId: string, enabled: boolean) {
 }
 
 async function getChatActivityData(userId: string, enabled: boolean) {
-  if (!enabled) return { directCount: 0, channelCount: 0, weeklyActive: 0, heatmap: {} as Record<string, number> }
-  const [directSent, directReceived, channelMessages] = await Promise.all([
+  if (!enabled) return { directCount: 0, channelCount: 0, weeklyActive: 0, heatmap: {} as Record<string, number>, participants: [] as ChatParticipant[] }
+  const [directSent, directReceived, channelMessages, recentDirectMessages, friendships] = await Promise.all([
     prisma.chatMessage.findMany({ where: { senderId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
     prisma.chatMessage.findMany({ where: { receiverId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
     prisma.channelMessage.findMany({ where: { senderId: userId }, select: { createdAt: true }, take: 1000, orderBy: { createdAt: "desc" } }),
+    prisma.chatMessage.findMany({
+      where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+      include: {
+        sender: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+        receiver: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+      },
+    }),
+    prisma.friendship.findMany({
+      where: { OR: [{ userAId: userId }, { userBId: userId }] },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      include: {
+        userA: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+        userB: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+      },
+    }),
   ])
+  const participantsMap = new Map<string, ChatParticipant>()
+  recentDirectMessages.forEach((message) => {
+    const participant = message.senderId === userId ? message.receiver : message.sender
+    if (!participantsMap.has(participant.id)) participantsMap.set(participant.id, participant)
+  })
+  friendships.forEach((friendship) => {
+    const participant = friendship.userAId === userId ? friendship.userB : friendship.userA
+    if (!participantsMap.has(participant.id)) participantsMap.set(participant.id, participant)
+  })
   const heatmap = [...directSent, ...directReceived, ...channelMessages].reduce<Record<string, number>>((data, message) => {
     const key = formatDateKey(message.createdAt)
     data[key] = (data[key] ?? 0) + 1
@@ -105,7 +143,13 @@ async function getChatActivityData(userId: string, enabled: boolean) {
   const weeklyActive = Object.entries(heatmap)
     .filter(([key]) => nowTime - new Date(key).getTime() < 7 * 86400000)
     .reduce((sum, [, value]) => sum + value, 0)
-  return { directCount: directSent.length + directReceived.length, channelCount: channelMessages.length, weeklyActive, heatmap }
+  return {
+    directCount: directSent.length + directReceived.length,
+    channelCount: channelMessages.length,
+    weeklyActive,
+    heatmap,
+    participants: Array.from(participantsMap.values()).slice(0, 6),
+  }
 }
 
 async function getWritingStats(userId: string, enabledTypes: string[], visibilities: string[], dailyEnabled: boolean) {
@@ -141,40 +185,73 @@ async function getWritingStats(userId: string, enabledTypes: string[], visibilit
   return { totalWords, topTags, streak, thisMonth, total: posts.length }
 }
 
-function ModuleLink({ href, label, visible, icon: Icon }: { href: string; label: string; visible: boolean; icon: LucideIcon }) {
-  const className = "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 hover:no-underline bg-[--color-bg-hover] text-[--color-text-secondary] hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:-translate-y-px"
-  if (!visible) {
-    return (
-      <span className={`${className} cursor-not-allowed text-[--color-text-muted] opacity-50`} title="该模块暂未对好友开放">
-        <Icon size={14} /> {label}
-      </span>
-    )
-  }
-  return (
-    <Link href={href} className={`${className} text-[--color-text-secondary] hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]`}>
-      <Icon size={14} /> {label}
-    </Link>
-  )
-}
+async function getVisitDashboardData(userId: string, enabled: boolean, includeVisitors = false) {
+  if (!enabled) return { total: 0, last30: 0, uniqueVisitors: 0, trend: [] as number[], recentVisitors: [] as VisitDetailItem[] }
+  const since = new Date()
+  since.setDate(since.getDate() - 29)
+  since.setHours(0, 0, 0, 0)
 
-function SectionTitle({ title, href, visible = true }: { title: string; href?: string; visible?: boolean }) {
-  return (
-    <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-[--color-text-muted]">{title}</h2>
-      {href && visible && (
-        <Link href={href} className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium text-[--color-text-muted] transition-colors hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline">
-          全部 <ArrowRight size={12} />
-        </Link>
-      )}
-    </div>
-  )
+  const [total, recent, uniqueVisitors, recentVisitors] = await Promise.all([
+    prisma.visitLog.count({ where: { ownerId: userId, module: "home" } }),
+    prisma.visitLog.findMany({
+      where: { ownerId: userId, createdAt: { gte: since } },
+      select: { createdAt: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.visitLog.groupBy({
+      by: ["visitorId"],
+      where: { ownerId: userId, visitorId: { not: null } },
+      _count: { _all: true },
+    }),
+    includeVisitors
+      ? prisma.visitLog.findMany({
+          where: { ownerId: userId, createdAt: { gte: since } },
+          select: {
+            id: true,
+            module: true,
+            path: true,
+            createdAt: true,
+            visitor: { select: { displayName: true, email: true, avatarText: true, avatarUrl: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
+  ])
+
+  const daily = recent.reduce<Record<string, number>>((data, item) => {
+    const key = formatDateKey(item.createdAt)
+    data[key] = (data[key] ?? 0) + 1
+    return data
+  }, {})
+  const trend = Array.from({ length: 30 }, (_, index) => {
+    const day = new Date(since)
+    day.setDate(since.getDate() + index)
+    return daily[formatDateKey(day)] ?? 0
+  })
+
+  return {
+    total,
+    last30: recent.length,
+    uniqueVisitors: uniqueVisitors.length,
+    trend,
+    recentVisitors: recentVisitors.map((visit): VisitDetailItem => ({
+      id: visit.id,
+      visitorName: visit.visitor?.displayName || visit.visitor?.email || "匿名访客",
+      visitorEmail: visit.visitor?.email,
+      visitorAvatarText: visit.visitor?.avatarText,
+      visitorAvatarUrl: visit.visitor?.avatarUrl,
+      module: visit.module,
+      path: visit.path,
+      createdAt: visit.createdAt.toISOString(),
+    })),
+  }
 }
 
 export default async function UserProfilePage({ params }: { params: Promise<{ userId: string }> }) {
   const [{ userId: ownerId }, session] = await Promise.all([params, getOptionalSession()])
   const owner = await prisma.user.findUnique({
     where: { id: ownerId },
-    select: { id: true, displayName: true, email: true, bio: true, avatarText: true, avatarUrl: true },
+    select: { id: true, displayName: true, email: true, bio: true, avatarText: true, avatarUrl: true, location: true },
   })
   if (!owner) notFound()
 
@@ -190,6 +267,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
   await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "home", path: `/u/${ownerId}` })
 
   const displayName = owner.displayName || owner.email
+  const isSelf = level === "self"
   const showHomeContent = modules.home
   const visibilities = visibleTo(level)
   const enabledArticleTypes = showHomeContent ? ARTICLE_MODULES.filter((module) => modules[module.key]).map((module) => module.key) : []
@@ -206,6 +284,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
     articleGroups,
     recentDaily,
     guestbookMessages,
+    visitDashboard,
   ] = await Promise.all([
     getJobStats(ownerId, jobsEnabled),
     getRecentJobs(ownerId, jobsEnabled),
@@ -242,167 +321,178 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
         author: message.author,
       }))
     ),
+    getVisitDashboardData(ownerId, showHomeContent, isSelf),
   ])
 
-  const allPosts = articleGroups.flat().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 5)
-  const funnelSteps = [
-    { label: "累计投递", value: stats.total, color: "#9A9A9A" },
-    { label: "收到回复", value: stats.replied, color: "#B8902D" },
-    { label: "进入面试", value: stats.hasInterview, color: "#0969DA" },
-    { label: "拿到 Offer", value: stats.offers, color: "#3A7D5C" },
+  const allPostsFull = articleGroups.flat().sort((a, b) => (a.date < b.date ? 1 : -1))
+  const latestArticleItems: PersonalContentItem[] = allPostsFull.slice(0, 3).map((post) => ({
+    key: `${post.type}-${post.slug}`,
+    title: post.title,
+    href: `/u/${ownerId}/${post.type}/${encodeURIComponent(post.slug)}`,
+    date: post.date,
+    summary: post.summary,
+    label: post.typeLabel,
+    tags: post.tags,
+    value: 12,
+  }))
+  const latestDailyItems: PersonalContentItem[] = recentDaily.slice(0, 4).map((post) => ({
+    key: post.slug,
+    title: post.title,
+    href: `/u/${ownerId}/daily/${encodeURIComponent(post.slug)}`,
+    date: post.date,
+    summary: post.summary,
+    tags: post.tags,
+  }))
+  const recentJobItems: PersonalContentItem[] = recentJobs.slice(0, 4).map((job) => ({
+    key: job.id,
+    title: `${job.company} · ${job.position}`,
+    href: `/u/${ownerId}/jobs`,
+    date: job.appliedAt.toISOString().slice(0, 10),
+    summary: job.notes || job.baseLocation || "求职进展已更新",
+    meta: job.status,
+  }))
+
+  const visibleModuleLinks = [
+    { href: `/u/${ownerId}/resume`, label: "简历", visible: modules.resume, icon: FileText },
+    { href: `/u/${ownerId}/blog`, label: "文章", visible: modules.blog, icon: BookOpen },
+    { href: `/u/${ownerId}/daily`, label: "日常", visible: modules.daily, icon: CalendarDays },
+    { href: `/u/${ownerId}/reflections`, label: "心得", visible: modules.reflections, icon: MessageSquareText },
+    { href: `/u/${ownerId}/notes`, label: "笔记", visible: modules.notes, icon: NotebookText },
+    { href: `/u/${ownerId}/jobs`, label: "求职", visible: modules.jobs, icon: BriefcaseBusiness },
+    { href: `/u/${ownerId}/interviews`, label: "面试", visible: modules.interviews, icon: CalendarDays },
+  ].filter((item) => item.visible)
+
+  const firstReadableContent = modules.blog
+    ? { label: "查看文章", href: `/u/${ownerId}/blog`, icon: BookOpen }
+    : modules.daily
+      ? { label: "查看日常", href: `/u/${ownerId}/daily`, icon: CalendarDays }
+      : modules.notes
+        ? { label: "查看笔记", href: `/u/${ownerId}/notes`, icon: NotebookText }
+        : null
+
+  const heroActions = isSelf
+    ? [
+        { label: "编辑资料", href: "/settings/profile", icon: Edit3, variant: "primary" as const },
+        { label: "写文章", href: "/blog/new", icon: PenLine, variant: "secondary" as const },
+        { label: "分享主页", href: `/u/${ownerId}`, icon: Share2, variant: "ghost" as const },
+      ]
+    : [
+        ...(firstReadableContent ? [{ ...firstReadableContent, variant: "secondary" as const }] : []),
+        ...(level === "friend" ? [{ label: "留言", href: "#guestbook", icon: MessageCircle, variant: "primary" as const }] : []),
+      ]
+
+  const coreMetrics: PersonalMetric[] = [
+    { label: "文章", value: allPostsFull.length, icon: FileText, tone: "blue" },
+    { label: "总字数", value: writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords, icon: UsersRound, tone: "green" },
+    { label: "日常记录", value: recentDaily.length, icon: CalendarDays, tone: "orange" },
+    { label: "求职动态", value: stats.total, icon: BriefcaseBusiness, tone: "red" },
   ]
-
+  const funnelSteps = [
+    { label: "投递", value: stats.total, color: "#6d9df8" },
+    { label: "回复", value: stats.replied, color: "#69c08b" },
+    { label: "面试", value: stats.hasInterview, color: "#f5a343" },
+    { label: "Offer", value: stats.offers, color: "#ef6b73" },
+  ]
+  const offerConversion = stats.total > 0 ? Math.round((stats.offers / stats.total) * 100) : 0
   return (
-    <div className="mx-auto max-w-[1200px] px-6 pt-6 pb-10">
-      <header className="mb-8">
-        {level === "friend" && (
-          <Link href="/friends" className="mb-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-[--color-text-muted] transition-colors hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline">
-            <ArrowLeft size={13} /> 返回好友
-          </Link>
-        )}
-        <div className="flex items-start gap-5 rounded-[--radius-xl] bg-[linear-gradient(135deg,rgba(37,99,235,0.04)_0%,rgba(255,255,255,0.6)_40%,rgba(255,255,255,0.82)_100%)] px-6 py-5 shadow-[--shadow-sm] ring-1 ring-[--color-border]">
-          <UserAvatar name={displayName} email={owner.email} avatarText={owner.avatarText} avatarUrl={owner.avatarUrl} size="md" className="mt-0.5" />
-          <div className="min-w-0 space-y-1">
-            <h1 className="text-lg font-bold tracking-tight text-[--color-text-primary]">{displayName}</h1>
-            {owner.bio && <p className="line-clamp-2 text-sm leading-relaxed text-[--color-text-secondary]">{owner.bio}</p>}
-            <p className="break-all text-xs text-[--color-text-muted]">{owner.email}</p>
-          </div>
-        </div>
-        {!showHomeContent && <p className="mt-4 text-sm text-[--color-text-muted]">主页内容暂未对好友开放。</p>}
-      </header>
+    <PersonalHomeShell variant="public">
+      <PersonalHomeGrid
+        main={
+          <>
+            <PersonalHeroCard
+              name={displayName}
+              email={owner.email}
+              bio={owner.bio}
+              location={owner.location}
+              avatarText={owner.avatarText}
+              avatarUrl={owner.avatarUrl}
+              actions={heroActions}
+              backHref={!isSelf ? "/friends" : undefined}
+              backLabel="返回好友"
+              mobileTitle={displayName}
+              publicMode={!isSelf}
+            />
 
-      {showHomeContent && (
-        <>
-          <section className="mb-10 border-b border-[rgba(15,23,42,0.06)] pb-10">
-            <SectionTitle title="写作统计" />
-            <div className="mb-6 grid grid-cols-4 gap-1.5 sm:gap-3">
-              <StatsCard title="累计文章" value={writingStats.total} sub="篇" />
-              <StatsCard title="总字数" value={writingStats.totalWords > 10000 ? `${Math.round(writingStats.totalWords / 1000)}k` : writingStats.totalWords} sub="字" />
-              <StatsCard title="连续写作" value={writingStats.streak} sub="天" trend={writingStats.streak > 0 ? "up" : "neutral"} />
-              <StatsCard title="本月新增" value={writingStats.thisMonth} sub="篇" />
-            </div>
-          </section>
+            {showHomeContent ? (
+              <>
+                <MetricStrip metrics={coreMetrics} />
+                <ContentListPanel
+                  title="最新文章"
+                  icon={BookOpen}
+                  href={modules.blog ? `/u/${ownerId}/blog` : undefined}
+                  items={latestArticleItems}
+                  emptyTitle="暂无可见文章"
+                  emptyDescription="对方还没有开放可浏览的文章。"
+                  featureFirst
+                />
+                {dailyEnabled && (
+                  <CompactListPanel
+                    title="日常记录"
+                    icon={CalendarDays}
+                    href={`/u/${ownerId}/daily`}
+                    items={latestDailyItems}
+                    emptyTitle="暂无日常记录"
+                    emptyDescription="还没有发布任何日常记录哦。"
+                    tone="green"
+                  />
+                )}
+                {jobsEnabled && (
+                  <CompactListPanel
+                    title="求职动态"
+                    icon={BriefcaseBusiness}
+                    href={`/u/${ownerId}/jobs`}
+                    items={recentJobItems}
+                    emptyTitle="暂无求职动态"
+                    emptyDescription="还没有发布任何求职动态哦。"
+                    tone="red"
+                  />
+                )}
+              </>
+            ) : null}
 
-          <div className="mb-10 grid min-w-0 gap-8 border-b border-[rgba(15,23,42,0.06)] pb-10 md:grid-cols-2">
-            <section className="min-w-0">
-              <SectionTitle title="最近文章" href={`/u/${ownerId}/blog`} visible={modules.blog} />
-              {allPosts.length === 0 ? (
-                <p className="text-sm text-[--color-text-muted]">暂无可见文章</p>
-              ) : (
-                allPosts.map((post) => (
-                  <Link key={`${post.type}-${post.slug}`} href={`/u/${ownerId}/${post.type}/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                    <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
-                      <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
-                        {post.summary && <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">{post.summary}</p>}
-                      </div>
-                      <span className="max-w-[3rem] shrink-0 truncate text-xs text-[--color-text-muted]">{post.typeLabel}</span>
-                    </div>
-                  </Link>
-                ))
-              )}
-            </section>
+            <ModuleLinksCard links={visibleModuleLinks.map(({ href, label, icon }) => ({ href, label, icon }))} />
+          </>
+        }
+        aside={
+          showHomeContent ? (
+            <>
+              <WritingStatsCard
+                articleCount={writingStats.total}
+                totalWords={writingStats.totalWords}
+                streak={writingStats.streak}
+                thisMonth={writingStats.thisMonth}
+              />
+              <ChatActivityCard
+                directCount={chatActivity.directCount}
+                channelCount={chatActivity.channelCount}
+                weeklyActive={chatActivity.weeklyActive}
+                participants={chatActivity.participants}
+              />
+              {jobsEnabled && <JobFunnelCard steps={funnelSteps} conversionRate={offerConversion} href={`/u/${ownerId}/jobs`} />}
+              <VisitOverviewCard
+                total={visitDashboard.total}
+                uniqueVisitors={visitDashboard.uniqueVisitors}
+                last30={visitDashboard.last30}
+                trend={visitDashboard.trend}
+                recentVisitors={isSelf ? visitDashboard.recentVisitors : undefined}
+              />
+              <CompactHeatmapCard
+                title="访问热度"
+                contentData={articleActivityData}
+                chatData={chatActivity.heatmap}
+                careerData={jobActivityData}
+                days={30}
+              />
+            </>
+          ) : (
+            <ModuleLinksCard links={visibleModuleLinks.map(({ href, label, icon }) => ({ href, label, icon }))} />
+          )
+        }
+      />
 
-            <section className="min-w-0">
-              <SectionTitle title="最近日常" href={`/u/${ownerId}/daily`} visible={modules.daily} />
-              {recentDaily.length === 0 ? (
-                <p className="text-sm text-[--color-text-muted]">暂无可见日常记录</p>
-              ) : (
-                recentDaily.slice(0, 5).map((post) => (
-                  <Link key={post.slug} href={`/u/${ownerId}/daily/${encodeURIComponent(post.slug)}`} className="block min-w-0 group hover:no-underline">
-                    <div className="flex min-w-0 items-start gap-2 rounded-[--radius-sm] px-3 py-2.5 transition-colors hover:bg-[--color-bg-hover]/60 sm:gap-3">
-                      <span className="mt-0.5 w-16 shrink-0 font-mono text-xs text-[--color-text-muted] sm:w-[4.5rem]">{post.date?.slice(0, 10)}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-[--color-text-primary] transition-colors group-hover:text-[--color-accent]">{post.title}</p>
-                        {post.summary && <p className="mt-0.5 truncate text-xs text-[--color-text-muted]">{post.summary}</p>}
-                      </div>
-                    </div>
-                  </Link>
-                ))
-              )}
-            </section>
-          </div>
-
-          <section className="mb-10 border-b border-[rgba(15,23,42,0.06)] pb-10">
-            <SectionTitle title="聊天活跃度" />
-            <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-3">
-              <StatsCard title="单聊参与" value={chatActivity.directCount} sub="次" />
-              <StatsCard title="群聊发言" value={chatActivity.channelCount} sub="次" />
-              <StatsCard title="总互动" value={chatActivity.directCount + chatActivity.channelCount} sub="次" />
-              <StatsCard title="本周活跃" value={chatActivity.weeklyActive} sub="次" />
-            </div>
-          </section>
-
-          <section className="mb-10 border-b border-[rgba(15,23,42,0.06)] pb-10">
-            <SectionTitle title="求职漏斗" href={`/u/${ownerId}/jobs`} visible={modules.jobs} />
-            <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-3">
-              <StatsCard title="累计投递" value={stats.total} sub="家公司" />
-              <StatsCard title="回复率" value={`${stats.replyRate}%`} sub={stats.replyRate > 50 ? "还不错" : "继续加油"} trend={stats.replyRate > 50 ? "up" : "neutral"} />
-              <StatsCard title="面试机会" value={stats.hasInterview} sub="次" />
-              <StatsCard title="Offer 数" value={stats.offers} sub={stats.offers > 0 ? "恭喜" : "在路上"} trend={stats.offers > 0 ? "up" : "neutral"} />
-            </div>
-            {stats.total > 0 && (
-              <div className="rounded-[--radius-lg] bg-[--color-bg-surface]/70 p-5 shadow-[--shadow-sm] ring-1 ring-[rgba(15,23,42,0.05)] backdrop-blur-sm">
-                <p className="mb-3 text-xs font-medium text-[--color-text-muted]">投递转化漏斗</p>
-                <FunnelChart steps={funnelSteps} />
-              </div>
-            )}
-          </section>
-
-          <section className="mb-10 border-b border-[rgba(15,23,42,0.06)] pb-10">
-            <SectionTitle title="最近求职动态" href={`/u/${ownerId}/jobs`} visible={modules.jobs} />
-            {recentJobs.length === 0 ? (
-              <p className="text-sm text-[--color-text-muted]">暂无可见求职动态</p>
-            ) : (
-              <div className="overflow-hidden rounded-[--radius-lg] bg-[--color-bg-surface] shadow-[--shadow-sm] ring-1 ring-[--color-border]">
-                {recentJobs.map((job, index) => (
-                  <div key={job.id} className={`flex min-w-0 items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 ${index < recentJobs.length - 1 ? "border-b border-[--color-border]" : ""}`}>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{job.company}</p>
-                      <p className="truncate text-xs text-[--color-text-secondary] sm:text-sm">{job.position}</p>
-                    </div>
-                    <StatusBadge status={job.status} type="job" />
-                    <span className="hidden shrink-0 font-mono text-xs text-[--color-text-muted] sm:inline">{formatChinaDate(job.appliedAt)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <VisitStatsPanel userId={ownerId} />
-        </>
-      )}
-
-      <section className="mt-10 border-t border-[rgba(15,23,42,0.06)] pt-8">
-        <div className="flex flex-wrap gap-2">
-          <ModuleLink href={`/u/${ownerId}/resume`} label="查看简历" visible={modules.resume} icon={FileText} />
-          <ModuleLink href={`/u/${ownerId}/blog`} label="读博客" visible={modules.blog} icon={BookOpen} />
-          <ModuleLink href={`/u/${ownerId}/daily`} label="看日常" visible={modules.daily} icon={CalendarDays} />
-          <ModuleLink href={`/u/${ownerId}/reflections`} label="看心得" visible={modules.reflections} icon={MessageSquareText} />
-          <ModuleLink href={`/u/${ownerId}/notes`} label="看笔记" visible={modules.notes} icon={NotebookText} />
-          <ModuleLink href={`/u/${ownerId}/jobs`} label="求职进度" visible={modules.jobs} icon={BriefcaseBusiness} />
-          <ModuleLink href={`/u/${ownerId}/interviews`} label="面试记录" visible={modules.interviews} icon={CalendarDays} />
-        </div>
-      </section>
-
-      {showHomeContent && (
-        <div className="mt-10 border-t border-[rgba(15,23,42,0.06)] pt-10">
-          <ContributionActivityPanel
-            contentData={articleActivityData}
-            chatData={chatActivity.heatmap}
-            careerData={jobActivityData}
-            recentPosts={allPosts}
-            recentDaily={recentDaily}
-            recentJobs={recentJobs}
-            chatActivity={chatActivity}
-          />
-        </div>
-      )}
-
-      <div className="mt-10 border-t border-[rgba(15,23,42,0.06)] pt-10">
-        <GuestbookSection ownerId={ownerId} initialMessages={guestbookMessages} isOwner={level === "self"} canPost={level === "friend"} />
+      <div id="guestbook" className="mt-4 scroll-mt-20 2xl:mt-5">
+        <GuestbookSection ownerId={ownerId} initialMessages={guestbookMessages} isOwner={isSelf} canPost={level === "friend"} />
       </div>
-    </div>
+    </PersonalHomeShell>
   )
 }

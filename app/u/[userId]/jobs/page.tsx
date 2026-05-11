@@ -1,21 +1,24 @@
 import { format } from "date-fns"
+import { BriefcaseBusiness } from "lucide-react"
 import { notFound } from "next/navigation"
+
 import { FriendJobsClient } from "@/components/friend-jobs-client"
-import { prisma } from "@/lib/db"
-import { getOptionalSession } from "@/lib/auth"
-import { canViewModule, getAccessLevel, recordVisit } from "@/lib/permissions"
 import { FriendModuleNav } from "@/components/friend-module-nav"
-import { getFriendVisibleModules } from "@/lib/friend-module-nav"
+import { ModuleHero, ModulePageShell } from "@/components/module/module-shell"
+import { getOptionalSession } from "@/lib/auth"
+import { prisma } from "@/lib/db"
 import { JOB_STATUS } from "@/lib/enums"
+import { getFriendVisibleModules } from "@/lib/friend-module-nav"
+import { canViewModule, getAccessLevel, recordVisit } from "@/lib/permissions"
 
 const STATUS_COLORS: Record<string, string> = {
-  [JOB_STATUS[0]]: "#9A9A9A",
-  [JOB_STATUS[1]]: "#B8902D",
-  [JOB_STATUS[2]]: "#0969DA",
-  [JOB_STATUS[3]]: "#A8463A",
-  [JOB_STATUS[4]]: "#3A7D5C",
-  [JOB_STATUS[5]]: "#3A7D5C",
-  [JOB_STATUS[6]]: "#D4D1C7",
+  [JOB_STATUS[0]]: "#94a3b8",
+  [JOB_STATUS[1]]: "#f59e0b",
+  [JOB_STATUS[2]]: "#2563eb",
+  [JOB_STATUS[3]]: "#ef4444",
+  [JOB_STATUS[4]]: "#10b981",
+  [JOB_STATUS[5]]: "#10b981",
+  [JOB_STATUS[6]]: "#cbd5e1",
 }
 
 function buildStats(jobs: Array<{ status: string; channel: string; appliedAt: Date }>) {
@@ -30,8 +33,7 @@ function buildStats(jobs: Array<{ status: string; channel: string; appliedAt: Da
   for (const job of jobs) {
     statusCount.set(job.status, (statusCount.get(job.status) ?? 0) + 1)
     channelCount.set(job.channel, (channelCount.get(job.channel) ?? 0) + 1)
-    const month = format(job.appliedAt, "yyyy-MM")
-    monthCount.set(month, (monthCount.get(month) ?? 0) + 1)
+    monthCount.set(format(job.appliedAt, "yyyy-MM"), (monthCount.get(format(job.appliedAt, "yyyy-MM")) ?? 0) + 1)
   }
 
   return {
@@ -42,7 +44,7 @@ function buildStats(jobs: Array<{ status: string; channel: string; appliedAt: Da
     statusDist: Array.from(statusCount.entries()).map(([name, value]) => ({
       name,
       value,
-      color: STATUS_COLORS[name] ?? "#9A9A9A",
+      color: STATUS_COLORS[name] ?? "#94a3b8",
     })),
     channelDist: Array.from(channelCount.entries())
       .sort(([, a], [, b]) => b - a)
@@ -93,14 +95,20 @@ export default async function UserJobsPage({ params }: { params: Promise<{ userI
   }))
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10">
+    <ModulePageShell maxWidth="full">
       <FriendModuleNav ownerId={ownerId} displayName={displayName} current="jobs" modules={visibleModules} />
-      <div className="mb-8">
-        <h1 className="mb-1 text-xl font-semibold">求职追踪</h1>
-        <p className="text-sm text-[--color-text-muted]">记录每一次投递，追踪求职进度</p>
-      </div>
-
+      <ModuleHero
+        icon={BriefcaseBusiness}
+        title="Job timeline"
+        description="Visible job applications, status changes, channels, and interview progress."
+        stats={[
+          { label: "Applications", value: String(stats.total) },
+          { label: "Reply rate", value: `${stats.replyRate}%` },
+          { label: "Interview rate", value: `${stats.interviewRate}%` },
+          { label: "Offer rate", value: `${stats.offerRate}%` },
+        ]}
+      />
       <FriendJobsClient ownerId={ownerId} jobs={clientJobs} stats={stats} canImport={level === "friend"} />
-    </div>
+    </ModulePageShell>
   )
 }

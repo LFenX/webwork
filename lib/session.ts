@@ -11,6 +11,8 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 export const AWAY_AFTER_MS = 30 * 60 * 1000
 export const FOREGROUND_OFFLINE_AFTER_MS = 5 * 60 * 1000
 export const EXPIRE_AFTER_MS = 12 * 60 * 60 * 1000
+export const SESSION_EXPIRE_AFTER_MS = COOKIE_MAX_AGE * 1000
+const SESSION_EXPIRED_DETAIL = "登录状态已过期，请重新登录"
 const STALE_SESSION_SWEEP_INTERVAL_MS = 30_000
 const BACKGROUND_SESSION_SWEEP_INTERVAL_MS = 60_000
 
@@ -83,8 +85,8 @@ export async function getSession(): Promise<SessionPayload | null> {
   })
   if (!session || session.status !== "active") return null
 
-  if (Date.now() - session.lastSeenAt.getTime() >= EXPIRE_AFTER_MS) {
-    await closeUserSession(payload.sessionId, "expired", "expired", "登录已超过 12 小时未操作")
+  if (Date.now() - session.lastSeenAt.getTime() >= SESSION_EXPIRE_AFTER_MS) {
+    await closeUserSession(payload.sessionId, "expired", "expired", SESSION_EXPIRED_DETAIL)
     return null
   }
 

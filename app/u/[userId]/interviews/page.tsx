@@ -1,15 +1,18 @@
-import { Star } from "lucide-react"
+import { CalendarClock, Star } from "lucide-react"
 import { notFound } from "next/navigation"
+
 import { SimpleBarChart } from "@/components/charts/bar-chart"
 import { SimplePieChart } from "@/components/charts/pie-chart"
+import { EmptyState } from "@/components/empty-state"
+import { FriendModuleNav } from "@/components/friend-module-nav"
+import { ModuleHero, ModulePageShell, ModulePanel, ModuleTableShell } from "@/components/module/module-shell"
 import { StatsCard } from "@/components/stats-card"
 import { StatusBadge } from "@/components/status-badge"
-import { FriendModuleNav } from "@/components/friend-module-nav"
-import { prisma } from "@/lib/db"
 import { getOptionalSession } from "@/lib/auth"
-import { canViewModule, getAccessLevel, recordVisit } from "@/lib/permissions"
-import { getFriendVisibleModules } from "@/lib/friend-module-nav"
+import { prisma } from "@/lib/db"
 import { INTERVIEW_RESULTS } from "@/lib/enums"
+import { getFriendVisibleModules } from "@/lib/friend-module-nav"
+import { canViewModule, getAccessLevel, recordVisit } from "@/lib/permissions"
 import { formatChinaDate, formatChinaDateTime } from "@/lib/time"
 
 function countBy<T>(items: T[], getter: (item: T) => string) {
@@ -42,14 +45,14 @@ function buildStats(interviews: Array<{ result: string; round: string; format: s
 }
 
 function RatingStars({ value }: { value?: number | null }) {
-  if (!value) return <span className="text-xs text-[--color-text-muted]">—</span>
+  if (!value) return <span className="text-xs text-slate-400">-</span>
   return (
     <div className="flex gap-0.5">
       {Array.from({ length: 5 }).map((_, index) => (
         <Star
           key={index}
           size={12}
-          className={value > index ? "text-[--color-warning]" : "text-[--color-border-strong]"}
+          className={value > index ? "text-amber-400" : "text-slate-200"}
           fill={value > index ? "currentColor" : "none"}
         />
       ))}
@@ -84,90 +87,107 @@ export default async function UserInterviewsPage({ params }: { params: Promise<{
   const stats = buildStats(interviews)
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10">
+    <ModulePageShell maxWidth="full">
       <FriendModuleNav ownerId={ownerId} displayName={displayName} current="interviews" modules={visibleModules} />
-      <div className="mb-8">
-        <h1 className="mb-1 text-xl font-semibold">面试记录</h1>
-        <p className="text-sm text-[--color-text-muted]">记录每一轮面试，复盘提升</p>
+      <ModuleHero
+        icon={CalendarClock}
+        title="Interview records"
+        description="Visible interview rounds, notes, outcomes, and review details."
+        stats={[
+          { label: "Interviews", value: String(stats.total) },
+          { label: "Pass rate", value: `${stats.passRate}%` },
+          { label: "Passed", value: String(stats.passed) },
+          { label: "Pending", value: String(stats.pending) },
+        ]}
+      />
+
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
+        <StatsCard title="Total" value={stats.total} unit="rounds" />
+        <StatsCard title="Pass rate" value={`${stats.passRate}%`} trend={stats.passRate > 60 ? "up" : "neutral"} />
+        <StatsCard title="Passed" value={stats.passed} unit="rounds" trend="up" />
+        <StatsCard title="Failed" value={stats.failed} unit="rounds" trend={stats.failed > 0 ? "down" : "neutral"} />
       </div>
 
-      <section className="mb-8">
-        <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatsCard title="面试总计" value={stats.total} sub="轮" />
-          <StatsCard title="通过率" value={`${stats.passRate}%`} trend={stats.passRate > 60 ? "up" : "neutral"} />
-          <StatsCard title="已通过" value={stats.passed} sub="轮" trend="up" />
-          <StatsCard title="未通过" value={stats.failed} sub="轮" trend={stats.failed > 0 ? "down" : "neutral"} />
+      {stats.total > 0 ? (
+        <div className="grid gap-4 md:grid-cols-3">
+          <ModulePanel title="By format" contentClassName="p-5">
+            <SimplePieChart data={stats.formatDist} height={180} />
+          </ModulePanel>
+          <ModulePanel title="By round" contentClassName="p-5">
+            <SimpleBarChart data={stats.roundDist} height={180} />
+          </ModulePanel>
+          {stats.companyDist.length > 0 ? (
+            <ModulePanel title="By company" contentClassName="p-5">
+              <SimpleBarChart data={stats.companyDist} height={180} />
+            </ModulePanel>
+          ) : null}
         </div>
+      ) : null}
 
-        {stats.total > 0 && (
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-              <p className="mb-3 text-xs text-[--color-text-muted]">按形式分布</p>
-              <SimplePieChart data={stats.formatDist} height={180} />
-            </div>
-            <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-              <p className="mb-3 text-xs text-[--color-text-muted]">按轮次分布</p>
-              <SimpleBarChart data={stats.roundDist} height={180} />
-            </div>
-            {stats.companyDist.length > 0 && (
-              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-                <p className="mb-3 text-xs text-[--color-text-muted]">按公司面试次数</p>
-                <SimpleBarChart data={stats.companyDist} height={180} />
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      <p className="mb-4 font-mono text-xs text-[--color-text-muted]">{interviews.length} 条记录</p>
-
-      <div className="overflow-hidden rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface]">
+      <ModulePanel title="Interview timeline" description={`${interviews.length} visible records`} contentClassName="p-0">
         {interviews.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[--color-text-muted]">暂无面试记录。</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b-2 border-[--color-border-strong] bg-[--color-bg-hover]">
-                  <th className="w-[110px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">公司</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">职位</th>
-                  <th className="w-[90px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">轮次</th>
-                  <th className="w-[70px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">形式</th>
-                  <th className="w-[120px] px-4 py-2.5 text-left font-mono text-xs font-medium text-[--color-text-muted]">日期</th>
-                  <th className="w-[90px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">面试官</th>
-                  <th className="w-[70px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">自评</th>
-                  <th className="w-[80px] px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">结果</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-medium text-[--color-text-muted]">题目 / 反馈</th>
-                </tr>
-              </thead>
-              <tbody>
-                {interviews.map((item) => (
-                  <tr key={item.id} className="border-b border-[--color-border] align-top last:border-b-0">
-                    <td className="px-4 py-3 font-medium">{item.company}</td>
-                    <td className="px-4 py-3 text-[--color-text-secondary]">{item.position}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-[--color-text-muted]">{item.round}</td>
-                    <td className="px-4 py-3 text-xs text-[--color-text-muted]">{item.format}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-[--color-text-muted]" title={formatChinaDateTime(item.scheduledAt)}>
-                      {formatChinaDate(item.scheduledAt)}
-                    </td>
-                    <td className="max-w-[120px] px-4 py-3 text-xs text-[--color-text-muted]">{item.interviewers || "—"}</td>
-                    <td className="px-4 py-3"><RatingStars value={item.selfRating} /></td>
-                    <td className="px-4 py-3"><StatusBadge status={item.result} type="interview" /></td>
-                    <td className="max-w-[360px] px-4 py-3 text-xs text-[--color-text-muted]">
-                      {item.questions && (
-                        <div className="mb-2 whitespace-pre-wrap rounded border border-[--color-border] bg-[--color-bg-hover] p-2 font-mono">
-                          {item.questions}
-                        </div>
-                      )}
-                      {item.feedback ? <p className="whitespace-pre-wrap">{item.feedback}</p> : !item.questions ? "—" : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="p-6">
+            <EmptyState title="No interview records" description="Visible interview progress will appear here." />
           </div>
+        ) : (
+          <>
+            <div className="hidden md:block">
+              <ModuleTableShell>
+                <table className="w-full min-w-[1080px] text-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-50">
+                    <tr className="border-b border-slate-200">
+                      {["Company", "Position", "Round", "Format", "Date", "Interviewers", "Rating", "Result", "Questions / Feedback"].map((head) => (
+                        <th key={head} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{head}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {interviews.map((item) => (
+                      <tr key={item.id} className="align-top transition hover:bg-blue-50/40">
+                        <td className="px-4 py-3 font-semibold text-slate-900">{item.company}</td>
+                        <td className="px-4 py-3 text-slate-600">{item.position}</td>
+                        <td className="px-4 py-3 text-xs text-slate-500">{item.round}</td>
+                        <td className="px-4 py-3 text-xs text-slate-500">{item.format}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-500" title={formatChinaDateTime(item.scheduledAt)}>
+                          {formatChinaDate(item.scheduledAt)}
+                        </td>
+                        <td className="max-w-[140px] px-4 py-3 text-xs text-slate-500">{item.interviewers || "-"}</td>
+                        <td className="px-4 py-3"><RatingStars value={item.selfRating} /></td>
+                        <td className="px-4 py-3"><StatusBadge status={item.result} type="interview" /></td>
+                        <td className="max-w-[360px] px-4 py-3 text-xs text-slate-500">
+                          {item.questions ? <div className="mb-2 whitespace-pre-wrap rounded-[14px] bg-slate-50 p-2 font-mono">{item.questions}</div> : null}
+                          {item.feedback ? <p className="whitespace-pre-wrap">{item.feedback}</p> : !item.questions ? "-" : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ModuleTableShell>
+            </div>
+
+            <div className="grid gap-3 p-4 md:hidden">
+              {interviews.map((item) => (
+                <article key={item.id} className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate font-semibold text-slate-950">{item.company}</h3>
+                      <p className="mt-1 text-sm text-slate-500">{item.position}</p>
+                    </div>
+                    <StatusBadge status={item.result} type="interview" />
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                    <span>{item.round}</span>
+                    <span>{item.format}</span>
+                    <span>{formatChinaDate(item.scheduledAt)}</span>
+                    <RatingStars value={item.selfRating} />
+                  </div>
+                  {item.feedback ? <p className="mt-3 text-sm leading-6 text-slate-600">{item.feedback}</p> : null}
+                </article>
+              ))}
+            </div>
+          </>
         )}
-      </div>
-    </div>
+      </ModulePanel>
+    </ModulePageShell>
   )
 }

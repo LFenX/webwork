@@ -1,11 +1,11 @@
 "use client"
 
-import { useCallback } from "react"
-import { Globe, ExternalLink, Copy, FolderInput } from "lucide-react"
+import { useCallback, type CSSProperties, type MouseEvent } from "react"
+import { Copy, ExternalLink, FolderInput, Globe } from "lucide-react"
 import { UserAvatar } from "@/components/user-avatar"
 import { Badge } from "@/components/ui/badge"
-import { cn } from "@/lib/utils"
 import { copyTextWithToast } from "@/lib/interaction-feedback"
+import { cn } from "@/lib/utils"
 import type { WebsiteResource } from "./website-share-client"
 
 function timeAgo(date: string) {
@@ -43,81 +43,85 @@ export function WebsiteCard({ resource, onClick, onTagClick }: WebsiteCardProps)
     fetch(`/api/websites/${resource.id}/visit`, { method: "POST", cache: "no-store" }).catch(() => null)
   }, [resource.id])
 
-  const handleVisit = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleVisit = (event: MouseEvent) => {
+    event.stopPropagation()
     recordVisit()
     window.open(resource.url, "_blank", "noopener,noreferrer")
   }
 
-  const handleCopyLink = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleCopyLink = (event: MouseEvent) => {
+    event.stopPropagation()
     void copyTextWithToast(resource.url, "链接已复制", "复制失败，请手动复制")
   }
 
-  const imgStyle: React.CSSProperties = fitMode === "cover"
+  const imgStyle: CSSProperties = fitMode === "cover"
     ? { objectFit: "cover" as const, objectPosition: `${posX}% ${posY}%`, transform: scale !== 100 ? `scale(${scale / 100})` : undefined }
     : { objectFit: "contain" as const }
 
   return (
     <div
       onClick={onClick}
-      className="group cursor-pointer rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] overflow-hidden transition-all duration-200 hover:border-[--color-border-strong] hover:shadow-[--shadow-sm] hover:-translate-y-0.5"
+      className="group cursor-pointer overflow-hidden rounded-[20px] border border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.055)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_22px_46px_rgba(15,23,42,0.075)]"
     >
-      {/* Screenshot */}
-      <div className="relative aspect-[16/9] bg-[--color-bg-hover] overflow-hidden">
+      <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-blue-50 to-slate-100">
         {resource.screenshotUrl ? (
           <img
             src={resource.screenshotUrl}
             alt={resource.name}
-            className="h-full w-full"
+            className="h-full w-full transition-transform duration-500 group-hover:scale-[1.02]"
             style={imgStyle}
             loading="lazy"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none"
-              ;(e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden")
+            onError={(event) => {
+              (event.target as HTMLImageElement).style.display = "none"
+              ;(event.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden")
             }}
           />
         ) : null}
         <div className={cn("absolute inset-0 flex items-center justify-center", resource.screenshotUrl ? "hidden" : "")}>
-          <Globe size={28} className="text-[--color-text-muted]" />
+          <Globe size={30} className="text-blue-300" />
         </div>
 
-        {/* Hover actions */}
-        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-          <button type="button" onClick={handleVisit} className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[--color-text-primary] hover:bg-[--color-bg-hover] transition-colors">
-            <ExternalLink size={12} />访问
+        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-slate-950/42 opacity-0 transition-opacity group-hover:opacity-100">
+          <button type="button" onClick={handleVisit} className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-semibold text-slate-900 shadow-sm transition hover:bg-blue-50 hover:text-blue-600">
+            <ExternalLink size={13} /> 访问
           </button>
-          <button type="button" onClick={handleCopyLink} className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[--color-text-primary] hover:bg-[--color-bg-hover] transition-colors">
-            <Copy size={12} />复制
+          <button type="button" onClick={handleCopyLink} className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-semibold text-slate-900 shadow-sm transition hover:bg-blue-50 hover:text-blue-600">
+            <Copy size={13} /> 复制
           </button>
         </div>
       </div>
 
-      {/* Info */}
-      <div className="p-3">
-        <h3 className="text-sm font-semibold text-[--color-text-primary] line-clamp-1">{resource.name}</h3>
-        <p className="mt-0.5 text-xs text-[--color-text-muted] line-clamp-1">{resource.domain}</p>
+      <div className="p-4">
+        <h3 className="line-clamp-1 text-base font-bold text-slate-950">{resource.name}</h3>
+        <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{resource.domain}</p>
         {resource.description && (
-          <p className="mt-1.5 text-xs text-[--color-text-secondary] line-clamp-2 leading-relaxed">{resource.description}</p>
+          <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{resource.description}</p>
         )}
         {visibleTags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {visibleTags.map((tag) => (
-              <button key={tag} type="button" onClick={(e) => { e.stopPropagation(); onTagClick(tag) }} className="inline-flex items-center rounded-full bg-[--color-brand-soft] px-2 py-0.5 text-[11px] text-[--color-brand] hover:bg-[--color-brand] hover:text-white transition-colors">{tag}</button>
+              <button
+                key={tag}
+                type="button"
+                onClick={(event) => { event.stopPropagation(); onTagClick(tag) }}
+                className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+              >
+                {tag}
+              </button>
             ))}
-            {extraCount > 0 && <Badge variant="secondary" className="text-[11px] px-2 py-0.5">+{extraCount}</Badge>}
+            {extraCount > 0 && <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-xs">+{extraCount}</Badge>}
           </div>
         )}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 min-w-0">
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
             <UserAvatar size="sm" name={resource.user.displayName || resource.user.email} email={resource.user.email} avatarText={resource.user.avatarText} avatarUrl={resource.user.avatarUrl} />
-            <span className="text-xs text-[--color-text-muted] truncate">{resource.user.displayName || resource.user.email}</span>
+            <span className="truncate text-xs text-slate-500">{resource.user.displayName || resource.user.email}</span>
           </div>
-          <span className="shrink-0 text-[11px] text-[--color-text-muted]">{timeAgo(resource.createdAt)}</span>
+          <span className="shrink-0 text-xs text-slate-400">{timeAgo(resource.createdAt)}</span>
         </div>
         {resource.folder && (
-          <div className="mt-2 flex items-center gap-1 text-[11px] text-[--color-text-muted]">
-            <FolderInput size={11} />
+          <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
+            <FolderInput size={12} />
             <span className="line-clamp-1">{resource.folder.name}</span>
           </div>
         )}

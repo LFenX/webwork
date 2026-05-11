@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db"
 import { formatChinaDateTime } from "@/lib/time"
+import { EmptyState } from "@/components/empty-state"
+import { SectionCard } from "@/components/profile/section-card"
+import { StatsCard } from "@/components/stats-card"
 
 const MODULE_LABEL: Record<string, string> = {
   home: "首页",
@@ -30,30 +33,35 @@ export async function VisitStatsPanel({ userId }: { userId: string }) {
   ])
 
   return (
-    <section className="mb-10">
-      <div className="mb-4 flex items-end justify-between">
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-text-muted]">访问统计</h2>
-          <p className="mt-2 text-3xl font-semibold">{total}</p>
-          <p className="text-xs text-[--color-text-muted]">
-            主页访问次数。好友在同一次访问中浏览模块，会进入明细但不重复计入主页总数。
-          </p>
-        </div>
-      </div>
+    <SectionCard
+      title="访问统计"
+      description="主页访问和各模块浏览明细。"
+      contentClassName="flex flex-col gap-4"
+    >
+      <StatsCard
+        title="主页访问"
+        value={total}
+        unit="次"
+        sub="模块浏览进入明细，主页总数不重复计入。"
+        tone="blue"
+      />
 
-      <details className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
-        <summary className="cursor-pointer text-sm font-medium text-[--color-text-primary]">
-          查看模块访问和明细
+      <details className="group rounded-[18px] border border-[--color-border] bg-white/64 p-4">
+        <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[--color-text-primary] marker:hidden">
+          <span>模块访问和最近明细</span>
+          <span className="rounded-full bg-[--color-bg-hover] px-3 py-1 text-xs font-medium text-[--color-text-muted] transition-colors group-open:bg-[--color-brand-soft] group-open:text-[--color-brand]">
+            展开
+          </span>
         </summary>
-        <div className="mt-4 grid gap-6 md:grid-cols-2">
+        <div className="mt-4 grid gap-5 lg:grid-cols-2">
           <div>
             <p className="mb-2 text-xs text-[--color-text-muted]">各模块浏览明细次数</p>
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               {byModule.length === 0 ? (
-                <p className="text-sm text-[--color-text-muted]">暂无访问记录</p>
+                <EmptyState title="暂无访问记录" compact />
               ) : (
                 byModule.map((item) => (
-                  <div key={item.module} className="flex items-center justify-between border-b border-[--color-border] py-1.5 text-sm">
+                  <div key={item.module} className="flex items-center justify-between gap-3 rounded-[12px] bg-[--color-bg-hover]/70 px-3 py-2 text-sm">
                     <span>{MODULE_LABEL[item.module] ?? item.module}</span>
                     <span className="font-mono">{item._count._all}</span>
                   </div>
@@ -63,24 +71,26 @@ export async function VisitStatsPanel({ userId }: { userId: string }) {
           </div>
           <div>
             <p className="mb-2 text-xs text-[--color-text-muted]">最近访问</p>
-            <div className="max-h-64 space-y-2 overflow-auto">
+            <div className="max-h-64 overflow-auto pr-1">
               {recent.length === 0 ? (
-                <p className="text-sm text-[--color-text-muted]">暂无明细</p>
+                <EmptyState title="暂无明细" compact />
               ) : (
-                recent.map((visit) => (
-                  <div key={visit.id} className="border-b border-[--color-border] pb-2 text-sm">
+                <div className="flex flex-col gap-2">
+                  {recent.map((visit) => (
+                  <div key={visit.id} className="rounded-[12px] border border-[--color-border] bg-white/72 px-3 py-2 text-sm">
                     <div className="flex items-center justify-between gap-3">
-                      <span>{visit.visitor?.displayName || visit.visitor?.email || "匿名访客"}</span>
-                      <span className="text-xs text-[--color-text-muted]">{MODULE_LABEL[visit.module] ?? visit.module}</span>
+                      <span className="min-w-0 break-words">{visit.visitor?.displayName || visit.visitor?.email || "匿名访客"}</span>
+                      <span className="shrink-0 text-xs text-[--color-text-muted]">{MODULE_LABEL[visit.module] ?? visit.module}</span>
                     </div>
                     <div className="text-xs text-[--color-text-muted]">{formatChinaDateTime(visit.createdAt)}</div>
                   </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
         </div>
       </details>
-    </section>
+    </SectionCard>
   )
 }

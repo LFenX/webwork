@@ -1,17 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { ExternalLink, Copy, Trash2, Pencil, Globe } from "lucide-react"
+import { useCallback, useEffect, useState, type CSSProperties } from "react"
+import { Copy, ExternalLink, Globe, Pencil, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { confirmAction, copyTextWithToast } from "@/lib/interaction-feedback"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import type { WebsiteResource } from "./website-share-client"
 
 interface Props {
@@ -26,7 +21,14 @@ interface Props {
 }
 
 export function WebsiteDetailSheet({
-  websiteId, onClose, session, onEdit, onDelete, onTagClick, onFolderClick, onUserClick,
+  websiteId,
+  onClose,
+  session,
+  onEdit,
+  onDelete,
+  onTagClick,
+  onFolderClick,
+  onUserClick,
 }: Props) {
   const [website, setWebsite] = useState<WebsiteResource | null>(null)
   const [loading, setLoading] = useState(false)
@@ -67,7 +69,7 @@ export function WebsiteDetailSheet({
 
   const handleDelete = async () => {
     if (!website) return
-    if (!confirmAction(`确定删除网站资源“${website.name}”？删除后将从资源列表中移除，无法直接恢复。`)) return
+    if (!confirmAction(`确定删除网站资源「${website.name}」？删除后将从资源列表中移除。`)) return
     setDeleting(true)
     try {
       const res = await fetch(`/api/websites/${website.id}`, { method: "DELETE", cache: "no-store" })
@@ -88,58 +90,67 @@ export function WebsiteDetailSheet({
   const posY = website?.screenshotPositionY ?? 50
   const scale = website?.screenshotScale ?? 100
   const fitMode = website?.screenshotFitMode || "cover"
-  const imgStyle: React.CSSProperties = fitMode === "cover"
+  const imgStyle: CSSProperties = fitMode === "cover"
     ? { objectFit: "cover" as const, objectPosition: `${posX}% ${posY}%`, transform: scale !== 100 ? `scale(${scale / 100})` : undefined }
     : { objectFit: "contain" as const }
 
   return (
     <Sheet open={!!websiteId} onOpenChange={(open) => { if (!open) onClose() }}>
-      <SheetContent side="right" className="w-full sm:max-w-[460px] overflow-y-auto">
+      <SheetContent side="right" className="w-full overflow-y-auto bg-white sm:max-w-[500px]">
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-sm text-[--color-text-muted]">加载中...</div>
+          <div className="flex items-center justify-center py-20 text-sm text-slate-500">加载中...</div>
         ) : !website ? (
-          <div className="flex items-center justify-center py-20 text-sm text-[--color-text-muted]">资源不存在</div>
+          <div className="flex items-center justify-center py-20 text-sm text-slate-500">资源不存在</div>
         ) : (
           <>
-            <SheetHeader className="mb-4"><SheetTitle className="sr-only">{website.name}</SheetTitle></SheetHeader>
-            <div className="aspect-[16/9] rounded-[--radius-md] bg-[--color-bg-hover] overflow-hidden">
-              {website.screenshotUrl ? (
-                <img src={website.screenshotUrl} alt={website.name} className="h-full w-full" style={imgStyle} onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center"><Globe size={40} className="text-[--color-text-muted]" /></div>
-              )}
+            <SheetHeader className="mb-4">
+              <SheetTitle className="sr-only">{website.name}</SheetTitle>
+            </SheetHeader>
+            <div className="overflow-hidden rounded-[20px] bg-gradient-to-br from-blue-50 to-slate-100">
+              <div className="aspect-[16/9]">
+                {website.screenshotUrl ? (
+                  <img src={website.screenshotUrl} alt={website.name} className="h-full w-full" style={imgStyle} onError={(event) => { (event.target as HTMLImageElement).style.display = "none" }} />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center"><Globe size={42} className="text-blue-300" /></div>
+                )}
+              </div>
             </div>
-            <div className="mt-4 space-y-3">
-              <h2 className="text-lg font-semibold text-[--color-text-primary]">{website.name}</h2>
-              <p className="text-sm text-[--color-text-muted]">{website.domain}</p>
-              {website.description && <p className="text-sm text-[--color-text-secondary] leading-relaxed">{website.description}</p>}
+            <div className="mt-5 space-y-4">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-950">{website.name}</h2>
+                <p className="mt-1 text-sm text-slate-400">{website.domain}</p>
+              </div>
+              {website.description && <p className="text-sm leading-6 text-slate-600">{website.description}</p>}
               {Array.isArray(website.tags) && website.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
-                  {website.tags.map((t) => (<button key={t} type="button" onClick={() => { onTagClick(t); onClose() }} className="rounded-full bg-[--color-brand-soft] px-2.5 py-1 text-xs text-[--color-brand] hover:bg-[--color-brand] hover:text-white transition-colors">{t}</button>))}
+                  {website.tags.map((tag) => (
+                    <button key={tag} type="button" onClick={() => { onTagClick(tag); onClose() }} className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-600 hover:text-white">
+                      {tag}
+                    </button>
+                  ))}
                 </div>
               )}
               {website.folder && (
-                <button type="button" onClick={() => { onFolderClick(website.folder!.id); onClose() }} className="inline-flex items-center gap-1.5 text-sm text-[--color-text-secondary] hover:text-[--color-brand] transition-colors">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                <button type="button" onClick={() => { onFolderClick(website.folder!.id); onClose() }} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600">
                   {website.folder.name}
                 </button>
               )}
-              <button type="button" onClick={() => { onUserClick(website.user.id); onClose() }} className="flex items-center gap-2 text-sm">
+              <button type="button" onClick={() => { onUserClick(website.user.id); onClose() }} className="flex items-center gap-2 rounded-[16px] border border-slate-200 bg-slate-50 p-3 text-left">
                 <UserAvatar size="sm" name={website.user.displayName || website.user.email} email={website.user.email} avatarText={website.user.avatarText} avatarUrl={website.user.avatarUrl} />
                 <div>
-                  <p className="text-sm font-medium text-[--color-text-primary]">{website.user.displayName || website.user.email}</p>
-                  <p className="text-xs text-[--color-text-muted]">{new Date(website.createdAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}</p>
+                  <p className="text-sm font-semibold text-slate-900">{website.user.displayName || website.user.email}</p>
+                  <p className="text-xs text-slate-400">{new Date(website.createdAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}</p>
                 </div>
               </button>
             </div>
             <div className="mt-6 flex gap-2">
-              <Button onClick={handleVisit} className="flex-1 gap-1.5"><ExternalLink size={14} />访问网站</Button>
-              <Button variant="outline" onClick={handleCopy} className="gap-1.5"><Copy size={14} />复制链接</Button>
+              <Button onClick={handleVisit} className="flex-1"><ExternalLink size={14} />访问网站</Button>
+              <Button variant="outline" onClick={handleCopy}><Copy size={14} />复制链接</Button>
             </div>
             {isOwner && (
               <div className="mt-3 flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => { onEdit(website); onClose() }} className="gap-1.5"><Pencil size={14} />编辑</Button>
-                <Button variant="ghost" size="sm" onClick={handleDelete} loading={deleting} loadingText="删除中..." className="gap-1.5 text-[--color-danger] hover:text-[--color-danger]"><Trash2 size={14} />删除</Button>
+                <Button variant="outline" size="sm" onClick={() => { onEdit(website); onClose() }}><Pencil size={14} />编辑</Button>
+                <Button variant="outline" size="sm" onClick={handleDelete} loading={deleting} loadingText="删除中..." className="text-rose-600 hover:text-rose-600"><Trash2 size={14} />删除</Button>
               </div>
             )}
           </>

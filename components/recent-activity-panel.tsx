@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ArrowUpRight, Bot, CheckCheck, Globe2, MessageCircle, Radio, UsersRound } from "lucide-react"
+import { EmptyState } from "@/components/empty-state"
 import { readUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
 
 export type RecentActivityTone = "blue" | "green" | "amber" | "coral"
@@ -86,24 +87,16 @@ function persistReadActivities(items: RecentActivityItem[]) {
   }).catch(() => null)
 }
 
-export function RecentActivityPanel({ groups, userId }: { groups: RecentActivityGroup[]; userId: string }) {
+type RecentActivityPanelProps = {
+  groups: RecentActivityGroup[]
+  userId: string
+  variant?: "panel" | "list"
+}
+
+export function RecentActivityPanel({ groups, userId, variant = "panel" }: RecentActivityPanelProps) {
   const [liveGroups, setLiveGroups] = useState(groups)
-  const [seenCounts, setSeenCounts] = useState<Record<string, number>>(() => {
-    return readUserStorage<Record<string, number>>({
-      kind: "local",
-      key: channelSeenStorageKey(userId),
-      userId,
-      ttlMs: CHANNEL_SUMMARY_TTL_MS,
-    }) ?? {}
-  })
-  const [seenActivityIds, setSeenActivityIds] = useState<Record<string, number>>(() => {
-    return readUserStorage<Record<string, number>>({
-      kind: "local",
-      key: recentActivitySeenStorageKey(userId),
-      userId,
-      ttlMs: RECENT_ACTIVITY_SEEN_TTL_MS,
-    }) ?? {}
-  })
+  const [seenCounts, setSeenCounts] = useState<Record<string, number>>({})
+  const [seenActivityIds, setSeenActivityIds] = useState<Record<string, number>>({})
 
   const refreshRecentActivity = useCallback(async () => {
     const res = await fetch("/api/home/recent-activity", { cache: "no-store" }).catch(() => null)
@@ -115,9 +108,31 @@ export function RecentActivityPanel({ groups, userId }: { groups: RecentActivity
   }, [])
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSeenCounts(
+        readUserStorage<Record<string, number>>({
+          kind: "local",
+          key: channelSeenStorageKey(userId),
+          userId,
+          ttlMs: CHANNEL_SUMMARY_TTL_MS,
+        }) ?? {}
+      )
+      setSeenActivityIds(
+        readUserStorage<Record<string, number>>({
+          kind: "local",
+          key: recentActivitySeenStorageKey(userId),
+          userId,
+          ttlMs: RECENT_ACTIVITY_SEEN_TTL_MS,
+        }) ?? {}
+      )
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [userId])
+
+  useEffect(() => {
     const onSeenChanged = (event: Event) => {
       const detail = (event as CustomEvent<Record<string, number>>).detail
-      if (detail && typeof detail === "object") setSeenCounts(detail)
+      if (detail && typeof detail === "object") window.setTimeout(() => setSeenCounts(detail), 0)
     }
     window.addEventListener(CHANNEL_SEEN_COUNTS_CHANGED_EVENT, onSeenChanged)
     return () => window.removeEventListener(CHANNEL_SEEN_COUNTS_CHANGED_EVENT, onSeenChanged)
@@ -230,26 +245,105 @@ export function RecentActivityPanel({ groups, userId }: { groups: RecentActivity
     window.dispatchEvent(new CustomEvent(CHANNEL_SEEN_COUNTS_CHANGED_EVENT, { detail: nextSeenCounts }))
   }
 
+  if (variant === "list") {
+    const listItems = visibleGroups
+      .flatMap((group) => group.items.map((item) => ({ ...item, groupTitle: group.title, groupIcon: group.icon })))
+      .sort((a, b) => itemTime(b) - itemTime(a))
+      .slice(0, 6)
+
+    return (
+      <section className="overflow-hidden rounded-[18px] border border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.055)]">
+        <div className="flex min-h-[58px] items-center justify-between gap-3 border-b border-slate-100 px-4 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-blue-50 text-blue-600">
+              <Radio size={18} />
+            </span>
+            <h2 className="truncate text-lg font-semibold tracking-normal text-slate-950">最近动态</h2>
+          </div>
+          <button
+            type="button"
+            onClick={markAllSeen}
+            disabled={visibleItems.length === 0}
+            className="inline-flex min-h-10 shrink-0 items-center rounded-full px-3 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            全部已读
+          </button>
+        </div>
+
+        <div className="p-4 sm:p-5">
+          {listItems.length === 0 ? (
+            <EmptyState title="最近没有新的未读动态" description="聊天、好友、社区和圆桌的新消息会继续出现在这里。" compact className="border-slate-200 bg-slate-50/70" />
+          ) : (
+            <div className="space-y-2.5">
+              {listItems.map((item) => {
+                const Icon = GROUP_ICONS[item.groupIcon]
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    onClick={() => markItemSeen(item)}
+                    className="group flex min-w-0 items-start gap-3 rounded-[14px] px-2.5 py-2.5 transition-colors hover:bg-slate-50 hover:no-underline"
+                  >
+                    <span className="relative mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-[9px] bg-blue-50 text-blue-600">
+                      <span className={`absolute -right-0.5 -top-0.5 size-2 rounded-full ${item.tone === "green" ? "bg-emerald-500" : item.tone === "amber" ? "bg-orange-400" : item.tone === "coral" ? "bg-rose-500" : "bg-blue-500"}`} />
+                      <Icon size={15} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex min-w-0 items-start justify-between gap-3">
+                        <span className="min-w-0 text-sm font-semibold leading-6 text-slate-900 group-hover:text-blue-600">
+                          {item.title}
+                        </span>
+                        <span className="shrink-0 text-xs text-slate-400">{relativeActivityTime(item.time)}</span>
+                      </span>
+                      <span className="mt-0.5 line-clamp-2 text-sm leading-6 text-slate-500">{item.description}</span>
+                      <span className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-400">
+                        <span className="truncate">{item.groupTitle}</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">{item.badge}</span>
+                      </span>
+                      {item.variant === "sticker-bundle" && item.stickers?.length ? (
+                        <span className="mt-2 flex gap-1.5 overflow-hidden">
+                          {item.stickers.slice(0, 5).map((sticker) => (
+                            <span key={sticker.id} className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-slate-100 bg-slate-50">
+                              <Image
+                                src={sticker.url}
+                                alt={sticker.name}
+                                width={36}
+                                height={36}
+                                unoptimized={sticker.isAnimated}
+                                className="h-full w-full object-contain"
+                              />
+                            </span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </span>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+    )
+  }
+
   return (
-    <section className="recent-activity-shell relative overflow-hidden rounded-[24px] border border-[rgba(37,99,235,0.14)] bg-[linear-gradient(135deg,rgba(255,255,255,0.94)_0%,rgba(239,246,255,0.88)_44%,rgba(255,250,240,0.92)_100%)] p-4 shadow-[0_22px_70px_rgba(37,99,235,0.12)] sm:p-5">
+    <section className="recent-activity-shell relative overflow-hidden rounded-[22px] border border-[--color-border] bg-[--color-bg-surface-glass] p-4 shadow-[--shadow-profile-card] backdrop-blur-xl sm:p-5">
       <div className="recent-activity-sheen" />
-      <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[#2563eb]/10 blur-2xl" />
-      <div className="pointer-events-none absolute -bottom-14 left-1/4 h-36 w-36 rounded-full bg-[#c96442]/10 blur-2xl" />
 
       <div className="relative mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#2563eb]/15 bg-white/70 px-3 py-1 text-xs font-medium text-[#2563eb] shadow-sm backdrop-blur">
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[--color-brand-border] bg-white/70 px-3 py-1 text-xs font-medium text-[--color-brand] shadow-sm backdrop-blur">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2563eb] opacity-60" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-[#2563eb]" />
             </span>
-            Live Feed
+            实时动态
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-xl font-semibold tracking-tight text-[--color-text-primary] sm:text-2xl">最近正在发生</h2>
-            <Link href="/ai" className="soulwing-chat-link group inline-flex items-center gap-2 rounded-full border border-[#2563eb]/15 bg-white/78 py-1 pl-1 pr-3 text-sm font-semibold text-[#2563eb] shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#2563eb]/30 hover:shadow-[0_12px_30px_rgba(37,99,235,0.16)] hover:no-underline">
+            <Link href="/ai" className="soulwing-chat-link group inline-flex min-h-10 items-center gap-2 rounded-full border border-[--color-brand-border] bg-white/78 py-1 pl-1 pr-3 text-sm font-semibold text-[--color-brand] shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#2563eb]/30 hover:shadow-[0_12px_30px_rgba(37,99,235,0.16)] hover:no-underline">
               <span className="soulwing-butterfly-wrap relative inline-flex h-10 w-10 items-center justify-center">
-                <span className="absolute inset-1 rounded-full bg-cyan-300/25 blur-md" />
                 <Image src="/soulwing-butterfly.png" alt="" width={40} height={40} className="soulwing-butterfly relative object-contain" />
               </span>
               和蝶灵聊聊
@@ -285,11 +379,14 @@ export function RecentActivityPanel({ groups, userId }: { groups: RecentActivity
         )}
       </div>
 
+      {visibleGroups.length === 0 ? (
+        <EmptyState title="最近没有新的未读动态" description="聊天、好友、社区和圆桌的新消息会继续出现在这里。" compact className="relative" />
+      ) : (
       <div className="relative grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {visibleGroups.map((group, groupIndex) => {
           const Icon = GROUP_ICONS[group.icon]
           return (
-            <div key={group.key} className="group/activity relative min-w-0 overflow-hidden rounded-[18px] border border-white/70 bg-white/72 p-3 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-[#2563eb]/20 hover:bg-white/90 hover:shadow-[0_18px_46px_rgba(37,99,235,0.14)]">
+            <div key={group.key} className="group/activity relative min-w-0 overflow-hidden rounded-[18px] border border-[--color-border] bg-white/72 p-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)] backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-[--color-brand-border] hover:bg-white/90 hover:shadow-[0_18px_46px_rgba(37,99,235,0.11)]">
               <div className="absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-[#2563eb]/35 to-transparent opacity-0 transition-opacity group-hover/activity:opacity-100" />
               <div className="mb-3 flex items-start justify-between gap-3">
                 <Link href={group.href} className="flex min-w-0 items-center gap-2 hover:no-underline">
@@ -364,6 +461,7 @@ export function RecentActivityPanel({ groups, userId }: { groups: RecentActivity
           )
         })}
       </div>
+      )}
     </section>
   )
 }

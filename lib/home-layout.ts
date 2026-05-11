@@ -34,15 +34,15 @@ export const HOME_WIDGET_LABELS: Record<HomeWidgetId, string> = {
 
 export const DEFAULT_HOME_LAYOUT: HomeWidgetLayout[] = [
   { id: "recentActivity", x: 0, y: 0, w: 12, h: 3 },
-  { id: "writingStats", x: 0, y: 3, w: 12, h: 2 },
-  { id: "recentPosts", x: 0, y: 5, w: 12, h: 3 },
-  { id: "writingHeatmap", x: 0, y: 8, w: 12, h: 2 },
-  { id: "chatActivity", x: 0, y: 10, w: 12, h: 3 },
-  { id: "jobFunnel", x: 0, y: 13, w: 12, h: 3 },
-  { id: "recentJobs", x: 0, y: 16, w: 12, h: 2 },
-  { id: "jobHeatmap", x: 0, y: 18, w: 12, h: 2 },
-  { id: "visitStats", x: 0, y: 20, w: 12, h: 3 },
-  { id: "guestbook", x: 0, y: 23, w: 12, h: 3 },
+  { id: "recentPosts", x: 0, y: 3, w: 8, h: 3 },
+  { id: "writingStats", x: 8, y: 3, w: 4, h: 2 },
+  { id: "jobFunnel", x: 0, y: 6, w: 8, h: 3 },
+  { id: "chatActivity", x: 8, y: 6, w: 4, h: 3 },
+  { id: "recentJobs", x: 0, y: 9, w: 8, h: 2 },
+  { id: "visitStats", x: 8, y: 9, w: 4, h: 3 },
+  { id: "writingHeatmap", x: 0, y: 12, w: 12, h: 2 },
+  { id: "jobHeatmap", x: 0, y: 14, w: 12, h: 2 },
+  { id: "guestbook", x: 0, y: 16, w: 12, h: 3 },
 ]
 
 export function normalizeHomeLayout(value: unknown): HomeWidgetLayout[] {

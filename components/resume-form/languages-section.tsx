@@ -39,7 +39,7 @@ export function LanguagesSection({
         </Button>
       </div>
       {values.length === 0 && (
-        <p className="text-xs text-[--color-text-muted]">暂无语言，点击"添加"新增。</p>
+        <p className="text-xs text-[--color-text-muted]">暂无语言，点击&quot;添加&quot;新增。</p>
       )}
       <div className="space-y-2">
         {values.map((l, i) => (

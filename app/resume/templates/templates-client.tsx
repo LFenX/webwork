@@ -1,13 +1,14 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { ArrowLeft, Info, LayoutTemplate } from "lucide-react"
 import { toast } from "sonner"
-import { ArrowLeft, Info } from "lucide-react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ResumeThemeCard } from "@/components/resume-theme-card"
+
+import { ModuleHero, ModulePageShell, ModulePanel, ModuleStatGrid, modulePillClass } from "@/components/module/module-shell"
 import { TemplateCategoryBoard } from "@/components/template-category-board"
+import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { ResumeThemeInfo } from "@/lib/resume/types"
 
@@ -39,17 +40,15 @@ export function ResumeTemplatesClient({
 
     if (!theme.available) {
       setPreviewSrcDoc(null)
-      setPreviewError(theme.unavailableReason ?? "主题不可用")
+      setPreviewError(theme.unavailableReason ?? "Template is unavailable.")
       return
     }
 
-    // 优先使用已注入的 snapshot（SSR 传递的小尺寸主题）
     if (snapshots[theme.slug]) {
       setPreviewSrcDoc(snapshots[theme.slug])
       return
     }
 
-    // 按需从 snapshot API 加载（快照预先生成，不触发运行时 render）
     setPreviewSrcDoc(null)
     setPreviewLoading(true)
     try {
@@ -57,13 +56,10 @@ export function ResumeTemplatesClient({
         cache: "no-store",
       })
       const data = await res.json()
-      if (data.ok) {
-        setPreviewSrcDoc(data.html)
-      } else {
-        setPreviewError(data.error || "暂无预览快照，请运行验证脚本生成")
-      }
+      if (data.ok) setPreviewSrcDoc(data.html)
+      else setPreviewError(data.error || "Preview snapshot is unavailable.")
     } catch {
-      setPreviewError("快照加载失败")
+      setPreviewError("Failed to load preview snapshot.")
     } finally {
       setPreviewLoading(false)
     }
@@ -78,116 +74,125 @@ export function ResumeTemplatesClient({
         cache: "no-store",
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || "切换失败")
-      toast.success(`已切换至「${theme.label}」主题`)
+      if (!res.ok) throw new Error(data.error || "Failed to switch template.")
+      toast.success(`Template switched to ${theme.label}.`)
       router.refresh()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "切换主题失败")
+      toast.error(error instanceof Error ? error.message : "Failed to switch template.")
     }
   }
 
+  const availableCount = themes.filter((theme) => theme.available).length
+  const currentTheme = themes.find((theme) => theme.slug === currentThemeSlug)
+
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-6 py-10 lg:px-10">
-      <div className="mb-6 flex items-center justify-between">
-        <Link href="/resume" className="inline-flex items-center gap-1 text-sm text-[--color-text-muted] hover:text-[--color-text-primary] hover:no-underline">
-          <ArrowLeft size={14} /> 返回简历
-        </Link>
-        {isOwner && (
-          <Link
-            href="/admin/resume-themes"
-            className="inline-flex items-center gap-1.5 text-sm text-[--color-text-muted] hover:text-[--color-text-primary] hover:no-underline"
-          >
-            管理模板
-          </Link>
-        )}
-      </div>
-
-      <div className="mb-10">
-        <h1 className="text-2xl font-semibold mb-2">简历模板中心</h1>
-        <p className="text-sm text-[--color-text-secondary]">
-          已启用 {themes.length} 个模板。同一份在线简历数据可以套用不同模板，每个模板都有独特的排版、配色和布局。
-        </p>
-        <details className="mt-2">
-          <summary className="text-xs text-[--color-text-muted] cursor-pointer inline-flex items-center gap-1 hover:text-[--color-text-secondary]">
-            <Info size={12} /> 如何添加新模板？
-          </summary>
-          <p className="mt-1 text-xs text-[--color-text-muted] ml-5">
-            在项目根运行 <code className="text-[11px] bg-[--color-bg-hover] px-1 rounded">npm install jsonresume-theme-xxx</code>，
-            再运行 <code className="text-[11px] bg-[--color-bg-hover] px-1 rounded">npm run resume:verify-themes</code> 验证并生成预览，最后重启 dev server。
-          </p>
-        </details>
-      </div>
-
-      {themes.length === 0 ? (
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-12 text-center">
-          <p className="text-sm text-[--color-text-muted]">暂无可用模板，请联系站点管理员验证模板。</p>
-        </div>
-      ) : (
-        <TemplateCategoryBoard
-          themes={themes}
-          categoryMap={categoryMap}
-          sortOrderMap={sortOrderMap}
-          currentThemeSlug={currentThemeSlug}
-          snapshots={snapshots}
-          onSelect={(theme) => selectTheme(theme)}
-          onPreview={(theme) => openPreview(theme)}
-        />
-      )}
-
-      {/* Preview Modal */}
-      <Dialog open={!!previewTheme} onOpenChange={() => setPreviewTheme(null)}>
-        <DialogContent className="h-[95vh] max-h-[95vh] max-w-[1440px] sm:max-w-[1440px] w-[98vw] sm:w-[98vw] flex flex-col p-0 gap-0 overflow-hidden">
-          <DialogHeader className="flex-shrink-0 px-6 pt-5 pb-3 border-b border-[--color-border]">
-            <DialogTitle>
-              {previewTheme?.label}
-              {previewTheme?.version ? (
-                <span className="ml-2 text-sm font-normal text-[--color-text-muted]">v{previewTheme.version}</span>
+    <ModulePageShell maxWidth="full">
+      <div className="space-y-5">
+        <ModuleHero
+          icon={LayoutTemplate}
+          title="Resume templates"
+          description="Preview, compare, and apply resume templates without changing the underlying resume data."
+          stats={[
+            { label: "Available", value: String(availableCount) },
+            { label: "Total", value: String(themes.length) },
+            { label: "Current", value: currentTheme?.label ?? "Default" },
+          ]}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/resume" className={modulePillClass(false)}>
+                <ArrowLeft size={15} /> Back
+              </Link>
+              {isOwner ? (
+                <Link href="/admin/resume-themes" className={modulePillClass(false)}>
+                  Manage templates
+                </Link>
               ) : null}
-              {" — 完整预览（示例数据）"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto bg-[--color-bg-primary]">
-            {previewLoading ? (
-              <div className="flex items-center justify-center h-full text-sm text-[--color-text-muted]">
-                加载预览...
-              </div>
-            ) : previewError ? (
-              <div className="flex flex-col items-center justify-center h-full gap-2 text-sm text-[--color-text-muted]">
-                <p className="text-red-600 font-medium">无法加载预览</p>
-                <p>{previewError}</p>
-              </div>
-            ) : previewSrcDoc ? (
-              <div className="flex justify-center py-6 px-4">
-                <iframe
-                  srcDoc={previewSrcDoc}
-                  title={`${previewTheme?.label ?? "简历"} 预览`}
-                  sandbox="allow-same-origin"
-                  className="border-0 block shadow-sm"
-                  style={{ width: 1180, minHeight: 1500 }}
-                />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full text-sm text-[--color-text-muted]">
-                暂无预览
-              </div>
-            )}
-          </div>
-          {previewTheme && (
-            <div className="flex-shrink-0 flex justify-end px-6 pb-4 pt-3 border-t border-[--color-border]">
-              <Button
-                onClick={() => { selectTheme(previewTheme); setPreviewTheme(null) }}
-                disabled={!previewTheme.available || previewTheme.slug === currentThemeSlug}
-              >
-                {!previewTheme.available
-                  ? "主题不可用"
-                  : previewTheme.slug === currentThemeSlug
-                  ? "当前使用中"
-                  : "使用此模板"}
-              </Button>
             </div>
+          }
+        />
+
+        <ModuleStatGrid
+          stats={[
+            { label: "Usable templates", value: availableCount },
+            { label: "Disabled templates", value: Math.max(0, themes.length - availableCount) },
+            { label: "Snapshot cache", value: Object.keys(snapshots).length },
+          ]}
+        />
+
+        <ModulePanel
+          title="Template library"
+          description="Cards show layout snapshots, package details, tags, and current availability."
+          action={
+            <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+              <Info size={13} /> Run theme verification after installing new packages.
+            </span>
+          }
+          contentClassName="p-5"
+        >
+          {themes.length === 0 ? (
+            <div className="rounded-[22px] border border-dashed border-blue-200 bg-blue-50/60 p-10 text-center text-sm text-slate-600">
+              No resume templates are available yet.
+            </div>
+          ) : (
+            <TemplateCategoryBoard
+              themes={themes}
+              categoryMap={categoryMap}
+              sortOrderMap={sortOrderMap}
+              currentThemeSlug={currentThemeSlug}
+              snapshots={snapshots}
+              onSelect={(theme) => void selectTheme(theme)}
+              onPreview={(theme) => void openPreview(theme)}
+            />
           )}
-        </DialogContent>
-      </Dialog>
-    </div>
+        </ModulePanel>
+
+        <Dialog open={!!previewTheme} onOpenChange={(open) => { if (!open) setPreviewTheme(null) }}>
+          <DialogContent className="flex h-[95vh] max-h-[95vh] w-[98vw] max-w-[1440px] flex-col gap-0 overflow-hidden rounded-[24px] border-slate-200 p-0 sm:max-w-[1440px]">
+            <DialogHeader className="shrink-0 border-b border-slate-100 px-6 py-5">
+              <DialogTitle className="flex flex-wrap items-center gap-2 text-lg">
+                {previewTheme?.label}
+                {previewTheme?.version ? <span className="font-mono text-sm font-normal text-slate-400">v{previewTheme.version}</span> : null}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 overflow-auto bg-slate-50">
+              {previewLoading ? (
+                <div className="flex h-full items-center justify-center text-sm text-slate-500">Loading preview...</div>
+              ) : previewError ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-slate-500">
+                  <p className="font-semibold text-rose-600">Unable to load preview</p>
+                  <p>{previewError}</p>
+                </div>
+              ) : previewSrcDoc ? (
+                <div className="flex justify-center px-4 py-6">
+                  <iframe
+                    srcDoc={previewSrcDoc}
+                    title={`${previewTheme?.label ?? "Resume"} preview`}
+                    sandbox="allow-same-origin"
+                    className="block border-0 shadow-sm"
+                    style={{ width: 1180, minHeight: 1500 }}
+                  />
+                </div>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-slate-500">No preview available.</div>
+              )}
+            </div>
+            {previewTheme ? (
+              <div className="flex shrink-0 justify-end border-t border-slate-100 px-6 py-4">
+                <Button
+                  onClick={() => {
+                    void selectTheme(previewTheme)
+                    setPreviewTheme(null)
+                  }}
+                  disabled={!previewTheme.available || previewTheme.slug === currentThemeSlug}
+                  className="rounded-full bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  {!previewTheme.available ? "Unavailable" : previewTheme.slug === currentThemeSlug ? "Current template" : "Use this template"}
+                </Button>
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </ModulePageShell>
   )
 }

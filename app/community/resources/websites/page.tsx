@@ -1,8 +1,9 @@
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Globe } from "lucide-react"
 import { prisma } from "@/lib/db"
 import { getOptionalSession } from "@/lib/auth"
 import { WebsiteShareClient } from "@/components/community/website-share-client"
+import { ModuleHero, ModulePageShell } from "@/components/module/module-shell"
 
 export const dynamic = "force-dynamic"
 
@@ -26,7 +27,7 @@ export default async function WebsitesPage() {
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       include: {
         _count: { select: { websites: true } },
-        user: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+        user: { select: USER_SELECT },
       },
     }),
   ])
@@ -39,27 +40,33 @@ export default async function WebsitesPage() {
   }))
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10">
-      <div className="mb-6 flex items-center gap-3">
-        <Link
-          href="/community/resources"
-          prefetch={false}
-          className="inline-flex items-center gap-2 rounded-full border border-[--color-border] bg-[--color-bg-surface] px-3 py-2 text-sm text-[--color-text-secondary] transition-colors hover:text-[--color-text-primary] hover:no-underline"
-        >
-          <ArrowLeft size={16} />
-          社区资源
-        </Link>
-        <h1 className="text-xl font-semibold text-[--color-text-primary]">网站分享</h1>
-      </div>
+    <ModulePageShell maxWidth="full">
+      <div className="space-y-5">
+        <ModuleHero
+          icon={Globe}
+          title="网站分享"
+          description="发现大家收藏的实用网站，按文件夹、标签和贡献者快速筛选。"
+          actions={
+            <Link
+              href="/community/resources"
+              prefetch={false}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 hover:no-underline"
+            >
+              <ArrowLeft size={16} />
+              社区资源
+            </Link>
+          }
+        />
 
-      <WebsiteShareClient
-        initialItems={initialItems}
-        initialTotal={0}
-        initialFolders={foldersRaw}
-        session={session}
-        prefilledFolderId={undefined}
-        folderInfo={null}
-      />
-    </div>
+        <WebsiteShareClient
+          initialItems={initialItems}
+          initialTotal={0}
+          initialFolders={foldersRaw}
+          session={session}
+          prefilledFolderId={undefined}
+          folderInfo={null}
+        />
+      </div>
+    </ModulePageShell>
   )
 }

@@ -9,7 +9,7 @@ const NO_STORE = { "Cache-Control": "no-store" }
 export async function GET() {
   try {
     const admin = await requireAdmin()
-    const [requests, passwordRequests, updates] = await Promise.all([
+    const [requests, passwordRequests, updates, totalUsers, admins, pendingRegistrations, pendingPasswordRequests] = await Promise.all([
       hasAdminPermission(admin, "approveRegistrations") ? prisma.registrationRequest.findMany({
         where: { status: "pending" },
         orderBy: { createdAt: "desc" },
@@ -26,6 +26,10 @@ export async function GET() {
         },
       }) : [],
       hasAdminPermission(admin, "manageUpdateLogs") ? getEditableUpdateLog() : [],
+      hasAdminPermission(admin, "manageUsers") ? prisma.user.count() : Promise.resolve(0),
+      hasAdminPermission(admin, "manageUsers") ? prisma.user.count({ where: { role: { in: ["admin", "owner"] } } }) : Promise.resolve(0),
+      hasAdminPermission(admin, "approveRegistrations") ? prisma.registrationRequest.count({ where: { status: "pending" } }) : Promise.resolve(0),
+      hasAdminPermission(admin, "approvePasswordChanges") ? prisma.passwordChangeRequest.count({ where: { status: "pending" } }) : Promise.resolve(0),
     ])
 
     return NextResponse.json(
@@ -36,6 +40,12 @@ export async function GET() {
         requests,
         passwordRequests,
         updates,
+        counts: {
+          totalUsers,
+          admins,
+          pendingRegistrations,
+          pendingPasswordRequests,
+        },
       },
       { headers: NO_STORE }
     )

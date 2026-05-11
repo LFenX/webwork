@@ -1187,7 +1187,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, Props>(function SqlEditor(
       {/* IDE-style title bar */}
       <div
         className={cn(
-          "flex shrink-0 items-center gap-2 border-b px-3 py-1.5 text-[11px]",
+          "flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto border-b px-3 py-1.5 text-[11px] scrollbar-none",
           isDark
             ? "border-[#1E293B] bg-[#0F172A]/70 text-[#64748B]"
             : "border-[--color-border] bg-[#FAFBFC] text-[--color-text-muted]"
@@ -1199,11 +1199,11 @@ export const SqlEditor = forwardRef<SqlEditorHandle, Props>(function SqlEditor(
           <span className="h-2 w-2 rounded-full bg-[#86EFAC]/80" />
         </span>
         <FileCode size={11} className={cn("ml-1", isDark ? "text-[#475569]" : "text-[--color-text-muted]")} />
-        <span className={cn("font-mono", isDark ? "text-[#94A3B8]" : "text-[--color-text-secondary]")}>
+        <span className={cn("min-w-0 truncate font-mono", isDark ? "text-[#94A3B8]" : "text-[--color-text-secondary]")}>
           {caption ?? "query.sql"}
         </span>
         {dirty ? <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-[#FB923C]" title="未保存" /> : null}
-        <span className="ml-auto inline-flex items-center gap-1.5">
+        <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
           <button
             type="button"
             onClick={runSyntaxCheck}

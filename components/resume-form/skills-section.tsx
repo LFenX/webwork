@@ -48,7 +48,7 @@ export function SkillsSection({
         </Button>
       </div>
       {values.length === 0 && (
-        <p className="text-xs text-[--color-text-muted]">暂无技能，点击"添加"新增。</p>
+        <p className="text-xs text-[--color-text-muted]">暂无技能，点击&quot;添加&quot;新增。</p>
       )}
       <div className="space-y-3">
         {values.map((s, i) => {

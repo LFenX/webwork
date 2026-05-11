@@ -534,26 +534,30 @@ function AISettingsSheetBody({
   const grantConfigs = configs.filter((c) => c.source === "admin_grant")
 
   return (
-    <SheetContent side="right" className="w-[min(100vw,520px)] sm:max-w-none overflow-y-auto">
+    <SheetContent side="right" className="w-[min(100vw,560px)] overflow-y-auto border-l border-slate-200 bg-[#f4f7fb] p-0 sm:max-w-none">
+      <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-5 py-5 backdrop-blur">
       <SheetHeader>
         <SheetTitle className="flex items-center gap-2">
-          <KeyRound size={18} />
+          <span className="inline-flex size-9 items-center justify-center rounded-[12px] bg-blue-50 text-blue-600">
+            <KeyRound size={18} />
+          </span>
           {dict.ai.settingsSheetTitle}
         </SheetTitle>
-        <SheetDescription>
+        <SheetDescription className="text-slate-500">
           {dict.ai.settingsSheetDescription}
         </SheetDescription>
       </SheetHeader>
+      </div>
 
-      <div className="mt-6 space-y-5">
+      <div className="space-y-5 px-4 py-5 sm:px-5">
         {!storageReady ? (
-          <div className="rounded-[--radius-lg] border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             {dict.ai.storageNotReadyWarning}
           </div>
         ) : null}
 
         {/* Admin Grant Request Section — always visible */}
-        <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+        <div className="rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
           <div className="flex items-center gap-2">
             <ShieldCheck size={16} className="text-[--color-text-muted]" />
             <span className="text-sm font-medium text-[--color-text-primary]">{dict.ai.adminGrantRequest}</span>
@@ -569,7 +573,7 @@ function AISettingsSheetBody({
                 placeholder={dict.ai.requestPlaceholder}
                 className="min-h-[80px] resize-y"
               />
-              <Button size="sm" onClick={() => void handleSubmitAccessRequest()} disabled={!requestMessage.trim()} loading={submittingRequest} loadingText={dict.ai.requestingAccess}>
+              <Button size="sm" className="rounded-full shadow-none" onClick={() => void handleSubmitAccessRequest()} disabled={!requestMessage.trim()} loading={submittingRequest} loadingText={dict.ai.requestingAccess}>
                 {dict.ai.applyForGrant}
               </Button>
             </div>
@@ -580,7 +584,7 @@ function AISettingsSheetBody({
               <p className="mt-1 text-xs text-amber-600">
                 {new Date(accessRequest.createdAt).toLocaleString()}
               </p>
-              <Button size="sm" variant="outline" className="mt-2" onClick={() => void handleCancelAccessRequest()} loading={cancellingRequest} loadingText={dict.ai.cancelRequest}>
+              <Button size="sm" variant="outline" className="mt-2 rounded-full shadow-none" onClick={() => void handleCancelAccessRequest()} loading={cancellingRequest} loadingText={dict.ai.cancelRequest}>
                 <X size={14} className="mr-1" />
                 {dict.ai.cancelRequest}
               </Button>
@@ -603,7 +607,7 @@ function AISettingsSheetBody({
         </div>
 
         {/* Saved configs list */}
-        <div>
+        <div className="rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
           <div className="flex items-center justify-between">
             <Label className="text-xs font-medium text-[--color-text-muted]">{dict.ai.savedConfigs}</Label>
             <Button type="button" variant="ghost" size="sm" onClick={resetForm}>
@@ -622,7 +626,7 @@ function AISettingsSheetBody({
                 return (
                   <div
                     key={`${config.source}-${config.id}`}
-                    className={`rounded-[--radius-lg] border p-3 ${config.isActive ? "border-emerald-300 bg-emerald-50/50" : "border-[--color-border] bg-[--color-bg-surface]"}`}
+                    className={`rounded-[16px] border p-3 ${config.isActive ? "border-blue-200 bg-blue-50/60" : "border-slate-100 bg-white shadow-[0_8px_20px_rgba(15,23,42,0.02)]"}`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="min-w-0 flex-1">
@@ -688,11 +692,11 @@ function AISettingsSheetBody({
         </div>
 
         {/* Divider */}
-        <div className="border-t border-[--color-border]" />
+        <div className="border-t border-slate-200" />
 
         {/* Current status */}
         {editingId || activeConfig ? (
-          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+          <div className="rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
             <p className="text-xs text-[--color-text-muted]">
               {editingId ? `${dict.ai.loadConfigPrompt}` : `${dict.ai.activeConfig}: ${activeConfig?.name || activeConfig?.providerLabel || ""}`}
             </p>
@@ -712,7 +716,7 @@ function AISettingsSheetBody({
         ) : null}
 
         {/* Form — only show full edit for self configs */}
-        <div className="space-y-3">
+        <div className="space-y-3 rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
           <div>
             <Label className="mb-1 block text-xs">{dict.ai.configName}</Label>
             <Input
@@ -789,7 +793,7 @@ function AISettingsSheetBody({
               disabled={editingSource === "admin_grant"}
             />
           </div>
-          <div className="flex items-center justify-between rounded-[--radius-lg] border border-[--color-border] px-3 py-2">
+          <div className="flex items-center justify-between rounded-[16px] border border-slate-200 px-3 py-2">
             <div>
               <p className="text-sm font-medium text-[--color-text-primary]">{dict.ai.streamEnabled}</p>
               <p className="text-xs text-[--color-text-muted]">{dict.ai.streamEnabledHint}</p>
@@ -801,7 +805,7 @@ function AISettingsSheetBody({
               disabled={editingSource === "admin_grant"}
             />
           </div>
-          <div className="flex items-center justify-between rounded-[--radius-lg] border border-[--color-border] px-3 py-2">
+          <div className="flex items-center justify-between rounded-[16px] border border-slate-200 px-3 py-2">
             <div>
               <p className="text-sm font-medium text-[--color-text-primary]">{dict.ai.enableConfigLabel}</p>
               <p className="text-xs text-[--color-text-muted]">{dict.ai.enableConfigHint}</p>
@@ -816,7 +820,7 @@ function AISettingsSheetBody({
         </div>
 
         {editingSource === "self" && editingId ? (
-          <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-4">
+          <div className="rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-[--color-text-primary]">联网搜索</p>
@@ -885,7 +889,7 @@ function AISettingsSheetBody({
         ) : null}
 
         {editingSource === "self" ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
             <Button type="button" variant="outline" onClick={handleTest} loading={testing} loadingText={dict.ai.testingConnection}>
               <TestTube2 size={14} /> {dict.ai.testConnectionBtn}
             </Button>
@@ -895,7 +899,7 @@ function AISettingsSheetBody({
           </div>
         ) : null}
 
-        <div className="rounded-[--radius-lg] border border-dashed border-[--color-border] bg-[--color-bg-hover] p-4 text-sm text-[--color-text-secondary]">
+        <div className="rounded-[18px] border border-dashed border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-700">
           <div className="flex items-center gap-2 font-medium text-[--color-text-primary]">
             <PlugZap size={15} />
             {dict.ai.capabilityDescriptionTitle}

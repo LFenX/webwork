@@ -1,20 +1,22 @@
 import Link from "next/link"
-import { Pencil, LayoutTemplate } from "lucide-react"
-import { getResumeContent } from "@/lib/mdx"
-import { requireAuth } from "@/lib/auth"
+import { FileText, LayoutTemplate, Pencil } from "lucide-react"
+
 import { MarkdownContent } from "@/components/markdown-content"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 import { PrintButton } from "@/components/print-button"
-import { ResumePdfViewer } from "@/components/resume-pdf-viewer"
-import { ResumeHtmlIframe } from "@/components/resume-html-iframe"
 import { ResumeExportButton } from "@/components/resume-export-button"
-import { renderResumeHtml } from "@/lib/resume/renderer"
-import { getModuleVisibility } from "@/lib/permissions"
+import { ResumeHtmlIframe } from "@/components/resume-html-iframe"
+import { ResumePdfViewer } from "@/components/resume-pdf-viewer"
+import { ModuleHero, ModulePageShell, ModulePanel, modulePillClass } from "@/components/module/module-shell"
+import { requireAuth } from "@/lib/auth"
 import { getDictionary } from "@/lib/i18n"
-import { getUserSiteSettings } from "@/lib/settings"
-import { resolveAdapterWithDb } from "@/lib/resume/template-config"
+import { getResumeContent } from "@/lib/mdx"
+import { getModuleVisibility } from "@/lib/permissions"
+import { renderResumeHtml } from "@/lib/resume/renderer"
 import { mergeEffectiveConfig, hashEffectiveConfig } from "@/lib/resume/adapters/registry"
+import { resolveAdapterWithDb } from "@/lib/resume/template-config"
 import type { ResumeJson } from "@/lib/resume/types"
+import { getUserSiteSettings } from "@/lib/settings"
 
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
@@ -40,14 +42,21 @@ export default async function ResumePage() {
   const re = dict.resume
 
   type JsonResult =
-    | { ok: true; html: string; usedThemeLabel: string; fallback: boolean; sparse: boolean; themeStale: boolean; configStale: boolean }
+    | {
+        ok: true
+        html: string
+        usedThemeLabel: string
+        fallback: boolean
+        sparse: boolean
+        themeStale: boolean
+        configStale: boolean
+      }
     | { ok: false; code: string; error: string }
 
   let jsonRenderResult: JsonResult | null = null
   const isJsonMode = resume.mode === "json"
 
   if (isJsonMode) {
-    // 优先使用上次构建缓存的 HTML，不重新 require/render 第三方主题
     if (resume.renderedHtml) {
       const themeStale = !!(
         resume.selectedTheme &&
@@ -63,8 +72,7 @@ export default async function ResumePage() {
             resumeAppearance: resume.resumeAppearance as "system" | "light" | "dark" | null,
             resumeConfig: (resume.resumeConfig as Record<string, unknown>) ?? null,
           })
-          const currentHash = hashEffectiveConfig(effective)
-          configStale = resume.lastBuiltConfigHash !== currentHash
+          configStale = resume.lastBuiltConfigHash !== hashEffectiveConfig(effective)
         } catch {
           configStale = false
         }
@@ -72,14 +80,13 @@ export default async function ResumePage() {
       jsonRenderResult = {
         ok: true,
         html: resume.renderedHtml,
-        usedThemeLabel: resume.lastBuiltTheme ?? resume.selectedTheme ?? "默认主题",
+        usedThemeLabel: resume.lastBuiltTheme ?? resume.selectedTheme ?? "Default theme",
         fallback: false,
         sparse: resume.resumeJson ? isResumeContentSparse(resume.resumeJson as ResumeJson) : false,
         themeStale,
         configStale,
       }
     } else if (resume.resumeJson) {
-      // 兼容尚未使用 build API 的旧数据，仍可在线渲染一次
       try {
         const result = await renderResumeHtml({
           resumeJson: resume.resumeJson as ResumeJson,
@@ -102,138 +109,133 @@ export default async function ResumePage() {
         jsonRenderResult = {
           ok: false,
           code: "render_failed",
-          error: err instanceof Error ? err.message : "未知错误",
+          error: err instanceof Error ? err.message : "Unknown render error",
         }
       }
     }
   }
 
-  const containerClass = resume.mode === "pdf"
-    ? "mx-auto w-full"
-    : resume.mode === "json"
-    ? "mx-auto w-full max-w-[1200px]"
-    : "mx-auto max-w-[760px]"
+  const containerClass =
+    resume.mode === "pdf"
+      ? "mx-auto w-full"
+      : resume.mode === "json"
+        ? "mx-auto w-full max-w-[1200px]"
+        : "mx-auto w-full max-w-[820px]"
+
+  const modeLabel = resume.mode === "pdf" ? "PDF" : resume.mode === "json" ? "Online JSON" : "Markdown"
+  const visibilityLabel = visibility === "friends" ? "Friends" : "Private"
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 py-12 sm:px-8 sm:py-16">
-      <div className={containerClass}>
-        <div className="no-print mb-10 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold">{re.title}</h1>
-          <div className="flex items-center gap-3">
-            <ModuleVisibilitySelect module="resume" initialVisibility={visibility} />
-            {resume.mode === "markdown" && <PrintButton />}
-            <Link
-              href="/resume/templates"
-              prefetch={false}
-              className="inline-flex items-center gap-1.5 text-sm text-[--color-text-muted] transition-colors hover:text-[--color-text-primary] hover:no-underline"
-            >
-              <LayoutTemplate size={13} /> {re.templates ?? "模板"}
-            </Link>
-            <ResumeExportButton lastExportedAt={resume.lastExportedAt ?? null} />
-            <Link
-              href="/resume/edit"
-              prefetch={false}
-              className="inline-flex items-center gap-1.5 text-sm text-[--color-text-muted] transition-colors hover:text-[--color-text-primary] hover:no-underline"
-            >
-              <Pencil size={13} /> {re.edit}
-            </Link>
-          </div>
-        </div>
-
-        <div id="resume-content">
-          {/* PDF mode */}
-          {resume.mode === "pdf" && resume.pdfPath ? (
-            <ResumePdfViewer src={resume.pdfPath} />
-          ) : null}
-
-          {/* JSON mode */}
-          {isJsonMode && jsonRenderResult ? (
-            jsonRenderResult.ok ? (
-              <div>
-                <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-[--color-text-muted]">
-                  <span>{re.themeLabel ?? "主题"}：{jsonRenderResult.usedThemeLabel}</span>
-                  {jsonRenderResult.fallback && (
-                    <span className="text-amber-600">{re.themeFallback ?? "请求的主题不可用，已自动切换"}</span>
-                  )}
-                  {jsonRenderResult.themeStale && (
-                    <span className="text-amber-600">
-                      主题已更改，
-                      <Link href="/resume/edit" className="underline">前往编辑页重新构建</Link>
-                      以看到新主题效果
-                    </span>
-                  )}
-                  {jsonRenderResult.configStale && (
-                    <span className="text-amber-600">
-                      输出配置已更改，
-                      <Link href="/resume/edit" className="underline">前往编辑页重新构建</Link>
-                      以应用最新配置
-                    </span>
-                  )}
-                </div>
-                {jsonRenderResult.sparse && (
-                  <div className="mb-4 rounded-[--radius-md] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex flex-wrap items-center gap-3">
-                    <span>当前在线简历内容还比较少，建议填写基本信息、教育经历、项目经历。</span>
-                    <Link href="/resume/edit" className="font-medium underline whitespace-nowrap">去编辑</Link>
-                    <Link href="/resume/templates" className="text-[--color-text-muted] underline whitespace-nowrap">查看模板示例效果</Link>
-                  </div>
-                )}
-                <div className="mx-auto max-w-[1000px]">
-                  <ResumeHtmlIframe srcDoc={jsonRenderResult.html} minHeight={800} viewportWidth={1000} mode="full" />
-                </div>
-              </div>
-            ) : jsonRenderResult.code === "no_themes" ? (
-              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-8 text-center">
-                <p className="text-sm text-[--color-text-muted]">{re.noThemes ?? "还没有可用的简历主题。请先安装 jsonresume-theme-* 包"}</p>
-              </div>
-            ) : (
-              <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-8 text-center space-y-2">
-                <p className="text-sm text-[--color-text-muted]">
-                  {re.renderFailed ?? "简历渲染失败"}
-                </p>
-                <div className="flex justify-center gap-3 text-sm">
-                  <Link href="/resume/edit" className="text-[--color-link] hover:underline">前往编辑并重新构建</Link>
-                  <Link href="/resume/templates" className="text-[--color-link] hover:underline">切换其他主题</Link>
-                </div>
-              </div>
-            )
-          ) : null}
-
-          {/* JSON mode — 有数据但尚未构建 */}
-          {isJsonMode && !jsonRenderResult ? (
-            <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-8 text-center space-y-3">
-              <p className="text-sm text-[--color-text-muted]">
-                你还没有构建在线简历。请前往编辑页填写信息并点击「构建简历」。
-              </p>
-              <div className="flex items-center justify-center gap-3">
-                <Link href="/resume/edit" className="inline-block text-sm font-medium text-white bg-[--color-text-primary] px-4 py-2 rounded-[--radius-sm] hover:opacity-90">
-                  去编辑并构建
-                </Link>
-                <Link href="/resume/templates" className="inline-block text-sm text-[--color-link] hover:underline">
-                  先看看模板效果
-                </Link>
-              </div>
+    <ModulePageShell maxWidth="wide">
+      <div className="space-y-5">
+        <ModuleHero
+          icon={FileText}
+          title={re.title ?? "Resume"}
+          description="Manage your online resume, PDF version, templates, and exports in one clean workspace."
+          stats={[
+            { label: "Mode", value: modeLabel },
+            { label: "Visibility", value: visibilityLabel },
+          ]}
+          actions={
+            <div className="no-print flex flex-wrap items-center gap-2">
+              <ModuleVisibilitySelect module="resume" initialVisibility={visibility} />
+              {resume.mode === "markdown" && <PrintButton />}
+              <Link href="/resume/templates" prefetch={false} className={modulePillClass(false)}>
+                <LayoutTemplate size={15} /> {re.templates ?? "Templates"}
+              </Link>
+              <ResumeExportButton lastExportedAt={resume.lastExportedAt ?? null} />
+              <Link href="/resume/edit" prefetch={false} className={modulePillClass(true)}>
+                <Pencil size={15} /> {re.edit ?? "Edit"}
+              </Link>
             </div>
-          ) : null}
+          }
+        />
 
-          {/* Markdown mode (旧用户) */}
-          {!isJsonMode && resume.mode !== "pdf" ? (
-            resume.content ? (
-              <div>
-                <div className="mb-4 rounded-[--radius-md] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  {re.markdownBanner ?? "这是旧版 Markdown 内容。建议切换到在线简历以获得更好的展示效果。"}
-                  {" "}
-                  <Link href="/resume/edit" className="font-medium underline">
-                    {re.switchToOnline ?? "切换为在线简历"}
+        <ModulePanel className={containerClass} contentClassName={resume.mode === "pdf" ? "p-0" : "p-6 sm:p-8"}>
+          <div id="resume-content">
+            {resume.mode === "pdf" && resume.pdfPath ? <ResumePdfViewer src={resume.pdfPath} /> : null}
+
+            {isJsonMode && jsonRenderResult ? (
+              jsonRenderResult.ok ? (
+                <div>
+                  <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                    <span>{re.themeLabel ?? "Theme"}: {jsonRenderResult.usedThemeLabel}</span>
+                    {jsonRenderResult.fallback && (
+                      <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                        {re.themeFallback ?? "Requested theme is unavailable, using fallback."}
+                      </span>
+                    )}
+                    {jsonRenderResult.themeStale && (
+                      <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                        Theme changed. <Link href="/resume/edit" className="underline">Rebuild resume</Link>.
+                      </span>
+                    )}
+                    {jsonRenderResult.configStale && (
+                      <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                        Export config changed. <Link href="/resume/edit" className="underline">Rebuild resume</Link>.
+                      </span>
+                    )}
+                  </div>
+                  {jsonRenderResult.sparse && (
+                    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      <span>Your online resume still looks sparse. Add profile, education, work, project, or skill details for a richer result.</span>
+                      <Link href="/resume/edit" className="font-medium underline">Edit resume</Link>
+                      <Link href="/resume/templates" className="text-amber-700 underline">Preview templates</Link>
+                    </div>
+                  )}
+                  <div className="mx-auto max-w-[1000px]">
+                    <ResumeHtmlIframe srcDoc={jsonRenderResult.html} minHeight={800} viewportWidth={1000} mode="full" />
+                  </div>
+                </div>
+              ) : jsonRenderResult.code === "no_themes" ? (
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-8 text-center">
+                  <p className="text-sm text-slate-500">{re.noThemes ?? "No resume theme is available yet."}</p>
+                </div>
+              ) : (
+                <div className="space-y-3 rounded-[22px] border border-slate-200 bg-slate-50 p-8 text-center">
+                  <p className="text-sm text-slate-500">{re.renderFailed ?? "Resume rendering failed."}</p>
+                  <div className="flex justify-center gap-3 text-sm">
+                    <Link href="/resume/edit" className="font-medium text-blue-600 hover:underline">Edit and rebuild</Link>
+                    <Link href="/resume/templates" className="font-medium text-blue-600 hover:underline">Switch theme</Link>
+                  </div>
+                </div>
+              )
+            ) : null}
+
+            {isJsonMode && !jsonRenderResult ? (
+              <div className="space-y-3 rounded-[22px] border border-dashed border-blue-200 bg-blue-50/60 p-8 text-center">
+                <p className="text-sm text-slate-600">Build your online resume from the editor to preview it here.</p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <Link href="/resume/edit" className={modulePillClass(true)}>
+                    Edit and build
+                  </Link>
+                  <Link href="/resume/templates" className={modulePillClass(false)}>
+                    Browse templates
                   </Link>
                 </div>
-                <MarkdownContent source={resume.content} />
               </div>
-            ) : (
-              <p className="text-[--color-text-muted]">{re.editHint}</p>
-            )
-          ) : null}
-        </div>
+            ) : null}
+
+            {!isJsonMode && resume.mode !== "pdf" ? (
+              resume.content ? (
+                <div>
+                  <div className="mb-4 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    {re.markdownBanner ?? "This is legacy Markdown resume content. Switch to the online resume for a better presentation."}{" "}
+                    <Link href="/resume/edit" className="font-medium underline">
+                      {re.switchToOnline ?? "Switch to online resume"}
+                    </Link>
+                  </div>
+                  <MarkdownContent source={resume.content} />
+                </div>
+              ) : (
+                <div className="rounded-[22px] border border-dashed border-blue-200 bg-blue-50/60 p-8 text-center text-sm text-slate-600">
+                  {re.editHint ?? "No resume content yet."}
+                </div>
+              )
+            ) : null}
+          </div>
+        </ModulePanel>
       </div>
-    </div>
+    </ModulePageShell>
   )
 }

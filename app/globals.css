@@ -42,6 +42,8 @@
   --shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.05);
   --shadow-md: 0 18px 50px rgba(15, 23, 42, 0.09);
   --shadow-lg: 0 28px 64px rgba(15, 23, 42, 0.12);
+  --shadow-profile-card: 0 18px 44px rgba(15, 23, 42, 0.06);
+  --shadow-profile-hero: 0 24px 70px rgba(37, 99, 235, 0.11);
 
   /* Shadcn compat */
   --color-background: var(--color-bg-primary);
@@ -209,6 +211,67 @@ body {
     linear-gradient(180deg, var(--color-bg-soft) 0%, var(--color-bg-primary) 100%);
   background-attachment: fixed;
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+}
+
+html:has(.friends-hub-viewport),
+body:has(.friends-hub-viewport) {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body:has(.friends-hub-viewport) {
+  padding-bottom: 0;
+}
+
+html:has(.sql-lab-viewport),
+body:has(.sql-lab-viewport) {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body:has(.sql-lab-viewport) {
+  padding-bottom: 0;
+}
+
+.soulwing-page,
+.soulwing-chat-page {
+  isolation: isolate;
+}
+
+html:has(.soulwing-chat-page),
+body:has(.soulwing-chat-page) {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body:has(.soulwing-chat-page) {
+  padding-bottom: 0;
+}
+
+.soulwing-settings-console :where(input, textarea, select) {
+  border-color: rgb(226 232 240 / 0.95);
+  background-color: #fff;
+}
+
+.soulwing-settings-console :where(input, textarea, select):focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.profile-page-shell {
+  isolation: isolate;
+}
+
+.personal-home {
+  isolation: isolate;
+}
+
+@media (max-width: 767px) {
+  body:has(.personal-home-public) .site-header {
+    display: none;
+  }
 }
 
 /* Unified page container */
@@ -1543,10 +1606,2010 @@ a:hover {
   margin-top: 0;
 }
 
+.soulwing-thinking-glyph {
+  --glyph-a: #38bdf8;
+  --glyph-b: #34d399;
+  --glyph-c: #fbbf24;
+  --glyph-d: #a78bfa;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: #fff;
+  isolation: isolate;
+}
+
+.soulwing-thinking-glyph-xs {
+  width: 1rem;
+  height: 1rem;
+}
+
+.soulwing-thinking-glyph-sm {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.soulwing-thinking-glyph-tool {
+  --glyph-a: #06b6d4;
+  --glyph-b: #22c55e;
+  --glyph-c: #60a5fa;
+  --glyph-d: #14b8a6;
+}
+
+.soulwing-thinking-glyph-warning {
+  --glyph-a: #f59e0b;
+  --glyph-b: #fb7185;
+  --glyph-c: #f97316;
+  --glyph-d: #ef4444;
+}
+
+.soulwing-thinking-glyph.is-completed {
+  --glyph-a: #10b981;
+  --glyph-b: #22c55e;
+  --glyph-c: #67e8f9;
+  --glyph-d: #34d399;
+}
+
+.soulwing-thinking-halo,
+.soulwing-thinking-core,
+.soulwing-thinking-spark {
+  grid-area: 1 / 1;
+}
+
+.soulwing-thinking-halo {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: conic-gradient(from 140deg, var(--glyph-a), var(--glyph-b), var(--glyph-c), var(--glyph-d), var(--glyph-a));
+  opacity: 0;
+  transform: scale(0.72);
+}
+
+.soulwing-thinking-halo-b {
+  animation-delay: 0.7s;
+}
+
+.soulwing-thinking-core {
+  position: relative;
+  z-index: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 72%;
+  height: 72%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.85), transparent 22%),
+    conic-gradient(from 110deg, var(--glyph-a), var(--glyph-b), var(--glyph-c), var(--glyph-d), var(--glyph-a));
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.soulwing-thinking-spark {
+  position: relative;
+  z-index: 2;
+  width: 0.28rem;
+  height: 0.28rem;
+  margin-left: 1.35rem;
+  margin-top: -1.3rem;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow:
+    -0.56rem 1.42rem 0 -1px rgba(251, 191, 36, 0.92),
+    0.24rem 1.14rem 0 -1px rgba(52, 211, 153, 0.82);
+  opacity: 0;
+}
+
+.soulwing-thinking-glyph.is-running .soulwing-thinking-halo {
+  animation: soulwing-thinking-pulse 1.85s ease-out infinite;
+}
+
+.soulwing-thinking-glyph.is-running .soulwing-thinking-core {
+  animation: soulwing-thinking-blink 1.8s ease-in-out infinite;
+}
+
+.soulwing-thinking-glyph.is-running .soulwing-thinking-spark {
+  animation: soulwing-thinking-spark 1.8s ease-in-out infinite;
+}
+
+.soulwing-conversation-sidebar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.92)),
+    radial-gradient(circle at 22% 6%, rgba(96, 165, 250, 0.16), transparent 28%);
+}
+
+.soulwing-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.15rem 1.15rem 0.95rem;
+}
+
+.soulwing-sidebar-brand-mark {
+  display: inline-grid;
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 1.1rem;
+  background: linear-gradient(145deg, #ffffff, #eef7ff);
+  border: 1px solid rgba(191, 219, 254, 0.75);
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.13);
+}
+
+.soulwing-sidebar-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 2.85rem;
+  margin: 0.1rem 1rem 1.15rem;
+  border-radius: 999px;
+  border: 1px solid rgba(147, 197, 253, 0.72);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.78), rgba(255, 255, 255, 0.94));
+  color: #2563eb;
+  font-size: 0.92rem;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 12px 24px rgba(37, 99, 235, 0.08);
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.soulwing-sidebar-new:hover {
+  border-color: rgba(96, 165, 250, 0.94);
+  background: #eff6ff;
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.12);
+  transform: translateY(-1px);
+}
+
+.soulwing-sidebar-new:disabled {
+  opacity: 0.72;
+  transform: none;
+}
+
+.soulwing-sidebar-list {
+  padding: 0 0.85rem 0.8rem;
+  scrollbar-gutter: stable;
+}
+
+.soulwing-sidebar-list::-webkit-scrollbar {
+  width: 0.35rem;
+}
+
+.soulwing-sidebar-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.3);
+}
+
+.soulwing-sidebar-group + .soulwing-sidebar-group {
+  margin-top: 1.05rem;
+}
+
+.soulwing-sidebar-group-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  margin: 0.06rem 0 0.58rem 0.12rem;
+  padding: 0.22rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid rgba(14, 165, 233, 0.18);
+  background: linear-gradient(180deg, rgba(240, 249, 255, 0.96), rgba(236, 253, 245, 0.84));
+  color: #0369a1;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.35;
+  box-shadow: 0 8px 18px rgba(14, 165, 233, 0.08);
+}
+
+.soulwing-sidebar-group-title::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.soulwing-sidebar-group-title-today {
+  border-color: rgba(20, 184, 166, 0.24);
+  background: linear-gradient(180deg, rgba(236, 253, 245, 0.98), rgba(240, 253, 250, 0.86));
+  color: #047857;
+}
+
+.soulwing-sidebar-group-title-recent {
+  border-color: rgba(37, 99, 235, 0.18);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.98), rgba(240, 249, 255, 0.86));
+  color: #2563eb;
+}
+
+.soulwing-sidebar-group-title-earlier {
+  border-color: rgba(100, 116, 139, 0.18);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.86));
+  color: #475569;
+}
+
+.soulwing-sidebar-chat {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 0.95rem;
+  border: 1px solid transparent;
+  color: #0f172a;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.soulwing-sidebar-chat:hover,
+.soulwing-sidebar-chat.is-active {
+  border-color: rgba(191, 219, 254, 0.8);
+  background: rgba(239, 246, 255, 0.74);
+}
+
+.soulwing-sidebar-chat.is-active {
+  box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.78), 0 12px 26px rgba(37, 99, 235, 0.08);
+}
+
+.soulwing-sidebar-chat-main {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0.75rem 0.82rem;
+  text-align: left;
+}
+
+.soulwing-sidebar-chat-actions {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.42rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.soulwing-sidebar-chat:hover .soulwing-sidebar-chat-actions,
+.soulwing-sidebar-chat:focus-within .soulwing-sidebar-chat-actions,
+.soulwing-sidebar-chat.is-active .soulwing-sidebar-chat-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.soulwing-sidebar-icon-button {
+  display: inline-flex;
+  width: 1.6rem;
+  height: 1.6rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.soulwing-sidebar-icon-button:hover {
+  color: #2563eb;
+  background: #ffffff;
+}
+
+.soulwing-sidebar-empty {
+  margin: 0.35rem;
+  border-radius: 1rem;
+  border: 1px dashed rgba(148, 163, 184, 0.46);
+  background: rgba(248, 250, 252, 0.78);
+  padding: 1rem;
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.soulwing-sidebar-footer {
+  position: relative;
+  margin-top: auto;
+  border-top: 1px solid rgba(226, 232, 240, 0.82);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.85rem 0.95rem 0.95rem;
+}
+
+.soulwing-sidebar-footer-actions,
+.soulwing-sidebar-account-menu {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0 0.1rem 0.75rem;
+}
+
+.soulwing-sidebar-account-menu {
+  position: absolute;
+  z-index: 12;
+  left: 0.95rem;
+  right: 0.95rem;
+  bottom: calc(100% + 0.52rem);
+  margin-bottom: 0;
+  border-radius: 1rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.42rem;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+  animation: soulwing-sidebar-menu-in 150ms ease-out both;
+}
+
+.soulwing-sidebar-account-menu::after {
+  content: "";
+  position: absolute;
+  right: 1.25rem;
+  bottom: -0.36rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-right: 1px solid rgba(226, 232, 240, 0.9);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.92);
+  transform: rotate(45deg);
+}
+
+.soulwing-sidebar-footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.62rem;
+  min-height: 2.4rem;
+  border-radius: 0.85rem;
+  padding: 0 0.55rem;
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.soulwing-sidebar-footer-link:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.soulwing-sidebar-user {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.72rem;
+  border-radius: 1rem;
+  padding: 0.62rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.soulwing-sidebar-user-toggle {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #64748b;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.soulwing-sidebar-user-toggle:hover,
+.soulwing-sidebar-user-toggle.is-open {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.soulwing-sidebar-user-avatar > div {
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.9), transparent 30%),
+    linear-gradient(135deg, #2563eb, #22d3ee 48%, #34d399);
+  color: #ffffff;
+  border-color: rgba(191, 219, 254, 0.9);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.18);
+}
+
+@keyframes soulwing-sidebar-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.soulwing-mobile-topbar {
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(226, 232, 240, 0.82);
+  border-radius: 1.15rem;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 255, 0.82) 54%, rgba(240, 253, 250, 0.72)),
+    #fff;
+  padding: 0.42rem;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.055);
+}
+
+.soulwing-mobile-brand-button {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 48%;
+  align-items: center;
+  gap: 0.52rem;
+  border-radius: 0.9rem;
+  padding: 0.24rem 0.58rem 0.24rem 0.3rem;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.soulwing-mobile-brand-button:active {
+  background: rgba(239, 246, 255, 0.92);
+  transform: scale(0.985);
+}
+
+.soulwing-mobile-brand-mark {
+  display: inline-grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(191, 219, 254, 0.74);
+  background: linear-gradient(145deg, #fff, #eef7ff);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.1);
+}
+
+.soulwing-mobile-icon-button,
+.soulwing-mobile-panel-close {
+  display: inline-flex;
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  background: rgba(255, 255, 255, 0.92);
+  color: #334155;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.055);
+}
+
+.soulwing-mobile-panel-backdrop {
+  background: rgba(15, 23, 42, 0.24);
+  backdrop-filter: blur(5px);
+  animation: soulwing-mobile-backdrop-in 180ms ease-out both;
+}
+
+.soulwing-mobile-sidebar-panel {
+  inset: 0.65rem auto 0.65rem 0.65rem;
+  width: min(22rem, calc(100% - 1.3rem));
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 1.35rem;
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.22);
+  animation: soulwing-mobile-sidebar-in 220ms cubic-bezier(0.18, 0.92, 0.24, 1) both;
+}
+
+.soulwing-mobile-sidebar-header,
+.soulwing-mobile-controls-header {
+  flex: 0 0 auto;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.78);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.9rem 0.95rem;
+}
+
+.soulwing-mobile-sidebar-panel .soulwing-sidebar-new {
+  margin: 0.85rem 0.95rem 0.9rem;
+}
+
+.soulwing-mobile-sidebar-panel .soulwing-sidebar-list {
+  padding-inline: 0.8rem;
+}
+
+.soulwing-mobile-sidebar-panel .soulwing-sidebar-chat-main {
+  padding-right: 4.2rem;
+}
+
+.soulwing-mobile-sidebar-panel .soulwing-sidebar-chat-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+.soulwing-mobile-sidebar-panel .soulwing-sidebar-footer {
+  padding-bottom: max(0.95rem, calc(env(safe-area-inset-bottom) + 0.75rem));
+}
+
+.soulwing-mobile-controls-panel {
+  inset: 0.75rem;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 1.35rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.94)),
+    #fff;
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.22);
+  animation: soulwing-mobile-controls-in 220ms cubic-bezier(0.18, 0.92, 0.24, 1) both;
+}
+
+@keyframes soulwing-mobile-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes soulwing-mobile-sidebar-in {
+  from {
+    opacity: 0;
+    transform: translateX(-1.25rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes soulwing-mobile-controls-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.soulwing-trace-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.96) 42%, rgba(240, 253, 250, 0.82)),
+    #fff;
+  padding: 0.85rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 18px 38px rgba(15, 23, 42, 0.045);
+}
+
+.soulwing-trace-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.18), transparent),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 36%);
+  opacity: 0.7;
+}
+
+.soulwing-trace-panel-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 0.3rem 0.35rem 0.85rem;
+}
+
+.soulwing-trace-section {
+  position: relative;
+  z-index: 1;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.76);
+  padding: 0.35rem;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.035);
+}
+
+.soulwing-trace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.25rem 0.2rem 0.2rem 2.2rem;
+}
+
+.soulwing-trace-item {
+  position: relative;
+}
+
+.soulwing-trace-node {
+  position: absolute;
+  left: -2.12rem;
+  top: 0.68rem;
+  z-index: 2;
+}
+
+.soulwing-trace-connector {
+  position: absolute;
+  left: -1.25rem;
+  top: 2.45rem;
+  bottom: -1rem;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.42), rgba(52, 211, 153, 0.32), rgba(251, 191, 36, 0.22));
+}
+
+.soulwing-trace-connector.is-running {
+  background: linear-gradient(180deg, #38bdf8, #34d399, #fbbf24, #a78bfa);
+  background-size: 100% 220%;
+  animation: soulwing-trace-flow 1.8s ease-in-out infinite;
+}
+
+.soulwing-trace-card {
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.035);
+  animation: soulwing-trace-card-in 260ms ease-out both;
+}
+
+.soulwing-trace-card-thinking.is-running {
+  border-color: rgba(59, 130, 246, 0.28);
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.07);
+}
+
+.soulwing-trace-card-tool {
+  background: linear-gradient(180deg, rgba(236, 254, 255, 0.65), rgba(255, 255, 255, 0.9));
+}
+
+.soulwing-trace-card-warning {
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.72), rgba(255, 255, 255, 0.92));
+}
+
+.soulwing-trace-empty {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  border: 1px dashed rgba(59, 130, 246, 0.26);
+  border-radius: 10px;
+  background: rgba(239, 246, 255, 0.72);
+  padding: 0.85rem;
+}
+
+.soulwing-trace-footer {
+  position: relative;
+  z-index: 1;
+  margin-top: 0.8rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  padding: 0.75rem 0.35rem 0.1rem;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.soulwing-judgement-chain {
+  overflow: hidden;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(191, 219, 254, 0.68);
+  background:
+    linear-gradient(90deg, rgba(239, 246, 255, 0.86), rgba(255, 255, 255, 0.96)),
+    #fff;
+}
+
+.soulwing-judgement-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.76rem 0.9rem;
+}
+
+.soulwing-judgement-summary::-webkit-details-marker {
+  display: none;
+}
+
+.soulwing-judgement-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.65rem;
+  border-radius: 999px;
+  background: #eaf3ff;
+  padding: 0 0.65rem;
+  color: #2563eb;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.soulwing-judgement-current {
+  min-width: 0;
+  color: #334155;
+  font-size: 0.86rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.soulwing-judgement-toggle {
+  display: inline-flex;
+  width: 1.85rem;
+  height: 1.85rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.76);
+  transition: transform 180ms ease, color 180ms ease, background 180ms ease;
+}
+
+.soulwing-judgement-chain[open] .soulwing-judgement-toggle {
+  color: #2563eb;
+  background: #eff6ff;
+  transform: rotate(180deg);
+}
+
+.soulwing-judgement-list {
+  display: grid;
+  gap: 0.6rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.88);
+  background: rgba(248, 250, 252, 0.58);
+  padding: 0.82rem 0.9rem 0.9rem;
+}
+
+.soulwing-judgement-item {
+  --trace-color: #38bdf8;
+  --trace-soft: #e0f2fe;
+  --trace-ink: #0369a1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+
+.soulwing-judgement-index {
+  display: inline-grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  background: var(--trace-soft);
+  color: var(--trace-ink);
+  font-size: 0.78rem;
+  font-weight: 900;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--trace-color) 18%, transparent);
+}
+
+.soulwing-judgement-body {
+  min-width: 0;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  background: #fff;
+  padding: 0.68rem 0.76rem;
+}
+
+.soulwing-judgement-body > div:first-child {
+  margin-bottom: 0.45rem;
+}
+
+.soulwing-judgement-body strong {
+  min-width: 0;
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+
+.soulwing-judgement-body .trace-markdown .prose {
+  font-size: 0.82rem;
+  line-height: 1.68;
+}
+
+.soulwing-judgement-body .trace-markdown .prose :where(p, ul, ol, blockquote, pre) {
+  margin-bottom: 0.45em;
+}
+
+.trace-markdown .prose {
+  min-width: 0;
+  max-width: none;
+  color: #334155;
+  font-size: 0.9rem;
+  line-height: 1.76;
+  overflow-wrap: anywhere;
+}
+
+.trace-markdown .prose :where(p, ul, ol, blockquote, pre, table, details) {
+  margin-top: 0;
+  margin-bottom: 0.72em;
+}
+
+.trace-markdown .prose :where(h1, h2, h3, h4) {
+  margin-top: 0.7em;
+  margin-bottom: 0.38em;
+  color: #0f172a;
+  font-size: 0.98rem;
+  line-height: 1.42;
+}
+
+.trace-markdown .prose strong {
+  border-radius: 0.38rem;
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.26), rgba(251, 191, 36, 0.12));
+  padding: 0.02rem 0.24rem;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.trace-markdown .prose blockquote {
+  border-left: 3px solid #38bdf8;
+  border-radius: 0 0.55rem 0.55rem 0;
+  background: rgba(239, 246, 255, 0.78);
+  margin-left: 0;
+  padding: 0.72rem 0.85rem;
+  color: #334155;
+}
+
+.trace-markdown .prose code:not(pre code) {
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  background: rgba(37, 99, 235, 0.07);
+  color: #1d4ed8;
+}
+
+.trace-inline-markdown {
+  display: block;
+  min-width: 0;
+}
+
+.trace-inline-markdown .prose {
+  max-width: none;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.trace-inline-markdown .prose :where(p, ul, ol, blockquote, pre) {
+  margin: 0;
+}
+
+.trace-inline-markdown .prose :where(ul, ol) {
+  padding-left: 1rem;
+}
+
+.trace-inline-markdown .prose li {
+  margin: 0;
+}
+
+.trace-inline-markdown .prose strong {
+  border-radius: 0.34rem;
+  background: color-mix(in srgb, var(--trace-color, #38bdf8) 13%, white);
+  padding: 0.02rem 0.24rem;
+  color: var(--trace-ink, #0f172a);
+  font-weight: 800;
+}
+
+.trace-inline-markdown .prose code:not(pre code) {
+  border: 1px solid color-mix(in srgb, var(--trace-color, #38bdf8) 18%, transparent);
+  border-radius: 0.32rem;
+  background: color-mix(in srgb, var(--trace-color, #38bdf8) 9%, white);
+  padding: 0.02rem 0.22rem;
+  color: var(--trace-ink, #1d4ed8);
+  font-size: 0.92em;
+}
+
+.trace-tool-note {
+  border-left: 2px solid rgba(6, 182, 212, 0.34);
+  padding-left: 0.75rem;
+}
+
+.trace-payload {
+  border-radius: 0.55rem;
+  background: rgba(248, 250, 252, 0.86);
+}
+
+.trace-payload summary::-webkit-details-marker,
+.soulwing-trace-card summary::-webkit-details-marker,
+.soulwing-trace-section summary::-webkit-details-marker {
+  display: none;
+}
+
+@keyframes soulwing-thinking-pulse {
+  0% {
+    opacity: 0.34;
+    transform: scale(0.68);
+  }
+  65% {
+    opacity: 0;
+    transform: scale(1.28);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.32);
+  }
+}
+
+@keyframes soulwing-thinking-blink {
+  0%, 100% {
+    transform: scale(1);
+    filter: saturate(1);
+  }
+  45% {
+    transform: scale(1.08);
+    filter: saturate(1.32);
+  }
+  72% {
+    transform: scale(0.98);
+  }
+}
+
+@keyframes soulwing-thinking-spark {
+  0%, 100% {
+    opacity: 0;
+    transform: translateY(0) scale(0.72);
+  }
+  48% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1);
+  }
+}
+
+@keyframes soulwing-trace-flow {
+  0%, 100% {
+    background-position: 0 0;
+  }
+  50% {
+    background-position: 0 100%;
+  }
+}
+
+@keyframes soulwing-trace-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes soulwing-trace-line-flow {
+  0%, 100% {
+    background-position: 0 0;
+    opacity: 0.86;
+  }
+  50% {
+    background-position: 0 100%;
+    opacity: 1;
+  }
+}
+
+@keyframes soulwing-trace-line-march {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 1.45rem;
+  }
+}
+
+@keyframes soulwing-trace-line-breathe {
+  0%, 100% {
+    opacity: 0.62;
+    filter: saturate(0.92);
+  }
+  50% {
+    opacity: 1;
+    filter: saturate(1.18);
+  }
+}
+
+@keyframes soulwing-trace-line-alert {
+  0%, 100% {
+    opacity: 0.62;
+    background-position: 0 0;
+  }
+  50% {
+    opacity: 1;
+    background-position: 0 0.95rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .soulwing-trace-panel {
+    border-radius: 14px;
+    padding: 0.65rem;
+  }
+
+  .soulwing-trace-panel-header {
+    flex-direction: column;
+  }
+
+  .soulwing-trace-list {
+    padding-left: 1.8rem;
+  }
+
+  .soulwing-trace-node {
+    left: -1.82rem;
+  }
+
+  .soulwing-trace-connector {
+    left: -0.98rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soulwing-thinking-glyph.is-running .soulwing-thinking-halo,
+  .soulwing-thinking-glyph.is-running .soulwing-thinking-core,
+  .soulwing-thinking-glyph.is-running .soulwing-thinking-spark,
+  .soulwing-trace-connector.is-running,
+  .soulwing-trace-card {
+    animation: none;
+  }
+
+  .soulwing-thinking-glyph.is-running .soulwing-thinking-halo-a {
+    opacity: 0.18;
+    transform: scale(1.12);
+  }
+}
+
+.soulwing-butterfly-glyph {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.45rem;
+  height: 2.45rem;
+  isolation: isolate;
+}
+
+.soulwing-butterfly-glyph-xs {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.soulwing-butterfly-glyph-sm {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+
+.soulwing-butterfly-glyph-tool .soulwing-butterfly-img {
+  filter: hue-rotate(45deg) saturate(1.12);
+}
+
+.soulwing-butterfly-glyph-warning .soulwing-butterfly-img,
+.soulwing-butterfly-glyph.is-failed .soulwing-butterfly-img {
+  filter: hue-rotate(135deg) saturate(1.22);
+}
+
+.soulwing-butterfly-aura,
+.soulwing-butterfly-img,
+.soulwing-butterfly-sparkle {
+  grid-area: 1 / 1;
+}
+
+.soulwing-butterfly-aura {
+  width: 118%;
+  height: 118%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 45% 48%, rgba(255, 255, 255, 0.95), transparent 31%),
+    conic-gradient(from 135deg, rgba(56, 189, 248, 0.35), rgba(167, 139, 250, 0.3), rgba(52, 211, 153, 0.2), rgba(56, 189, 248, 0.35));
+  filter: blur(1px);
+  opacity: 0.72;
+}
+
+.soulwing-butterfly-img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 16px rgba(37, 99, 235, 0.18));
+  transform-origin: 50% 58%;
+}
+
+.soulwing-butterfly-sparkle {
+  position: relative;
+  z-index: 2;
+  width: 0.28rem;
+  height: 0.28rem;
+  margin-left: 1.35rem;
+  margin-top: -1.25rem;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow:
+    -0.48rem 1.22rem 0 -1px rgba(34, 211, 238, 0.95),
+    0.18rem 0.98rem 0 -1px rgba(168, 85, 247, 0.78);
+  opacity: 0;
+}
+
+.soulwing-butterfly-glyph.is-thinking .soulwing-butterfly-aura {
+  animation: soulwing-butterfly-aura 1.9s ease-in-out infinite;
+}
+
+.soulwing-butterfly-glyph.is-thinking .soulwing-butterfly-img {
+  animation: soulwing-butterfly-breathe 1.9s ease-in-out infinite;
+}
+
+.soulwing-butterfly-glyph.is-thinking .soulwing-butterfly-sparkle {
+  animation: soulwing-butterfly-spark 1.9s ease-in-out infinite;
+}
+
+.soulwing-trace-panel {
+  display: grid;
+  gap: 0.85rem;
+  overflow: hidden;
+  border: 1px solid rgba(203, 213, 225, 0.78);
+  border-radius: 14px;
+  background:
+    linear-gradient(90deg, rgba(236, 254, 255, 0.42), transparent 32%, rgba(248, 250, 252, 0.84)),
+    #fff;
+  padding: 0;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.055);
+}
+
+.soulwing-trace-panel::before {
+  display: none;
+}
+
+.soulwing-trace-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.92);
+  padding: 0.92rem 1.05rem;
+  background:
+    linear-gradient(90deg, rgba(239, 246, 255, 0.88), rgba(255, 255, 255, 0.96) 38%, rgba(255, 255, 255, 0.96)),
+    #fff;
+  cursor: pointer;
+  list-style: none;
+}
+
+.soulwing-trace-panel-header::-webkit-details-marker {
+  display: none;
+}
+
+.soulwing-trace-panel:not([open]) .soulwing-trace-panel-header {
+  border-bottom-color: transparent;
+}
+
+.soulwing-trace-brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 13px;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.95), transparent 28%),
+    linear-gradient(135deg, #ecfeff, #eff6ff 52%, #f5f3ff);
+  color: #2563eb;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.1), inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+}
+
+.soulwing-execution-stack {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0 1rem 1rem;
+}
+
+.soulwing-execution-section {
+  overflow: hidden;
+  border: 1px solid rgba(203, 213, 225, 0.72);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.soulwing-execution-section > summary::-webkit-details-marker,
+.soulwing-thought-row > summary::-webkit-details-marker,
+.soulwing-tool-row > summary::-webkit-details-marker {
+  display: none;
+}
+
+.soulwing-execution-section-header {
+  display: flex;
+  min-height: 3.25rem;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.86);
+  padding: 0.75rem 1rem;
+}
+
+.soulwing-execution-section-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  color: #2563eb;
+  background: linear-gradient(135deg, #eff6ff, #ecfeff);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+}
+
+.soulwing-tool-section .soulwing-execution-section-icon {
+  color: #0f766e;
+  background: linear-gradient(135deg, #ecfeff, #f0fdfa);
+  box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.12);
+}
+
+.soulwing-status-spark {
+  animation: soulwing-status-spark 1.4s ease-in-out infinite;
+}
+
+.soulwing-execution-live-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.55rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #eff6ff, #ecfeff);
+  padding: 0 0.65rem;
+  color: #2563eb;
+  font-size: 0.72rem;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+}
+
+.soulwing-execution-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem 0.6rem;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.soulwing-execution-metrics span {
+  white-space: nowrap;
+}
+
+.soulwing-execution-chevron,
+.soulwing-row-chevron {
+  flex: 0 0 auto;
+  color: #94a3b8;
+  transition: transform 180ms ease;
+}
+
+.group[open] > summary .soulwing-execution-chevron,
+.group[open] > summary .soulwing-row-chevron,
+details[open] > summary .soulwing-execution-chevron,
+details[open] > summary .soulwing-row-chevron {
+  transform: rotate(180deg);
+}
+
+.soulwing-trace-tone-cyan {
+  --trace-color: #22b8d4;
+  --trace-soft: #dff7ff;
+  --trace-ink: #047c96;
+}
+
+.soulwing-trace-tone-emerald {
+  --trace-color: #2fbf7f;
+  --trace-soft: #dcfce7;
+  --trace-ink: #047857;
+}
+
+.soulwing-trace-tone-amber {
+  --trace-color: #f59e0b;
+  --trace-soft: #fff1d6;
+  --trace-ink: #b45309;
+}
+
+.soulwing-trace-tone-violet {
+  --trace-color: #8b5cf6;
+  --trace-soft: #ede9fe;
+  --trace-ink: #6d28d9;
+}
+
+.soulwing-trace-tone-blue {
+  --trace-color: #3b82f6;
+  --trace-soft: #dbeafe;
+  --trace-ink: #1d4ed8;
+}
+
+.soulwing-trace-tone-rose {
+  --trace-color: #fb7185;
+  --trace-soft: #ffe4e6;
+  --trace-ink: #be123c;
+}
+
+.soulwing-trace-tone-teal {
+  --trace-color: #14b8a6;
+  --trace-soft: #ccfbf1;
+  --trace-ink: #0f766e;
+}
+
+.soulwing-trace-tone-danger,
+.soulwing-thought-row-danger,
+.soulwing-tool-row.is-failed {
+  --trace-color: #ef4444;
+  --trace-soft: #fee2e2;
+  --trace-ink: #dc2626;
+}
+
+.soulwing-thought-row.soulwing-trace-tone-cyan,
+.soulwing-tool-row.soulwing-trace-tone-cyan {
+  --trace-color: #22b8d4;
+  --trace-soft: #dff7ff;
+  --trace-ink: #047c96;
+  --trace-line-width: 2px;
+  --trace-line: repeating-linear-gradient(180deg, color-mix(in srgb, var(--trace-color) 90%, white) 0 0.22rem, transparent 0.22rem 0.55rem);
+  --trace-line-size: 100% 0.55rem;
+  --trace-line-shadow: 0 0 8px color-mix(in srgb, var(--trace-color) 14%, transparent);
+  --trace-line-animation: soulwing-trace-line-flow 3.2s ease-in-out infinite;
+}
+
+.soulwing-thought-row.soulwing-trace-tone-emerald,
+.soulwing-tool-row.soulwing-trace-tone-emerald {
+  --trace-color: #2fbf7f;
+  --trace-soft: #dcfce7;
+  --trace-ink: #047857;
+  --trace-line-width: 2px;
+  --trace-line: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--trace-color) 92%, white) 0 1px, transparent 1.35px);
+  --trace-line-size: 100% 0.5rem;
+  --trace-line-shadow: 0 0 8px color-mix(in srgb, var(--trace-color) 12%, transparent);
+  --trace-line-animation: soulwing-trace-line-march 2.4s linear infinite;
+}
+
+.soulwing-thought-row.soulwing-trace-tone-amber,
+.soulwing-tool-row.soulwing-trace-tone-amber {
+  --trace-color: #f59e0b;
+  --trace-soft: #fff1d6;
+  --trace-ink: #b45309;
+  --trace-line-width: 2px;
+  --trace-line: repeating-linear-gradient(180deg, color-mix(in srgb, var(--trace-color) 90%, white) 0 0.16rem, transparent 0.16rem 0.42rem, color-mix(in srgb, var(--trace-color) 52%, transparent) 0.42rem 0.48rem, transparent 0.48rem 0.7rem);
+  --trace-line-size: 100% 0.7rem;
+  --trace-line-shadow: 0 0 8px color-mix(in srgb, var(--trace-color) 14%, transparent);
+  --trace-line-animation: soulwing-trace-line-march 2.8s linear infinite;
+}
+
+.soulwing-thought-row.soulwing-trace-tone-violet,
+.soulwing-tool-row.soulwing-trace-tone-violet {
+  --trace-color: #8b5cf6;
+  --trace-soft: #ede9fe;
+  --trace-ink: #6d28d9;
+  --trace-line-width: 2px;
+  --trace-line: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--trace-color) 88%, white) 0 1px, transparent 1.3px), repeating-linear-gradient(180deg, transparent 0 0.24rem, color-mix(in srgb, var(--trace-color) 22%, transparent) 0.24rem 0.28rem, transparent 0.28rem 0.56rem);
+  --trace-line-size: 100% 0.62rem, 100% 0.56rem;
+  --trace-line-shadow: 0 0 8px color-mix(in srgb, var(--trace-color) 13%, transparent);
+  --trace-line-animation: soulwing-trace-line-breathe 2.6s ease-in-out infinite;
+}
+
+.soulwing-thought-row.soulwing-trace-tone-blue,
+.soulwing-tool-row.soulwing-trace-tone-blue {
+  --trace-color: #3b82f6;
+  --trace-soft: #dbeafe;
+  --trace-ink: #1d4ed8;
+  --trace-line-width: 2px;
+  --trace-line: repeating-linear-gradient(180deg, color-mix(in srgb, var(--trace-color) 88%, white) 0 0.28rem, transparent 0.28rem 0.68rem);
+  --trace-line-size: 100% 0.68rem;
+  --trace-line-shadow: 0 0 8px color-mix(in srgb, var(--trace-color) 12%, transparent);
+  --trace-line-animation: soulwing-trace-line-march 2.1s linear infinite;
+}
+
+.soulwing-thought-row.soulwing-trace-tone-rose,
+.soulwing-tool-row.soulwing-trace-tone-rose {
+  --trace-color: #fb7185;
+  --trace-soft: #ffe4e6;
+  --trace-ink: #be123c;
+  --trace-line-width: 2px;
+  --trace-line: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--trace-color) 88%, white) 0 1px, transparent 1.35px);
+  --trace-line-size: 100% 0.48rem;
+  --trace-line-shadow: 0 0 8px color-mix(in srgb, var(--trace-color) 14%, transparent);
+  --trace-line-animation: soulwing-trace-line-march 2.5s linear infinite;
+}
+
+.soulwing-thought-row.soulwing-trace-tone-teal,
+.soulwing-tool-row.soulwing-trace-tone-teal {
+  --trace-color: #14b8a6;
+  --trace-soft: #ccfbf1;
+  --trace-ink: #0f766e;
+  --trace-line-width: 2px;
+  --trace-line: repeating-linear-gradient(180deg, color-mix(in srgb, var(--trace-color) 82%, white) 0 0.18rem, transparent 0.18rem 0.36rem, color-mix(in srgb, var(--trace-color) 48%, transparent) 0.36rem 0.48rem, transparent 0.48rem 0.72rem);
+  --trace-line-size: 100% 0.72rem;
+  --trace-line-shadow: 0 0 8px color-mix(in srgb, var(--trace-color) 12%, transparent);
+  --trace-line-animation: soulwing-trace-line-march 2.6s linear infinite;
+}
+
+.soulwing-thought-row.soulwing-trace-tone-danger,
+.soulwing-tool-row.soulwing-trace-tone-danger,
+.soulwing-tool-row.is-failed {
+  --trace-color: #ef4444;
+  --trace-soft: #fee2e2;
+  --trace-ink: #dc2626;
+  --trace-line-width: 2px;
+  --trace-line: repeating-linear-gradient(180deg, color-mix(in srgb, var(--trace-color) 88%, white) 0 0.2rem, transparent 0.2rem 0.52rem);
+  --trace-line-size: 100% 0.52rem;
+  --trace-line-shadow: 0 0 8px color-mix(in srgb, var(--trace-color) 13%, transparent);
+  --trace-line-animation: soulwing-trace-line-alert 1.9s ease-in-out infinite;
+}
+
+.soulwing-thought-timeline {
+  position: relative;
+  padding: 0.35rem 0 0.65rem;
+}
+
+.soulwing-thought-row {
+  --trace-color: #38bdf8;
+  --trace-soft: #e0f2fe;
+  --trace-ink: #0369a1;
+  --trace-line-width: 2px;
+  --trace-line: repeating-linear-gradient(180deg, color-mix(in srgb, var(--trace-color) 86%, white) 0 0.2rem, transparent 0.2rem 0.54rem);
+  --trace-line-size: 100% 0.54rem;
+  --trace-line-shadow: 0 0 8px color-mix(in srgb, var(--trace-color) 12%, transparent);
+  --trace-line-animation: soulwing-trace-line-flow 3.6s ease-in-out infinite;
+  display: block;
+}
+
+.soulwing-thought-row-emerald {
+  --trace-color: #34d399;
+}
+
+.soulwing-thought-row-amber {
+  --trace-color: #f59e0b;
+}
+
+.soulwing-thought-row-violet {
+  --trace-color: #8b5cf6;
+}
+
+.soulwing-thought-row-danger {
+  --trace-color: #ef4444;
+}
+
+.soulwing-thought-summary {
+  display: grid;
+  grid-template-columns: 2.15rem minmax(13rem, 1.1fr) minmax(12rem, 1fr) auto 1rem;
+  gap: 0.68rem;
+  align-items: center;
+  min-height: 3.45rem;
+  cursor: pointer;
+  list-style: none;
+  padding: 0 1rem 0 0.6rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.92);
+}
+
+.soulwing-thought-row:last-child .soulwing-thought-summary {
+  border-bottom-color: transparent;
+}
+
+.soulwing-thought-rail {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+}
+
+.soulwing-thought-rail::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  bottom: -50%;
+  width: var(--trace-line-width);
+  border-radius: 999px;
+  background: var(--trace-line);
+  background-size: var(--trace-line-size);
+  background-repeat: repeat-y;
+  box-shadow: var(--trace-line-shadow);
+  animation: var(--trace-line-animation);
+}
+
+.soulwing-thought-row:last-child .soulwing-thought-rail::after {
+  display: none;
+}
+
+.soulwing-thought-dot {
+  position: relative;
+  z-index: 1;
+  width: 1.02rem;
+  height: 1.02rem;
+  border: 0.24rem solid var(--trace-color);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 0.46rem color-mix(in srgb, var(--trace-color) 13%, transparent), 0 8px 16px color-mix(in srgb, var(--trace-color) 16%, transparent);
+}
+
+.soulwing-thought-tag {
+  border-radius: 999px;
+  background: var(--trace-soft);
+  padding: 0.22rem 0.62rem;
+  color: var(--trace-ink);
+  font-size: 0.73rem;
+  font-weight: 800;
+}
+
+.soulwing-thought-main,
+.soulwing-thought-evidence {
+  min-width: 0;
+}
+
+.soulwing-thought-rich,
+.soulwing-thought-evidence .trace-inline-markdown {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  margin-top: 0.22rem;
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.soulwing-thought-evidence {
+  color: #64748b;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.soulwing-thought-evidence span {
+  color: #94a3b8;
+}
+
+.soulwing-thought-evidence .trace-inline-markdown {
+  margin-top: 0.08rem;
+  color: #334155;
+  font-weight: 600;
+}
+
+.soulwing-thought-state {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.soulwing-done-state,
+.soulwing-thinking-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  color: #059669;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.soulwing-thinking-state {
+  color: #2563eb;
+}
+
+.soulwing-failed-state {
+  color: #dc2626;
+}
+
+.soulwing-thought-detail,
+.soulwing-tool-detail {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.86);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.82), #fff);
+  padding: 0.8rem 1rem 0.95rem 2.8rem;
+}
+
+.soulwing-thinking-empty {
+  display: flex;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 1rem;
+  color: #64748b;
+}
+
+.soulwing-thinking-empty p {
+  color: #0f172a;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.soulwing-thinking-empty span {
+  font-size: 0.82rem;
+}
+
+.soulwing-tool-table {
+  padding: 0.35rem 0;
+}
+
+.soulwing-tool-row {
+  --trace-color: #22b8d4;
+  --trace-soft: #e0f7ff;
+  --trace-ink: #047c96;
+  --trace-line-width: 2px;
+  --trace-line: repeating-linear-gradient(180deg, color-mix(in srgb, var(--trace-color) 82%, white) 0 0.2rem, transparent 0.2rem 0.54rem);
+  --trace-line-size: 100% 0.54rem;
+  --trace-line-shadow: 0 0 8px color-mix(in srgb, var(--trace-color) 12%, transparent);
+  --trace-line-animation: soulwing-trace-line-flow 3.6s ease-in-out infinite;
+  display: block;
+}
+
+.soulwing-tool-summary {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(12rem, 1.15fr) minmax(10rem, 0.95fr) minmax(10rem, 0.95fr) auto 1rem;
+  gap: 0.75rem;
+  align-items: center;
+  min-height: 4.1rem;
+  cursor: pointer;
+  list-style: none;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.92);
+  padding: 0.55rem 1rem 0.55rem 0.65rem;
+}
+
+.soulwing-tool-row:last-child .soulwing-tool-summary {
+  border-bottom-color: transparent;
+}
+
+.soulwing-tool-index {
+  position: relative;
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.soulwing-tool-index::after {
+  content: "";
+  position: absolute;
+  left: 0.62rem;
+  top: calc(50% + 0.78rem);
+  bottom: calc(-50% - 0.78rem);
+  width: var(--trace-line-width);
+  border-radius: 999px;
+  background: var(--trace-line);
+  background-size: var(--trace-line-size);
+  background-repeat: repeat-y;
+  box-shadow: var(--trace-line-shadow);
+  animation: var(--trace-line-animation);
+}
+
+.soulwing-tool-row:last-child .soulwing-tool-index::after {
+  display: none;
+}
+
+.soulwing-tool-index strong {
+  position: relative;
+  z-index: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: var(--trace-soft);
+  color: var(--trace-ink);
+  font-size: 0.78rem;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--trace-color) 15%, transparent);
+}
+
+.soulwing-tool-status-dot {
+  position: relative;
+  z-index: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 1.32rem;
+  height: 1.32rem;
+  border-radius: 999px;
+  background: var(--trace-color);
+  color: #fff;
+  box-shadow: 0 0 0 0.38rem color-mix(in srgb, var(--trace-color) 13%, transparent), 0 8px 16px color-mix(in srgb, var(--trace-color) 16%, transparent);
+}
+
+.soulwing-tool-row.is-running .soulwing-tool-status-dot {
+  background: var(--trace-color);
+}
+
+.soulwing-tool-row.is-running .soulwing-tool-status-dot span {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: #fff;
+  animation: soulwing-tool-dot 1.2s ease-in-out infinite;
+}
+
+.soulwing-tool-row.is-failed .soulwing-tool-status-dot {
+  background: var(--trace-color);
+}
+
+.soulwing-tool-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.soulwing-tool-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--trace-color) 20%, #cbd5e1);
+  border-radius: 0.62rem;
+  background: color-mix(in srgb, var(--trace-color) 7%, white);
+  color: var(--trace-ink);
+}
+
+.soulwing-tool-name p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.soulwing-tool-name p span {
+  margin-left: 0.5rem;
+  border-radius: 999px;
+  background: var(--trace-soft);
+  padding: 0.12rem 0.48rem;
+  color: var(--trace-ink);
+  font-size: 0.68rem;
+  font-weight: 800;
+  vertical-align: 1px;
+}
+
+.soulwing-tool-row.is-running .soulwing-tool-name p span {
+  background: var(--trace-soft);
+  color: var(--trace-ink);
+}
+
+.soulwing-tool-name small,
+.soulwing-tool-data span {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.soulwing-tool-name small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.soulwing-tool-data {
+  min-width: 0;
+  border-left: 1px solid rgba(226, 232, 240, 0.92);
+  padding-left: 0.9rem;
+}
+
+.soulwing-tool-data p {
+  margin-top: 0.2rem;
+  color: #334155;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.soulwing-tool-summary time {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.soulwing-tool-progress {
+  display: grid;
+  grid-template-columns: minmax(5rem, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+.soulwing-tool-progress {
+  color: #64748b;
+}
+
+.soulwing-tool-progress::before {
+  display: none;
+}
+
+.soulwing-tool-progress i {
+  position: relative;
+  display: block;
+  height: 0.28rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--trace-color), color-mix(in srgb, var(--trace-color) 42%, #22d3ee), #34d399);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--trace-color) 10%, transparent);
+}
+
+.soulwing-tool-progress em {
+  color: #475569;
+  font-size: 0.72rem;
+  font-style: normal;
+}
+
+.soulwing-trace-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.soulwing-trace-detail-cell {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  border-radius: 0.6rem;
+  background: #fff;
+  padding: 0.65rem;
+}
+
+.soulwing-trace-detail-cell > p {
+  margin-bottom: 0.35rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.trace-payload {
+  border-radius: 0.5rem;
+  background: #f8fafc;
+}
+
+.trace-markdown .prose {
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+.trace-markdown .prose blockquote {
+  border-color: #38bdf8;
+  background: #f0f9ff;
+}
+
+.trace-markdown .prose strong {
+  background: linear-gradient(180deg, rgba(186, 230, 253, 0.72), rgba(219, 234, 254, 0.42));
+}
+
+@keyframes soulwing-butterfly-aura {
+  0%, 100% {
+    opacity: 0.58;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 0.94;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes soulwing-butterfly-breathe {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 8px 16px rgba(37, 99, 235, 0.18)) saturate(1.05);
+  }
+  50% {
+    transform: translateY(-1px) scale(1.08);
+    filter: drop-shadow(0 10px 22px rgba(99, 102, 241, 0.26)) saturate(1.28);
+  }
+}
+
+@keyframes soulwing-butterfly-spark {
+  0%, 100% {
+    opacity: 0;
+    transform: translateY(0) scale(0.78);
+  }
+  48% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1);
+  }
+}
+
+@keyframes soulwing-tool-dot {
+  0%, 100% {
+    transform: scale(0.78);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+}
+
+@keyframes soulwing-status-spark {
+  0%, 100% {
+    opacity: 0.62;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+@media (max-width: 1180px) {
+  .soulwing-tool-summary {
+    grid-template-columns: 3rem minmax(0, 1fr) auto 1rem;
+  }
+
+  .soulwing-tool-data {
+    grid-column: 2 / -1;
+    border-left: 0;
+    border-top: 1px solid rgba(226, 232, 240, 0.82);
+    padding-top: 0.5rem;
+    padding-left: 0;
+  }
+
+  .soulwing-tool-data + .soulwing-tool-data {
+    margin-top: -0.3rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .soulwing-thought-summary {
+    grid-template-columns: 1.8rem minmax(0, 1fr) auto;
+  }
+
+  .soulwing-thought-evidence,
+  .soulwing-thought-state time {
+    display: none;
+  }
+
+  .soulwing-tool-summary {
+    grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+  }
+
+  .soulwing-tool-data,
+  .soulwing-tool-summary time {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .soulwing-trace-panel {
+    border-radius: 13px;
+  }
+
+  .soulwing-trace-panel-header {
+    align-items: flex-start;
+    padding: 0.85rem;
+  }
+
+  .soulwing-execution-stack {
+    padding: 0 0.55rem 0.7rem;
+  }
+
+  .soulwing-execution-section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .soulwing-execution-metrics {
+    justify-content: flex-start;
+  }
+
+  .soulwing-thought-summary,
+  .soulwing-tool-summary {
+    padding-right: 0.72rem;
+  }
+
+  .soulwing-thought-detail,
+  .soulwing-tool-detail {
+    padding-left: 0.8rem;
+  }
+
+  .soulwing-trace-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soulwing-butterfly-glyph.is-thinking .soulwing-butterfly-aura,
+  .soulwing-butterfly-glyph.is-thinking .soulwing-butterfly-img,
+  .soulwing-butterfly-glyph.is-thinking .soulwing-butterfly-sparkle,
+  .soulwing-status-spark,
+  .soulwing-tool-row.is-running .soulwing-tool-status-dot span {
+    animation: none;
+  }
+
+  .soulwing-thought-rail::after,
+  .soulwing-tool-index::after {
+    animation: none;
+  }
+}
+
 .sql-assistant-markdown .prose {
+  min-width: 0;
   max-width: none;
   font-size: 12px;
   line-height: 1.65;
+  overflow-wrap: anywhere;
 }
 
 .sql-assistant-markdown .prose p,
@@ -1567,6 +3630,8 @@ a:hover {
 }
 
 .sql-assistant-markdown .prose .prose-code-block {
+  min-width: 0;
+  max-width: 100%;
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
 }
@@ -1600,6 +3665,9 @@ a:hover {
 }
 
 .sql-assistant-markdown .prose .prose-code-block pre {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
@@ -1607,6 +3675,173 @@ a:hover {
 @keyframes announcement-marquee {
   0% { transform: translateX(100%); }
   100% { transform: translateX(-100%); }
+}
+
+.header-announcement-ticker {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: rgba(191, 219, 254, 0.78);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(239, 246, 255, 0.76)),
+    radial-gradient(circle at 8% 50%, rgba(59, 130, 246, 0.14), transparent 34%);
+  color: #334155;
+  box-shadow:
+    0 8px 24px rgba(37, 99, 235, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+.header-announcement-ticker::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 0%, rgba(59, 130, 246, 0.13) 42%, rgba(45, 212, 191, 0.12) 52%, transparent 66%);
+  opacity: 0;
+  transform: translateX(-70%);
+}
+
+.header-announcement-ticker.has-announcement {
+  border-color: rgba(147, 197, 253, 0.92);
+  color: #1e40af;
+  box-shadow:
+    0 10px 28px rgba(37, 99, 235, 0.11),
+    0 0 0 1px rgba(219, 234, 254, 0.72) inset;
+}
+
+.header-announcement-ticker.has-announcement::before {
+  opacity: 1;
+  animation: header-announcement-sheen 5.8s ease-in-out infinite;
+}
+
+.header-announcement-ticker.is-empty {
+  border-color: rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.82);
+  color: #64748b;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+}
+
+.header-announcement-ticker:hover,
+.header-announcement-ticker:focus-within {
+  border-color: rgba(96, 165, 250, 0.92);
+  background:
+    linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(240, 253, 250, 0.86)),
+    radial-gradient(circle at 12% 50%, rgba(59, 130, 246, 0.18), transparent 36%);
+  color: #1d4ed8;
+}
+
+.header-announcement-button {
+  position: relative;
+  z-index: 1;
+}
+
+.header-announcement-icon {
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.86), transparent 28%),
+    rgba(219, 234, 254, 0.92);
+  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.24);
+}
+
+.header-announcement-ticker.has-announcement .header-announcement-icon {
+  animation: header-announcement-icon-pulse 2.8s ease-out infinite;
+}
+
+.header-announcement-viewport {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(90deg, transparent 0, #000 1.25rem, #000 calc(100% - 1.55rem), transparent 100%);
+}
+
+.header-announcement-ticker.is-empty .header-announcement-viewport,
+.header-announcement-ticker:not(.is-scrolling) .header-announcement-viewport {
+  mask-image: none;
+}
+
+.header-announcement-track {
+  --announcement-marquee-duration: 24s;
+  display: inline-flex;
+  min-width: max-content;
+  animation: header-announcement-scroll var(--announcement-marquee-duration) linear infinite;
+  will-change: transform;
+}
+
+.header-announcement-ticker:hover .header-announcement-track,
+.header-announcement-ticker:focus-within .header-announcement-track {
+  animation-play-state: paused;
+}
+
+.header-announcement-marquee,
+.header-announcement-static,
+.header-announcement-empty {
+  display: inline-block;
+  min-width: 0;
+  font-weight: 680;
+  line-height: 1.2;
+}
+
+.header-announcement-marquee {
+  padding-right: 3.2rem;
+}
+
+.header-announcement-static {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.header-announcement-ticker.has-announcement:not(.is-scrolling) .header-announcement-static {
+  animation: header-announcement-static-glow 4.8s ease-in-out infinite;
+}
+
+.header-announcement-empty {
+  color: #64748b;
+  font-weight: 640;
+}
+
+@keyframes header-announcement-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes header-announcement-sheen {
+  0%, 48%, 100% {
+    transform: translateX(-72%);
+    opacity: 0;
+  }
+  12%, 34% {
+    opacity: 1;
+  }
+  42% {
+    transform: translateX(72%);
+    opacity: 0;
+  }
+}
+
+@keyframes header-announcement-icon-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.24);
+    transform: scale(1);
+  }
+  56% {
+    box-shadow: 0 0 0 0.42rem rgba(37, 99, 235, 0);
+    transform: scale(1.04);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+    transform: scale(1);
+  }
+}
+
+@keyframes header-announcement-static-glow {
+  0%, 100% {
+    color: #1e40af;
+  }
+  48% {
+    color: #2563eb;
+  }
 }
 
 .recent-activity-shell {
@@ -1701,6 +3936,10 @@ a:hover {
   .recent-activity-sheen,
   .recent-activity-pulse,
   .recent-activity-item,
+  .header-announcement-ticker::before,
+  .header-announcement-icon,
+  .header-announcement-track,
+  .header-announcement-static,
   .soulwing-chat-link::after,
   .soulwing-butterfly {
     animation: none;
@@ -1709,6 +3948,14 @@ a:hover {
   .recent-activity-item {
     opacity: 1;
     transform: none;
+  }
+
+  .header-announcement-track {
+    transform: none;
+  }
+
+  .header-announcement-track .header-announcement-marquee[aria-hidden="true"] {
+    display: none;
   }
 }
 
@@ -2519,3 +4766,1269 @@ a:hover {
 
 /* KaTeX display math centering */
 .katex-display { overflow-x: auto; overflow-y: hidden; }
+
+.soulwing-empty-scroll,
+.soulwing-empty-canvas {
+  background:
+    linear-gradient(132deg, rgba(239, 246, 255, 0.98) 0%, rgba(255, 255, 255, 0.98) 36%, rgba(240, 253, 250, 0.88) 100%),
+    #fff;
+}
+
+.soulwing-empty-state {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.65rem, 1.1vw, 0.95rem);
+  width: 100%;
+  min-height: 100%;
+  margin-inline: auto;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: clamp(2rem, 5.4vh, 5rem) clamp(1rem, 3vw, 2.5rem);
+  justify-content: center;
+  box-shadow: none;
+}
+
+.soulwing-empty-state::before {
+  content: none;
+}
+
+.soulwing-empty-hero {
+  max-width: 780px;
+  margin: 0 auto;
+  padding-block: clamp(0.2rem, 0.8vw, 0.55rem) 0;
+  text-align: center;
+}
+
+.soulwing-empty-kicker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border: 1px solid rgba(191, 219, 254, 0.84);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.72rem 1.35rem;
+  color: #2563eb;
+  font-size: clamp(1.1rem, 1.55vw, 1.35rem);
+  font-weight: 820;
+  line-height: 1;
+  box-shadow: 0 10px 26px rgba(37, 99, 235, 0.07);
+}
+
+.soulwing-empty-composer {
+  background: transparent;
+  padding: 0.1rem clamp(0.15rem, 1vw, 0.6rem) 0.15rem;
+}
+
+.soulwing-docked-composer {
+  background: transparent;
+}
+
+.soulwing-empty-composer-mobile {
+  max-width: 760px;
+  margin-inline: auto;
+}
+
+.soulwing-inspiration-cluster {
+  --suggestions-open-height: 22rem;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  width: min(100%, 1120px);
+  flex-direction: column;
+  gap: 0.72rem;
+  margin-inline: auto;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.soulwing-inspiration-composer-dock {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 1120px);
+  margin-inline: auto;
+  transform-origin: 50% 0%;
+}
+
+.soulwing-inspiration-cluster.is-settling .soulwing-featured-suggestions,
+.soulwing-inspiration-cluster.is-settling .soulwing-butterfly-stage,
+.soulwing-empty-state.is-settling .soulwing-empty-composer {
+  animation: soulwing-inspiration-settle 420ms cubic-bezier(0.18, 0.92, 0.22, 1) both;
+}
+
+.soulwing-butterfly-stage {
+  display: flex;
+  min-height: 3.8rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.soulwing-inspiration-butterfly-trigger {
+  position: relative;
+  display: inline-grid;
+  width: 3.85rem;
+  height: 3.85rem;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  isolation: isolate;
+}
+
+.soulwing-inspiration-butterfly-trigger::before {
+  content: "";
+  position: absolute;
+  inset: 0.38rem;
+  z-index: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.95), transparent 34%),
+    conic-gradient(from 110deg, rgba(56, 189, 248, 0.34), rgba(52, 211, 153, 0.26), rgba(167, 139, 250, 0.3), rgba(56, 189, 248, 0.34));
+  filter: blur(0.15rem);
+  opacity: 0.74;
+  transform: scale(0.94);
+  animation: soulwing-butterfly-glow 3.2s ease-in-out infinite;
+}
+
+.soulwing-inspiration-butterfly-trigger:hover .soulwing-inspiration-butterfly-image,
+.soulwing-inspiration-butterfly-trigger:focus-visible .soulwing-inspiration-butterfly-image {
+  transform: translateY(-2px) scale(1.08);
+}
+
+.soulwing-inspiration-butterfly-trigger:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.9);
+  outline-offset: 5px;
+}
+
+.soulwing-inspiration-butterfly-trigger.is-expanded {
+  cursor: pointer;
+}
+
+.soulwing-inspiration-butterfly-image {
+  position: relative;
+  z-index: 1;
+  width: 3.35rem;
+  height: 3.35rem;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(37, 99, 235, 0.2));
+  transform-origin: 50% 56%;
+  animation: soulwing-empty-butterfly 2.9s ease-in-out infinite;
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.soulwing-inspiration-butterfly-trigger.is-spitting::before {
+  animation: soulwing-butterfly-glow 0.82s ease-in-out both;
+}
+
+.soulwing-inspiration-butterfly-trigger.is-spitting .soulwing-inspiration-butterfly-image {
+  animation: soulwing-butterfly-spit 0.82s cubic-bezier(0.2, 0.92, 0.25, 1) both;
+}
+
+.soulwing-inspiration-butterfly-trigger.is-absorbing::before {
+  animation: soulwing-butterfly-absorb-glow 0.82s ease-in-out both;
+}
+
+.soulwing-inspiration-butterfly-trigger.is-absorbing .soulwing-inspiration-butterfly-image {
+  animation: soulwing-butterfly-absorb 0.82s cubic-bezier(0.2, 0.92, 0.25, 1) both;
+}
+
+.soulwing-butterfly-bubble {
+  position: absolute;
+  left: calc(100% + 0.55rem);
+  top: 50%;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  width: max-content;
+  max-width: min(14rem, calc(100vw - 3rem));
+  transform: translate(0.58rem, -50%) scale(0.92) rotate(-1deg);
+  transform-origin: 0 50%;
+  border: 1px solid rgba(147, 197, 253, 0.72);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.88) 48%, rgba(236, 253, 245, 0.9)),
+    radial-gradient(circle at 8% 16%, rgba(165, 180, 252, 0.24), transparent 34%);
+  padding: 0.48rem 0.78rem 0.48rem 0.5rem;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  filter: blur(2px) saturate(1.12);
+  box-shadow:
+    0 14px 34px rgba(37, 99, 235, 0.14),
+    0 0 0 0.38rem rgba(219, 234, 254, 0.42);
+  pointer-events: none;
+  transition:
+    opacity 520ms ease,
+    filter 520ms ease,
+    transform 620ms cubic-bezier(0.18, 0.92, 0.22, 1);
+}
+
+.soulwing-butterfly-bubble::before {
+  content: "";
+  position: absolute;
+  inset: -0.18rem;
+  z-index: -1;
+  border-radius: inherit;
+  background:
+    linear-gradient(115deg, rgba(34, 211, 238, 0), rgba(34, 211, 238, 0.26), rgba(139, 92, 246, 0.16), rgba(34, 211, 238, 0));
+  opacity: 0;
+  transform: translateX(-0.18rem);
+  transition: opacity 520ms ease, transform 820ms ease;
+}
+
+.soulwing-butterfly-bubble::after {
+  content: "";
+  position: absolute;
+  left: -0.28rem;
+  top: 50%;
+  width: 0.56rem;
+  height: 0.56rem;
+  border-left: 1px solid rgba(147, 197, 253, 0.72);
+  border-bottom: 1px solid rgba(147, 197, 253, 0.72);
+  background: rgba(248, 250, 252, 0.94);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.soulwing-butterfly-bubble-icon {
+  flex: 0 0 auto;
+  color: #8b5cf6;
+  filter: drop-shadow(0 0 0.38rem rgba(139, 92, 246, 0.28));
+}
+
+.soulwing-butterfly-bubble.is-visible {
+  opacity: 1;
+  filter: blur(0) saturate(1);
+  transform: translate(0, -50%) scale(1) rotate(0deg);
+  animation: soulwing-bubble-drift 4.8s ease-in-out both;
+}
+
+.soulwing-butterfly-bubble.is-visible::before {
+  opacity: 1;
+  transform: translateX(0.12rem);
+  animation: soulwing-bubble-sheen 2.8s ease-in-out 0.22s both;
+}
+
+.soulwing-inspiration-butterfly-trigger:hover .soulwing-butterfly-bubble,
+.soulwing-inspiration-butterfly-trigger:focus-visible .soulwing-butterfly-bubble {
+  opacity: 1;
+  filter: blur(0) saturate(1);
+  transform: translate(0, -50%) scale(1) rotate(0deg);
+}
+
+.soulwing-inspiration-butterfly-trigger:hover .soulwing-butterfly-bubble::before,
+.soulwing-inspiration-butterfly-trigger:focus-visible .soulwing-butterfly-bubble::before {
+  opacity: 1;
+  transform: translateX(0.12rem);
+}
+
+.soulwing-inspiration-butterfly-trigger.is-expanded .soulwing-butterfly-bubble {
+  display: none;
+}
+
+.soulwing-butterfly-loading {
+  position: absolute;
+  right: 0.12rem;
+  bottom: 0.18rem;
+  z-index: 2;
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2563eb;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
+}
+
+.soulwing-featured-suggestions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.72rem;
+  margin-top: 0;
+}
+
+.soulwing-featured-suggestion {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 3.85rem;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(191, 219, 254, 0.68);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.78rem 0.92rem;
+  text-align: left;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.032);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.soulwing-featured-suggestion::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, var(--suggestion-soft, rgba(219, 234, 254, 0.36)), transparent 62%);
+  opacity: 0.62;
+}
+
+.soulwing-featured-suggestion > * {
+  position: relative;
+  z-index: 1;
+}
+
+.soulwing-featured-suggestion:nth-child(1) {
+  --suggestion-accent: #2563eb;
+  --suggestion-soft: rgba(219, 234, 254, 0.82);
+}
+
+.soulwing-featured-suggestion:nth-child(2) {
+  --suggestion-accent: #0f9f8f;
+  --suggestion-soft: rgba(204, 251, 241, 0.82);
+}
+
+.soulwing-featured-suggestion:nth-child(3) {
+  --suggestion-accent: #8b5cf6;
+  --suggestion-soft: rgba(237, 233, 254, 0.82);
+}
+
+.soulwing-featured-suggestion:hover {
+  border-color: color-mix(in srgb, var(--suggestion-accent, #2563eb) 38%, white);
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.08);
+  transform: translateY(-2px);
+}
+
+.soulwing-featured-suggestion:focus-visible,
+.soulwing-compact-suggestion:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+}
+
+.soulwing-featured-suggestion-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 0.72rem;
+}
+
+.soulwing-featured-suggestion-meta {
+  display: inline-flex;
+  min-width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  padding: 0 0.48rem;
+  color: var(--suggestion-accent, #2563eb);
+  font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1;
+  font-family: var(--font-mono);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.soulwing-featured-suggestion-text {
+  display: -webkit-box;
+  margin-top: 0;
+  min-width: 0;
+  color: #0f172a;
+  font-size: clamp(0.95rem, 1.18vw, 1.04rem);
+  font-weight: 780;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.soulwing-compact-suggestions {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.62rem;
+  margin-top: 0;
+  perspective: 900px;
+  transform-origin: 50% -3rem;
+  z-index: 1;
+}
+
+.soulwing-compact-suggestions-shell {
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+  overflow: visible;
+  transform: translateY(-0.35rem) scaleY(0.98);
+  transform-origin: 50% 0;
+  will-change: max-height, margin-top, opacity, transform;
+}
+
+.soulwing-compact-suggestions-shell.is-gsap-managed {
+  height: 0;
+  max-height: none;
+  margin-top: 0;
+  opacity: 0;
+  overflow: visible;
+  transform: none;
+  will-change: height, margin-top, opacity;
+}
+
+.soulwing-compact-suggestions-shell.is-gsap-open {
+  height: auto;
+  margin-top: 0.35rem;
+  opacity: 1;
+}
+
+.soulwing-compact-suggestions-shell.is-opening {
+  animation: soulwing-suggestions-layout-open 1250ms cubic-bezier(0.18, 0.92, 0.24, 1) both;
+}
+
+.soulwing-compact-suggestions-shell.is-open {
+  max-height: var(--suggestions-open-height);
+  margin-top: 0.35rem;
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+}
+
+.soulwing-compact-suggestions-shell.is-closing {
+  animation: soulwing-suggestions-layout-close 1900ms cubic-bezier(0.58, 0, 0.22, 1) both;
+}
+
+.soulwing-compact-suggestion {
+  --idea-delay: 0ms;
+  --origin-x: 0rem;
+  --origin-y: -5.8rem;
+  --return-x: 0rem;
+  --return-y: -5.8rem;
+  --mid-x: 0rem;
+  --mid-y: -2.4rem;
+  --spin-start: -42deg;
+  --spin-end: 42deg;
+  --swirl-tilt: -9deg;
+  --close-delay: 0ms;
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  overflow: visible;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 0.74rem 0.82rem;
+  text-align: left;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  isolation: isolate;
+}
+
+.soulwing-compact-suggestion > span {
+  position: relative;
+  z-index: 2;
+}
+
+.soulwing-inspiration-tethers {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.soulwing-inspiration-tether-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.46;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  opacity: 0;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  filter: blur(0.15px) drop-shadow(0 0 1.5px currentColor);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: none;
+}
+
+.soulwing-inspiration-seeds {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.soulwing-inspiration-seed {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0.78rem;
+  height: 0.78rem;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.96), transparent 30%),
+    currentColor;
+  color: rgba(56, 189, 248, 0.84);
+  opacity: 0;
+  box-shadow:
+    0 0 0 0.32rem color-mix(in srgb, currentColor 16%, transparent),
+    0 0 1rem color-mix(in srgb, currentColor 42%, transparent);
+  will-change: transform, opacity;
+}
+
+.soulwing-inspiration-seed-1 {
+  color: rgba(6, 182, 212, 0.86);
+}
+
+.soulwing-inspiration-seed-2 {
+  color: rgba(16, 185, 129, 0.82);
+}
+
+.soulwing-inspiration-seed-3 {
+  color: rgba(245, 158, 11, 0.78);
+}
+
+.soulwing-inspiration-seed-4 {
+  color: rgba(139, 92, 246, 0.82);
+}
+
+.soulwing-inspiration-seed-5 {
+  color: rgba(59, 130, 246, 0.84);
+}
+
+.soulwing-inspiration-seed-6 {
+  color: rgba(244, 63, 94, 0.72);
+}
+
+.soulwing-compact-suggestions.is-gsap-managed .soulwing-compact-suggestion {
+  opacity: 0;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  will-change: transform, opacity, filter;
+}
+
+.soulwing-compact-suggestions-shell.is-gsap-open .soulwing-compact-suggestion {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+.soulwing-inspiration-tether-line-1 {
+  color: rgba(6, 182, 212, 0.78);
+}
+
+.soulwing-inspiration-tether-line-2 {
+  color: rgba(16, 185, 129, 0.74);
+}
+
+.soulwing-inspiration-tether-line-3 {
+  color: rgba(245, 158, 11, 0.7);
+}
+
+.soulwing-inspiration-tether-line-4 {
+  color: rgba(139, 92, 246, 0.72);
+}
+
+.soulwing-inspiration-tether-line-5 {
+  color: rgba(59, 130, 246, 0.74);
+}
+
+.soulwing-inspiration-tether-line-6 {
+  color: rgba(244, 63, 94, 0.68);
+}
+
+.soulwing-inspiration-tether-line:nth-child(3n + 1) {
+  animation-delay: 0ms, 0ms;
+}
+
+.soulwing-inspiration-tether-line:nth-child(3n + 2) {
+  animation-delay: 180ms, 120ms;
+}
+
+.soulwing-inspiration-tether-line:nth-child(3n) {
+  animation-delay: 360ms, 240ms;
+}
+
+.soulwing-compact-suggestion:nth-child(6n + 1) {
+  --compact-accent: #06b6d4;
+  --compact-soft: rgba(207, 250, 254, 0.72);
+  --idea-delay: 0ms;
+  --spin-start: -56deg;
+  --spin-end: 52deg;
+  --swirl-tilt: 11deg;
+  --close-delay: 210ms;
+}
+
+.soulwing-compact-suggestion:nth-child(6n + 2) {
+  --compact-accent: #10b981;
+  --compact-soft: rgba(209, 250, 229, 0.72);
+  --idea-delay: 45ms;
+  --spin-start: 34deg;
+  --spin-end: -38deg;
+  --swirl-tilt: -8deg;
+  --close-delay: 168ms;
+}
+
+.soulwing-compact-suggestion:nth-child(6n + 3) {
+  --compact-accent: #f59e0b;
+  --compact-soft: rgba(254, 243, 199, 0.72);
+  --idea-delay: 90ms;
+  --spin-start: 58deg;
+  --spin-end: -50deg;
+  --swirl-tilt: 14deg;
+  --close-delay: 126ms;
+}
+
+.soulwing-compact-suggestion:nth-child(6n + 4) {
+  --compact-accent: #8b5cf6;
+  --compact-soft: rgba(237, 233, 254, 0.74);
+  --idea-delay: 135ms;
+  --spin-start: -46deg;
+  --spin-end: 48deg;
+  --swirl-tilt: -13deg;
+  --close-delay: 84ms;
+}
+
+.soulwing-compact-suggestion:nth-child(6n + 5) {
+  --compact-accent: #3b82f6;
+  --compact-soft: rgba(219, 234, 254, 0.74);
+  --idea-delay: 180ms;
+  --spin-start: 42deg;
+  --spin-end: -44deg;
+  --swirl-tilt: 8deg;
+  --close-delay: 42ms;
+}
+
+.soulwing-compact-suggestion:nth-child(6n) {
+  --compact-accent: #f43f5e;
+  --compact-soft: rgba(255, 228, 230, 0.68);
+  --idea-delay: 225ms;
+  --spin-start: -52deg;
+  --spin-end: 50deg;
+  --swirl-tilt: -10deg;
+  --close-delay: 0ms;
+}
+
+.soulwing-compact-suggestion:nth-child(3n + 1) {
+  --origin-x: 23.5rem;
+  --return-x: 23.5rem;
+  --mid-x: 8.6rem;
+}
+
+.soulwing-compact-suggestion:nth-child(3n + 2) {
+  --origin-x: 0rem;
+  --return-x: 0rem;
+  --mid-x: 0rem;
+}
+
+.soulwing-compact-suggestion:nth-child(3n) {
+  --origin-x: -23.5rem;
+  --return-x: -23.5rem;
+  --mid-x: -8.6rem;
+}
+
+.soulwing-compact-suggestion:nth-child(-n + 3) {
+  --origin-y: -9.2rem;
+  --return-y: -9.2rem;
+  --mid-y: -3.5rem;
+}
+
+.soulwing-compact-suggestion:nth-child(n + 4):nth-child(-n + 6) {
+  --origin-y: -13.7rem;
+  --return-y: -13.7rem;
+  --mid-y: -5.4rem;
+}
+
+.soulwing-compact-suggestion:nth-child(n + 7):nth-child(-n + 9) {
+  --origin-y: -18.2rem;
+  --return-y: -18.2rem;
+  --mid-y: -7.2rem;
+}
+
+.soulwing-compact-suggestion:nth-child(n + 10):nth-child(-n + 12) {
+  --origin-y: -22.7rem;
+  --return-y: -22.7rem;
+  --mid-y: -9rem;
+}
+
+.soulwing-compact-suggestions.is-opening .soulwing-compact-suggestion {
+  animation: soulwing-inspiration-spit 1580ms cubic-bezier(0.16, 0.92, 0.24, 1) both;
+  animation-delay: var(--idea-delay);
+  will-change: transform, opacity, filter;
+}
+
+.soulwing-compact-suggestions.is-opening .soulwing-inspiration-tether-line {
+  animation: soulwing-svg-tether-draw 1580ms cubic-bezier(0.16, 0.92, 0.24, 1) both, soulwing-tether-sway 5.4s ease-in-out infinite, soulwing-tether-current 4.6s linear infinite;
+  animation-delay: var(--idea-delay), calc(var(--idea-delay) + 1240ms), calc(var(--idea-delay) + 1240ms);
+}
+
+.soulwing-compact-suggestions.is-closing {
+  pointer-events: none;
+}
+
+.soulwing-compact-suggestions.is-closing .soulwing-compact-suggestion {
+  animation: soulwing-inspiration-swirl-in 1900ms cubic-bezier(0.64, 0, 0.22, 1) both;
+  animation-delay: var(--close-delay);
+  will-change: transform, opacity, filter;
+}
+
+.soulwing-compact-suggestions.is-closing .soulwing-inspiration-tether-line {
+  animation: soulwing-svg-tether-retract 1900ms cubic-bezier(0.64, 0, 0.22, 1) both;
+  animation-delay: var(--close-delay);
+}
+
+.soulwing-compact-suggestion:hover {
+  border-color: color-mix(in srgb, var(--compact-accent, #2563eb) 32%, white);
+  background: linear-gradient(135deg, var(--compact-soft, rgba(219, 234, 254, 0.65)), rgba(255, 255, 255, 0.94) 64%);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.055);
+  transform: translateY(-1px);
+}
+
+.soulwing-compact-suggestion-index {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--compact-soft, rgba(219, 234, 254, 0.72));
+  color: var(--compact-accent, #2563eb);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.soulwing-compact-suggestion-text {
+  min-width: 0;
+  color: #1e293b;
+  font-size: 0.88rem;
+  font-weight: 680;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+@keyframes soulwing-empty-butterfly {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 8px 14px rgba(37, 99, 235, 0.14));
+  }
+  50% {
+    transform: translateY(-3px) scale(1.05);
+    filter: drop-shadow(0 10px 18px rgba(14, 165, 233, 0.2));
+  }
+}
+
+@keyframes soulwing-butterfly-glow {
+  0%, 100% {
+    opacity: 0.56;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes soulwing-butterfly-spit {
+  0% {
+    transform: scale(0.92) rotate(-7deg);
+    filter: drop-shadow(0 8px 14px rgba(37, 99, 235, 0.12));
+  }
+  38% {
+    transform: scale(1.18) rotate(5deg);
+    filter: drop-shadow(0 16px 28px rgba(14, 165, 233, 0.24));
+  }
+  66% {
+    transform: scale(0.96) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 10px 20px rgba(37, 99, 235, 0.2));
+  }
+}
+
+@keyframes soulwing-butterfly-absorb {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  42% {
+    transform: scale(1.2) rotate(-8deg);
+    filter: drop-shadow(0 16px 30px rgba(37, 99, 235, 0.28));
+  }
+  78% {
+    transform: scale(0.9) rotate(6deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 10px 20px rgba(37, 99, 235, 0.2));
+  }
+}
+
+@keyframes soulwing-butterfly-absorb-glow {
+  0% {
+    opacity: 0.58;
+    transform: scale(0.96);
+  }
+  52% {
+    opacity: 1;
+    transform: scale(1.22) rotate(18deg);
+  }
+  100% {
+    opacity: 0.66;
+    transform: scale(0.94);
+  }
+}
+
+@keyframes soulwing-suggestions-layout-open {
+  0% {
+    max-height: 0;
+    margin-top: 0;
+    opacity: 0;
+    transform: translateY(-0.5rem) scaleY(0.96);
+  }
+  54% {
+    max-height: var(--suggestions-open-height);
+    margin-top: 0.28rem;
+    opacity: 1;
+    transform: translateY(0.08rem) scaleY(1.015);
+  }
+  82% {
+    max-height: var(--suggestions-open-height);
+    margin-top: 0.35rem;
+    transform: translateY(-0.04rem) scaleY(0.995);
+  }
+  100% {
+    max-height: var(--suggestions-open-height);
+    margin-top: 0.35rem;
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes soulwing-suggestions-layout-close {
+  0% {
+    max-height: var(--suggestions-open-height);
+    margin-top: 0.35rem;
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+  56% {
+    max-height: var(--suggestions-open-height);
+    margin-top: 0.28rem;
+    opacity: 0.9;
+    transform: translateY(-0.16rem) scaleY(0.98);
+  }
+  82% {
+    max-height: 2.6rem;
+    margin-top: 0.08rem;
+    opacity: 0.18;
+    transform: translateY(-0.4rem) scaleY(0.72);
+  }
+  100% {
+    max-height: 0;
+    margin-top: 0;
+    opacity: 0;
+    transform: translateY(-0.32rem) scaleY(0.48);
+  }
+}
+
+@keyframes soulwing-tether-sway {
+  0%, 100% {
+    opacity: 0.1;
+    transform: translate3d(-1.8px, 0, 0) skewX(-0.65deg);
+  }
+  34% {
+    opacity: 0.18;
+    transform: translate3d(1.6px, -1.4px, 0) skewX(0.85deg);
+  }
+  66% {
+    opacity: 0.13;
+    transform: translate3d(0.8px, 1.1px, 0) skewX(-0.45deg);
+  }
+}
+
+@keyframes soulwing-tether-current {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -0.42;
+  }
+}
+
+@keyframes soulwing-svg-tether-draw {
+  0% {
+    opacity: 0;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    filter: blur(1.4px) drop-shadow(0 0 2px currentColor);
+  }
+  28% {
+    opacity: 0.04;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0.82;
+    filter: blur(1px) drop-shadow(0 0 2px currentColor);
+  }
+  72% {
+    opacity: 0.11;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0.22;
+    filter: blur(0.25px) drop-shadow(0 0 2px currentColor);
+  }
+  100% {
+    opacity: 0.1;
+    stroke-dasharray: 0.038 0.09;
+    stroke-dashoffset: 0;
+    filter: blur(0.15px) drop-shadow(0 0 1.5px currentColor);
+  }
+}
+
+@keyframes soulwing-svg-tether-retract {
+  0% {
+    opacity: 0.1;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+    filter: blur(0.15px) drop-shadow(0 0 1.5px currentColor);
+  }
+  38% {
+    opacity: 0.13;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0.22;
+    filter: blur(0.35px) drop-shadow(0 0 2px currentColor);
+  }
+  100% {
+    opacity: 0;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    filter: blur(1.8px) drop-shadow(0 0 2px currentColor);
+  }
+}
+
+@keyframes soulwing-inspiration-spit {
+  0% {
+    opacity: 0.08;
+    transform: translate(var(--origin-x), var(--origin-y)) rotate(var(--spin-start)) scale(0.12);
+    filter: blur(10px) saturate(1.38);
+  }
+  18% {
+    opacity: 0.42;
+    transform: translate(var(--origin-x), var(--origin-y)) rotate(var(--spin-start)) scale(0.32);
+    filter: blur(7px) saturate(1.34);
+  }
+  58% {
+    opacity: 0.82;
+    transform: translate(var(--mid-x), var(--mid-y)) rotate(var(--swirl-tilt)) scale(0.76);
+    filter: blur(3.8px) saturate(1.18);
+  }
+  86% {
+    opacity: 1;
+    transform: translate(0, -0.24rem) rotate(var(--swirl-tilt)) scale(1.02);
+    filter: blur(0) saturate(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    filter: none;
+  }
+}
+
+@keyframes soulwing-inspiration-swirl-in {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    filter: none;
+  }
+  18% {
+    opacity: 0.98;
+    transform: translate(0, -0.18rem) rotate(var(--swirl-tilt)) scale(0.96);
+    filter: blur(0) saturate(1.08);
+  }
+  50% {
+    opacity: 0.74;
+    transform: translate(var(--mid-x), var(--mid-y)) rotate(var(--swirl-tilt)) scale(0.62);
+    filter: blur(2.6px) saturate(1.2);
+  }
+  84% {
+    opacity: 0.18;
+    transform: translate(var(--return-x), var(--return-y)) rotate(var(--spin-end)) scale(0.18);
+    filter: blur(7px) saturate(1.36);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--return-x), var(--return-y)) rotate(var(--spin-end)) scale(0.08);
+    filter: blur(9px) saturate(1.45);
+  }
+}
+
+@keyframes soulwing-inspiration-settle {
+  0% {
+    transform: translateY(-0.18rem) scaleY(0.985);
+  }
+  38% {
+    transform: translateY(0.13rem) scaleY(1.014);
+  }
+  68% {
+    transform: translateY(-0.045rem) scaleY(0.998);
+  }
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes soulwing-bubble-drift {
+  0% {
+    transform: translate(0.36rem, -50%) scale(0.94) rotate(-1.6deg);
+  }
+  18% {
+    transform: translate(0, -52%) scale(1.02) rotate(0.35deg);
+  }
+  46% {
+    transform: translate(0.04rem, -49%) scale(1) rotate(-0.18deg);
+  }
+  74% {
+    transform: translate(-0.02rem, -51%) scale(1.006) rotate(0.14deg);
+  }
+  100% {
+    transform: translate(0, -50%) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes soulwing-bubble-sheen {
+  0% {
+    opacity: 0;
+    transform: translateX(-0.4rem) scaleX(0.76);
+  }
+  36% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+    transform: translateX(0.22rem) scaleX(1);
+  }
+}
+
+@media (max-width: 1100px) {
+  .soulwing-inspiration-cluster {
+    --suggestions-open-height: 36rem;
+  }
+
+  .soulwing-featured-suggestions,
+  .soulwing-compact-suggestions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .soulwing-compact-suggestion:nth-child(odd) {
+    --origin-x: 17rem;
+    --return-x: 17rem;
+    --mid-x: 6.2rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(even) {
+    --origin-x: -17rem;
+    --return-x: -17rem;
+    --mid-x: -6.2rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(-n + 2) {
+    --origin-y: -9.3rem;
+    --return-y: -9.3rem;
+    --mid-y: -3.5rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(n + 3):nth-child(-n + 4) {
+    --origin-y: -13.8rem;
+    --return-y: -13.8rem;
+    --mid-y: -5.4rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(n + 5):nth-child(-n + 6) {
+    --origin-y: -18.3rem;
+    --return-y: -18.3rem;
+    --mid-y: -7.2rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(n + 7):nth-child(-n + 8) {
+    --origin-y: -22.8rem;
+    --return-y: -22.8rem;
+    --mid-y: -9rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(n + 9):nth-child(-n + 10) {
+    --origin-y: -27.3rem;
+    --return-y: -27.3rem;
+    --mid-y: -10.8rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(n + 11):nth-child(-n + 12) {
+    --origin-y: -31.8rem;
+    --return-y: -31.8rem;
+    --mid-y: -12.6rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .soulwing-empty-state {
+    border-radius: 0;
+    padding: 1.15rem;
+  }
+
+  .soulwing-inspiration-cluster {
+    --suggestions-open-height: 64rem;
+    gap: 0.62rem;
+  }
+
+  .soulwing-butterfly-stage {
+    min-height: 3.5rem;
+  }
+
+  .soulwing-featured-suggestions,
+  .soulwing-compact-suggestions {
+    grid-template-columns: 1fr;
+  }
+
+  .soulwing-compact-suggestion {
+    --origin-x: 0rem;
+    --return-x: 0rem;
+    --mid-x: 0rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(1) {
+    --origin-y: -17.8rem;
+    --return-y: -17.8rem;
+    --mid-y: -6.9rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(2) {
+    --origin-y: -22rem;
+    --return-y: -22rem;
+    --mid-y: -8.7rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(3) {
+    --origin-y: -26.2rem;
+    --return-y: -26.2rem;
+    --mid-y: -10.5rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(4) {
+    --origin-y: -30.4rem;
+    --return-y: -30.4rem;
+    --mid-y: -12.3rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(5) {
+    --origin-y: -34.6rem;
+    --return-y: -34.6rem;
+    --mid-y: -14.1rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(6) {
+    --origin-y: -38.8rem;
+    --return-y: -38.8rem;
+    --mid-y: -15.9rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(7) {
+    --origin-y: -43rem;
+    --return-y: -43rem;
+    --mid-y: -17.7rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(8) {
+    --origin-y: -47.2rem;
+    --return-y: -47.2rem;
+    --mid-y: -19.5rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(9) {
+    --origin-y: -51.4rem;
+    --return-y: -51.4rem;
+    --mid-y: -21.3rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(10) {
+    --origin-y: -55.6rem;
+    --return-y: -55.6rem;
+    --mid-y: -23.1rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(11) {
+    --origin-y: -59.8rem;
+    --return-y: -59.8rem;
+    --mid-y: -24.9rem;
+  }
+
+  .soulwing-compact-suggestion:nth-child(n + 12) {
+    --origin-y: -64rem;
+    --return-y: -64rem;
+    --mid-y: -26.7rem;
+  }
+
+  .soulwing-inspiration-tethers {
+    opacity: 0.55;
+  }
+
+  .soulwing-featured-suggestion {
+    min-height: 3.95rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soulwing-inspiration-butterfly,
+  .soulwing-inspiration-butterfly-trigger::before,
+  .soulwing-inspiration-butterfly-image,
+  .soulwing-butterfly-bubble,
+  .soulwing-compact-suggestions.is-opening .soulwing-compact-suggestion,
+  .soulwing-compact-suggestions.is-closing .soulwing-compact-suggestion,
+  .soulwing-inspiration-tether-line,
+  .soulwing-compact-suggestions-shell.is-opening,
+  .soulwing-compact-suggestions-shell.is-closing,
+  .soulwing-inspiration-cluster.is-settling .soulwing-featured-suggestions,
+  .soulwing-inspiration-cluster.is-settling .soulwing-butterfly-stage,
+  .soulwing-empty-state.is-settling .soulwing-empty-composer,
+  .soulwing-featured-suggestion,
+  .soulwing-compact-suggestion,
+  .soulwing-mobile-panel-backdrop,
+  .soulwing-mobile-sidebar-panel,
+  .soulwing-mobile-controls-panel {
+    animation: none;
+    transition: none;
+  }
+
+  .soulwing-butterfly-bubble {
+    opacity: 0;
+    transform: translate(0.4rem, -50%) scale(0.98);
+  }
+
+  .soulwing-butterfly-bubble.is-visible,
+  .soulwing-inspiration-butterfly-trigger:hover .soulwing-butterfly-bubble,
+  .soulwing-inspiration-butterfly-trigger:focus-visible .soulwing-butterfly-bubble {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+  }
+
+  .soulwing-featured-suggestion:hover,
+  .soulwing-compact-suggestion:hover {
+    transform: none;
+  }
+}

@@ -13,10 +13,10 @@ const MODULE_LABEL: Record<FriendModuleNavKey, string> = {
 }
 
 function moduleLinkClass(active: boolean) {
-  return `inline-flex h-7 items-center rounded-full px-3 text-sm font-medium leading-none transition-all duration-200 hover:no-underline ${
+  return `inline-flex min-h-10 shrink-0 items-center rounded-full px-4 text-sm font-medium leading-none transition-all duration-200 hover:no-underline ${
     active
-      ? "bg-[--color-brand] text-white shadow-[0_4px_12px_rgba(37,99,235,0.2)]"
-      : "text-[--color-text-secondary] hover:bg-[--color-brand-soft] hover:text-[--color-brand]"
+      ? "bg-[--color-brand] text-white shadow-[0_8px_20px_rgba(37,99,235,0.2)]"
+      : "border border-[--color-border] bg-white/58 text-[--color-text-secondary] hover:border-[--color-brand-border] hover:bg-[--color-brand-soft] hover:text-[--color-brand]"
   }`
 }
 
@@ -34,10 +34,10 @@ export function FriendModuleNav({
   const visibleModules = FRIEND_MODULE_NAV_KEYS.filter((module) => modules[module])
 
   return (
-    <nav className="mb-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+    <nav className="mb-5 flex max-w-full items-center gap-2 overflow-x-auto rounded-[22px] border border-[--color-border] bg-[--color-bg-surface-glass] p-2 text-sm shadow-[--shadow-profile-card] backdrop-blur-xl">
       <Link
         href={`/u/${ownerId}`}
-        className="inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-[--color-text-secondary] transition-all duration-200 hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline"
+        className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-medium text-[--color-text-secondary] transition-all duration-200 hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline"
       >
         <ArrowLeft size={13} /> {displayName}
       </Link>
@@ -65,7 +65,7 @@ export function FriendModuleLinks({
   modules: Record<FriendModuleNavKey, boolean>
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+    <div className="flex flex-wrap items-center gap-2">
       {FRIEND_MODULE_NAV_KEYS.filter((module) => modules[module]).map((module) => (
         <Link
           key={module}

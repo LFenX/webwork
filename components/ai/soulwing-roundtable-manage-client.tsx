@@ -489,7 +489,7 @@ export function SoulWingRoundtableManageClient({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <section className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-4 sm:p-5">
+      <section className="overflow-hidden rounded-[22px] border border-white/80 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.07)] ring-1 ring-slate-200/70 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-lg font-semibold">
@@ -502,7 +502,7 @@ export function SoulWingRoundtableManageClient({
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" size="sm">
-              <Link href="/channels">回到频道</Link>
+              <Link href="/friends?type=channel&id=soulwing-roundtable">回到频道</Link>
             </Button>
             {isOwner ? (
               <Button variant="outline" size="sm" onClick={runSchedulerNow} loading={saving} loadingText="触发中..." title="按设置时间立即触发到时的讨论">
@@ -965,9 +965,9 @@ export function SoulWingRoundtableManageClient({
 
 function Panel({ title, icon, children }: { title: string; icon?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-4 sm:p-5">
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold sm:text-base">
-        {icon}
+    <section className="overflow-hidden rounded-[22px] border border-white/80 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.07)] ring-1 ring-slate-200/70 sm:p-5">
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950 sm:text-base">
+        {icon ? <span className="flex h-9 w-9 items-center justify-center rounded-[14px] bg-blue-50 text-blue-600">{icon}</span> : null}
         <span>{title}</span>
       </div>
       {children}
@@ -982,9 +982,9 @@ function InfoPill({ label, value, accent, tone }: { label: string; value: string
       ? "text-[--color-accent]"
       : "text-[--color-text-primary]"
   return (
-    <div className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-primary] px-3 py-2">
-      <p className="text-xs text-[--color-text-muted]">{label}</p>
-      <p className={`mt-1 truncate text-sm font-medium ${valueClass}`}>{value}</p>
+    <div className="rounded-[18px] border border-slate-200/80 bg-slate-50/70 px-3 py-2 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`mt-1 truncate text-sm font-semibold ${valueClass}`}>{value}</p>
     </div>
   )
 }
@@ -1006,7 +1006,7 @@ function TopicEditPanel(props: {
   saving: boolean
 }) {
   return (
-    <section className="rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-4">
+    <section className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.05)]">
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs text-[--color-text-muted]">{props.label}</p>
         {props.editable && !props.editing ? (

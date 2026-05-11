@@ -32,71 +32,76 @@ interface Props {
 }
 
 export function WebsiteFilterBar({
-  q, onQChange, folders, activeFolderId, onSelectFolder,
-  contributors, activeSharedBy, onSelectUser,
-  activeFilters, onClearAll, session, onOpenForm,
+  q,
+  onQChange,
+  folders,
+  activeFolderId,
+  onSelectFolder,
+  contributors,
+  activeSharedBy,
+  onSelectUser,
+  activeFilters,
+  onClearAll,
+  session,
+  onOpenForm,
 }: Props) {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
 
   const filterPanel = (
     <div className="space-y-4 p-1">
-      {/* Folder filter */}
       <div>
-        <p className="mb-2 text-xs font-medium text-[--color-text-muted]">文件夹</p>
+        <p className="mb-2 text-xs font-semibold text-slate-400">文件夹</p>
         <div className="space-y-1">
           <button
             type="button"
             onClick={() => onSelectFolder("")}
-            className={`block w-full rounded-[--radius-sm] px-2 py-1.5 text-left text-sm transition-colors ${
-              !activeFolderId ? "bg-[--color-brand-soft] text-[--color-brand] font-medium" : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"
+            className={`block w-full rounded-[12px] px-3 py-2 text-left text-sm transition-colors ${
+              !activeFolderId ? "bg-blue-50 font-semibold text-blue-600" : "text-slate-600 hover:bg-slate-50"
             }`}
           >
             全部文件夹
           </button>
-          {folders.map((f) => (
+          {folders.map((folder) => (
             <button
-              key={f.id}
+              key={folder.id}
               type="button"
-              onClick={() => onSelectFolder(f.id)}
-              className={`block w-full rounded-[--radius-sm] px-2 py-1.5 text-left text-sm transition-colors ${
-                activeFolderId === f.id ? "bg-[--color-brand-soft] text-[--color-brand] font-medium" : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"
+              onClick={() => onSelectFolder(folder.id)}
+              className={`block w-full rounded-[12px] px-3 py-2 text-left text-sm transition-colors ${
+                activeFolderId === folder.id ? "bg-blue-50 font-semibold text-blue-600" : "text-slate-600 hover:bg-slate-50"
               }`}
             >
-              {f.name}
-              <span className="ml-1 text-xs text-[--color-text-muted]">
-                ({f._count?.websites ?? 0})
-              </span>
+              {folder.name}
+              <span className="ml-1 text-xs text-slate-400">({folder._count?.websites ?? 0})</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* User filter */}
       {contributors.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-medium text-[--color-text-muted]">分享者</p>
-          <div className="space-y-1 max-h-48 overflow-y-auto">
+          <p className="mb-2 text-xs font-semibold text-slate-400">分享者</p>
+          <div className="max-h-48 space-y-1 overflow-y-auto">
             <button
               type="button"
               onClick={() => onSelectUser("")}
-              className={`block w-full rounded-[--radius-sm] px-2 py-1.5 text-left text-sm transition-colors ${
-                !activeSharedBy ? "bg-[--color-brand-soft] text-[--color-brand] font-medium" : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"
+              className={`block w-full rounded-[12px] px-3 py-2 text-left text-sm transition-colors ${
+                !activeSharedBy ? "bg-blue-50 font-semibold text-blue-600" : "text-slate-600 hover:bg-slate-50"
               }`}
             >
               全部分享者
             </button>
-            {contributors.map((u) => (
+            {contributors.map((user) => (
               <button
-                key={u.id}
+                key={user.id}
                 type="button"
-                onClick={() => onSelectUser(u.id === activeSharedBy ? "" : u.id)}
-                className={`flex w-full items-center gap-2 rounded-[--radius-sm] px-2 py-1.5 text-left text-sm transition-colors ${
-                  activeSharedBy === u.id ? "bg-[--color-brand-soft] text-[--color-brand] font-medium" : "text-[--color-text-secondary] hover:bg-[--color-bg-hover]"
+                onClick={() => onSelectUser(user.id === activeSharedBy ? "" : user.id)}
+                className={`flex w-full items-center gap-2 rounded-[12px] px-3 py-2 text-left text-sm transition-colors ${
+                  activeSharedBy === user.id ? "bg-blue-50 font-semibold text-blue-600" : "text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                <UserAvatar size="sm" name={u.displayName || "用户"} email="" avatarText={u.avatarText} avatarUrl={u.avatarUrl} />
-                <span className="flex-1 truncate">{u.displayName || "用户"}</span>
-                <span className="text-xs text-[--color-text-muted]">{u.websiteCount}</span>
+                <UserAvatar size="sm" name={user.displayName || "用户"} email="" avatarText={user.avatarText} avatarUrl={user.avatarUrl} />
+                <span className="min-w-0 flex-1 truncate">{user.displayName || "用户"}</span>
+                <span className="text-xs text-slate-400">{user.websiteCount}</span>
               </button>
             ))}
           </div>
@@ -106,91 +111,69 @@ export function WebsiteFilterBar({
   )
 
   return (
-    <div className="space-y-2">
-      {/* Search bar */}
+    <div className="rounded-[20px] border border-slate-200/80 bg-white p-3 shadow-[0_14px_34px_rgba(15,23,42,0.055)] sm:p-4">
       <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[--color-text-muted]" />
+        <div className="relative min-w-0 flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={q}
-            onChange={(e) => onQChange(e.target.value)}
+            onChange={(event) => onQChange(event.target.value)}
             placeholder="搜索网站名称、功能介绍..."
-            className="h-10 w-full rounded-full border border-[--color-border-strong] bg-[--color-bg-surface] pl-9 pr-4 text-sm text-[--color-text-primary] outline-none placeholder:text-[--color-text-muted] transition-colors focus:border-[--color-brand] focus:bg-white"
+            className="h-11 w-full rounded-full border border-slate-200 bg-slate-50 pl-10 pr-9 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
           />
           {q && (
-            <button
-              type="button"
-              onClick={() => onQChange("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[--color-text-muted] hover:text-[--color-text-primary]"
-            >
-              <X size={14} />
+            <button type="button" onClick={() => onQChange("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+              <X size={15} />
             </button>
           )}
         </div>
 
-        {/* Desktop filter popover */}
-        <div className="hidden md:flex items-center gap-2">
+        <div className="hidden items-center gap-2 md:flex">
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
+              <Button variant="outline" size="sm">
                 <SlidersHorizontal size={14} />
                 筛选
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 max-h-[400px] overflow-y-auto" align="end">
+            <PopoverContent className="max-h-[400px] w-72 overflow-y-auto rounded-[18px]" align="end">
               {filterPanel}
             </PopoverContent>
           </Popover>
           {session && (
-            <Button size="sm" onClick={onOpenForm} className="gap-1.5">
+            <Button size="sm" onClick={onOpenForm}>
               <Plus size={14} />
               发布网站
             </Button>
           )}
         </div>
 
-        {/* Mobile filter / publish */}
-        <div className="flex md:hidden items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setMobileFilterOpen((v) => !v)}
-            className="gap-1"
-          >
-            <SlidersHorizontal size={14} />
+        <div className="flex items-center gap-2 md:hidden">
+          <Button variant="outline" size="sm" onClick={() => setMobileFilterOpen((value) => !value)} aria-label="筛选">
+            <SlidersHorizontal size={15} />
           </Button>
         </div>
       </div>
 
-      {/* Active filters */}
       {activeFilters.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {activeFilters.map((f) => (
-            <span key={f} className="inline-flex items-center gap-1 rounded-full bg-[--color-brand-soft] px-2.5 py-1 text-xs text-[--color-brand]">
-              {f}
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {activeFilters.map((filter) => (
+            <span key={filter} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600">
+              {filter}
             </span>
           ))}
-          <button
-            type="button"
-            onClick={onClearAll}
-            className="text-xs text-[--color-text-muted] hover:text-[--color-text-primary] transition-colors"
-          >
+          <button type="button" onClick={onClearAll} className="text-xs font-medium text-slate-400 transition-colors hover:text-slate-700">
             清空全部
           </button>
         </div>
       )}
 
-      {/* Mobile filter panel */}
       {mobileFilterOpen && (
-        <div className="md:hidden rounded-[--radius-md] border border-[--color-border] bg-[--color-bg-surface] p-4 max-h-[60vh] overflow-y-auto">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-[--color-text-primary]">筛选</span>
-            <button
-              type="button"
-              onClick={() => setMobileFilterOpen(false)}
-              className="text-[--color-text-muted] hover:text-[--color-text-primary]"
-            >
+        <div className="mt-3 max-h-[60vh] overflow-y-auto rounded-[18px] border border-slate-200 bg-slate-50 p-4 md:hidden">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-bold text-slate-900">筛选</span>
+            <button type="button" onClick={() => setMobileFilterOpen(false)} className="text-slate-400 hover:text-slate-700">
               <X size={16} />
             </button>
           </div>

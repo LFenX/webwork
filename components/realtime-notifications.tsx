@@ -117,7 +117,7 @@ export function RealtimeNotifications({ userId }: { userId: string }) {
 
       if (payload.type !== "chat:message") return
       const message = asChatMessage(payload.data)
-      if (!message || message.receiverId !== userId || message.senderId === userId) return
+      if (!message || !message.senderId || message.receiverId !== userId || message.senderId === userId) return
 
       const activeContext = getActiveChatContext()
       if (activeContext?.kind === "direct" && activeContext.id === message.senderId) {
@@ -126,7 +126,7 @@ export function RealtimeNotifications({ userId }: { userId: string }) {
 
       window.dispatchEvent(new CustomEvent("chat-unread-refresh"))
 
-      const chatPath = `/friends/chat/${message.senderId}`
+      const chatPath = `/friends?type=direct&id=${encodeURIComponent(message.senderId)}`
       if (pathname === chatPath) return
 
       const senderName = message.sender?.displayName || message.sender?.email || "Friend"
@@ -140,7 +140,7 @@ export function RealtimeNotifications({ userId }: { userId: string }) {
     })
 
     return () => source.close()
-  }, [pathname, router, userId])
+  }, [n, pathname, router, userId])
 
   return null
 }

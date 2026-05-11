@@ -499,6 +499,12 @@ type Dictionary = {
     grantRevoked: string
     newChat: string
     conversations: string
+    sidebarAssistantSubtitle: string
+    conversationToday: string
+    conversationRecent7Days: string
+    conversationEarlier: string
+    soulwingSettings: string
+    personalVersion: string
     more: string
     advanced: string
     generating: string
@@ -513,6 +519,18 @@ type Dictionary = {
     removeImage: string
     uploadImage: string
     clickToSend: string
+    startNewConversation: string
+    inspirationSuggestions: string
+    suggestionGeneratedHint: string
+    suggestionFallbackHint: string
+    suggestionsUpdating: string
+    suggestionsCount: (count: number) => string
+    featuredSuggestion: string
+    moreSuggestion: string
+    showMoreInspirations: string
+    hideMoreInspirations: string
+    moreInspirationBubble: string
+    emptyGreeting: (name: string) => string
     notProvided: string
     answerCopied: string
     applicationStatus: string
@@ -536,6 +554,26 @@ type Dictionary = {
     noExplicitThinking: string
     toolCallsTimes: (count: number) => string
     noToolCalls: string
+    traceExecutionTitle: string
+    traceExecutionHint: string
+    traceKeySignal: string
+    traceNextStep: string
+    traceInput: string
+    traceResult: string
+    tracePayload: string
+    traceRunning: string
+    traceToolRunning: string
+    traceNoExplicitThinking: string
+    traceStatusFailed: string
+    traceStatusRunning: string
+    traceStatusCompleted: string
+    traceKeyJudgement: (count: number) => string
+    tracePendingConfirm: (count: number) => string
+    traceEvidence: string
+    traceApproxDuration: (seconds: number) => string
+    traceToolProgress: string
+    traceQueued: string
+    traceCompletedSummary: string
     viewExecution: string
     executionHint: string
     thinkingProcess: string
@@ -1362,6 +1400,12 @@ const zhCN: Dictionary = {
     grantRevoked: "授权已撤销",
     newChat: "新建",
     conversations: "会话",
+    sidebarAssistantSubtitle: "AI 助手",
+    conversationToday: "今天",
+    conversationRecent7Days: "最近 7 天",
+    conversationEarlier: "更早",
+    soulwingSettings: "蝶灵设置",
+    personalVersion: "个人版",
     more: "更多",
     advanced: "进阶",
     generating: "生成中",
@@ -1376,6 +1420,18 @@ const zhCN: Dictionary = {
     removeImage: "移除图片",
     uploadImage: "上传图片",
     clickToSend: "点击直接发送",
+    startNewConversation: "开始新的对话",
+    inspirationSuggestions: "灵感建议",
+    suggestionGeneratedHint: "根据你的近期内容生成，点击即可发送",
+    suggestionFallbackHint: "系统内置建议，配置模型后会定期刷新",
+    suggestionsUpdating: "更新中",
+    suggestionsCount: (count) => `${count} 条`,
+    featuredSuggestion: "重点灵感",
+    moreSuggestion: "更多灵感",
+    showMoreInspirations: "显示更多灵感",
+    hideMoreInspirations: "收起更多灵感",
+    moreInspirationBubble: "点我获取更多灵感",
+    emptyGreeting: (name) => `我能帮什么忙吗，${name}？`,
     notProvided: "未提供",
     answerCopied: "已复制回答",
     applicationStatus: "最近一次申请：",
@@ -1399,6 +1455,26 @@ const zhCN: Dictionary = {
     noExplicitThinking: "无显式思考阶段",
     toolCallsTimes: (count) => `${count} 次工具调用`,
     noToolCalls: "未调用工具",
+    traceExecutionTitle: "执行轨迹",
+    traceExecutionHint: "把思考和工具动作整理成可读的脉络。",
+    traceKeySignal: "关键判断",
+    traceNextStep: "下一步",
+    traceInput: "输入",
+    traceResult: "结果",
+    tracePayload: "详情",
+    traceRunning: "正在思考",
+    traceToolRunning: "正在调用工具",
+    traceNoExplicitThinking: "蝶灵正在组织回答；如果模型返回显式思考，会在这里浮现。",
+    traceStatusFailed: "异常",
+    traceStatusRunning: "正在推理",
+    traceStatusCompleted: "已完成",
+    traceKeyJudgement: (count) => `关键判断 ${count}`,
+    tracePendingConfirm: (count) => `待确认 ${count}`,
+    traceEvidence: "依据",
+    traceApproxDuration: (seconds) => `约 ${seconds}s`,
+    traceToolProgress: "进度",
+    traceQueued: "排队中",
+    traceCompletedSummary: "已完成",
     viewExecution: "查看执行过程",
     executionHint: "回答完成后默认收起，需要时再展开思考或工具调用。",
     thinkingProcess: "思考过程",
@@ -2233,6 +2309,12 @@ const enUS: Dictionary = {
     grantRevoked: "Grant revoked",
     newChat: "New",
     conversations: "Conversations",
+    sidebarAssistantSubtitle: "AI assistant",
+    conversationToday: "Today",
+    conversationRecent7Days: "Recent 7 days",
+    conversationEarlier: "Earlier",
+    soulwingSettings: "SoulWing settings",
+    personalVersion: "Personal",
     more: "More",
     advanced: "Advanced",
     generating: "Generating",
@@ -2247,6 +2329,18 @@ const enUS: Dictionary = {
     removeImage: "Remove image",
     uploadImage: "Upload image",
     clickToSend: "Click to send",
+    startNewConversation: "Start a new conversation",
+    inspirationSuggestions: "Inspiration prompts",
+    suggestionGeneratedHint: "Generated from your recent context. Click to send.",
+    suggestionFallbackHint: "Built-in prompts. They refresh after the model is configured.",
+    suggestionsUpdating: "Updating",
+    suggestionsCount: (count) => `${count} prompts`,
+    featuredSuggestion: "Featured",
+    moreSuggestion: "More ideas",
+    showMoreInspirations: "Show more ideas",
+    hideMoreInspirations: "Hide more ideas",
+    moreInspirationBubble: "Tap me for more ideas",
+    emptyGreeting: (name) => `How can I help, ${name}?`,
     notProvided: "Not provided",
     answerCopied: "Answer copied",
     applicationStatus: "Last request:",
@@ -2270,6 +2364,26 @@ const enUS: Dictionary = {
     noExplicitThinking: "No explicit thinking stage",
     toolCallsTimes: (count) => `${count} tool calls`,
     noToolCalls: "No tool calls",
+    traceExecutionTitle: "Execution trace",
+    traceExecutionHint: "Thinking and tool actions are organized into readable notes.",
+    traceKeySignal: "Key signal",
+    traceNextStep: "Next step",
+    traceInput: "Input",
+    traceResult: "Result",
+    tracePayload: "Payload",
+    traceRunning: "Thinking",
+    traceToolRunning: "Calling tool",
+    traceNoExplicitThinking: "SoulWing is forming the answer. Explicit thinking will appear here if the provider streams it.",
+    traceStatusFailed: "failed",
+    traceStatusRunning: "thinking",
+    traceStatusCompleted: "completed",
+    traceKeyJudgement: (count) => `Key judgement ${count}`,
+    tracePendingConfirm: (count) => `Pending check ${count}`,
+    traceEvidence: "Evidence",
+    traceApproxDuration: (seconds) => `about ${seconds}s`,
+    traceToolProgress: "Progress",
+    traceQueued: "Queued",
+    traceCompletedSummary: "Completed",
     viewExecution: "View execution process",
     executionHint: "Collapsed by default after completion. Expand to review thinking and tool calls.",
     thinkingProcess: "Thinking process",
