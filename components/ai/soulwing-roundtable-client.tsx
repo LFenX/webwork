@@ -24,6 +24,19 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { UserAvatar } from "@/components/user-avatar"
 
+const ROUNDTABLE_BOTTOM_STICKY_THRESHOLD = 120
+const ROUNDTABLE_BOTTOM_RESUME_THRESHOLD = 4
+
+function isRoundtableScrollNearBottom(element: HTMLElement | null) {
+  if (!element) return true
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= ROUNDTABLE_BOTTOM_STICKY_THRESHOLD
+}
+
+function isRoundtableScrollAtBottom(element: HTMLElement | null) {
+  if (!element) return true
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= ROUNDTABLE_BOTTOM_RESUME_THRESHOLD
+}
+
 type Member = {
   id: string
   email: string
@@ -295,7 +308,15 @@ export function SoulWingRoundtableClient({
   const [showMobileHero, setShowMobileHero] = useState(false)
   const [showMobileControls, setShowMobileControls] = useState(false)
   const [showMobileDiscussionPicker, setShowMobileDiscussionPicker] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const messagesContentRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
+  const shouldStickToBottomRef = useRef(true)
+  const forceScrollToBottomRef = useRef(false)
+  const userPausedAutoScrollRef = useRef(false)
+  const userRequestedAutoScrollResumeRef = useRef(false)
+  const scrollFrameRef = useRef<number | null>(null)
+  const touchYRef = useRef<number | null>(null)
   const mentionPickerRef = useRef<HTMLDivElement>(null)
 
   const loadState = useCallback(async (silent = false) => {
@@ -369,9 +390,97 @@ export function SoulWingRoundtableClient({
     return () => window.clearInterval(timer)
   }, [loadState, state?.isDiscussing, isCompleted, messages.length])
 
+  const scrollToLatestMessage = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    if (scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current)
+      scrollFrameRef.current = null
+    }
+
+    container.scrollTop = container.scrollHeight
+    if (!userPausedAutoScrollRef.current) {
+      shouldStickToBottomRef.current = true
+    }
+
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null
+      if (userPausedAutoScrollRef.current) return
+      container.scrollTop = container.scrollHeight
+    })
+  }, [])
+
+  const pauseAutoScrollForUser = useCallback(() => {
+    userPausedAutoScrollRef.current = true
+    userRequestedAutoScrollResumeRef.current = false
+    shouldStickToBottomRef.current = false
+    forceScrollToBottomRef.current = false
+
+    if (scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current)
+      scrollFrameRef.current = null
+    }
+  }, [])
+
+  const requestAutoScrollResume = useCallback(() => {
+    userRequestedAutoScrollResumeRef.current = true
+  }, [])
+
+  const syncAutoScrollAfterUserScroll = useCallback((container: HTMLElement) => {
+    if (userPausedAutoScrollRef.current) {
+      shouldStickToBottomRef.current = false
+      if (userRequestedAutoScrollResumeRef.current && isRoundtableScrollAtBottom(container)) {
+        userPausedAutoScrollRef.current = false
+        userRequestedAutoScrollResumeRef.current = false
+        shouldStickToBottomRef.current = true
+      }
+      return
+    }
+
+    const isNearBottom = isRoundtableScrollNearBottom(container)
+    shouldStickToBottomRef.current = isNearBottom
+    if (isNearBottom) userRequestedAutoScrollResumeRef.current = false
+  }, [])
+
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" })
-  }, [messages.length, selectedDiscussion?.id])
+    shouldStickToBottomRef.current = true
+    forceScrollToBottomRef.current = true
+    userPausedAutoScrollRef.current = false
+    userRequestedAutoScrollResumeRef.current = false
+  }, [selectedDiscussion?.id])
+
+  useEffect(() => {
+    if (!scrollContainerRef.current || !selectedDiscussion) return
+    if (!forceScrollToBottomRef.current && (userPausedAutoScrollRef.current || !shouldStickToBottomRef.current)) return
+
+    forceScrollToBottomRef.current = false
+    scrollToLatestMessage()
+  }, [isCompleted, isRunning, messages.length, scrollToLatestMessage, selectedDiscussion])
+
+  useEffect(() => {
+    const content = messagesContentRef.current
+    if (!content || typeof ResizeObserver === "undefined") return
+
+    const observer = new ResizeObserver(() => {
+      if (!forceScrollToBottomRef.current && (userPausedAutoScrollRef.current || !shouldStickToBottomRef.current)) return
+      forceScrollToBottomRef.current = false
+      scrollToLatestMessage()
+    })
+
+    observer.observe(content)
+    return () => {
+      observer.disconnect()
+    }
+  }, [selectedDiscussion?.id, scrollToLatestMessage])
+
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current)
+      }
+    }
+  }, [])
 
   async function postMessage() {
     if (!selectedDiscussion) {
@@ -384,6 +493,10 @@ export function SoulWingRoundtableClient({
       return
     }
     const mode = proxyMode ? "proxy" : mentionTargetId ? "mention" : "user_message"
+    shouldStickToBottomRef.current = true
+    forceScrollToBottomRef.current = true
+    userPausedAutoScrollRef.current = false
+    userRequestedAutoScrollResumeRef.current = false
     setPosting(true)
     try {
       const res = await fetch("/api/soulwing-roundtable", {
@@ -426,6 +539,10 @@ export function SoulWingRoundtableClient({
       toast.error("先写下你的追问。")
       return
     }
+    shouldStickToBottomRef.current = true
+    forceScrollToBottomRef.current = true
+    userPausedAutoScrollRef.current = false
+    userRequestedAutoScrollResumeRef.current = false
     setPosting(true)
     try {
       const res = await fetch("/api/soulwing-roundtable", {
@@ -659,13 +776,39 @@ export function SoulWingRoundtableClient({
       </div>
 
       {/* Message stream */}
-      <div className="mobile-chat-scroll min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-violet-50/30 to-transparent px-3 py-4 sm:px-5">
+      <div
+        ref={scrollContainerRef}
+        style={{ overflowAnchor: "none" }}
+        onWheelCapture={(event) => {
+          if (event.deltaY < 0) pauseAutoScrollForUser()
+          else if (event.deltaY > 0) requestAutoScrollResume()
+        }}
+        onTouchStartCapture={(event) => {
+          touchYRef.current = event.touches[0]?.clientY ?? null
+        }}
+        onTouchMoveCapture={(event) => {
+          const currentY = event.touches[0]?.clientY ?? null
+          const previousY = touchYRef.current
+          if (currentY === null || previousY === null) {
+            pauseAutoScrollForUser()
+            touchYRef.current = currentY
+            return
+          }
+          if (currentY > previousY) pauseAutoScrollForUser()
+          else if (currentY < previousY) requestAutoScrollResume()
+          touchYRef.current = currentY
+        }}
+        onScroll={(event) => {
+          syncAutoScrollAfterUserScroll(event.currentTarget)
+        }}
+        className="mobile-chat-scroll min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-violet-50/30 to-transparent px-3 py-4 sm:px-5"
+      >
         {!initialLoaded ? (
           <p className="py-12 text-center text-sm text-[--color-text-muted]">正在连接蝶灵圆桌...</p>
         ) : !selectedDiscussion ? (
           <EmptyState nextTime={state?.nextDiscussionTime ?? null} />
         ) : (
-          <div className="space-y-3">
+          <div ref={messagesContentRef} className="space-y-3">
             <RoundtableTopicMarker discussion={selectedDiscussion} />
             {messages.map((message, index) => {
               const phaseTransition = findPhaseTransition(messages, index)

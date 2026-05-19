@@ -4,6 +4,7 @@ import crypto from "node:crypto"
 import { Pool } from "pg"
 import { prisma } from "@/lib/db"
 import { getCurrentAdmin } from "@/lib/admin"
+import { readForeignKeyGraph } from "@/lib/sql-lab/fk-graph"
 import { applyCatalogToTables, type SqlTableCatalogOverrideInput } from "@/lib/sql-lab/table-catalog"
 import type {
   SqlAccessLevel,
@@ -13,6 +14,11 @@ import type {
   SqlGrantSummary,
   SqlGrantTable,
   SqlHistoryItem,
+  SqlInsightTone,
+  SqlRelationEdge,
+  SqlRelationGraphV2,
+  SqlRelationGraphV2ModuleEdge,
+  SqlRelationNode,
   SqlRunRequest,
   SqlRunResult,
   SqlSchema,
@@ -59,6 +65,8 @@ type ColumnRow = {
   dataType: string
   isNullable: string
   ordinalPosition: number
+  isPrimaryKey: boolean
+  isForeignKey: boolean
 }
 
 type PrivateTableMetaRow = {
@@ -153,7 +161,13 @@ const SQL_KEYWORDS = new Set(
   ].map((x) => x.toLowerCase())
 )
 
-const g = globalThis as unknown as { sqlLabPool?: Pool; sqlLabConnectionString?: string }
+type ActiveSqlQuery = { userId: string; pid: number; startedAt: number }
+
+const g = globalThis as unknown as {
+  sqlLabPool?: Pool
+  sqlLabConnectionString?: string
+  sqlLabActiveQueries?: Map<string, Map<number, ActiveSqlQuery>>
+}
 
 function getPool() {
   const connectionString = process.env.SQL_LAB_DATABASE_URL || process.env.DATABASE_URL
@@ -167,6 +181,41 @@ function getPool() {
     g.sqlLabConnectionString = connectionString
   }
   return g.sqlLabPool
+}
+
+function activeQueries() {
+  if (!g.sqlLabActiveQueries) g.sqlLabActiveQueries = new Map()
+  return g.sqlLabActiveQueries
+}
+
+function registerActiveQuery(key: string | null | undefined, userId: string, pid: number) {
+  if (!key || !pid) return () => undefined
+  const registry = activeQueries()
+  const byPid = registry.get(key) ?? new Map<number, ActiveSqlQuery>()
+  byPid.set(pid, { userId, pid, startedAt: Date.now() })
+  registry.set(key, byPid)
+  return () => {
+    const current = registry.get(key)
+    current?.delete(pid)
+    if (current && current.size === 0) registry.delete(key)
+  }
+}
+
+export async function cancelActiveSql(userId: string, key: string) {
+  const byPid = activeQueries().get(key)
+  const pids = [...(byPid?.values() ?? [])].filter((item) => item.userId === userId).map((item) => item.pid)
+  if (!pids.length) return { cancelled: 0 }
+  const client = await getPool().connect()
+  try {
+    let cancelled = 0
+    for (const pid of pids) {
+      const result = await client.query("SELECT pg_cancel_backend($1) AS cancelled", [pid]).catch(() => null)
+      if (result?.rows?.[0]?.cancelled) cancelled += 1
+    }
+    return { cancelled }
+  } finally {
+    client.release()
+  }
 }
 
 function newId(prefix: string) {
@@ -244,11 +293,37 @@ async function readColumnsForSchemas(schemas: string[]) {
       column_name AS "columnName",
       data_type AS "dataType",
       is_nullable AS "isNullable",
-      ordinal_position AS "ordinalPosition"
-    FROM information_schema.columns
-    WHERE table_schema = ANY(${schemas})
-      AND table_name NOT LIKE '_prisma_%'
-    ORDER BY table_schema, table_name, ordinal_position
+      ordinal_position AS "ordinalPosition",
+      EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_name = tc.constraint_name
+         AND kcu.constraint_schema = tc.constraint_schema
+         AND kcu.table_schema = tc.table_schema
+         AND kcu.table_name = tc.table_name
+        WHERE tc.constraint_type = 'PRIMARY KEY'
+          AND kcu.table_schema = c.table_schema
+          AND kcu.table_name = c.table_name
+          AND kcu.column_name = c.column_name
+      ) AS "isPrimaryKey",
+      EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_name = tc.constraint_name
+         AND kcu.constraint_schema = tc.constraint_schema
+         AND kcu.table_schema = tc.table_schema
+         AND kcu.table_name = tc.table_name
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND kcu.table_schema = c.table_schema
+          AND kcu.table_name = c.table_name
+          AND kcu.column_name = c.column_name
+      ) AS "isForeignKey"
+    FROM information_schema.columns c
+    WHERE c.table_schema = ANY(${schemas})
+      AND c.table_name NOT LIKE '_prisma_%'
+    ORDER BY c.table_schema, c.table_name, c.ordinal_position
   `
 }
 
@@ -319,6 +394,8 @@ async function readTables(userId?: string) {
       name: col.columnName,
       dataType: col.dataType,
       nullable: col.isNullable === "YES",
+      isPrimaryKey: Boolean(col.isPrimaryKey),
+      isForeignKey: Boolean(col.isForeignKey),
     })
     grouped.set(key, table)
   }
@@ -608,7 +685,7 @@ function canonicalizeTouchedTables(touchedTables: string[], tables: SqlTableInfo
   })
 }
 
-function analyzeSql(sql: string): SqlAnalysis {
+export function analyzeSql(sql: string): SqlAnalysis {
   const normalizedSql = normalizeSql(sql)
   if (!normalizedSql) throw new SqlLabError("EMPTY_SQL", "SQL cannot be empty")
   const stripped = stripSql(normalizedSql)
@@ -750,6 +827,11 @@ function pgError(error: unknown) {
   }
 }
 
+function isMissingAuditColumn(error: unknown) {
+  const e = error as { code?: string; message?: string }
+  return e.code === "42703" && /SqlAuditLog|aiInitiated|probePurpose|threadId|threadStepId/i.test(e.message ?? "")
+}
+
 async function recordAudit(input: {
   userId: string
   startedAt: Date
@@ -763,19 +845,42 @@ async function recordAudit(input: {
   errorMessage?: string
   ipAddress?: string
   userAgent?: string
+  threadId?: string
+  threadStepId?: string
+  aiInitiated?: boolean
+  probePurpose?: string
 }) {
-  await prisma.$executeRaw`
-    INSERT INTO "SqlAuditLog" (
-      id, "userId", "startedAt", "durationMs", ok, "rowCount", truncated,
-      "sqlPreview", "fullSqlSha256", "touchedTables", "errorCode", "errorMessage", "ipAddress", "userAgent"
-    )
-    VALUES (
-      ${newId("audit")}, ${input.userId}, ${input.startedAt}, ${input.durationMs}, ${input.ok}, ${input.rowCount},
-      ${input.truncated}, ${input.sql.slice(0, MAX_SQL_PREVIEW)},
-      ${crypto.createHash("sha256").update(input.sql).digest("hex")}, ${input.touchedTables},
-      ${input.errorCode ?? null}, ${input.errorMessage ?? null}, ${input.ipAddress ?? null}, ${input.userAgent ?? null}
-    )
-  `
+  const fullSqlSha256 = crypto.createHash("sha256").update(input.sql).digest("hex")
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO "SqlAuditLog" (
+        id, "userId", "startedAt", "durationMs", ok, "rowCount", truncated,
+        "sqlPreview", "fullSqlSha256", "touchedTables", "errorCode", "errorMessage", "ipAddress", "userAgent",
+        "threadId", "threadStepId", "aiInitiated", "probePurpose"
+      )
+      VALUES (
+        ${newId("audit")}, ${input.userId}, ${input.startedAt}, ${input.durationMs}, ${input.ok}, ${input.rowCount},
+        ${input.truncated}, ${input.sql.slice(0, MAX_SQL_PREVIEW)},
+        ${fullSqlSha256}, ${input.touchedTables},
+        ${input.errorCode ?? null}, ${input.errorMessage ?? null}, ${input.ipAddress ?? null}, ${input.userAgent ?? null},
+        ${input.threadId ?? null}, ${input.threadStepId ?? null}, ${Boolean(input.aiInitiated)}, ${input.probePurpose ?? null}
+      )
+    `
+  } catch (error) {
+    if (!isMissingAuditColumn(error)) throw error
+    await prisma.$executeRaw`
+      INSERT INTO "SqlAuditLog" (
+        id, "userId", "startedAt", "durationMs", ok, "rowCount", truncated,
+        "sqlPreview", "fullSqlSha256", "touchedTables", "errorCode", "errorMessage", "ipAddress", "userAgent"
+      )
+      VALUES (
+        ${newId("audit")}, ${input.userId}, ${input.startedAt}, ${input.durationMs}, ${input.ok}, ${input.rowCount},
+        ${input.truncated}, ${input.sql.slice(0, MAX_SQL_PREVIEW)},
+        ${fullSqlSha256}, ${input.touchedTables},
+        ${input.errorCode ?? null}, ${input.errorMessage ?? null}, ${input.ipAddress ?? null}, ${input.userAgent ?? null}
+      )
+    `
+  }
 }
 
 async function syncPrivateTables(userId: string) {
@@ -805,7 +910,16 @@ async function syncPrivateTables(userId: string) {
 export async function executeSql(
   viewerId: string,
   request: SqlRunRequest,
-  meta?: { ipAddress?: string; userAgent?: string }
+  meta?: {
+    ipAddress?: string
+    userAgent?: string
+    threadId?: string
+    threadStepId?: string
+    aiInitiated?: boolean
+    probePurpose?: string
+    timeoutMs?: number
+    cancelKey?: string
+  }
 ): Promise<SqlRunResult> {
   const startedAt = new Date()
   const runId = newId("run")
@@ -816,9 +930,12 @@ export async function executeSql(
     const privateSchema = await ensurePrivateSchema(viewerId)
     const runnableSql = rewriteSqlIdentifiers(allowed.analysis.normalizedSql, await readTables(viewerId))
     const limit = Math.max(1, Math.min(Number(request.limit || allowed.grant.defaultLimit), allowed.grant.maxLimit))
-    const timeoutMs = Math.max(1000, Math.min(allowed.grant.defaultTimeoutMs, 300_000))
+    const timeoutMs = Math.max(1000, Math.min(meta?.timeoutMs ?? allowed.grant.defaultTimeoutMs, 300_000))
     const client = await getPool().connect()
+    let unregisterActiveQuery: () => void = () => {}
     try {
+      const pidResult = await client.query("SELECT pg_backend_pid() AS pid")
+      unregisterActiveQuery = registerActiveQuery(meta?.cancelKey ?? meta?.threadId, viewerId, Number(pidResult.rows[0]?.pid ?? 0))
       const readOnly = request.forceReadOnly || allowed.analysis.readOnly
       await client.query(readOnly ? "BEGIN READ ONLY" : "BEGIN")
       await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`)
@@ -864,12 +981,13 @@ export async function executeSql(
         sql: allowed.analysis.normalizedSql,
         touchedTables: allowed.analysis.touchedTables,
         ...meta,
-      })
+      }).catch(() => undefined)
       return result
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined)
       throw error
     } finally {
+      unregisterActiveQuery()
       client.release()
     }
   } catch (error) {
@@ -903,6 +1021,28 @@ export async function executeSql(
       touchedTables: analysis?.touchedTables ?? [],
     }
   }
+}
+
+export async function executeSafeProbe(
+  viewerId: string,
+  input: { sql: string; threadId?: string; parentStepId?: string; purpose?: string },
+): Promise<SqlRunResult> {
+  return executeSql(
+    viewerId,
+    {
+      sql: input.sql,
+      limit: 100,
+      forceReadOnly: true,
+    },
+    {
+      threadId: input.threadId,
+      threadStepId: input.parentStepId,
+      aiInitiated: true,
+      probePurpose: input.purpose,
+      timeoutMs: 5000,
+      cancelKey: input.threadId,
+    },
+  )
 }
 
 export async function validateSql(viewerId: string, request: SqlValidateRequest): Promise<SqlValidateResult> {
@@ -1187,6 +1327,177 @@ export async function getExamples(userId: string): Promise<SqlExample[]> {
     description: `Read sample rows from ${table.schema}.${table.name}`,
     category: idx === 0 ? "intro" : "admin",
   }))
+}
+
+function allVisibleTables(schema: SqlSchema) {
+  return schema.schemas.flatMap((item) => item.tables)
+}
+
+function moduleTone(moduleId = ""): SqlInsightTone {
+  if (/content|community|media/.test(moduleId)) return "sky"
+  if (/career|private/.test(moduleId)) return "emerald"
+  if (/social|announcement|roundtable/.test(moduleId)) return "amber"
+  if (/ai|memory/.test(moduleId)) return "violet"
+  if (/account|admin/.test(moduleId)) return "rose"
+  return "cyan"
+}
+
+export async function getRelationGraph(userId: string): Promise<SqlRelationGraphV2> {
+  const schema = await getEffectiveSchema(userId)
+  const tables = allVisibleTables(schema)
+  const byTableName = new Map(tables.map((table) => [table.name.toLowerCase(), table]))
+  const visibleTableKeys = new Set(tables.map((table) => qualifiedName(table.schema, table.name)))
+  const fkEdges = (await readForeignKeyGraph(schema.schemas.map((item) => item.name))).filter((edge) =>
+    visibleTableKeys.has(qualifiedName(edge.from.schema, edge.from.table)) &&
+    visibleTableKeys.has(qualifiedName(edge.to.schema, edge.to.table))
+  )
+  const modules = new Map<string, { id: string; name: string; tone: SqlInsightTone; count: number }>()
+
+  for (const table of tables) {
+    const moduleId = table.catalog?.moduleId ?? (table.scope === "private" ? "private" : "sql_lab")
+    const moduleName = table.catalog?.moduleName ?? (table.scope === "private" ? "Private" : "SQL Lab")
+    const current = modules.get(moduleId)
+    if (current) current.count += 1
+    else modules.set(moduleId, { id: moduleId, name: moduleName, tone: moduleTone(moduleId), count: 1 })
+  }
+
+  const moduleList = [...modules.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, 10)
+  const moduleIndex = new Map(moduleList.map((module, index) => [module.id, index]))
+  const moduleCount = Math.max(moduleList.length, 1)
+  const nodes: SqlRelationNode[] = moduleList.map((module, index) => {
+    const angle = (Math.PI * 2 * index) / moduleCount - Math.PI / 2
+    return {
+      id: `module:${module.id}`,
+      kind: "module",
+      label: module.name,
+      moduleId: module.id,
+      moduleName: module.name,
+      description: `${module.count} 张可访问表`,
+      fields: [],
+      x: 50 + Math.cos(angle) * 35,
+      y: 48 + Math.sin(angle) * 30,
+      tone: module.tone,
+    }
+  })
+
+  const visibleTables = tables
+    .filter((table) => moduleIndex.has(table.catalog?.moduleId ?? (table.scope === "private" ? "private" : "sql_lab")))
+    .slice(0, 80)
+
+  visibleTables.forEach((table, index) => {
+    const moduleId = table.catalog?.moduleId ?? (table.scope === "private" ? "private" : "sql_lab")
+    const modulePos = moduleIndex.get(moduleId) ?? 0
+    const localIndex = visibleTables.slice(0, index).filter((item) => (item.catalog?.moduleId ?? "sql_lab") === moduleId).length
+    const angle = (Math.PI * 2 * modulePos) / moduleCount - Math.PI / 2
+    const spread = (localIndex - 1.5) * 0.22
+    nodes.push({
+      id: `table:${table.schema}.${table.name}`,
+      kind: "table",
+      label: table.name,
+      moduleId,
+      moduleName: table.catalog?.moduleName,
+      schema: table.schema,
+      table: table.name,
+      scope: table.scope ?? "public",
+      access: table.access,
+      description: table.catalog?.description ?? table.comment ?? "",
+      fields: table.columns.slice(0, 6).map((column) => column.name),
+      rowCountEstimate: table.rowCountEstimate,
+      x: 50 + Math.cos(angle + spread) * (20 + (localIndex % 3) * 6),
+      y: 49 + Math.sin(angle + spread) * (16 + (localIndex % 3) * 5),
+      tone: moduleTone(moduleId),
+    })
+  })
+
+  const nodeIds = new Set(nodes.map((node) => node.id))
+  const edges: SqlRelationEdge[] = []
+  const moduleEdgesByKey = new Map<string, SqlRelationGraphV2ModuleEdge>()
+  for (const table of visibleTables) {
+    const moduleId = table.catalog?.moduleId ?? (table.scope === "private" ? "private" : "sql_lab")
+    const tableId = `table:${table.schema}.${table.name}`
+    if (nodeIds.has(`module:${moduleId}`) && nodeIds.has(tableId)) {
+      edges.push({
+        id: `contains:${moduleId}:${table.schema}.${table.name}`,
+        source: `module:${moduleId}`,
+        target: tableId,
+        label: "包含",
+        kind: "contains",
+        tone: moduleTone(moduleId),
+      })
+    }
+    for (const relation of table.catalog?.relations ?? []) {
+      const target = byTableName.get(relation.table.toLowerCase())
+      if (!target) continue
+      const targetId = `table:${target.schema}.${target.name}`
+      if (!nodeIds.has(targetId)) continue
+      edges.push({
+        id: `relation:${table.schema}.${table.name}:${target.schema}.${target.name}:${relation.type ?? "link"}`,
+        source: tableId,
+        target: targetId,
+        label: relation.description,
+        kind: "relation",
+        tone: moduleTone(moduleId),
+      })
+    }
+  }
+
+  for (const fk of fkEdges) {
+    const sourceTable = byTableName.get(fk.from.table.toLowerCase())
+    const targetTable = byTableName.get(fk.to.table.toLowerCase())
+    const sourceId = `table:${fk.from.schema}.${fk.from.table}`
+    const targetId = `table:${fk.to.schema}.${fk.to.table}`
+    if (nodeIds.has(sourceId) && nodeIds.has(targetId)) {
+      edges.push({
+        id: fk.id,
+        source: sourceId,
+        target: targetId,
+        label: `${fk.from.column} → ${fk.to.column}`,
+        kind: "relation",
+        tone: moduleTone(targetTable?.catalog?.moduleId ?? sourceTable?.catalog?.moduleId),
+      })
+    }
+
+    const sourceModule = sourceTable?.catalog?.moduleId ?? (sourceTable?.scope === "private" ? "private" : "sql_lab")
+    const targetModule = targetTable?.catalog?.moduleId ?? (targetTable?.scope === "private" ? "private" : "sql_lab")
+    if (sourceModule && targetModule && sourceModule !== targetModule) {
+      const key = `${sourceModule}->${targetModule}`
+      const current = moduleEdgesByKey.get(key)
+      if (current) current.count += 1
+      else moduleEdgesByKey.set(key, { id: `moduleEdge:${key}`, source: sourceModule, target: targetModule, count: 1 })
+    }
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    nodes,
+    edges: edges.slice(0, 160),
+    modules: moduleList.map((module) => ({
+      id: module.id,
+      name: module.name,
+      description: `${module.count} 张可访问表`,
+      tableCount: module.count,
+      tone: module.tone,
+    })),
+    tables: tables.map((table) => {
+      const moduleId = table.catalog?.moduleId ?? (table.scope === "private" ? "private" : "sql_lab")
+      return {
+        id: `${table.schema}.${table.name}`,
+        schema: table.schema,
+        table: table.name,
+        moduleId,
+        moduleName: table.catalog?.moduleName ?? moduleId,
+        submoduleId: table.catalog?.submoduleId ?? "query",
+        submoduleName: table.catalog?.submoduleName ?? "查询",
+        scope: table.scope ?? "public",
+        access: table.access,
+        description: table.catalog?.description ?? table.comment ?? "",
+        rowCountEstimate: table.rowCountEstimate,
+        columns: table.columns,
+      }
+    }),
+    fkEdges,
+    moduleEdges: [...moduleEdgesByKey.values()],
+  }
 }
 
 export async function getAdminTables() {

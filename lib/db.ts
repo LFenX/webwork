@@ -2,7 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg"
 import { PrismaClient } from "@/app/generated/prisma/client"
 
 // Version key - bump this whenever schema changes to invalidate the HMR-cached instance.
-const SCHEMA_VERSION = "v26-sql-assistant-history"
+const SCHEMA_VERSION = "v30-public-visibility-slug"
 
 const g = globalThis as unknown as {
   prisma?: InstanceType<typeof PrismaClient>

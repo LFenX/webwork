@@ -1,0 +1,24 @@
+Live2D integration credits
+==========================
+
+Widget framework
+----------------
+live2d-widget by stevenjoezhang
+https://github.com/stevenjoezhang/live2d-widget
+License: GPL-3.0
+
+Live2D Cubism Core (live2dcubismcore.min.js)
+--------------------------------------------
+(c) Live2D Inc.
+Distributed under the Live2D Proprietary Software License /
+Live2D Open Software License. See:
+https://www.live2d.com/en/download/cubism-sdk/
+
+Default model: Niziiro Mao (PRO version)
+----------------------------------------
+Illustration: Live2D Inc.
+Modeling:     Live2D Inc.
+Used under the Live2D "Free Material License Agreement" and "Terms of Use".
+General Users and Small-Scale Enterprise Users may use this sample model
+for commercial purposes after accepting the agreement above.
+https://www.live2d.com/en/download/sample-data/

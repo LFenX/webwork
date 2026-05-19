@@ -20,10 +20,12 @@ import { UserAvatar } from "@/components/user-avatar"
 import { setActiveChatContext } from "@/lib/active-chat"
 import { copyImageToClipboard, getClipboardImageFiles, saveStickerToCustomLibrary, triggerBrowserDownload } from "@/lib/chat-media-actions"
 import { handleEnterToSubmit } from "@/lib/keyboard"
+import { publicProfileHref } from "@/lib/public-profile"
 
 export interface ChatFriend {
   id: string
   email: string
+  publicSlug?: string | null
   displayName: string
   avatarText: string
   avatarUrl: string | null
@@ -1251,7 +1253,7 @@ export function ChatPanel({
           </DialogHeader>
           <DialogFooter>
             <Button asChild variant="outline">
-              <Link href={`/u/${friend.id}`}>{labels.viewProfile}</Link>
+              <Link href={publicProfileHref(friend)}>{labels.viewProfile}</Link>
             </Button>
             <Button asChild>
               <Link href={`/friends?type=direct&id=${encodeURIComponent(friend.id)}`}>{labels.openChatPage}</Link>

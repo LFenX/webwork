@@ -1,23 +1,26 @@
 import { notFound } from "next/navigation"
-import { prisma } from "@/lib/db"
 import { getArticleFolders, getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
 import { canViewModule, getAccessLevel, recordVisit, visibleTo } from "@/lib/permissions"
 import { PublicPostListPage } from "@/components/profile/public-post-list-page"
 import { getFriendVisibleModules } from "@/lib/friend-module-nav"
+import { resolveCreatorProfileRef } from "@/lib/profile"
+import { getPublicModuleMetadata } from "@/lib/public-page-metadata"
+
+export function generateMetadata({ params }: { params: Promise<{ userId: string }> }) {
+  return params.then(({ userId }) => getPublicModuleMetadata(userId, "notes", "笔记", "公开笔记和资料整理列表。"))
+}
 
 export default async function UserNotesPage({ params, searchParams }: { params: Promise<{ userId: string }>; searchParams: Promise<{ folder?: string }> }) {
-  const [{ userId: ownerId }, { folder }, session] = await Promise.all([params, searchParams, getOptionalSession()])
-  const owner = await prisma.user.findUnique({
-    where: { id: ownerId },
-    select: { id: true, displayName: true, email: true },
-  })
+  const [{ userId: ownerRef }, { folder }, session] = await Promise.all([params, searchParams, getOptionalSession()])
+  const owner = await resolveCreatorProfileRef(ownerRef)
   if (!owner) notFound()
+  const ownerId = owner.id
 
   const level = await getAccessLevel(session?.userId ?? null, ownerId)
-  if (level === "none") notFound()
   const moduleVisible = await canViewModule(ownerId, "notes", level)
-  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "notes", path: `/u/${ownerId}/notes` })
+  if (level === "public" && !moduleVisible) notFound()
+  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "notes", path: `/u/${owner.publicRef}/notes` })
   const folderFilter = folder === "uncategorized" ? null : folder || undefined
   const [posts, folders, visibleModules] = moduleVisible
     ? await Promise.all([
@@ -26,11 +29,12 @@ export default async function UserNotesPage({ params, searchParams }: { params: 
         getFriendVisibleModules(ownerId, level),
       ])
     : [[], [], await getFriendVisibleModules(ownerId, level)]
-  const displayName = owner.displayName || owner.email
+  const displayName = owner.displayName || (level === "public" ? "公开用户" : owner.email)
 
   return (
     <PublicPostListPage
       ownerId={ownerId}
+      ownerRef={owner.publicRef}
       displayName={displayName}
       current="notes"
       modules={visibleModules}

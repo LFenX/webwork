@@ -2,14 +2,18 @@
 
 import { type ChangeEvent, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Upload } from "lucide-react"
+import { Copy, IdCard, Upload, UserCircle } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { SettingsSection } from "@/components/settings/settings-shell"
+import { copyTextWithToast } from "@/lib/interaction-feedback"
+import { validatePublicSlug } from "@/lib/visibility"
 
 type ProfileForm = {
+  userId: string
   displayName: string
   avatarText: string
   avatarUrl: string
@@ -17,6 +21,7 @@ type ProfileForm = {
   location: string
   bio: string
   email: string
+  publicSlug: string
 }
 
 function initials(name: string) {
@@ -36,6 +41,11 @@ export function ProfileSettingsForm({
     location: string
     bio: string
     email: string
+    publicSlug: string
+    publicSlugHint: string
+    copyPublicLink: string
+    publicLinkCopied: string
+    publicLinkCopyFailed: string
     save: string
     saving: string
     saved: string
@@ -55,6 +65,21 @@ export function ProfileSettingsForm({
     [form.avatarText, form.displayName]
   )
   const avatarPreview = avatarObjectUrl || form.avatarDataUrl || form.avatarUrl
+
+  async function handleCopyPublicLink() {
+    const slug = form.publicSlug.trim().toLowerCase()
+    if (slug) {
+      const validation = validatePublicSlug(slug)
+      if (!validation.ok) {
+        toast.error(validation.reason)
+        return
+      }
+    }
+
+    const origin = window.location.origin
+    const ref = slug || form.userId
+    await copyTextWithToast(`${origin}/u/${ref}`, labels.publicLinkCopied, labels.publicLinkCopyFailed)
+  }
 
   function handleAvatarFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -109,6 +134,7 @@ export function ProfileSettingsForm({
           location: form.location.trim(),
           bio: form.bio.trim(),
           email: form.email.trim().toLowerCase(),
+          publicSlug: form.publicSlug.trim().toLowerCase(),
         }),
       })
       if (!res.ok) {
@@ -127,17 +153,33 @@ export function ProfileSettingsForm({
   }
 
   return (
-    <section className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5">
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full border border-[--color-border] bg-[--color-bg-hover]">
-          {avatarPreview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarPreview} alt="avatar preview" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-xl font-semibold text-[--color-text-primary]">
-              {fallbackAvatar}
-            </div>
-          )}
+    <SettingsSection
+      icon={<UserCircle size={16} />}
+      title={labels.displayName}
+      description={labels.bio ? undefined : undefined}
+      footer={
+        <Button type="button" onClick={handleSave} loading={saving} loadingText={labels.saving}>
+          {labels.save}
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-5 sm:flex-row sm:gap-6">
+        <div className="flex flex-col items-center gap-3 sm:items-start">
+          <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full border border-[--color-border] bg-gradient-to-br from-[#eef0f3] to-[#dde2eb] shadow-[--shadow-profile-card]">
+            {avatarPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarPreview} alt="avatar preview" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xl font-semibold text-[--color-text-primary]">
+                {fallbackAvatar}
+              </div>
+            )}
+          </div>
+          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-[--color-border-strong] bg-[--color-bg-surface] px-4 py-1.5 text-xs font-medium text-[--color-text-primary] transition-colors hover:border-[--color-brand-border] hover:bg-[--color-bg-hover]">
+            <Upload size={14} />
+            {labels.avatarUpload}
+            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
+          </label>
         </div>
         <div className="flex-1 space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -155,35 +197,50 @@ export function ProfileSettingsForm({
               />
             </div>
           </div>
-          <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-[--radius-sm] border border-[--color-border-strong] px-4 text-sm hover:bg-[--color-bg-hover]">
-            <Upload size={15} />
-            {labels.avatarUpload}
-            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
-          </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label className="mb-2 block">{labels.location}</Label>
+              <Input value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="mb-2 block">{labels.email}</Label>
+              <Input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+          </div>
+
+          <div>
+            <Label className="mb-2 flex items-center gap-1.5 text-[13px]">
+              <IdCard size={13} className="text-[--color-text-muted]" />
+              {labels.publicSlug}
+            </Label>
+            <div className="relative">
+              <Input
+                value={form.publicSlug}
+                onChange={(e) => setForm((f) => ({ ...f, publicSlug: e.target.value.toLowerCase() }))}
+                placeholder="your-public-name"
+                maxLength={32}
+                className="pr-11"
+              />
+              <button
+                type="button"
+                onClick={handleCopyPublicLink}
+                className="absolute right-1.5 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-[--color-text-muted] transition hover:bg-[--color-bg-hover] hover:text-[--color-text-primary] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]"
+                title={labels.copyPublicLink}
+                aria-label={labels.copyPublicLink}
+              >
+                <Copy size={15} />
+              </button>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[--color-text-muted]">{labels.publicSlugHint}</p>
+          </div>
+
+          <div>
+            <Label className="mb-2 block">{labels.bio}</Label>
+            <Textarea value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} rows={5} />
+          </div>
         </div>
       </div>
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <div>
-          <Label className="mb-2 block">{labels.location}</Label>
-          <Input value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
-        </div>
-        <div>
-          <Label className="mb-2 block">{labels.email}</Label>
-          <Input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <Label className="mb-2 block">{labels.bio}</Label>
-        <Textarea value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} rows={5} />
-      </div>
-
-      <div className="mt-6 flex justify-end">
-        <Button type="button" onClick={handleSave} loading={saving} loadingText={labels.saving}>
-          {labels.save}
-        </Button>
-      </div>
-    </section>
+    </SettingsSection>
   )
 }

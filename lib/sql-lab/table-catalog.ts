@@ -150,12 +150,12 @@ export const SQL_CATALOG_MODULES: Record<ModuleId, ModuleDef> = {
     id: "sql_lab",
     name: "SQL Lab",
     icon: "sql",
-    description: "SQL 实验室的授权、审计、收藏查询、Private 库和 SQL 助教。",
+    description: "SQL 实验室的授权、审计、收藏查询、Private 库、Stage 线程和分析卡片。",
     submodules: {
       access: { name: "访问授权", description: "用户和表级授权。" },
       query: { name: "查询与审计", description: "收藏查询和执行审计。" },
       private: { name: "Private 库", description: "私有文件夹和私有表元数据。" },
-      assistant: { name: "SQL 助教", description: "SQL 助教会话和消息。" },
+      stage: { name: "Stage", description: "分析线程、步骤和可视化卡片。" },
     },
   },
   private: {
@@ -179,11 +179,11 @@ function c(
   description: string,
   options: Partial<Pick<SqlTableCatalogInfo, "aliases" | "keywords" | "keyFields" | "relations" | "useCases" | "notes">> = {}
 ): SqlTableCatalogInfo {
-  const module = SQL_CATALOG_MODULES[moduleId]
-  const submodule = module.submodules[submoduleId] ?? Object.values(module.submodules)[0]
+  const moduleDef = SQL_CATALOG_MODULES[moduleId]
+  const submodule = moduleDef.submodules[submoduleId] ?? Object.values(moduleDef.submodules)[0]
   return {
-    moduleId: module.id,
-    moduleName: module.name,
+    moduleId: moduleDef.id,
+    moduleName: moduleDef.name,
     submoduleId,
     submoduleName: submodule.name,
     description,
@@ -707,26 +707,39 @@ export const DEFAULT_SQL_TABLE_CATALOG: Record<string, SqlTableCatalogInfo> = {
     relations: [rel("User", ["userId"], "私有表所属用户。"), rel("SqlPrivateFolder", ["folderId"], "私有表所在文件夹。", "lookup")],
     useCases: ["查看 Private 表目录", "移动私有表到文件夹"],
   }),
-  SqlAssistantConversation: c("sql_lab", "assistant", "SQL 助教会话表，保存会话标题、是否手动锁定、最近消息时间和删除状态。", {
-    aliases: ["SQL助教会话"],
-    keywords: ["SQL 助教", "会话", "SQL Tutor", "lastMessageAt"],
-    keyFields: ["id", "userId", "title", "titleLocked", "lastMessageAt", "deletedAt"],
-    relations: [rel("User", ["userId"], "会话所属用户。")],
-    useCases: ["查看 SQL 助教历史会话", "按主题查找会话"],
-  }),
-  SqlAssistantMessage: c("sql_lab", "assistant", "SQL 助教消息表，保存用户/助教消息、生成 SQL、可审计思考、动作、执行结果和模型来源。", {
-    aliases: ["SQL助教消息"],
-    keywords: ["SQL 助教", "消息", "reasoningMarkdown", "selectedTables", "catalogMatches", "执行结果"],
-    keyFields: ["id", "conversationId", "userId", "role", "contentMarkdown", "sql", "reasoningMarkdown", "createdAt"],
-    relations: [rel("SqlAssistantConversation", ["conversationId"], "消息所属 SQL 助教会话。"), rel("User", ["userId"], "消息所属用户。")],
-    useCases: ["查看 SQL 助教聊天记录", "复盘生成 SQL 的表选择理由"],
-  }),
-  SqlTableCatalogOverride: c("sql_lab", "assistant", "SQL 表目录覆盖表，允许用数据库配置覆盖代码默认分类、介绍、关键词、别名、关键字段和关联提示。", {
+  SqlTableCatalogOverride: c("sql_lab", "stage", "SQL 表目录覆盖表，允许用数据库配置覆盖代码默认分类、介绍、关键词、别名、关键字段和关联提示。", {
     aliases: ["表目录覆盖", "catalog override", "目录配置"],
     keywords: ["SQL Lab", "目录", "catalog", "override", "分类", "介绍", "关键词", "别名"],
     keyFields: ["id", "schemaName", "tableName", "moduleId", "submoduleId", "description", "keywords", "aliases", "updatedAt"],
     relations: [rel("User", ["updatedById"], "最近更新目录覆盖的用户。", "lookup")],
-    useCases: ["覆盖表介绍和分类", "调试 SQL 助教表目录检索"],
+    useCases: ["覆盖表介绍和分类", "调试 Stage 表目录检索"],
+  }),
+  SqlThread: c("sql_lab", "stage", "SQL Lab Stage 分析线程表，保存每条分析的标题、状态、置顶和归档信息。", {
+    aliases: ["Stage 线程", "SQL 分析线程"],
+    keywords: ["SQL Lab", "Stage", "thread", "analysis", "pinned"],
+    keyFields: ["id", "userId", "title", "status", "lastEventAt", "pinned"],
+    relations: [rel("User", ["userId"], "线程所属用户。")],
+    useCases: ["查看分析线程", "统计 Stage 使用情况"],
+  }),
+  SqlThreadStep: c("sql_lab", "stage", "SQL Lab Stage 步骤表，记录用户问题、AI 思考、探查 SQL、草稿、运行结果和解读。", {
+    aliases: ["Stage 步骤", "SQL 时间线"],
+    keywords: ["SQL Lab", "Stage", "step", "ai_probe_sql", "sql_run", "sql_draft"],
+    keyFields: ["id", "threadId", "userId", "orderIndex", "kind", "status", "createdAt"],
+    relations: [rel("SqlThread", ["threadId"], "步骤所属线程。"), rel("User", ["userId"], "步骤所属用户。")],
+    useCases: ["复盘 AI 分析过程", "查看自主探查记录"],
+  }),
+  SqlInsightCard: c("sql_lab", "stage", "SQL Lab 分析卡片表，保存可视化图表配置、SQL、置顶和共享状态。", {
+    aliases: ["分析卡片", "Insight Card", "图表卡片"],
+    keywords: ["SQL Lab", "chart", "insight", "pinned", "chartConfig"],
+    keyFields: ["id", "userId", "threadId", "title", "sql", "chartConfig", "pinned", "updatedAt"],
+    relations: [rel("User", ["userId"], "卡片所属用户。"), rel("SqlThread", ["threadId"], "卡片来源线程。", "lookup")],
+    useCases: ["查看置顶图表", "保存分析结果"],
+  }),
+  SqlSchemaProfile: c("sql_lab", "stage", "SQL Lab schema profile 表，缓存表和字段的数据画像、样例值、枚举和时间范围。", {
+    aliases: ["数据画像", "Schema Profile"],
+    keywords: ["SQL Lab", "profile", "enum", "sampleValues", "distinctCount"],
+    keyFields: ["id", "schemaName", "tableName", "columnName", "profileJson", "expiresAt"],
+    useCases: ["提升 AI SQL 命中率", "避免枚举和字段猜错"],
   }),
 }
 
@@ -760,18 +773,18 @@ export function mergeCatalog(base: SqlTableCatalogInfo, override?: SqlTableCatal
 }
 
 function privateCatalog(table: SqlTableInfo): SqlTableCatalogInfo {
-  const folderName = table.folderName || "未分组"
+  const folderName = table.folderName || "Uncategorized"
   return {
     moduleId: "private",
     moduleName: "Private",
     submoduleId: table.folderId || "uncategorized",
     submoduleName: folderName,
-    description: table.comment || `用户 Private 库中的私有表 ${table.name}，位于 ${folderName}。用户拥有完整读写和建表权限。`,
-    aliases: [table.name, folderName, "私有表", "Private"],
-    keywords: [table.name, folderName, "Private", "私有", "自建表", ...table.columns.map((column) => column.name).slice(0, 12)],
+    description: table.comment || `Private table ${table.name} in folder ${folderName}. The owner can read, write, and manage the table.`,
+    aliases: [table.name, folderName, "private table", "Private"],
+    keywords: [table.name, folderName, "Private", "private", "custom table", ...table.columns.map((column) => column.name).slice(0, 12)],
     keyFields: table.columns.slice(0, 8).map((column) => column.name),
     relations: [],
-    useCases: ["查询和维护个人私有数据", "通过 SQL 助教创建、插入、修改或整理 Private 表"],
+    useCases: ["Query and maintain private data", "Create, insert, update, or organize Private tables through SQL Lab"],
   }
 }
 
@@ -780,17 +793,16 @@ function fallbackCatalog(table: SqlTableInfo): SqlTableCatalogInfo {
     moduleId: "sql_lab",
     moduleName: "SQL Lab",
     submoduleId: "query",
-    submoduleName: "查询与审计",
-    description: `${table.name} 是当前可访问 schema 中的系统表。目录尚未覆盖时仅按字段结构辅助查询。`,
+    submoduleName: "Query and audit",
+    description: `${table.name} is an accessible table in the current schema. When no catalog entry exists, SQL Lab uses its column structure as query context.`,
     aliases: [table.name],
     keywords: [table.name, ...table.columns.map((column) => column.name).slice(0, 12)],
     keyFields: table.columns.slice(0, 8).map((column) => column.name),
     relations: [],
-    useCases: ["按字段结构进行临时查询"],
+    useCases: ["Ad hoc queries based on the column structure"],
     notes: "fallback",
   }
 }
-
 export function applyCatalogToTables(tables: SqlTableInfo[], overrides: SqlTableCatalogOverrideInput[] = []) {
   const overridesByKey = new Map(overrides.map((row) => [catalogKey(row.schemaName || "public", row.tableName || ""), row]))
   return tables.map((table) => {

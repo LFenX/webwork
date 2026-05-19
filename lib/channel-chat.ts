@@ -10,6 +10,7 @@ export type ChannelMessagePayload = {
   sender: {
     id: string
     email: string
+    publicSlug?: string | null
     displayName: string
     avatarText: string
     avatarUrl: string | null
@@ -76,6 +77,7 @@ export type ChannelListItem = {
   members: Array<{
     id: string
     email: string
+    publicSlug: string | null
     displayName: string
     avatarText: string
     avatarUrl: string | null
@@ -93,6 +95,7 @@ export type GroupChannelDetails = {
   members: Array<{
     id: string
     email: string
+    publicSlug: string | null
     displayName: string
     avatarText: string
     avatarUrl: string | null
@@ -140,6 +143,7 @@ export async function getGroupChannelDetails(userId: string, channelId: string):
             select: {
               id: true,
               email: true,
+              publicSlug: true,
               displayName: true,
               avatarText: true,
               avatarUrl: true,
@@ -164,6 +168,7 @@ export async function getGroupChannelDetails(userId: string, channelId: string):
     members: channel.members.map((member) => ({
       id: member.user.id,
       email: member.user.email,
+      publicSlug: member.user.publicSlug,
       displayName: member.user.displayName,
       avatarText: member.user.avatarText,
       avatarUrl: member.user.avatarUrl,
@@ -184,7 +189,7 @@ export async function listChannelsForUser(userId: string): Promise<ChannelListIt
       createdBy: { select: { id: true, displayName: true, email: true } },
       members: {
         include: {
-          user: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } },
+          user: { select: { id: true, email: true, publicSlug: true, displayName: true, avatarText: true, avatarUrl: true } },
         },
         orderBy: { joinedAt: "asc" },
       },

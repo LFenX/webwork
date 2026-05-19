@@ -7,11 +7,13 @@ import { FriendModuleNav } from "@/components/friend-module-nav"
 import { ModuleHero, ModulePageShell, ModulePanel } from "@/components/module/module-shell"
 import type { FriendModuleNavKey } from "@/lib/friend-module-nav"
 import type { ArticleFolderItem, PostMeta } from "@/lib/mdx"
+import { formatDateKey } from "@/lib/time"
 
 type PublicPostModule = "blog" | "daily" | "reflections" | "notes"
 
 type PublicPostListPageProps = {
   ownerId: string
+  ownerRef?: string
   displayName: string
   current: PublicPostModule
   modules: Record<FriendModuleNavKey, boolean>
@@ -24,8 +26,25 @@ type PublicPostListPageProps = {
   moduleVisible: boolean
 }
 
+function postDateKey(date?: string) {
+  return date ? formatDateKey(date) : ""
+}
+
+function postYearMonth(date?: string) {
+  return postDateKey(date).slice(0, 7) || "Unknown"
+}
+
+function postDay(date?: string) {
+  return postDateKey(date).slice(8, 10) || "--"
+}
+
+function postDateLabel(date?: string) {
+  return postDateKey(date) || "--"
+}
+
 export function PublicPostListPage({
   ownerId,
+  ownerRef,
   displayName,
   current,
   modules,
@@ -37,10 +56,18 @@ export function PublicPostListPage({
   selectedFolder,
   moduleVisible,
 }: PublicPostListPageProps) {
+  const publicRef = ownerRef ?? ownerId
+  const visibleFolderCounts = posts.reduce<Record<string, number>>((acc, post) => {
+    if (post.folderId) acc[post.folderId] = (acc[post.folderId] ?? 0) + 1
+    return acc
+  }, {})
+  const visibleFolders = folders
+    .filter((folder) => visibleFolderCounts[folder.id])
+    .map((folder) => ({ ...folder, postCount: visibleFolderCounts[folder.id] }))
   const grouped =
     current === "daily"
       ? posts.reduce<Record<string, PostMeta[]>>((acc, post) => {
-          const ym = post.date?.slice(0, 7) ?? "Unknown"
+          const ym = postYearMonth(post.date)
           acc[ym] = [...(acc[ym] ?? []), post]
           return acc
         }, {})
@@ -49,7 +76,7 @@ export function PublicPostListPage({
 
   return (
     <ModulePageShell maxWidth="content">
-      <FriendModuleNav ownerId={ownerId} displayName={displayName} current={current} modules={modules} />
+      <FriendModuleNav ownerId={ownerId} ownerRef={publicRef} displayName={displayName} current={current} modules={modules} />
       <ModuleHero
         icon={FileText}
         title={title}
@@ -67,7 +94,7 @@ export function PublicPostListPage({
         contentClassName="flex flex-col gap-5 p-5"
       >
         {moduleVisible ? (
-          <ArticleFolderPanel type={current} basePath={`/u/${ownerId}/${current}`} folders={folders} selectedFolder={selectedFolder} readOnly />
+          <ArticleFolderPanel type={current} basePath={`/u/${publicRef}/${current}`} folders={visibleFolders} selectedFolder={selectedFolder} readOnly />
         ) : null}
 
         {!moduleVisible ? (
@@ -81,7 +108,7 @@ export function PublicPostListPage({
                 <h2 className="mb-3 font-mono text-xs uppercase tracking-wider text-slate-400">{ym}</h2>
                 <div className="flex flex-col gap-2">
                   {grouped[ym].map((post) => (
-                    <PostRow key={post.slug} post={post} href={`/u/${ownerId}/${current}/${encodeURIComponent(post.slug)}`} compactDate />
+                    <PostRow key={post.slug} post={post} href={`/u/${publicRef}/${current}/${encodeURIComponent(post.slug)}`} compactDate />
                   ))}
                 </div>
               </div>
@@ -90,7 +117,7 @@ export function PublicPostListPage({
         ) : (
           <div className="flex flex-col gap-2">
             {posts.map((post) => (
-              <PostRow key={post.slug} post={post} href={`/u/${ownerId}/${current}/${encodeURIComponent(post.slug)}`} />
+              <PostRow key={post.slug} post={post} href={`/u/${publicRef}/${current}/${encodeURIComponent(post.slug)}`} />
             ))}
           </div>
         )}
@@ -107,7 +134,7 @@ function PostRow({ post, href, compactDate = false }: { post: PostMeta; href: st
     >
       <div className="flex min-w-0 items-start gap-3 sm:gap-4">
         <span className={`${compactDate ? "w-8" : "w-[5.75rem]"} shrink-0 pt-1 font-mono text-xs text-slate-400`}>
-          {compactDate ? post.date?.slice(8, 10) : post.date?.slice(0, 10)}
+          {compactDate ? postDay(post.date) : postDateLabel(post.date)}
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-6 text-slate-950 transition-colors group-hover:text-blue-600 sm:text-base">

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getDict } from "@/lib/i18n"
+import { isVisibility } from "@/lib/visibility"
 
 export function VisibilityToggle({
   postId,
@@ -19,6 +20,7 @@ export function VisibilityToggle({
   const [saving, setSaving] = useState(false)
 
   async function updateVisibility(nextVisibility: string) {
+    if (!isVisibility(nextVisibility)) return
     if (nextVisibility === visibility || saving) return
     setSaving(true)
 
@@ -34,10 +36,10 @@ export function VisibilityToggle({
 
     if (!res?.ok) {
       setVisibility(previous)
-      toast.error(ar.visibilityUpdated)
+      toast.error(ar.visibilityFailed)
     } else {
       toast.success(
-        nextVisibility === "private" ? ar.visibilityPrivate : nextVisibility === "friends" ? ar.visibilityFriends : dict.common.ok
+        nextVisibility === "private" ? ar.visibilityPrivate : nextVisibility === "friends" ? ar.visibilityFriends : ar.visibilityPublic
       )
       router.refresh()
     }
@@ -48,11 +50,12 @@ export function VisibilityToggle({
   const OPTIONS = [
     { value: "private", label: ar.visibilityPrivate },
     { value: "friends", label: ar.visibilityFriends },
+    { value: "public", label: ar.visibilityPublic },
   ] as const
 
   return (
     <select
-      value={visibility === "friends" ? "friends" : "private"}
+      value={isVisibility(visibility) ? visibility : "private"}
       disabled={saving}
       onChange={(event) => updateVisibility(event.target.value)}
       className="h-10 rounded-md border border-input bg-background px-3 !text-sm font-medium text-[--color-text-primary] outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"

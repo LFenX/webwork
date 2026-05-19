@@ -8,31 +8,34 @@ import { ModuleHero, ModulePageShell, ModulePanel } from "@/components/module/mo
 import { ResumeHtmlIframe } from "@/components/resume-html-iframe"
 import { ResumePdfViewer } from "@/components/resume-pdf-viewer"
 import { getOptionalSession } from "@/lib/auth"
-import { prisma } from "@/lib/db"
 import { getFriendVisibleModules } from "@/lib/friend-module-nav"
 import { getResumeContent } from "@/lib/mdx"
 import { canViewModule, getAccessLevel, recordVisit } from "@/lib/permissions"
+import { resolveCreatorProfileRef } from "@/lib/profile"
+import { getPublicModuleMetadata } from "@/lib/public-page-metadata"
 import { renderResumeHtml } from "@/lib/resume/renderer"
 import type { ResumeJson } from "@/lib/resume/types"
 
+export function generateMetadata({ params }: { params: Promise<{ userId: string }> }) {
+  return params.then(({ userId }) => getPublicModuleMetadata(userId, "resume", "简历", "公开简历与职业资料。"))
+}
+
 export default async function UserResumePage({ params }: { params: Promise<{ userId: string }> }) {
-  const [{ userId: ownerId }, session] = await Promise.all([params, getOptionalSession()])
-  const owner = await prisma.user.findUnique({
-    where: { id: ownerId },
-    select: { displayName: true, email: true },
-  })
+  const [{ userId: ownerRef }, session] = await Promise.all([params, getOptionalSession()])
+  const owner = await resolveCreatorProfileRef(ownerRef)
   if (!owner) notFound()
+  const ownerId = owner.id
 
   const level = await getAccessLevel(session?.userId ?? null, ownerId)
-  if (level === "none") notFound()
   const moduleVisible = await canViewModule(ownerId, "resume", level)
+  if (level === "public" && !moduleVisible) notFound()
   const resume = moduleVisible
     ? await getResumeContent(ownerId)
     : { mode: "markdown", content: "", pdfPath: null, resumeJson: null, selectedTheme: null, renderedHtml: null, lastBuiltTheme: null }
 
-  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "resume", path: `/u/${ownerId}/resume` })
+  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "resume", path: `/u/${owner.publicRef}/resume` })
 
-  const displayName = owner.displayName || owner.email
+  const displayName = owner.displayName || (level === "public" ? "公开用户" : owner.email)
   const visibleModules = await getFriendVisibleModules(ownerId, level)
 
   let jsonHtml: string | null = null
@@ -54,7 +57,7 @@ export default async function UserResumePage({ params }: { params: Promise<{ use
 
   return (
     <ModulePageShell maxWidth="content">
-      <FriendModuleNav ownerId={ownerId} displayName={displayName} current="resume" modules={visibleModules} />
+      <FriendModuleNav ownerId={ownerId} ownerRef={owner.publicRef} displayName={displayName} current="resume" modules={visibleModules} />
       <ModuleHero
         icon={FileText}
         title="Resume"

@@ -20,6 +20,7 @@ import { formatChinaDate, formatChinaDateTime } from "@/lib/time"
 import { getDict } from "@/lib/i18n"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 import { ModuleHero, ModulePageShell, ModulePanel, ModuleStatGrid, ModuleToolbar } from "@/components/module/module-shell"
+import type { Visibility } from "@/lib/visibility"
 
 interface Interview {
   id: string
@@ -92,7 +93,7 @@ function StarRating({ value, onChange }: { value: number | null; onChange: (v: n
   )
 }
 
-export function InterviewsClient({ initialVisibility }: { initialVisibility?: "private" | "friends" }) {
+export function InterviewsClient({ initialVisibility }: { initialVisibility?: Visibility }) {
   const dict = getDict()
 
   const [interviews, setInterviews] = useState<Interview[]>([])

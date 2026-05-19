@@ -16,6 +16,7 @@ import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } 
 import { getDict } from "@/lib/i18n"
 import { confirmAction } from "@/lib/interaction-feedback"
 import { nowSingaporeLocalIsoLite, singaporeLocalToIsoString, isoStringToSingaporeLocal } from "@/lib/time"
+import { isVisibility } from "@/lib/visibility"
 import {
   Dialog,
   DialogContent,
@@ -56,6 +57,7 @@ type EditorDraft = {
   tagsRaw: string
   content: string
   date: string
+  dateEdited: boolean
   visibility: string
   folderId: string
 }
@@ -94,9 +96,10 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, works
     tagsRaw: (initialData?.tags ?? []).join(", "),
     content: initialData?.content ?? "",
     date: initialData?.date ? isoStringToSingaporeLocal(initialData.date) : nowSingaporeLocalIsoLite(),
+    dateEdited: mode === "edit" && Boolean(initialData?.date),
     visibility: initialData?.visibility ?? "private",
     folderId: initialData?.folderId ?? "",
-  }), [initialData])
+  }), [initialData, mode])
   const draftReady = useRef(false)
 
   const [title, setTitle] = useState(initialDraft.title)
@@ -104,6 +107,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, works
   const [tagsRaw, setTagsRaw] = useState(initialDraft.tagsRaw)
   const [content, setContent] = useState(initialDraft.content)
   const [date, setDate] = useState(initialDraft.date)
+  const [dateEdited, setDateEdited] = useState(initialDraft.dateEdited)
   const [visibility, setVisibility] = useState(initialDraft.visibility)
   const [folderId, setFolderId] = useState(initialDraft.folderId)
   const [folders, setFolders] = useState<FolderOption[]>([])
@@ -160,6 +164,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, works
           tagsRaw: draft.tagsRaw ?? "",
           content: draft.content ?? "",
           date: draft.date ?? nowSingaporeLocalIsoLite(),
+          dateEdited: draft.dateEdited ?? mode === "edit",
           visibility: draft.visibility ?? "private",
           folderId: draft.folderId ?? "",
         })
@@ -175,7 +180,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, works
 
   useEffect(() => {
     if (!draftReady.current) return
-    const draft: EditorDraft = { title, summary, tagsRaw, content, date, visibility, folderId }
+    const draft: EditorDraft = { title, summary, tagsRaw, content, date, dateEdited, visibility, folderId }
     if (JSON.stringify(draft) === JSON.stringify(initialDraft)) {
       removeUserStorage("local", draftKey)
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset status when draft equals initial
@@ -191,7 +196,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, works
       setDraftStatus("saved")
     }, 400)
     return () => window.clearTimeout(handle)
-  }, [content, date, draftKey, folderId, initialDraft, summary, tagsRaw, title, userId, visibility])
+  }, [content, date, dateEdited, draftKey, folderId, initialDraft, summary, tagsRaw, title, userId, visibility])
 
   // Track the current time in state so the "saved X ago" label can recompute purely from props/state.
   useEffect(() => {
@@ -209,6 +214,7 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, works
     setTagsRaw(pendingDraft.tagsRaw)
     setContent(pendingDraft.content)
     setDate(pendingDraft.date || nowSingaporeLocalIsoLite())
+    setDateEdited(pendingDraft.dateEdited)
     setVisibility(pendingDraft.visibility)
     setFolderId(pendingDraft.folderId)
     setPendingDraft(null)
@@ -274,7 +280,8 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, works
     setSaving(true)
     try {
       const tags = tagsRaw.split(",").map((tag) => tag.trim()).filter(Boolean)
-      const isoDate = date ? singaporeLocalToIsoString(date) : new Date().toISOString()
+      const useServerPublishTime = mode === "create" && !dateEdited
+      const isoDate = useServerPublishTime ? undefined : date ? singaporeLocalToIsoString(date) : undefined
       const body = { title, summary, tags, content, date: isoDate, visibility, folderId: folderId || null }
 
       if (mode === "create") {
@@ -395,16 +402,20 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, works
         <input
           type="datetime-local"
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={(e) => {
+            setDateEdited(true)
+            setDate(e.target.value)
+          }}
           className="mobile-editor-date-input"
         />
         <select
-          value={visibility === "friends" ? "friends" : "private"}
+          value={isVisibility(visibility) ? visibility : "private"}
           onChange={(event) => setVisibility(event.target.value)}
           className="mobile-editor-select"
         >
           <option value="private">{dict.article.visibilityPrivate}</option>
           <option value="friends">{dict.article.visibilityFriends}</option>
+          <option value="public">{dict.article.visibilityPublic}</option>
         </select>
       </div>
       {/* Tags */}
@@ -489,7 +500,10 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, works
                 <input
                   type="datetime-local"
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) => {
+                    setDateEdited(true)
+                    setDate(e.target.value)
+                  }}
                   className="notion-input font-mono"
                 />
               </div>
@@ -505,12 +519,13 @@ export function PostEditorClient({ mode, type, typeLabel, userId, creator, works
               <div className="notion-property-row">
                 <Label className="notion-property-label"><Lock size={14} /> {dict.editor.visibility}</Label>
                 <select
-                  value={visibility === "friends" ? "friends" : "private"}
+                  value={isVisibility(visibility) ? visibility : "private"}
                   onChange={(event) => setVisibility(event.target.value)}
                   className="notion-select"
                 >
                   <option value="private">{dict.article.visibilityPrivate}</option>
                   <option value="friends">{dict.article.visibilityFriends}</option>
+                  <option value="public">{dict.article.visibilityPublic}</option>
                 </select>
               </div>
               <div className="notion-property-row">

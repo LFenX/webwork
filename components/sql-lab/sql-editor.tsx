@@ -874,6 +874,8 @@ type Props = {
   value: string
   onChange: (value: string) => void
   onRun?: () => void
+  onExplainSelection?: (selection: string) => void
+  onRewriteSql?: (sql: string) => void
   caption?: string
   placeholder?: string
   readOnly?: boolean
@@ -887,6 +889,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, Props>(function SqlEditor(
     value,
     onChange,
     onRun,
+    onExplainSelection,
+    onRewriteSql,
     caption,
     placeholder = "-- 写 SQL,Cmd / Ctrl + Enter 执行\n-- :viewerId 等命名参数会自动绑定为当前会话\nSELECT id, title FROM \"Post\" LIMIT 10;",
     readOnly,
@@ -1131,6 +1135,20 @@ export const SqlEditor = forwardRef<SqlEditorHandle, Props>(function SqlEditor(
   }, [focused, syncCustomCaret, value])
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "e") {
+      const el = e.currentTarget
+      const selection = el.value.slice(el.selectionStart, el.selectionEnd).trim()
+      if (selection) {
+        e.preventDefault()
+        onExplainSelection?.(selection)
+        return
+      }
+    }
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+      e.preventDefault()
+      onRewriteSql?.(value)
+      return
+    }
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault()
       onRun?.()

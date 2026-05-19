@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 import { createPostSchema } from "@/lib/validators"
 import { revalidatePath } from "next/cache"
 import { POST_TYPES } from "@/lib/enums"
+import { revalidatePublicUserPaths } from "@/lib/public-revalidation"
 import { publishUserPageChanged } from "@/lib/realtime-events"
 import { getSession } from "@/lib/session"
 
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
   revalidatePath(`/${rest.type}/${post.slug}`)
   revalidatePath("/")
   revalidatePath("/", "layout")
+  await revalidatePublicUserPaths(session.userId, ["", rest.type, `${rest.type}/${post.slug}`])
   await publishUserPageChanged(session.userId, `post:${rest.type}`)
   return NextResponse.json({ ...post, tags: JSON.parse(post.tags) }, { status: 201, headers: NO_STORE })
 }

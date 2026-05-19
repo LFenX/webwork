@@ -30,6 +30,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { cn } from "@/lib/utils"
 import { getActiveChatContext, subscribeActiveChatContext } from "@/lib/active-chat"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
+import { publicProfileHref } from "@/lib/public-profile"
 
 type HubTab = "all" | "direct" | "channel" | "requests"
 type ConversationKind = "direct" | "channel"
@@ -811,7 +812,7 @@ function InfoPanel({
         {friend.bio && <p className="mt-5 rounded-[15px] bg-slate-50 p-4 text-sm leading-6 text-slate-600">{friend.bio}</p>}
         <div className="mt-5 grid gap-2">
           <Button asChild className="rounded-full bg-blue-600 !text-white hover:bg-blue-700 hover:!text-white">
-            <Link href={`/u/${friend.id}`}>查看主页</Link>
+            <Link href={publicProfileHref(friend)}>查看主页</Link>
           </Button>
           <Button type="button" variant="outline" className="rounded-full" onClick={() => onUnfriend(friend)}>
             <UserMinus size={15} />
@@ -855,7 +856,7 @@ function InfoPanel({
           <p className="mb-2 text-xs font-semibold text-slate-500">成员</p>
           <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
             {channel.members.map((member) => (
-              <Link key={member.id} href={`/u/${member.id}`} className="flex items-center gap-2 rounded-[12px] px-2 py-2 hover:bg-slate-50 hover:no-underline">
+              <Link key={member.id} href={publicProfileHref(member)} className="flex items-center gap-2 rounded-[12px] px-2 py-2 hover:bg-slate-50 hover:no-underline">
                 <UserAvatar size="sm" name={member.displayName} email={member.email} avatarText={member.avatarText} avatarUrl={member.avatarUrl} />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-slate-900">{member.displayName || member.email}</span>

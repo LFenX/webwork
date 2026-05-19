@@ -22,21 +22,24 @@ function moduleLinkClass(active: boolean) {
 
 export function FriendModuleNav({
   ownerId,
+  ownerRef,
   displayName,
   current,
   modules,
 }: {
   ownerId: string
+  ownerRef?: string
   displayName: string
   current: FriendModuleNavKey
   modules: Record<FriendModuleNavKey, boolean>
 }) {
   const visibleModules = FRIEND_MODULE_NAV_KEYS.filter((module) => modules[module])
+  const publicRef = ownerRef ?? ownerId
 
   return (
     <nav className="mb-5 flex max-w-full items-center gap-2 overflow-x-auto rounded-[22px] border border-[--color-border] bg-[--color-bg-surface-glass] p-2 text-sm shadow-[--shadow-profile-card] backdrop-blur-xl">
       <Link
-        href={`/u/${ownerId}`}
+        href={`/u/${publicRef}`}
         className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-medium text-[--color-text-secondary] transition-all duration-200 hover:bg-[--color-brand-soft] hover:text-[--color-brand] hover:no-underline"
       >
         <ArrowLeft size={13} /> {displayName}
@@ -44,7 +47,7 @@ export function FriendModuleNav({
       {visibleModules.map((module) => (
         <Link
           key={module}
-          href={`/u/${ownerId}/${module}`}
+          href={`/u/${publicRef}/${module}`}
           className={moduleLinkClass(module === current)}
           aria-current={module === current ? "page" : undefined}
         >
@@ -57,19 +60,23 @@ export function FriendModuleNav({
 
 export function FriendModuleLinks({
   ownerId,
+  ownerRef,
   current,
   modules,
 }: {
   ownerId: string
+  ownerRef?: string
   current: FriendModuleNavKey
   modules: Record<FriendModuleNavKey, boolean>
 }) {
+  const publicRef = ownerRef ?? ownerId
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {FRIEND_MODULE_NAV_KEYS.filter((module) => modules[module]).map((module) => (
         <Link
           key={module}
-          href={`/u/${ownerId}/${module}`}
+          href={`/u/${publicRef}/${module}`}
           className={moduleLinkClass(module === current)}
           aria-current={module === current ? "page" : undefined}
         >

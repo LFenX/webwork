@@ -1,12 +1,16 @@
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { BookOpen, BriefcaseBusiness, CalendarDays, Edit3, FileText, MessageCircle, MessageSquareText, NotebookText, PenLine, Share2, UsersRound } from "lucide-react"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
 import { canViewModule, getAccessLevel, recordVisit, visibleTo, type ModuleKey } from "@/lib/permissions"
+import { profileHref, resolveCreatorProfileRef } from "@/lib/profile"
+import { absoluteSiteUrl } from "@/lib/seo"
 import { GuestbookSection } from "@/components/guestbook-section"
 import { formatDateKey } from "@/lib/time"
 import { countWords } from "@/lib/text-stats"
+import { hasJobReplySignal } from "@/lib/job-stats"
 import {
   ChatActivityCard,
   type ChatParticipant,
@@ -32,8 +36,34 @@ const ARTICLE_MODULES = [
   { key: "notes" as const, label: "笔记" },
 ]
 
-function isSubmittedOnly(status: string) {
-  return status.includes("已投递") || status.includes("宸叉姇")
+const PROFILE_MODULES: ModuleKey[] = ["home", "resume", "blog", "daily", "reflections", "notes", "jobs", "interviews"]
+const PUBLIC_INDEX_MODULES: ModuleKey[] = ["resume", "blog", "daily", "reflections", "notes", "jobs", "interviews"]
+
+export async function generateMetadata({ params }: { params: Promise<{ userId: string }> }): Promise<Metadata> {
+  const { userId } = await params
+  const owner = await resolveCreatorProfileRef(userId)
+  const hasPublicEntry = owner
+    ? (await Promise.all(PROFILE_MODULES.map((module) => canViewModule(owner.id, module, "public")))).some(Boolean)
+    : false
+  if (!owner || !hasPublicEntry) {
+    return { robots: { index: false, follow: false } }
+  }
+
+  const title = `${owner.displayName || "公开用户"} 的公开主页`
+  const description = owner.bio || "公开个人主页、模块入口和内容更新。"
+  const url = absoluteSiteUrl(profileHref(owner))
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      title,
+      description,
+      url,
+      type: "website",
+    },
+    robots: { index: true, follow: true },
+  }
 }
 
 function isInterviewStatus(status: string) {
@@ -48,7 +78,7 @@ async function getJobStats(userId: string, enabled: boolean) {
   if (!enabled) return { total: 0, replied: 0, replyRate: 0, hasInterview: 0, offers: 0 }
   const jobs = await prisma.jobApplication.findMany({ where: { userId } })
   const total = jobs.length
-  const replied = jobs.filter((job) => !isSubmittedOnly(job.status)).length
+  const replied = jobs.filter(hasJobReplySignal).length
   const hasInterview = jobs.filter((job) => isInterviewStatus(job.status)).length
   const offers = jobs.filter((job) => isOfferStatus(job.status)).length
   return {
@@ -248,31 +278,33 @@ async function getVisitDashboardData(userId: string, enabled: boolean, includeVi
 }
 
 export default async function UserProfilePage({ params }: { params: Promise<{ userId: string }> }) {
-  const [{ userId: ownerId }, session] = await Promise.all([params, getOptionalSession()])
-  const owner = await prisma.user.findUnique({
-    where: { id: ownerId },
-    select: { id: true, displayName: true, email: true, bio: true, avatarText: true, avatarUrl: true, location: true },
-  })
+  const [{ userId: ownerRef }, session] = await Promise.all([params, getOptionalSession()])
+  const owner = await resolveCreatorProfileRef(ownerRef)
   if (!owner) notFound()
+  const ownerId = owner.id
 
   const level = await getAccessLevel(session?.userId ?? null, ownerId)
-  if (level === "none") notFound()
 
   const moduleEntries: [ModuleKey, boolean][] = await Promise.all(
-    (["home", "resume", "blog", "daily", "reflections", "notes", "jobs", "interviews"] as ModuleKey[]).map(
+    PROFILE_MODULES.map(
       async (module) => [module, await canViewModule(ownerId, module, level)] as [ModuleKey, boolean]
     )
   )
   const modules = Object.fromEntries(moduleEntries) as Record<ModuleKey, boolean>
-  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "home", path: `/u/${ownerId}` })
+  const hasVisiblePublicIndexModule = PUBLIC_INDEX_MODULES.some((module) => modules[module])
+  if (level === "public" && !modules.home && !hasVisiblePublicIndexModule) notFound()
+  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "home", path: `/u/${owner.publicRef}` })
 
-  const displayName = owner.displayName || owner.email
+  const displayName = owner.displayName || (level === "public" ? "公开用户" : owner.email)
   const isSelf = level === "self"
   const showHomeContent = modules.home
+  const showIndexContent = showHomeContent || (level === "public" && hasVisiblePublicIndexModule)
+  const showPrivateHomeWidgets = showHomeContent && level !== "public"
   const visibilities = visibleTo(level)
-  const enabledArticleTypes = showHomeContent ? ARTICLE_MODULES.filter((module) => modules[module.key]).map((module) => module.key) : []
-  const jobsEnabled = showHomeContent && modules.jobs
-  const dailyEnabled = showHomeContent && modules.daily
+  const publicRef = owner.publicRef
+  const enabledArticleTypes = showIndexContent ? ARTICLE_MODULES.filter((module) => modules[module.key]).map((module) => module.key) : []
+  const jobsEnabled = showIndexContent && modules.jobs
+  const dailyEnabled = showIndexContent && modules.daily
 
   const [
     stats,
@@ -290,37 +322,39 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
     getRecentJobs(ownerId, jobsEnabled),
     getArticleActivityData(ownerId, enabledArticleTypes, visibilities, dailyEnabled),
     getJobActivityData(ownerId, jobsEnabled),
-    getChatActivityData(ownerId, showHomeContent),
+    getChatActivityData(ownerId, showPrivateHomeWidgets),
     getWritingStats(ownerId, enabledArticleTypes, visibilities, dailyEnabled),
     Promise.all(
       ARTICLE_MODULES.map(async (module) =>
-        showHomeContent && modules[module.key]
+        showIndexContent && modules[module.key]
           ? (await getPosts(module.key, ownerId, visibilities)).map((post) => ({ ...post, typeLabel: module.label }))
           : []
       )
     ),
     dailyEnabled ? getPosts("daily", ownerId, visibilities) : [],
-    prisma.guestbookMessage.findMany({
-      where: { ownerId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        author: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
-        sticker: { select: { id: true, name: true, originalName: true, isAnimated: true } },
-      },
-    }).then((messages) =>
-      messages.map((message) => ({
-        id: message.id,
-        content: message.content,
-        parentId: message.parentId,
-        stickerId: message.stickerId,
-        stickerEmoji: message.stickerEmoji,
-        ipAddress: message.ipAddress,
-        geoLocation: message.geoLocation,
-        sticker: message.sticker ? { ...message.sticker, url: `/api/stickers/${message.sticker.id}/file` } : null,
-        createdAt: message.createdAt.toISOString(),
-        author: message.author,
-      }))
-    ),
+    showPrivateHomeWidgets
+      ? prisma.guestbookMessage.findMany({
+          where: { ownerId },
+          orderBy: { createdAt: "desc" },
+          include: {
+            author: { select: { id: true, displayName: true, email: true, avatarText: true, avatarUrl: true } },
+            sticker: { select: { id: true, name: true, originalName: true, isAnimated: true } },
+          },
+        }).then((messages) =>
+          messages.map((message) => ({
+            id: message.id,
+            content: message.content,
+            parentId: message.parentId,
+            stickerId: message.stickerId,
+            stickerEmoji: message.stickerEmoji,
+            ipAddress: message.ipAddress,
+            geoLocation: message.geoLocation,
+            sticker: message.sticker ? { ...message.sticker, url: `/api/stickers/${message.sticker.id}/file` } : null,
+            createdAt: message.createdAt.toISOString(),
+            author: message.author,
+          }))
+        )
+      : Promise.resolve([]),
     getVisitDashboardData(ownerId, showHomeContent, isSelf),
   ])
 
@@ -328,7 +362,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
   const latestArticleItems: PersonalContentItem[] = allPostsFull.slice(0, 3).map((post) => ({
     key: `${post.type}-${post.slug}`,
     title: post.title,
-    href: `/u/${ownerId}/${post.type}/${encodeURIComponent(post.slug)}`,
+    href: `/u/${publicRef}/${post.type}/${encodeURIComponent(post.slug)}`,
     date: post.date,
     summary: post.summary,
     label: post.typeLabel,
@@ -338,7 +372,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
   const latestDailyItems: PersonalContentItem[] = recentDaily.slice(0, 4).map((post) => ({
     key: post.slug,
     title: post.title,
-    href: `/u/${ownerId}/daily/${encodeURIComponent(post.slug)}`,
+    href: `/u/${publicRef}/daily/${encodeURIComponent(post.slug)}`,
     date: post.date,
     summary: post.summary,
     tags: post.tags,
@@ -346,35 +380,35 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
   const recentJobItems: PersonalContentItem[] = recentJobs.slice(0, 4).map((job) => ({
     key: job.id,
     title: `${job.company} · ${job.position}`,
-    href: `/u/${ownerId}/jobs`,
+    href: `/u/${publicRef}/jobs`,
     date: job.appliedAt.toISOString().slice(0, 10),
-    summary: job.notes || job.baseLocation || "求职进展已更新",
+    summary: level === "public" ? job.baseLocation || "公开求职进展" : job.notes || job.baseLocation || "求职进展已更新",
     meta: job.status,
   }))
 
   const visibleModuleLinks = [
-    { href: `/u/${ownerId}/resume`, label: "简历", visible: modules.resume, icon: FileText },
-    { href: `/u/${ownerId}/blog`, label: "文章", visible: modules.blog, icon: BookOpen },
-    { href: `/u/${ownerId}/daily`, label: "日常", visible: modules.daily, icon: CalendarDays },
-    { href: `/u/${ownerId}/reflections`, label: "心得", visible: modules.reflections, icon: MessageSquareText },
-    { href: `/u/${ownerId}/notes`, label: "笔记", visible: modules.notes, icon: NotebookText },
-    { href: `/u/${ownerId}/jobs`, label: "求职", visible: modules.jobs, icon: BriefcaseBusiness },
-    { href: `/u/${ownerId}/interviews`, label: "面试", visible: modules.interviews, icon: CalendarDays },
+    { href: `/u/${publicRef}/resume`, label: "简历", visible: modules.resume, icon: FileText },
+    { href: `/u/${publicRef}/blog`, label: "文章", visible: modules.blog, icon: BookOpen },
+    { href: `/u/${publicRef}/daily`, label: "日常", visible: modules.daily, icon: CalendarDays },
+    { href: `/u/${publicRef}/reflections`, label: "心得", visible: modules.reflections, icon: MessageSquareText },
+    { href: `/u/${publicRef}/notes`, label: "笔记", visible: modules.notes, icon: NotebookText },
+    { href: `/u/${publicRef}/jobs`, label: "求职", visible: modules.jobs, icon: BriefcaseBusiness },
+    { href: `/u/${publicRef}/interviews`, label: "面试", visible: modules.interviews, icon: CalendarDays },
   ].filter((item) => item.visible)
 
   const firstReadableContent = modules.blog
-    ? { label: "查看文章", href: `/u/${ownerId}/blog`, icon: BookOpen }
+    ? { label: "查看文章", href: `/u/${publicRef}/blog`, icon: BookOpen }
     : modules.daily
-      ? { label: "查看日常", href: `/u/${ownerId}/daily`, icon: CalendarDays }
+      ? { label: "查看日常", href: `/u/${publicRef}/daily`, icon: CalendarDays }
       : modules.notes
-        ? { label: "查看笔记", href: `/u/${ownerId}/notes`, icon: NotebookText }
+        ? { label: "查看笔记", href: `/u/${publicRef}/notes`, icon: NotebookText }
         : null
 
   const heroActions = isSelf
     ? [
         { label: "编辑资料", href: "/settings/profile", icon: Edit3, variant: "primary" as const },
         { label: "写文章", href: "/blog/new", icon: PenLine, variant: "secondary" as const },
-        { label: "分享主页", href: `/u/${ownerId}`, icon: Share2, variant: "ghost" as const },
+        { label: "分享主页", href: `/u/${publicRef}`, copyHref: `/u/${publicRef}`, icon: Share2, variant: "ghost" as const },
       ]
     : [
         ...(firstReadableContent ? [{ ...firstReadableContent, variant: "secondary" as const }] : []),
@@ -401,7 +435,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
           <>
             <PersonalHeroCard
               name={displayName}
-              email={owner.email}
+              email={level === "public" ? null : owner.email}
               bio={owner.bio}
               location={owner.location}
               avatarText={owner.avatarText}
@@ -413,13 +447,13 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
               publicMode={!isSelf}
             />
 
-            {showHomeContent ? (
+            {showIndexContent ? (
               <>
                 <MetricStrip metrics={coreMetrics} />
                 <ContentListPanel
                   title="最新文章"
                   icon={BookOpen}
-                  href={modules.blog ? `/u/${ownerId}/blog` : undefined}
+                  href={modules.blog ? `/u/${publicRef}/blog` : undefined}
                   items={latestArticleItems}
                   emptyTitle="暂无可见文章"
                   emptyDescription="对方还没有开放可浏览的文章。"
@@ -429,7 +463,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
                   <CompactListPanel
                     title="日常记录"
                     icon={CalendarDays}
-                    href={`/u/${ownerId}/daily`}
+                    href={`/u/${publicRef}/daily`}
                     items={latestDailyItems}
                     emptyTitle="暂无日常记录"
                     emptyDescription="还没有发布任何日常记录哦。"
@@ -440,7 +474,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
                   <CompactListPanel
                     title="求职动态"
                     icon={BriefcaseBusiness}
-                    href={`/u/${ownerId}/jobs`}
+                    href={`/u/${publicRef}/jobs`}
                     items={recentJobItems}
                     emptyTitle="暂无求职动态"
                     emptyDescription="还没有发布任何求职动态哦。"
@@ -454,7 +488,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
           </>
         }
         aside={
-          showHomeContent ? (
+          showIndexContent ? (
             <>
               <WritingStatsCard
                 articleCount={writingStats.total}
@@ -462,20 +496,24 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
                 streak={writingStats.streak}
                 thisMonth={writingStats.thisMonth}
               />
-              <ChatActivityCard
-                directCount={chatActivity.directCount}
-                channelCount={chatActivity.channelCount}
-                weeklyActive={chatActivity.weeklyActive}
-                participants={chatActivity.participants}
-              />
-              {jobsEnabled && <JobFunnelCard steps={funnelSteps} conversionRate={offerConversion} href={`/u/${ownerId}/jobs`} />}
-              <VisitOverviewCard
-                total={visitDashboard.total}
-                uniqueVisitors={visitDashboard.uniqueVisitors}
-                last30={visitDashboard.last30}
-                trend={visitDashboard.trend}
-                recentVisitors={isSelf ? visitDashboard.recentVisitors : undefined}
-              />
+              {showPrivateHomeWidgets ? (
+                <ChatActivityCard
+                  directCount={chatActivity.directCount}
+                  channelCount={chatActivity.channelCount}
+                  weeklyActive={chatActivity.weeklyActive}
+                  participants={chatActivity.participants}
+                />
+              ) : null}
+              {jobsEnabled && <JobFunnelCard steps={funnelSteps} conversionRate={offerConversion} href={`/u/${publicRef}/jobs`} />}
+              {showHomeContent ? (
+                <VisitOverviewCard
+                  total={visitDashboard.total}
+                  uniqueVisitors={visitDashboard.uniqueVisitors}
+                  last30={visitDashboard.last30}
+                  trend={visitDashboard.trend}
+                  recentVisitors={isSelf ? visitDashboard.recentVisitors : undefined}
+                />
+              ) : null}
               <CompactHeatmapCard
                 title="访问热度"
                 contentData={articleActivityData}
@@ -490,9 +528,11 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
         }
       />
 
-      <div id="guestbook" className="mt-4 scroll-mt-20 2xl:mt-5">
-        <GuestbookSection ownerId={ownerId} initialMessages={guestbookMessages} isOwner={isSelf} canPost={level === "friend"} />
-      </div>
+      {showPrivateHomeWidgets ? (
+        <div id="guestbook" className="mt-4 scroll-mt-20 2xl:mt-5">
+          <GuestbookSection ownerId={ownerId} initialMessages={guestbookMessages} isOwner={isSelf} canPost={level === "friend"} />
+        </div>
+      ) : null}
     </PersonalHomeShell>
   )
 }

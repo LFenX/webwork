@@ -1,6 +1,6 @@
 "use client"
 
-import { type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react"
+import { type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import gsap from "gsap"
@@ -45,6 +45,19 @@ import { handleEnterToSubmit } from "@/lib/keyboard"
 import { cn } from "@/lib/utils"
 
 gsap.registerPlugin(useGSAP, MotionPathPlugin)
+
+const MESSAGE_BOTTOM_STICKY_THRESHOLD = 120
+const MESSAGE_BOTTOM_RESUME_THRESHOLD = 4
+
+function isMessageScrollNearBottom(element: HTMLElement | null) {
+  if (!element) return true
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= MESSAGE_BOTTOM_STICKY_THRESHOLD
+}
+
+function isMessageScrollAtBottom(element: HTMLElement | null) {
+  if (!element) return true
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= MESSAGE_BOTTOM_RESUME_THRESHOLD
+}
 
 type AIProviderCapabilities = {
   streamText: boolean
@@ -1910,7 +1923,16 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
   const [creatingConversation, setCreatingConversation] = useState(false)
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null)
   const messageSeedRef = useRef(0)
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null)
+  const messagesContentRef = useRef<HTMLDivElement | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
+  const shouldStickToBottomRef = useRef(true)
+  const forceScrollToBottomRef = useRef(false)
+  const userPausedAutoScrollRef = useRef(false)
+  const userRequestedAutoScrollResumeRef = useRef(false)
+  const scrollFrameRef = useRef<number | null>(null)
+  const touchYRef = useRef<number | null>(null)
+  const sendingRef = useRef(sending)
   const attachmentInputRef = useRef<HTMLInputElement | null>(null)
   const desktopPromptInputRef = useRef<HTMLTextAreaElement | null>(null)
   const mobilePromptInputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -1923,6 +1945,10 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
   const agentChineseName = agentProfile?.chineseName?.trim() || dict.ai.title
   const agentEnglishName = agentProfile?.englishName?.trim() || "SoulWing"
   const agentAvatarUrl = agentProfile?.avatarUrl?.trim() || ""
+
+  useEffect(() => {
+    sendingRef.current = sending
+  }, [sending])
 
   function openAttachmentPicker() {
     setActionMenuOpen(false)
@@ -2019,6 +2045,59 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
     }
   }
 
+  const scrollToLatestMessage = useCallback(() => {
+    const container = messagesScrollRef.current
+    if (!container) return
+
+    if (scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current)
+      scrollFrameRef.current = null
+    }
+
+    container.scrollTop = container.scrollHeight
+    if (!userPausedAutoScrollRef.current) {
+      shouldStickToBottomRef.current = true
+    }
+
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null
+      if (userPausedAutoScrollRef.current) return
+      container.scrollTop = container.scrollHeight
+    })
+  }, [])
+
+  const pauseAutoScrollForUser = useCallback(() => {
+    userPausedAutoScrollRef.current = true
+    userRequestedAutoScrollResumeRef.current = false
+    shouldStickToBottomRef.current = false
+    forceScrollToBottomRef.current = false
+
+    if (scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current)
+      scrollFrameRef.current = null
+    }
+  }, [])
+
+  const requestAutoScrollResume = useCallback(() => {
+    userRequestedAutoScrollResumeRef.current = true
+  }, [])
+
+  const syncAutoScrollAfterUserScroll = useCallback((container: HTMLElement) => {
+    if (userPausedAutoScrollRef.current) {
+      shouldStickToBottomRef.current = false
+      if (userRequestedAutoScrollResumeRef.current && isMessageScrollAtBottom(container)) {
+        userPausedAutoScrollRef.current = false
+        userRequestedAutoScrollResumeRef.current = false
+        shouldStickToBottomRef.current = true
+      }
+      return
+    }
+
+    const isNearBottom = isMessageScrollNearBottom(container)
+    shouldStickToBottomRef.current = isNearBottom
+    if (isNearBottom) userRequestedAutoScrollResumeRef.current = false
+  }, [])
+
   useEffect(() => {
     void bootstrap()
     // bootstrap is intentionally run once on mount for the AI workspace shell.
@@ -2026,13 +2105,44 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
   }, [])
 
   useEffect(() => {
-    const container = endRef.current?.parentElement
-    if (!container) return
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120
-    if (isNearBottom || sending) {
-      endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    if (sendingRef.current) return
+    shouldStickToBottomRef.current = true
+    forceScrollToBottomRef.current = true
+    userPausedAutoScrollRef.current = false
+    userRequestedAutoScrollResumeRef.current = false
+  }, [activeConversationId])
+
+  useEffect(() => {
+    if (!messagesScrollRef.current || messages.length === 0) return
+    if (!forceScrollToBottomRef.current && (userPausedAutoScrollRef.current || !shouldStickToBottomRef.current)) return
+
+    forceScrollToBottomRef.current = false
+    scrollToLatestMessage()
+  }, [messages, sending, scrollToLatestMessage])
+
+  useEffect(() => {
+    const content = messagesContentRef.current
+    if (!content || typeof ResizeObserver === "undefined") return
+
+    const observer = new ResizeObserver(() => {
+      if (!forceScrollToBottomRef.current && (userPausedAutoScrollRef.current || !shouldStickToBottomRef.current)) return
+      forceScrollToBottomRef.current = false
+      scrollToLatestMessage()
+    })
+
+    observer.observe(content)
+    return () => {
+      observer.disconnect()
     }
-  }, [messages, sending])
+  }, [messages.length, scrollToLatestMessage])
+
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const resizeTextarea = (node: HTMLTextAreaElement | null, maxHeight: number) => {
@@ -2452,6 +2562,10 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
       return
     }
 
+    shouldStickToBottomRef.current = true
+    forceScrollToBottomRef.current = true
+    userPausedAutoScrollRef.current = false
+    userRequestedAutoScrollResumeRef.current = false
     setSending(true)
     messageSeedRef.current += 1
     const optimisticUserId = `local-user-${messageSeedRef.current}`
@@ -3269,7 +3383,33 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
           {/* Soft divider between toolbar and messages */}
           <div className="hidden md:block mx-8 h-px bg-slate-100" />
 
-          <div className={cn("mobile-chat-scroll min-h-0 flex-1 overflow-y-auto", isEmptyConversation ? "soulwing-empty-scroll bg-white" : "bg-[#f8fbff]")}>
+          <div
+            ref={messagesScrollRef}
+            style={{ overflowAnchor: "none" }}
+            onWheelCapture={(event) => {
+              if (event.deltaY < 0) pauseAutoScrollForUser()
+              else if (event.deltaY > 0) requestAutoScrollResume()
+            }}
+            onTouchStartCapture={(event) => {
+              touchYRef.current = event.touches[0]?.clientY ?? null
+            }}
+            onTouchMoveCapture={(event) => {
+              const currentY = event.touches[0]?.clientY ?? null
+              const previousY = touchYRef.current
+              if (currentY === null || previousY === null) {
+                pauseAutoScrollForUser()
+                touchYRef.current = currentY
+                return
+              }
+              if (currentY > previousY) pauseAutoScrollForUser()
+              else if (currentY < previousY) requestAutoScrollResume()
+              touchYRef.current = currentY
+            }}
+            onScroll={(event) => {
+              syncAutoScrollAfterUserScroll(event.currentTarget)
+            }}
+            className={cn("mobile-chat-scroll min-h-0 flex-1 overflow-y-auto", isEmptyConversation ? "soulwing-empty-scroll bg-white" : "bg-[#f8fbff]")}
+          >
             {loading ? (
               <div className="flex h-full items-center justify-center text-sm text-[--color-text-muted]">
                 <Loader2 size={16} className="mr-2 animate-spin" />
@@ -3345,7 +3485,7 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                     />
                   </section>
                 ) : (
-                  <div className="flex flex-col gap-8 pb-4">
+                  <div ref={messagesContentRef} className="flex flex-col gap-8 pb-4">
                     {messages.map((message) =>
                       message.role === "assistant" ? (
                         <AssistantMessageCard key={message.id} message={message} run={runsByMessageId[message.id]} dict={dict} />

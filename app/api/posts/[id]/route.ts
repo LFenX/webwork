@@ -4,6 +4,7 @@ import path from "node:path"
 import { prisma } from "@/lib/db"
 import { updatePostSchema } from "@/lib/validators"
 import { revalidatePath } from "next/cache"
+import { revalidatePublicUserPaths } from "@/lib/public-revalidation"
 import { publishUserPageChanged } from "@/lib/realtime-events"
 import { getSession } from "@/lib/session"
 
@@ -65,6 +66,12 @@ export async function PATCH(
   revalidatePath(`/${post.type}/${post.slug}`)
   revalidatePath("/")
   revalidatePath("/", "layout")
+  await revalidatePublicUserPaths(session.userId, [
+    "",
+    post.type,
+    `${post.type}/${existing.slug}`,
+    `${post.type}/${post.slug}`,
+  ])
   await publishUserPageChanged(session.userId, `post:${post.type}`)
   return NextResponse.json(
     { ...post, tags: JSON.parse(post.tags || "[]"), date: post.date.toISOString() },
@@ -90,6 +97,7 @@ export async function DELETE(
   }
   revalidatePath(`/${post.type}`)
   revalidatePath("/")
+  await revalidatePublicUserPaths(session.userId, ["", post.type, `${post.type}/${post.slug}`])
   await publishUserPageChanged(session.userId, `post:${post.type}`)
   return NextResponse.json({ ok: true }, { headers: NO_STORE })
 }

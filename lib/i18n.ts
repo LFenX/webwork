@@ -62,6 +62,7 @@ type Dictionary = {
     interviews: string
     ai: string
     sql: string
+    sqlPractice: string
     friends: string
     admin: string
     login: string
@@ -93,6 +94,11 @@ type Dictionary = {
     location: string
     bio: string
     email: string
+    publicSlug: string
+    publicSlugHint: string
+    copyPublicLink: string
+    publicLinkCopied: string
+    publicLinkCopyFailed: string
     profileSaved: string
     profileSaveFailed: string
     avatarImageOnly: string
@@ -113,6 +119,7 @@ type Dictionary = {
     visibilityHint: string
     privateVisibility: string
     friendsVisibility: string
+    publicVisibility: string
     languageHint: string
     chinese: string
     english: string
@@ -373,6 +380,10 @@ type Dictionary = {
     toc: string
     noHeadings: string
     edit: string
+    share: string
+    shareCopied: string
+    shareCopyFailed: string
+    shareNeedsPublic: string
     new: string
     count: (n: number) => string
     empty: (label: string) => string
@@ -382,6 +393,7 @@ type Dictionary = {
     visibilityLabel: string
     visibilityPrivate: string
     visibilityFriends: string
+    visibilityPublic: string
     visibilityUpdated: string
     visibilityFailed: string
     folder: string
@@ -941,6 +953,7 @@ const zhCN: Dictionary = {
     interviews: "面试",
     ai: "蝶灵",
     sql: "SQL 实验室",
+    sqlPractice: "SQL 练题",
     friends: "好友",
     admin: "管理",
     login: "登录",
@@ -972,6 +985,11 @@ const zhCN: Dictionary = {
     location: "地区",
     bio: "简介",
     email: "邮箱",
+    publicSlug: "公开主页地址",
+    publicSlugHint: "可选。仅支持小写字母、数字和短横线，保存后公开链接会优先使用它。",
+    copyPublicLink: "复制公开主页链接",
+    publicLinkCopied: "公开主页链接已复制",
+    publicLinkCopyFailed: "复制失败，请手动复制",
     profileSaved: "个人资料已保存",
     profileSaveFailed: "保存个人资料失败",
     avatarImageOnly: "请选择图片文件",
@@ -989,9 +1007,10 @@ const zhCN: Dictionary = {
     passwordMismatch: "两次输入的新密码不一致。",
     showPassword: "显示密码",
     hidePassword: "隐藏密码",
-    visibilityHint: "好友可见表示登录后的好友可以查看，对外部访客依然不可见。",
+    visibilityHint: "模块可见性和文章可见性是双层控制：模块公开不等于文章公开，文章公开也不会绕过模块权限。",
     privateVisibility: "仅自己",
     friendsVisibility: "好友可见",
+    publicVisibility: "公开",
     languageHint: "语言偏好会保存到账号，并立即应用到主要界面。",
     chinese: "中文",
     english: "English",
@@ -1274,6 +1293,10 @@ const zhCN: Dictionary = {
     toc: "目录",
     noHeadings: "暂无标题",
     edit: "编辑",
+    share: "分享",
+    shareCopied: "文章链接已复制",
+    shareCopyFailed: "复制失败，请手动复制",
+    shareNeedsPublic: "请先把文章和所属模块都设为公开，再复制分享链接。",
     new: "新建",
     count: (n) => `${n} 篇`,
     empty: (label) => `还没有${label}，点击右上角新建。`,
@@ -1283,8 +1306,9 @@ const zhCN: Dictionary = {
     visibilityLabel: "文章可见性",
     visibilityPrivate: "私密",
     visibilityFriends: "好友可见",
-    visibilityUpdated: "权限更新失败",
-    visibilityFailed: "已设为私密",
+    visibilityPublic: "公开",
+    visibilityUpdated: "权限已更新",
+    visibilityFailed: "权限更新失败",
     folder: "文件夹",
     moveToFolder: "已加入文件夹",
     movedToFolder: "已移到未分类",
@@ -1850,6 +1874,7 @@ const enUS: Dictionary = {
     interviews: "Interviews",
     ai: "AI Assistant",
     sql: "SQL Lab",
+    sqlPractice: "SQL Practice",
     friends: "Friends",
     admin: "Admin",
     login: "Login",
@@ -1881,6 +1906,11 @@ const enUS: Dictionary = {
     location: "Location",
     bio: "Bio",
     email: "Email",
+    publicSlug: "Public profile URL",
+    publicSlugHint: "Optional. Use lowercase letters, numbers, and hyphens only. Public links will prefer it after saving.",
+    copyPublicLink: "Copy public profile link",
+    publicLinkCopied: "Public profile link copied",
+    publicLinkCopyFailed: "Copy failed. Please copy manually.",
     profileSaved: "Profile saved",
     profileSaveFailed: "Failed to save profile",
     avatarImageOnly: "Please choose an image file",
@@ -1898,9 +1928,10 @@ const enUS: Dictionary = {
     passwordMismatch: "The two password entries do not match.",
     showPassword: "Show password",
     hidePassword: "Hide password",
-    visibilityHint: "Friends can view these modules after signing in. They stay hidden from public visitors.",
+    visibilityHint: "Module and article visibility are layered: a public module does not publish every article, and a public article still requires its module to be visible.",
     privateVisibility: "Private",
     friendsVisibility: "Friends only",
+    publicVisibility: "Public",
     languageHint: "Your language preference is saved to your account and applied immediately.",
     chinese: "Chinese",
     english: "English",
@@ -2183,6 +2214,10 @@ const enUS: Dictionary = {
     toc: "Contents",
     noHeadings: "No headings",
     edit: "Edit",
+    share: "Share",
+    shareCopied: "Article link copied",
+    shareCopyFailed: "Copy failed. Please copy manually.",
+    shareNeedsPublic: "Set both the article and its module to public before sharing.",
     new: "New",
     count: (n) => `${n} articles`,
     empty: (label) => `No ${label} yet. Click "New" to create one.`,
@@ -2192,6 +2227,7 @@ const enUS: Dictionary = {
     visibilityLabel: "Article visibility",
     visibilityPrivate: "Private",
     visibilityFriends: "Friends only",
+    visibilityPublic: "Public",
     visibilityUpdated: "Visibility updated",
     visibilityFailed: "Failed to update visibility",
     folder: "Folder",

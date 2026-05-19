@@ -22,7 +22,7 @@ export async function GET(
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "asc" },
-    select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true },
+    select: { id: true, email: true, publicSlug: true, displayName: true, avatarText: true, avatarUrl: true },
   })
 
   return NextResponse.json({ members: users }, { headers: NO_STORE })
@@ -66,7 +66,7 @@ export async function POST(
 
   const members = await prisma.chatChannelMember.findMany({
     where: { channelId },
-    include: { user: { select: { id: true, email: true, displayName: true, avatarText: true, avatarUrl: true } } },
+    include: { user: { select: { id: true, email: true, publicSlug: true, displayName: true, avatarText: true, avatarUrl: true } } },
     orderBy: { joinedAt: "asc" },
   })
 

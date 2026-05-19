@@ -74,12 +74,21 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder, re
       const postId = target?.getAttribute("data-post-id")
       if (!postId) return
       window.sessionStorage.setItem("dragging-post-id", postId)
+      event.dataTransfer?.setData("application/x-lgplay-post-id", postId)
       event.dataTransfer?.setData("text/plain", postId)
       if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
     }
+    function handleDragEnd() {
+      window.sessionStorage.removeItem("dragging-post-id")
+      setDragOverFolder(null)
+    }
 
     document.addEventListener("dragstart", handleDragStart)
-    return () => document.removeEventListener("dragstart", handleDragStart)
+    document.addEventListener("dragend", handleDragEnd)
+    return () => {
+      document.removeEventListener("dragstart", handleDragStart)
+      document.removeEventListener("dragend", handleDragEnd)
+    }
   }, [readOnly])
 
   function startCreate() {
@@ -129,9 +138,12 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder, re
     }
   }
 
-  async function moveDraggedPost(folderId: string | null) {
+  async function moveDraggedPost(folderId: string | null, dataTransfer?: DataTransfer | null) {
     if (readOnly) return
-    const postId = window.sessionStorage.getItem("dragging-post-id")
+    const postId =
+      dataTransfer?.getData("application/x-lgplay-post-id") ||
+      window.sessionStorage.getItem("dragging-post-id") ||
+      ""
     if (!postId) return
     setDragOverFolder(null)
     try {
@@ -212,13 +224,15 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder, re
           onDragOver={(event) => {
             if (readOnly) return
             event.preventDefault()
+            event.dataTransfer.dropEffect = "move"
             setDragOverFolder("uncategorized")
           }}
           onDragLeave={() => setDragOverFolder(null)}
           onDrop={(event) => {
             if (readOnly) return
             event.preventDefault()
-            void moveDraggedPost(null)
+            event.stopPropagation()
+            void moveDraggedPost(null, event.dataTransfer)
           }}
           className={cn(folderCardClasses(selectedFolder === "uncategorized", dragOverFolder === "uncategorized"), "hover:no-underline")}
         >
@@ -238,13 +252,15 @@ export function ArticleFolderPanel({ type, basePath, folders, selectedFolder, re
             onDragOver={(event) => {
               if (readOnly) return
               event.preventDefault()
+              event.dataTransfer.dropEffect = "move"
               setDragOverFolder(folder.id)
             }}
             onDragLeave={() => setDragOverFolder(null)}
             onDrop={(event) => {
               if (readOnly) return
               event.preventDefault()
-              void moveDraggedPost(folder.id)
+              event.stopPropagation()
+              void moveDraggedPost(folder.id, event.dataTransfer)
             }}
             className={folderCardClasses(selectedFolder === folder.id, dragOverFolder === folder.id)}
           >

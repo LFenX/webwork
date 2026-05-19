@@ -3,6 +3,7 @@ import { FileText } from "lucide-react"
 import type { ReactNode } from "react"
 import { EmptyState } from "@/components/empty-state"
 import { SectionCard } from "@/components/profile/section-card"
+import { formatDateKey } from "@/lib/time"
 import { cn } from "@/lib/utils"
 
 export type ProfileListItem = {
@@ -49,7 +50,7 @@ export function ContentListCard({
               className="group block min-w-0 rounded-[16px] border border-transparent px-3 py-3 transition-all hover:border-[--color-brand-border] hover:bg-white/74 hover:shadow-[0_10px_24px_rgba(15,23,42,0.05)] hover:no-underline"
             >
               <div className="flex min-w-0 items-start gap-3">
-                {item.date && <span className="mt-1 w-[4.75rem] shrink-0 font-mono text-xs text-[--color-text-muted]">{item.date.slice(0, 10)}</span>}
+                {item.date && <span className="mt-1 w-[4.75rem] shrink-0 font-mono text-xs text-[--color-text-muted]">{formatDateKey(item.date)}</span>}
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                     <p className="min-w-0 flex-1 text-sm font-semibold leading-6 text-[--color-text-primary] transition-colors group-hover:text-[--color-brand]">

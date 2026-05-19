@@ -2,10 +2,11 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { Globe2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SettingsSection } from "@/components/settings/settings-shell"
+import { cn } from "@/lib/utils"
 import type { AppLocale } from "@/lib/i18n"
 
 export function LanguageSettingsForm({
@@ -46,26 +47,55 @@ export function LanguageSettingsForm({
     }
   }
 
+  const options: { value: AppLocale; label: string; sub: string }[] = [
+    { value: "zh-CN", label: labels.chinese, sub: "简体中文" },
+    { value: "en-US", label: labels.english, sub: "English (US)" },
+  ]
+
   return (
-    <section className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5">
-      <div className="max-w-lg">
-        <Label className="mb-2 block">{labels.language}</Label>
-        <Select value={language} onValueChange={(value) => setLanguage(value as AppLocale)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="zh-CN">{labels.chinese}</SelectItem>
-            <SelectItem value="en-US">{labels.english}</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="mt-3 text-sm text-[--color-text-secondary]">{labels.languageHint}</p>
-      </div>
-      <div className="mt-6 flex justify-end">
+    <SettingsSection
+      icon={<Globe2 size={16} />}
+      title={labels.language}
+      description={labels.languageHint}
+      footer={
         <Button type="button" onClick={handleSave} loading={saving} loadingText={labels.saving}>
           {labels.save}
         </Button>
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        {options.map((opt) => {
+          const active = language === opt.value
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setLanguage(opt.value)}
+              aria-pressed={active}
+              className={cn(
+                "flex items-center justify-between gap-4 rounded-[--radius-lg] border bg-[--color-bg-surface] px-4 py-3 text-left transition-all",
+                active
+                  ? "border-[--color-brand] shadow-[0_0_0_3px_var(--color-brand-soft)]"
+                  : "border-[--color-border] hover:border-[--color-brand-border] hover:bg-[--color-bg-hover]",
+              )}
+            >
+              <div>
+                <div className="text-[14px] font-medium text-[--color-text-primary]">{opt.label}</div>
+                <div className="mt-0.5 text-[12px] text-[--color-text-muted]">{opt.sub}</div>
+              </div>
+              <span
+                aria-hidden
+                className={cn(
+                  "inline-flex h-5 w-5 items-center justify-center rounded-full border transition-colors",
+                  active ? "border-[--color-brand] bg-[--color-brand]" : "border-[--color-border-strong] bg-transparent",
+                )}
+              >
+                {active ? <span className="h-1.5 w-1.5 rounded-full bg-white" /> : null}
+              </span>
+            </button>
+          )
+        })}
       </div>
-    </section>
+    </SettingsSection>
   )
 }

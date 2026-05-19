@@ -636,7 +636,7 @@ export const AI_TOOLS_REGISTRY = [
     auditLabel: "create_markdown_article",
     whenToUse: "当用户要求创建一篇博客、日常、心得或笔记文章时使用。",
     whenNotToUse: "不要用于删除文章、读取他人文章或清空文章内容。不允许删除操作。",
-    argumentHints: ["module 必填，可选值：blog/daily/reflections/notes", "title 必填", "visibility 默认 private", "folderId 可选，传 null 表示根目录"],
+    argumentHints: ["module 必填，可选值：blog/daily/reflections/notes", "title 必填", "visibility 默认 private，可选 private/friends/public", "folderId 可选，传 null 表示根目录"],
     returns: "articleId, slug, title, module, folderId, visibility, date",
   }),
   defineTool(updateMarkdownArticleTool, {
@@ -644,7 +644,7 @@ export const AI_TOOLS_REGISTRY = [
     inputSchemaSummary: "module: string, articleId: string, title?: string, content?: string, summary?: string, tags?: string[], folderId?: string, visibility?: string, date?: string",
     sensitivity: "high",
     auditLabel: "update_markdown_article",
-    whenToUse: "当用户要求修改自己的某篇文章的标题、正文、摘要、标签、可见性或移动文章到其他文件夹时使用。触发语：'修改那篇文章的标题''帮我改一下博客内容''更新文章正文''把文章改为好友可见'。",
+    whenToUse: "当用户要求修改自己的某篇文章的标题、正文、摘要、标签、可见性或移动文章到其他文件夹时使用。触发语：'修改那篇文章的标题''帮我改一下博客内容''更新文章正文''把文章改为公开/好友可见'。",
     whenNotToUse: "不要用于删除文章、清空正文内容或修改他人文章。不允许将 content 设为空字符串。",
     argumentHints: ["module 和 articleId 必填", "只修改提供的字段", "content 不能为空字符串", "folderId 传 null 表示移至根目录"],
     returns: "articleId, slug, title, module, folderId, visibility, updatedAt",

@@ -1,0 +1,13 @@
+{
+  "exportedDeck": "D:\\appmy\\webappwork\\solar-system-deck\\output\\output.pptx",
+  "sourcePreviews": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\previews",
+  "pptxPreviews": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\pptx-previews",
+  "contactSheet": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\contact-sheet.png",
+  "slideCount": 8,
+  "hydratedImages": 20,
+  "assetSource": "NASA Image and Video Library / NASA Solar System materials",
+  "notes": [
+    "Slides were rendered from source and from the saved PPTX import for parity inspection.",
+    "The planet lineup is not to scale by design; distance scale is handled on slide 4."
+  ]
+}

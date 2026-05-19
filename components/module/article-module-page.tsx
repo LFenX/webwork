@@ -7,6 +7,8 @@ import { ModuleHero, ModuleMetaPill, ModulePageShell, ModulePanel, ModuleStatGri
 import { StatsCard } from "@/components/stats-card"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
 import type { ArticleFolderItem, PostMeta } from "@/lib/mdx"
+import { formatDateKey } from "@/lib/time"
+import type { Visibility } from "@/lib/visibility"
 
 type ArticleModule = "blog" | "daily" | "reflections" | "notes"
 
@@ -17,7 +19,7 @@ type ArticleModulePageProps = {
   posts: PostMeta[]
   folders: ArticleFolderItem[]
   selectedFolder?: string
-  visibility?: "private" | "friends"
+  visibility?: Visibility
   newLabel: string
   emptyLabel: string
 }
@@ -36,27 +38,44 @@ const moduleHint: Record<ArticleModule, string> = {
   notes: "保存笔记、资料和工具线索",
 }
 
+function postDateKey(date?: string) {
+  return date ? formatDateKey(date) : ""
+}
+
 function formatDate(date?: string) {
-  if (!date) return "未记录"
-  return date.slice(0, 10)
+  return postDateKey(date) || "未记录"
+}
+
+function formatMonth(date?: string) {
+  return postDateKey(date).slice(5, 7) || "--"
+}
+
+function formatDay(date?: string) {
+  return postDateKey(date).slice(8, 10) || "--"
+}
+
+function formatYearMonth(date?: string) {
+  return postDateKey(date).slice(0, 7) || "未记录"
 }
 
 function uniqueTags(posts: PostMeta[]) {
   return Array.from(new Set(posts.flatMap((post) => post.tags ?? [])))
 }
 
-function ArticleCard({ post, href, compactDate = false }: { post: PostMeta; href: string; compactDate?: boolean }) {
+function ArticleCard({ post, href }: { post: PostMeta; href: string }) {
   return (
     <Link
       href={href}
+      draggable
+      data-post-id={post.id}
       className="group block min-w-0 rounded-[18px] border border-slate-200/80 bg-white/86 p-4 transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-[0_16px_36px_rgba(15,23,42,0.07)] hover:no-underline"
     >
       <div className="flex min-w-0 gap-4">
         <div className="hidden w-16 shrink-0 rounded-[16px] bg-gradient-to-br from-blue-50 to-slate-100 text-center ring-1 ring-slate-200 sm:block">
           <div className="px-2 py-3">
-            <p className="font-mono text-xs text-slate-400">{post.date?.slice(5, 7) ?? "--"}</p>
+            <p className="font-mono text-xs text-slate-400">{formatMonth(post.date)}</p>
             <p className="mt-1 text-2xl font-bold leading-none text-slate-900 tabular-nums">
-              {compactDate ? post.date?.slice(8, 10) ?? "--" : post.date?.slice(8, 10) ?? "--"}
+              {formatDay(post.date)}
             </p>
           </div>
         </div>
@@ -99,7 +118,7 @@ export function ArticleModulePage({
   const tags = uniqueTags(posts)
   const grouped = type === "daily"
     ? posts.reduce<Record<string, PostMeta[]>>((acc, post) => {
-        const ym = post.date?.slice(0, 7) ?? "未记录"
+        const ym = formatYearMonth(post.date)
         acc[ym] = [...(acc[ym] ?? []), post]
         return acc
       }, {})
@@ -172,7 +191,7 @@ export function ArticleModulePage({
                   </h2>
                   <div className="grid gap-3">
                     {grouped[ym].map((post) => (
-                      <ArticleCard key={post.slug} post={post} href={`${basePath}/${encodeURIComponent(post.slug)}`} compactDate />
+                      <ArticleCard key={post.slug} post={post} href={`${basePath}/${encodeURIComponent(post.slug)}`} />
                     ))}
                   </div>
                 </section>

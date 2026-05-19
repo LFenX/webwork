@@ -1,5 +1,6 @@
 import "server-only"
 import { prisma } from "@/lib/db"
+import { publicProfileHref } from "@/lib/public-profile"
 import { getReadRecentActivityIds } from "@/lib/recent-activity-reads"
 
 export type RecentActivityTone = "blue" | "green" | "amber" | "coral"
@@ -119,7 +120,7 @@ export async function getRecentActivityHub(userId: string): Promise<RecentActivi
           where: { OR: articleFilters },
           orderBy: [{ updatedAt: "desc" }, { date: "desc" }],
           take: 50,
-          include: { user: { select: { id: true, displayName: true, email: true } } },
+          include: { user: { select: { id: true, displayName: true, email: true, publicSlug: true } } },
         })
       : Promise.resolve([]),
     (allowedByModule.jobs ?? []).length > 0
@@ -127,7 +128,7 @@ export async function getRecentActivityHub(userId: string): Promise<RecentActivi
           where: { userId: { in: allowedByModule.jobs } },
           orderBy: { updatedAt: "desc" },
           take: 50,
-          include: { user: { select: { id: true, displayName: true, email: true } } },
+          include: { user: { select: { id: true, displayName: true, email: true, publicSlug: true } } },
         })
       : Promise.resolve([]),
     (allowedByModule.resume ?? []).length > 0
@@ -135,7 +136,7 @@ export async function getRecentActivityHub(userId: string): Promise<RecentActivi
           where: { userId: { in: allowedByModule.resume } },
           orderBy: { updatedAt: "desc" },
           take: 50,
-          include: { user: { select: { id: true, displayName: true, email: true } } },
+          include: { user: { select: { id: true, displayName: true, email: true, publicSlug: true } } },
         })
       : Promise.resolve([]),
     prisma.websiteResource.findMany({
@@ -209,7 +210,7 @@ export async function getRecentActivityHub(userId: string): Promise<RecentActivi
       id: `post-${post.id}-${post.updatedAt.getTime()}`,
       title: `${normalizeFriendName(post.user)}发布了${ARTICLE_ACTIVITY_LABELS[post.type] ?? "内容"}`,
       description: compactText(post.title, "新的文章动态"),
-      href: `/u/${post.userId}/${post.type}/${encodeURIComponent(post.slug)}`,
+      href: publicProfileHref(post.user, `${post.type}/${encodeURIComponent(post.slug)}`),
       meta: compactText(post.summary, ARTICLE_ACTIVITY_LABELS[post.type] ?? "文章", 34),
       time: post.updatedAt.toISOString(),
       badge: ARTICLE_ACTIVITY_LABELS[post.type] ?? "文章",
@@ -219,7 +220,7 @@ export async function getRecentActivityHub(userId: string): Promise<RecentActivi
       id: `job-${job.id}-${job.updatedAt.getTime()}`,
       title: `${normalizeFriendName(job.user)}更新了求职进展`,
       description: `${job.company} · ${job.position}`,
-      href: `/u/${job.userId}/jobs`,
+      href: publicProfileHref(job.user, "jobs"),
       meta: job.status,
       time: job.updatedAt.toISOString(),
       badge: "求职",
@@ -229,7 +230,7 @@ export async function getRecentActivityHub(userId: string): Promise<RecentActivi
       id: `resume-${resume.userId}-${resume.updatedAt.getTime()}`,
       title: `${normalizeFriendName(resume.user)}更新了简历`,
       description: resume.selectedTheme ? `当前模板：${resume.selectedTheme}` : "简历内容有新的调整",
-      href: `/u/${resume.userId}/resume`,
+      href: publicProfileHref(resume.user, "resume"),
       meta: resume.mode === "json" ? "结构化简历" : "Markdown 简历",
       time: resume.updatedAt.toISOString(),
       badge: "简历",

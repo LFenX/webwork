@@ -139,9 +139,9 @@ export const AI_CAPABILITY_CATEGORIES: CapabilityCategory[] = [
   {
     id: "module-settings",
     label: "模块可见性",
-    description: "设置各模块对好友的可见性",
+    description: "设置各模块的 private/friends/public 可见性",
     tools: [
-      { name: "set_module_visibility", title: "设置模块可见性", whenToUse: "用户要求对好友开放或隐藏某个模块", triggers: ["把博客设为好友可见", "关闭简历对好友的可见", "让好友看不到我的求职记录"] },
+      { name: "set_module_visibility", title: "设置模块可见性", whenToUse: "用户要求公开、对好友开放或隐藏某个模块", triggers: ["把博客设为公开", "把博客设为好友可见", "关闭简历对好友的可见", "让好友看不到我的求职记录"] },
     ],
   },
   {

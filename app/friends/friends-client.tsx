@@ -11,6 +11,7 @@ import { SoulWingReplyButton } from "@/components/chat/soulwing-reply-button"
 import { UserAvatar } from "@/components/user-avatar"
 import { getActiveChatContext, subscribeActiveChatContext } from "@/lib/active-chat"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
+import { publicProfileHref } from "@/lib/public-profile"
 
 interface Friend extends ChatFriend {
   bio: string
@@ -795,7 +796,7 @@ function FriendRow({
 
   return (
     <div className="flex items-center justify-between gap-3 border-b border-[--color-border] p-3 last:border-b-0">
-      <Link href={`/u/${friend.id}`} className="flex min-w-0 flex-1 items-center gap-3 hover:no-underline">
+      <Link href={publicProfileHref(friend)} className="flex min-w-0 flex-1 items-center gap-3 hover:no-underline">
         <AvatarWithUnread friend={friend} unreadCount={unreadCount} />
         <span className="min-w-0">
           <span className="block truncate text-sm font-medium">{friend.displayName || friend.email}</span>

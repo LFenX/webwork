@@ -16,9 +16,14 @@ export default async function SettingsProfilePage() {
   const dict = getDictionary(settings.language)
 
   return (
-    <SettingsShell title={dict.settings.profileTitle} backLabel={dict.common.back}>
+    <SettingsShell
+      title={dict.settings.profileTitle}
+      backLabel={dict.common.back}
+      eyebrow={settings.language === "en-US" ? "Settings · Profile" : "设置 · 个人资料"}
+    >
       <ProfileSettingsForm
         initialForm={{
+          userId: profile?.id || session.userId,
           displayName: profile?.displayName || "",
           avatarText: profile?.avatarText || "",
           avatarUrl: profile?.avatarUrl || "",
@@ -26,6 +31,7 @@ export default async function SettingsProfilePage() {
           location: profile?.location || "",
           bio: profile?.bio || settings.heroTagline || "",
           email: profile?.email || session.email,
+          publicSlug: profile?.publicSlug || "",
         }}
         labels={{
           displayName: dict.settings.displayName,
@@ -34,6 +40,11 @@ export default async function SettingsProfilePage() {
           location: dict.settings.location,
           bio: dict.settings.bio,
           email: dict.settings.email,
+          publicSlug: dict.settings.publicSlug,
+          publicSlugHint: dict.settings.publicSlugHint,
+          copyPublicLink: dict.settings.copyPublicLink,
+          publicLinkCopied: dict.settings.publicLinkCopied,
+          publicLinkCopyFailed: dict.settings.publicLinkCopyFailed,
           save: dict.common.save,
           saving: dict.common.saving,
           saved: dict.settings.profileSaved,

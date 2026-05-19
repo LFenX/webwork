@@ -300,6 +300,7 @@ export async function requestProviderChat(params: {
   toolChoice?: "auto" | "none"
   stream?: boolean
   timeoutMs?: number
+  signal?: AbortSignal
   onReasoningStart?: () => Promise<void> | void
   onReasoningDelta?: (delta: string) => Promise<void> | void
   onAssistantStart?: () => Promise<void> | void
@@ -310,10 +311,14 @@ export async function requestProviderChat(params: {
     argumentsDelta: string
     argumentsText: string
   }) => Promise<void> | void
-}) {
+}): Promise<ProviderChatResult> {
   const timeoutMs = params.timeoutMs ?? Number(process.env.AI_PROVIDER_TIMEOUT_MS || 120_000)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs))
+  const requestSignal =
+    params.signal && typeof AbortSignal !== "undefined" && "any" in AbortSignal
+      ? AbortSignal.any([controller.signal, params.signal])
+      : params.signal ?? controller.signal
   let response: Response
   try {
     response = await fetch(buildEndpoint(params.provider.baseUrl, "/chat/completions"), {
@@ -330,13 +335,14 @@ export async function requestProviderChat(params: {
         ...(params.tools?.length ? { tools: params.tools, tool_choice: params.toolChoice ?? "auto" } : {}),
       }),
       cache: "no-store",
-      signal: controller.signal,
+      signal: requestSignal,
     })
   } catch (error) {
     clearTimeout(timer)
     if (controller.signal.aborted) {
       throw new Error(`AI provider request timed out after ${Math.round(timeoutMs / 1000)}s`)
     }
+    if (params.signal?.aborted) throw new Error("AI provider request aborted")
     throw error
   }
 

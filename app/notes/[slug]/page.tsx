@@ -6,16 +6,18 @@ import { getDictionary } from "@/lib/i18n"
 import { getUserSiteSettings } from "@/lib/settings"
 import { ArticleReader } from "@/components/article-reader"
 import { buildArticleWorkspaceNav } from "@/lib/article-workspace"
+import { getModuleVisibility } from "@/lib/permissions"
 
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
 
 export default async function NotePostPage({ params }: { params: Promise<{ slug: string }> }) {
   const [{ slug }, { userId }] = await Promise.all([params, requireAuth()])
-  const [post, creator, settings] = await Promise.all([
+  const [post, creator, settings, moduleVisibility] = await Promise.all([
     getPost("notes", decodeURIComponent(slug), userId),
     getCreatorProfile(userId),
     getUserSiteSettings(userId),
+    getModuleVisibility(userId, "notes"),
   ])
   if (!post || !creator) notFound()
 
@@ -38,6 +40,7 @@ export default async function NotePostPage({ params }: { params: Promise<{ slug:
       canEdit
       userId={userId}
       workspaceNav={workspaceNav}
+      moduleVisibility={moduleVisibility}
     />
   )
 }

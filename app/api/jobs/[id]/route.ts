@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 import { publishUserPageChanged } from "@/lib/realtime-events"
 import { updateJobSchema } from "@/lib/validators"
 import { getSession } from "@/lib/session"
+import { hasJobReplySignal, NO_REPLY_ABANDON_STATUS } from "@/lib/job-stats"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -38,11 +39,35 @@ export async function PATCH(
   const parsed = updateJobSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: "参数错误" }, { status: 400 })
 
-  const { appliedAt, ...rest } = parsed.data
+  const { appliedAt, nextActionAt, ...rest } = parsed.data
   const data: Record<string, unknown> = { ...rest }
-  if (appliedAt) data.appliedAt = new Date(appliedAt)
+  if (appliedAt !== undefined) data.appliedAt = new Date(appliedAt)
+  if (nextActionAt !== undefined) data.nextActionAt = nextActionAt ? new Date(nextActionAt) : null
 
-  const job = await prisma.jobApplication.update({ where: { id }, data })
+  // 状态变化时，把流程阶段往前推一档（不会倒退）：未通过评估 → 测评(1)；进入面试/未通过面试 → 面试(3)；已Offer → Offer(4)；已接受 → 入职(5)
+  if (data.status !== undefined && data.pipelineStage === undefined) {
+    const stageByStatus: Record<string, number> = { 未通过评估: 1, 进入面试: 3, 未通过面试: 3, 已Offer: 4, 已接受: 5 }
+    const target = stageByStatus[data.status as string]
+    if (target !== undefined && target > (existing.pipelineStage ?? 0)) {
+      data.pipelineStage = target
+    }
+  }
+
+  if (data.status !== undefined || data.pipelineStage !== undefined) {
+    const nextStatus = (data.status as string | undefined) ?? existing.status
+    const nextStage = (data.pipelineStage as number | undefined) ?? existing.pipelineStage
+    if (nextStatus === "已投递" || nextStatus === NO_REPLY_ABANDON_STATUS) {
+      data.repliedAt = null
+    } else if (hasJobReplySignal({ status: nextStatus, pipelineStage: nextStage, repliedAt: existing.repliedAt })) {
+      data.repliedAt = existing.repliedAt ?? new Date()
+    }
+  }
+
+  const job = await prisma.jobApplication.update({
+    where: { id },
+    data,
+    include: { _count: { select: { interviews: true } } },
+  })
   await publishUserPageChanged(session.userId, "jobs")
   return NextResponse.json(job, { headers: NO_STORE })
 }

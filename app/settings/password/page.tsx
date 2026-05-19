@@ -12,7 +12,11 @@ export default async function SettingsPasswordPage() {
   const dict = getDictionary(settings.language)
 
   return (
-    <SettingsShell title={dict.settings.passwordTitle} backLabel={dict.common.back}>
+    <SettingsShell
+      title={dict.settings.passwordTitle}
+      backLabel={dict.common.back}
+      eyebrow={settings.language === "en-US" ? "Settings · Password" : "设置 · 密码"}
+    >
       <PasswordSettingsPanel
         labels={{
           passwordInput: dict.settings.passwordInput,

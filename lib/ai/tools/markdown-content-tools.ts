@@ -2,6 +2,8 @@ import "server-only"
 import { prisma } from "@/lib/db"
 import { toolGranted, toolForbidden, toolNotFound, toolPartial } from "@/lib/ai/tools/helpers"
 import { POST_TYPES, type PostType } from "@/lib/enums"
+import { revalidatePublicUserPaths } from "@/lib/public-revalidation"
+import { isVisibility, normalizeVisibility } from "@/lib/visibility"
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -115,8 +117,12 @@ export const createMarkdownArticleTool = {
         return toolNotFound("指定的文件夹不存在或不属于当前用户。", "folder_not_found", { folderId, module })
       }
     }
+    if (visibility !== undefined && !isVisibility(visibility)) {
+      return toolForbidden("可见性无效，必须是 private、friends 或 public。", "invalid_visibility")
+    }
 
     const slug = await generateUniqueSlug(userId, module, title.trim())
+    const normalizedVisibility = normalizeVisibility(visibility)
 
     const post = await prisma.post.create({
       data: {
@@ -128,7 +134,7 @@ export const createMarkdownArticleTool = {
         summary: summary?.trim() || "",
         tags: JSON.stringify(tags?.filter(Boolean) ?? []),
         folderId: folderId || null,
-        visibility: visibility === "friends" ? "friends" : "private",
+        visibility: normalizedVisibility,
         date: date ? new Date(date) : new Date(),
       },
       select: {
@@ -141,6 +147,7 @@ export const createMarkdownArticleTool = {
         date: true,
       },
     })
+    await revalidatePublicUserPaths(userId, ["", module, `${module}/${post.slug}`])
 
     const memoryCandidate = buildMemoryCandidate({
       action: "create_article",
@@ -273,7 +280,10 @@ export const updateMarkdownArticleTool = {
       changedFields.push("folderId")
     }
     if (visibility !== undefined) {
-      data.visibility = visibility === "friends" ? "friends" : "private"
+      if (!isVisibility(visibility)) {
+        return toolForbidden("可见性无效，必须是 private、friends 或 public。", "invalid_visibility")
+      }
+      data.visibility = normalizeVisibility(visibility)
       changedFields.push("visibility")
     }
     if (date !== undefined) {
@@ -306,6 +316,7 @@ export const updateMarkdownArticleTool = {
         updatedAt: true,
       },
     })
+    await revalidatePublicUserPaths(userId, ["", module, `${module}/${article.slug}`, `${module}/${updated.slug}`])
 
     const memoryCandidate = buildMemoryCandidate({
       action: "update_article",

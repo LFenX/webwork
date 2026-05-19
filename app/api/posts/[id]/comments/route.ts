@@ -20,7 +20,7 @@ async function getAccessiblePost(id: string, viewerId: string) {
 
   const level = await getAccessLevel(viewerId, post.userId)
   if (level === "self") return post
-  if (level === "friend" && post.visibility === "friends") return post
+  if (level === "friend" && (post.visibility === "friends" || post.visibility === "public")) return post
   return null
 }
 

@@ -13,6 +13,8 @@ import { prisma } from "@/lib/db"
 import { INTERVIEW_RESULTS } from "@/lib/enums"
 import { getFriendVisibleModules } from "@/lib/friend-module-nav"
 import { canViewModule, getAccessLevel, recordVisit } from "@/lib/permissions"
+import { resolveCreatorProfileRef } from "@/lib/profile"
+import { getPublicModuleMetadata } from "@/lib/public-page-metadata"
 import { formatChinaDate, formatChinaDateTime } from "@/lib/time"
 
 function countBy<T>(items: T[], getter: (item: T) => string) {
@@ -60,18 +62,20 @@ function RatingStars({ value }: { value?: number | null }) {
   )
 }
 
+export function generateMetadata({ params }: { params: Promise<{ userId: string }> }) {
+  return params.then(({ userId }) => getPublicModuleMetadata(userId, "interviews", "面试", "公开面试进展。"))
+}
+
 export default async function UserInterviewsPage({ params }: { params: Promise<{ userId: string }> }) {
-  const [{ userId: ownerId }, session] = await Promise.all([params, getOptionalSession()])
-  const owner = await prisma.user.findUnique({
-    where: { id: ownerId },
-    select: { displayName: true, email: true },
-  })
+  const [{ userId: ownerRef }, session] = await Promise.all([params, getOptionalSession()])
+  const owner = await resolveCreatorProfileRef(ownerRef)
   if (!owner) notFound()
+  const ownerId = owner.id
 
   const level = await getAccessLevel(session?.userId ?? null, ownerId)
-  if (level === "none") notFound()
 
   const moduleVisible = await canViewModule(ownerId, "interviews", level)
+  if (level === "public" && !moduleVisible) notFound()
   const interviews = moduleVisible
     ? await prisma.interviewRecord.findMany({
         where: { userId: ownerId },
@@ -80,15 +84,24 @@ export default async function UserInterviewsPage({ params }: { params: Promise<{
       })
     : []
 
-  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "interviews", path: `/u/${ownerId}/interviews` })
+  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "interviews", path: `/u/${owner.publicRef}/interviews` })
 
-  const displayName = owner.displayName || owner.email
+  const displayName = owner.displayName || (level === "public" ? "公开用户" : owner.email)
   const visibleModules = await getFriendVisibleModules(ownerId, level)
-  const stats = buildStats(interviews)
+  const visibleInterviews = level === "public"
+    ? interviews.map((item) => ({
+        ...item,
+        interviewers: null,
+        questions: null,
+        feedback: null,
+        selfRating: null,
+      }))
+    : interviews
+  const stats = buildStats(visibleInterviews)
 
   return (
     <ModulePageShell maxWidth="full">
-      <FriendModuleNav ownerId={ownerId} displayName={displayName} current="interviews" modules={visibleModules} />
+      <FriendModuleNav ownerId={ownerId} ownerRef={owner.publicRef} displayName={displayName} current="interviews" modules={visibleModules} />
       <ModuleHero
         icon={CalendarClock}
         title="Interview records"
@@ -124,8 +137,8 @@ export default async function UserInterviewsPage({ params }: { params: Promise<{
         </div>
       ) : null}
 
-      <ModulePanel title="Interview timeline" description={`${interviews.length} visible records`} contentClassName="p-0">
-        {interviews.length === 0 ? (
+      <ModulePanel title="Interview timeline" description={`${visibleInterviews.length} visible records`} contentClassName="p-0">
+        {visibleInterviews.length === 0 ? (
           <div className="p-6">
             <EmptyState title="No interview records" description="Visible interview progress will appear here." />
           </div>
@@ -142,7 +155,7 @@ export default async function UserInterviewsPage({ params }: { params: Promise<{
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {interviews.map((item) => (
+                    {visibleInterviews.map((item) => (
                       <tr key={item.id} className="align-top transition hover:bg-blue-50/40">
                         <td className="px-4 py-3 font-semibold text-slate-900">{item.company}</td>
                         <td className="px-4 py-3 text-slate-600">{item.position}</td>
@@ -166,7 +179,7 @@ export default async function UserInterviewsPage({ params }: { params: Promise<{
             </div>
 
             <div className="grid gap-3 p-4 md:hidden">
-              {interviews.map((item) => (
+              {visibleInterviews.map((item) => (
                 <article key={item.id} className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">

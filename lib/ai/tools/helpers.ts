@@ -10,11 +10,12 @@ export async function resolveUserReference(reference: string | null | undefined)
 
   const exact = await prisma.user.findFirst({
     where: {
-      OR: [{ id: value }, { email: value.toLowerCase() }],
+      OR: [{ id: value }, { email: value.toLowerCase() }, { publicSlug: value.toLowerCase() }],
     },
     select: {
       id: true,
       email: true,
+      publicSlug: true,
       displayName: true,
       avatarText: true,
       avatarUrl: true,
@@ -27,12 +28,14 @@ export async function resolveUserReference(reference: string | null | undefined)
       OR: [
         { displayName: { contains: value, mode: "insensitive" } },
         { email: { contains: value.toLowerCase(), mode: "insensitive" } },
+        { publicSlug: { contains: value.toLowerCase(), mode: "insensitive" } },
       ],
     },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
       email: true,
+      publicSlug: true,
       displayName: true,
       avatarText: true,
       avatarUrl: true,
@@ -166,7 +169,7 @@ export async function getFriendProfileSnapshot(ownerUserId: string, friendId: st
 
 export async function getVisibleUserAccess(viewerId: string, ownerId: string, module?: ModuleKey) {
   const level = await getAccessLevel(viewerId, ownerId)
-  const moduleVisible = module ? await canViewModule(ownerId, module, level) : level !== "none"
+  const moduleVisible = module ? await canViewModule(ownerId, module, level) : true
 
   return {
     ownerId,
@@ -179,10 +182,10 @@ export async function getVisibleUserAccess(viewerId: string, ownerId: string, mo
 }
 
 export function explainVisibilityDenial(level: AccessLevel, module?: ModuleKey) {
-  if (level === "none") {
+  if (level === "public") {
     return module
-      ? `当前用户和目标用户不是好友，无法访问其 ${module} 模块。`
-      : "当前用户和目标用户之间不存在可见关系。"
+      ? `当前用户只能访问目标用户公开内容，无法访问其 ${module} 模块。`
+      : "当前用户只能访问目标用户公开内容。"
   }
 
   return module

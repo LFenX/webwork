@@ -1,4 +1,6 @@
 import { z } from "zod"
+import { JOB_CHANNELS, JOB_STATUS } from "@/lib/enums"
+import { VISIBILITY_LEVELS } from "@/lib/visibility"
 
 export const registerSchema = z.object({
   email: z.string().trim().toLowerCase().email("Please enter a valid email address"),
@@ -14,19 +16,29 @@ export const loginSchema = z.object({
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 
-export const createJobSchema = z.object({
+const jobBaseSchema = z.object({
   company: z.string().min(1, "Company is required"),
   position: z.string().min(1, "Position is required"),
-  channel: z.string().default("Other"),
+  channel: z.string(),
   appliedAt: z.string().datetime().or(z.string().date()),
-  status: z.string().default("Applied"),
+  status: z.string(),
   notes: z.string().optional().nullable(),
   baseLocation: z.string().optional().nullable(),
   hrContact: z.string().optional().nullable(),
   link: z.string().optional().nullable(),
+  jobDescription: z.string().optional().nullable(),
+  salaryRange: z.string().optional().nullable(),
+  priority: z.number().int().min(0).max(2).optional(),
+  nextActionAt: z.string().datetime().nullable().optional(),
+  pipelineStage: z.number().int().min(0).max(5).optional(),
 })
 
-export const updateJobSchema = createJobSchema.partial()
+export const createJobSchema = jobBaseSchema.extend({
+  channel: z.string().default(JOB_CHANNELS[0]),
+  status: z.string().default(JOB_STATUS[0]),
+})
+
+export const updateJobSchema = jobBaseSchema.partial()
 
 export const createInterviewSchema = z.object({
   company: z.string().min(1, "Company is required"),
@@ -52,7 +64,7 @@ export const createPostSchema = z.object({
   tags: z.array(z.string()).optional().default([]),
   content: z.string().default(""),
   date: z.string().datetime().or(z.string().date()).optional(),
-  visibility: z.enum(["private", "friends"]).optional().default("private"),
+  visibility: z.enum(VISIBILITY_LEVELS).optional().default("private"),
   folderId: z.string().nullable().optional(),
 })
 
@@ -62,7 +74,7 @@ export const updatePostSchema = z.object({
   tags: z.array(z.string()).optional(),
   content: z.string().optional(),
   date: z.string().datetime().or(z.string().date()).optional(),
-  visibility: z.enum(["private", "friends"]).optional(),
+  visibility: z.enum(VISIBILITY_LEVELS).optional(),
   folderId: z.string().nullable().optional(),
 })
 
@@ -98,6 +110,7 @@ export const siteSettingsSchema = z.object({
   location: z.string().trim().max(80).optional(),
   bio: z.string().trim().max(200).optional(),
   email: z.string().trim().toLowerCase().email().optional(),
+  publicSlug: z.string().trim().toLowerCase().max(32).optional().nullable(),
   language: z.enum(["zh-CN", "en-US"]).optional(),
 })
 
@@ -112,7 +125,7 @@ export const passwordChangeRequestSchema = z.object({
 
 export const moduleVisibilitySchema = z.object({
   module: z.enum(["home", "resume", "blog", "daily", "reflections", "notes", "jobs", "interviews"]),
-  visibility: z.enum(["private", "friends"]),
+  visibility: z.enum(VISIBILITY_LEVELS),
 })
 
 export const commentSchema = z.object({

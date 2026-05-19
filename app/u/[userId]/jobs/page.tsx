@@ -7,25 +7,30 @@ import { FriendModuleNav } from "@/components/friend-module-nav"
 import { ModuleHero, ModulePageShell } from "@/components/module/module-shell"
 import { getOptionalSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { JOB_STATUS } from "@/lib/enums"
 import { getFriendVisibleModules } from "@/lib/friend-module-nav"
+import { hasJobReplySignal, JOB_INTERVIEW_STATUSES, JOB_OFFER_STATUSES } from "@/lib/job-stats"
 import { canViewModule, getAccessLevel, recordVisit } from "@/lib/permissions"
+import { resolveCreatorProfileRef } from "@/lib/profile"
+import { getPublicModuleMetadata } from "@/lib/public-page-metadata"
 
 const STATUS_COLORS: Record<string, string> = {
-  [JOB_STATUS[0]]: "#94a3b8",
-  [JOB_STATUS[1]]: "#f59e0b",
-  [JOB_STATUS[2]]: "#2563eb",
-  [JOB_STATUS[3]]: "#ef4444",
-  [JOB_STATUS[4]]: "#10b981",
-  [JOB_STATUS[5]]: "#10b981",
-  [JOB_STATUS[6]]: "#cbd5e1",
+  已投递: "#94a3b8",
+  已回复: "#f59e0b",
+  未通过评估: "#ef4444",
+  进入面试: "#2563eb",
+  未通过面试: "#ef4444",
+  已拒绝: "#ef4444",
+  已Offer: "#10b981",
+  已接受: "#10b981",
+  无回复放弃: "#cbd5e1",
+  已放弃: "#cbd5e1",
 }
 
-function buildStats(jobs: Array<{ status: string; channel: string; appliedAt: Date }>) {
+function buildStats(jobs: Array<{ status: string; channel: string; appliedAt: Date; repliedAt?: Date | null; pipelineStage?: number | null }>) {
   const total = jobs.length
-  const replied = jobs.filter((job) => job.status !== JOB_STATUS[0]).length
-  const hasInterview = jobs.filter((job) => [JOB_STATUS[2], JOB_STATUS[4], JOB_STATUS[5]].includes(job.status as never)).length
-  const offers = jobs.filter((job) => [JOB_STATUS[4], JOB_STATUS[5]].includes(job.status as never)).length
+  const replied = jobs.filter(hasJobReplySignal).length
+  const hasInterview = jobs.filter((job) => JOB_INTERVIEW_STATUSES.has(job.status)).length
+  const offers = jobs.filter((job) => JOB_OFFER_STATUSES.has(job.status)).length
 
   const statusCount = new Map<string, number>()
   const channelCount = new Map<string, number>()
@@ -55,29 +60,31 @@ function buildStats(jobs: Array<{ status: string; channel: string; appliedAt: Da
   }
 }
 
+export function generateMetadata({ params }: { params: Promise<{ userId: string }> }) {
+  return params.then(({ userId }) => getPublicModuleMetadata(userId, "jobs", "求职", "公开求职进展。"))
+}
+
 export default async function UserJobsPage({ params }: { params: Promise<{ userId: string }> }) {
-  const [{ userId: ownerId }, session] = await Promise.all([params, getOptionalSession()])
-  const owner = await prisma.user.findUnique({
-    where: { id: ownerId },
-    select: { displayName: true, email: true },
-  })
+  const [{ userId: ownerRef }, session] = await Promise.all([params, getOptionalSession()])
+  const owner = await resolveCreatorProfileRef(ownerRef)
   if (!owner) notFound()
+  const ownerId = owner.id
 
   const level = await getAccessLevel(session?.userId ?? null, ownerId)
-  if (level === "none") notFound()
 
   const moduleVisible = await canViewModule(ownerId, "jobs", level)
+  if (level === "public" && !moduleVisible) notFound()
   const jobs = moduleVisible
     ? await prisma.jobApplication.findMany({
-        where: { userId: ownerId },
-        orderBy: { appliedAt: "desc" },
+        where: { userId: ownerId, archivedAt: null },
+        orderBy: [{ priority: "desc" }, { appliedAt: "desc" }],
         include: { _count: { select: { interviews: true } } },
       })
     : []
 
-  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "jobs", path: `/u/${ownerId}/jobs` })
+  await recordVisit({ ownerId, visitorId: session?.userId ?? null, module: "jobs", path: `/u/${owner.publicRef}/jobs` })
 
-  const displayName = owner.displayName || owner.email
+  const displayName = owner.displayName || (level === "public" ? "公开用户" : owner.email)
   const visibleModules = await getFriendVisibleModules(ownerId, level)
   const stats = buildStats(jobs)
   const clientJobs = jobs.map((job) => ({
@@ -87,16 +94,16 @@ export default async function UserJobsPage({ params }: { params: Promise<{ userI
     channel: job.channel,
     appliedAt: job.appliedAt.toISOString(),
     status: job.status,
-    notes: job.notes,
+    notes: level === "public" ? null : job.notes,
     baseLocation: job.baseLocation,
-    hrContact: job.hrContact,
+    hrContact: level === "public" ? null : job.hrContact,
     link: job.link,
     interviewCount: job._count.interviews,
   }))
 
   return (
     <ModulePageShell maxWidth="full">
-      <FriendModuleNav ownerId={ownerId} displayName={displayName} current="jobs" modules={visibleModules} />
+      <FriendModuleNav ownerId={ownerId} ownerRef={owner.publicRef} displayName={displayName} current="jobs" modules={visibleModules} />
       <ModuleHero
         icon={BriefcaseBusiness}
         title="Job timeline"

@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { Briefcase, ChevronDown, Edit3, MessageSquare } from "lucide-react"
+import { formatDateKey } from "@/lib/time"
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -394,7 +395,7 @@ function buildRichEvents(
   const contentMap = new Map<string, RichDetail[]>()
   const allItems: Array<{ title?: string; date?: string; slug?: string; type?: string; typeLabel?: string; href?: string }> = [...recentPosts, ...recentDaily]
   allItems.forEach((p) => {
-    const d = p.date?.slice(0, 10) ?? ""; if (!d || !d.startsWith(prefix)) return
+    const d = p.date ? formatDateKey(p.date) : ""; if (!d || !d.startsWith(prefix)) return
     const hrefBase = p.type === "daily" ? "/daily" : p.type ? `/${p.type}` : "/blog"
     const href = p.href ?? (p.slug ? `${hrefBase}/${encodeURIComponent(p.slug)}` : undefined)
     if (!contentMap.has(d)) contentMap.set(d, [])
@@ -405,7 +406,7 @@ function buildRichEvents(
   // Career
   const careerMap = new Map<string, RichDetail[]>()
   recentJobs.forEach((j) => {
-    const ds = typeof j.appliedAt === "string" ? j.appliedAt.slice(0, 10) : j.appliedAt instanceof Date ? fmtDate(j.appliedAt) : ""
+    const ds = typeof j.appliedAt === "string" ? formatDateKey(j.appliedAt) : j.appliedAt instanceof Date ? fmtDate(j.appliedAt) : ""
     if (!ds || !ds.startsWith(prefix)) return
     const title = `${j.company || "未知公司"} / ${j.position || "未知岗位"}`
     if (!careerMap.has(ds)) careerMap.set(ds, [])

@@ -1,9 +1,10 @@
+import { Eye } from "lucide-react"
 import { requireAuth } from "@/lib/auth"
 import { getDictionary } from "@/lib/i18n"
 import { getUserSiteSettings } from "@/lib/settings"
 import { getModuleVisibility, type ModuleKey } from "@/lib/permissions"
 import { ModuleVisibilitySelect } from "@/components/module-visibility-select"
-import { SettingsShell } from "@/components/settings/settings-shell"
+import { SettingsSection, SettingsShell } from "@/components/settings/settings-shell"
 
 export const dynamic = "force-dynamic"
 
@@ -31,30 +32,37 @@ export default async function SettingsPrivacyPage() {
   )
 
   return (
-    <SettingsShell title={dict.settings.privacyTitle} backLabel={dict.common.back}>
-      <section className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5">
-        <p className="mb-5 text-sm text-[--color-text-secondary]">{dict.settings.visibilityHint}</p>
-        <div className="space-y-4">
+    <SettingsShell
+      title={dict.settings.privacyTitle}
+      description={dict.settings.visibilityHint}
+      backLabel={dict.common.back}
+      eyebrow={settings.language === "en-US" ? "Settings · Privacy" : "设置 · 隐私"}
+    >
+      <SettingsSection icon={<Eye size={16} />} title={dict.settings.privacy}>
+        <ul className="divide-y divide-[--color-border]">
           {visibilities.map((module) => (
-            <div key={module.key} className="flex flex-col gap-3 border-b border-[--color-border] pb-4 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-sm font-medium text-[--color-text-primary]">{module.label}</h2>
-              </div>
+            <li
+              key={module.key}
+              className="flex flex-col gap-3 py-3.5 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+            >
+              <span className="text-[14px] font-medium text-[--color-text-primary]">{module.label}</span>
               <ModuleVisibilitySelect
                 module={module.key}
                 initialVisibility={module.visibility}
                 labels={{
                   private: dict.settings.privateVisibility,
                   friends: dict.settings.friendsVisibility,
+                  public: dict.settings.publicVisibility,
                   saveFailed: dict.settings.profileSaveFailed,
                   savedPrivate: dict.settings.privateVisibility,
                   savedFriends: dict.settings.friendsVisibility,
+                  savedPublic: dict.settings.publicVisibility,
                 }}
               />
-            </div>
+            </li>
           ))}
-        </div>
-      </section>
+        </ul>
+      </SettingsSection>
     </SettingsShell>
   )
 }

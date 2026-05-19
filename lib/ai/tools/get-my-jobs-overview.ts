@@ -1,6 +1,7 @@
 import "server-only"
 import { format } from "date-fns"
 import { prisma } from "@/lib/db"
+import { hasJobReplySignal, JOB_INTERVIEW_STATUSES, JOB_OFFER_STATUSES } from "@/lib/job-stats"
 
 export const getMyJobsOverviewTool = {
   name: "get_my_jobs_overview",
@@ -28,9 +29,9 @@ export const getMyJobsOverviewTool = {
     ])
 
     const total = jobs.length
-    const replied = jobs.filter((job) => !["已投递"].includes(job.status)).length
-    const hasInterview = jobs.filter((job) => ["进入面试", "已 Offer", "已接收"].includes(job.status)).length
-    const offers = jobs.filter((job) => ["已 Offer", "已接收"].includes(job.status)).length
+    const replied = jobs.filter(hasJobReplySignal).length
+    const hasInterview = jobs.filter((job) => JOB_INTERVIEW_STATUSES.has(job.status)).length
+    const offers = jobs.filter((job) => JOB_OFFER_STATUSES.has(job.status)).length
     const replyRate = total > 0 ? Math.round((replied / total) * 100) : 0
     const interviewRate = total > 0 ? Math.round((hasInterview / total) * 100) : 0
     const offerRate = total > 0 ? Math.round((offers / total) * 100) : 0

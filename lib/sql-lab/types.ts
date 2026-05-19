@@ -143,6 +143,177 @@ export type SqlExample = {
   category: "intro" | "join" | "aggregate" | "admin"
 }
 
+export type SqlInsightTone = "sky" | "emerald" | "amber" | "violet" | "rose" | "cyan"
+
+export type SqlThreadStepKind =
+  | "user_prompt"
+  | "ai_thinking"
+  | "tool_call"
+  | "candidate_tables"
+  | "ai_probe_sql"
+  | "sql_draft"
+  | "sql_run"
+  | "ai_insight"
+  | "ai_error"
+  | "user_note"
+
+export type SqlThreadStepStatus = "pending" | "running" | "done" | "error" | "aborted"
+
+export type SqlStageMode = "auto" | "analyst" | "manual"
+
+export type SqlThreadCandidateTable = {
+  schema: string
+  table: string
+  role: "primary" | "join" | "reference"
+  reason: string
+}
+
+export type SqlThreadStep = {
+  id: string
+  threadId: string
+  orderIndex: number
+  kind: SqlThreadStepKind
+  status: SqlThreadStepStatus
+  title: string
+  bodyMarkdown: string
+  sql: string
+  payload?: Record<string, unknown> | null
+  tokensIn: number
+  tokensOut: number
+  durationMs: number
+  errorMessage?: string
+  createdAt: string
+}
+
+export type SqlThreadSummary = {
+  id: string
+  title: string
+  summary: string
+  modelName: string
+  status: string
+  pinned: boolean
+  archived: boolean
+  lastEventAt: string
+  createdAt: string
+  updatedAt: string
+  stepCount: number
+}
+
+export type SqlThreadDetail = SqlThreadSummary & {
+  steps: SqlThreadStep[]
+}
+
+export type SqlThreadStreamEvent =
+  | { type: "step.created"; step: SqlThreadStep }
+  | { type: "step.delta"; stepId: string; orderIndex: number; kind: SqlThreadStepKind; bodyDelta?: string; payloadPatch?: Record<string, unknown> }
+  | { type: "step.completed"; step: SqlThreadStep }
+  | { type: "thread.updated"; thread: SqlThreadSummary }
+  | { type: "error"; message: string }
+  | { type: "done"; threadId: string }
+
+export type SqlRelationNode = {
+  id: string
+  kind: "module" | "table"
+  label: string
+  moduleId?: string
+  moduleName?: string
+  schema?: string
+  table?: string
+  scope?: "public" | "private"
+  access?: SqlAccessLevel
+  description?: string
+  fields?: string[]
+  rowCountEstimate?: number | null
+  x: number
+  y: number
+  tone: SqlInsightTone
+}
+
+export type SqlRelationEdge = {
+  id: string
+  source: string
+  target: string
+  label: string
+  kind: "contains" | "relation"
+  tone: SqlInsightTone
+}
+
+export type SqlRelationGraph = {
+  generatedAt: string
+  nodes: SqlRelationNode[]
+  edges: SqlRelationEdge[]
+}
+
+export type SqlRelationGraphV2Module = {
+  id: string
+  name: string
+  description: string
+  tableCount: number
+  tone: SqlInsightTone
+}
+
+export type SqlRelationGraphV2Table = {
+  id: string
+  schema: string
+  table: string
+  moduleId: string
+  moduleName: string
+  submoduleId: string
+  submoduleName: string
+  scope: "public" | "private"
+  access: SqlAccessLevel
+  description: string
+  rowCountEstimate?: number | null
+  columns: SqlColumnInfo[]
+}
+
+export type SqlRelationGraphV2FkEdge = {
+  id: string
+  from: { schema: string; table: string; column: string }
+  to: { schema: string; table: string; column: string }
+  onDelete: string
+}
+
+export type SqlRelationGraphV2ModuleEdge = {
+  id: string
+  source: string
+  target: string
+  count: number
+}
+
+export type SqlRelationGraphV2 = SqlRelationGraph & {
+  modules: SqlRelationGraphV2Module[]
+  tables: SqlRelationGraphV2Table[]
+  fkEdges: SqlRelationGraphV2FkEdge[]
+  moduleEdges: SqlRelationGraphV2ModuleEdge[]
+}
+
+export type SqlInsightCard = {
+  id: string
+  title: string
+  description: string
+  sql: string
+  chartConfig: unknown
+  snapshotJson?: unknown
+  layout?: unknown
+  refreshMeta?: unknown
+  theme?: string
+  pinned: boolean
+  shared: boolean
+  threadId?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type SqlBiDashboard = {
+  id: string
+  name: string
+  theme: string
+  layout?: unknown
+  createdAt: string
+  updatedAt: string
+}
+
 export type SqlGrantTable = {
   schema: string
   table: string

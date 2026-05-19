@@ -115,7 +115,7 @@ export async function canAccessStickerAsset(userId: string, stickerId: string) {
           { post: { userId } },
           {
             post: {
-              visibility: "friends",
+              visibility: { in: ["friends", "public"] },
               userId: {
                 not: userId,
               },

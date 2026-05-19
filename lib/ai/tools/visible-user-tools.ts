@@ -30,28 +30,30 @@ async function buildVisibleHomeOverview(viewerId: string, ownerId: string) {
     })
   }
 
-  const [settings, layout, postCounts, jobsCount, interviewsCount] = await Promise.all([
-    getSiteSettings(ownerId),
-    prisma.homeLayout.findUnique({ where: { userId: ownerId }, select: { config: true, updatedAt: true } }),
-    prisma.post.groupBy({
-      by: ["type"],
-      where: {
-        userId: ownerId,
-        type: { in: [...POST_TYPES] },
-        visibility: { in: access.visibilities },
-      },
-      _count: { _all: true },
-    }),
-    prisma.jobApplication.count({ where: { userId: ownerId } }),
-    prisma.interviewRecord.count({ where: { userId: ownerId } }),
-  ])
-
   const moduleVisibility = await Promise.all(
     moduleNames.map(async (module) => ({
       module,
       visible: (await getVisibleUserAccess(viewerId, ownerId, module)).moduleVisible,
     })),
   )
+  const visibleModuleMap = new Map(moduleVisibility.map((item) => [item.module, item.visible]))
+
+  const [settings, owner, layout, postCounts, jobsCount, interviewsCount] = await Promise.all([
+    getSiteSettings(ownerId),
+    prisma.user.findUnique({ where: { id: ownerId }, select: { displayName: true } }),
+    prisma.homeLayout.findUnique({ where: { userId: ownerId }, select: { config: true, updatedAt: true } }),
+    prisma.post.groupBy({
+      by: ["type"],
+      where: {
+        userId: ownerId,
+        type: { in: POST_TYPES.filter((type) => visibleModuleMap.get(type)) },
+        visibility: { in: access.visibilities },
+      },
+      _count: { _all: true },
+    }),
+    visibleModuleMap.get("jobs") ? prisma.jobApplication.count({ where: { userId: ownerId } }) : Promise.resolve(0),
+    visibleModuleMap.get("interviews") ? prisma.interviewRecord.count({ where: { userId: ownerId } }) : Promise.resolve(0),
+  ])
 
   const counts = Object.fromEntries(POST_TYPES.map((type) => [type, 0])) as Record<PostType, number>
   for (const row of postCounts) {
@@ -61,7 +63,7 @@ async function buildVisibleHomeOverview(viewerId: string, ownerId: string) {
   return toolGranted("已读取目标用户在当前权限下可见的主页概览。", {
     ownerId,
     accessLevel: access.level,
-    settings,
+    settings: access.level === "public" ? { ...settings, ownerName: owner?.displayName || "公开用户" } : settings,
     layout: layout
       ? {
           config: layout.config,
@@ -84,7 +86,7 @@ export const getVisibleUserPermissionsTool = {
   execute: async ({ userId, targetUserId }: { userId: string; targetUserId: string }) => {
     const owner = await prisma.user.findUnique({
       where: { id: targetUserId },
-      select: { id: true, email: true, displayName: true },
+      select: { id: true, email: true, publicSlug: true, displayName: true },
     })
     if (!owner) return toolNotFound("目标用户不存在。", "target_user_not_found", { targetUserId })
 
@@ -100,17 +102,18 @@ export const getVisibleUserPermissionsTool = {
     )
 
     const accessLevel = (await getVisibleUserAccess(userId, targetUserId)).level
+    const safeOwner = accessLevel === "public" ? { ...owner, email: "" } : owner
     const anyVisible = modules.some((module) => module.access === "granted")
     if (!anyVisible) {
       return toolForbidden("当前用户无法访问目标用户的主页数据。", explainVisibilityDenial(accessLevel), {
-        owner,
+        owner: safeOwner,
         accessLevel,
         modules,
       })
     }
 
     return toolGranted("已检查目标用户主页访问权限。", {
-      owner,
+      owner: safeOwner,
       accessLevel,
       modules,
     })
@@ -247,6 +250,7 @@ export const getVisibleUserPostContentTool = {
         slug: finalSlug,
       })
     }
+    const publicOnly = access.level === "public"
 
     const post = await getPost(type, finalSlug, targetUserId, access.visibilities)
     if (!post) {
@@ -268,7 +272,7 @@ export const getVisibleUserPostContentTool = {
       folder: post.folder,
       date: post.date,
       updatedAt: post.updatedAt,
-      author: post.author,
+      author: publicOnly ? { ...post.author, email: "" } : post.author,
       content: post.content,
       wordCount: post.wordCount,
       readingMinutes: post.readingMinutes,
@@ -299,6 +303,7 @@ export const listVisibleUserJobsTool = {
         ownerId: targetUserId,
       })
     }
+    const publicOnly = access.level === "public"
 
     const rows = await prisma.jobApplication.findMany({
       where: {
@@ -316,9 +321,8 @@ export const listVisibleUserJobsTool = {
         job.channel,
         job.status,
         job.baseLocation,
-        job.hrContact,
         job.link,
-        job.notes,
+        ...(publicOnly ? [] : [job.hrContact, job.notes]),
       ], query))
       .slice(0, normalizeLimit(limit, 20, 50))
       .map((job) => ({
@@ -329,9 +333,9 @@ export const listVisibleUserJobsTool = {
         status: job.status,
         appliedAt: job.appliedAt.toISOString(),
         repliedAt: job.repliedAt?.toISOString() ?? null,
-        notes: job.notes,
+        notes: publicOnly ? null : job.notes,
         baseLocation: job.baseLocation,
-        hrContact: job.hrContact,
+        hrContact: publicOnly ? null : job.hrContact,
         link: job.link,
         interviewCount: job._count.interviews,
       }))
@@ -360,6 +364,7 @@ export const getVisibleUserJobDetailTool = {
         jobId,
       })
     }
+    const publicOnly = access.level === "public"
 
     const job = await prisma.jobApplication.findFirst({
       where: { id: jobId, userId: targetUserId },
@@ -375,9 +380,9 @@ export const getVisibleUserJobDetailTool = {
       status: job.status,
       appliedAt: job.appliedAt.toISOString(),
       repliedAt: job.repliedAt?.toISOString() ?? null,
-      notes: job.notes,
+      notes: publicOnly ? null : job.notes,
       baseLocation: job.baseLocation,
-      hrContact: job.hrContact,
+      hrContact: publicOnly ? null : job.hrContact,
       link: job.link,
       interviewCount: job._count.interviews,
       createdAt: job.createdAt.toISOString(),
@@ -409,6 +414,7 @@ export const listVisibleUserInterviewsTool = {
         ownerId: targetUserId,
       })
     }
+    const publicOnly = access.level === "public"
 
     const rows = await prisma.interviewRecord.findMany({
       where: {
@@ -428,9 +434,7 @@ export const listVisibleUserInterviewsTool = {
         item.round,
         item.format,
         item.result,
-        item.interviewers,
-        item.questions,
-        item.feedback,
+        ...(publicOnly ? [] : [item.interviewers, item.questions, item.feedback]),
       ], query))
       .slice(0, normalizeLimit(limit, 20, 50))
       .map((item) => ({
@@ -440,11 +444,11 @@ export const listVisibleUserInterviewsTool = {
         round: item.round,
         format: item.format,
         scheduledAt: item.scheduledAt.toISOString(),
-        interviewers: item.interviewers,
-        selfRating: item.selfRating,
+        interviewers: publicOnly ? null : item.interviewers,
+        selfRating: publicOnly ? null : item.selfRating,
         result: item.result,
         linkedJob: item.job,
-        notesPreview: compactText([item.questions, item.feedback].filter(Boolean).join(" "), 120),
+        notesPreview: publicOnly ? "" : compactText([item.questions, item.feedback].filter(Boolean).join(" "), 120),
       }))
 
     return toolGranted(`已列出 ${items.length} 条好友面试记录。`, { items })
@@ -471,6 +475,7 @@ export const getVisibleUserInterviewDetailTool = {
         interviewId,
       })
     }
+    const publicOnly = access.level === "public"
 
     const item = await prisma.interviewRecord.findFirst({
       where: { id: interviewId, userId: targetUserId },
@@ -487,11 +492,11 @@ export const getVisibleUserInterviewDetailTool = {
       round: item.round,
       format: item.format,
       scheduledAt: item.scheduledAt.toISOString(),
-      interviewers: item.interviewers,
-      questions: item.questions,
-      selfRating: item.selfRating,
+      interviewers: publicOnly ? null : item.interviewers,
+      questions: publicOnly ? null : item.questions,
+      selfRating: publicOnly ? null : item.selfRating,
       result: item.result,
-      feedback: item.feedback,
+      feedback: publicOnly ? null : item.feedback,
       linkedJob: item.job,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),

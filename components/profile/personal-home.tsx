@@ -16,9 +16,10 @@ import {
   Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { formatChinaDateTime } from "@/lib/time"
+import { formatChinaDateTime, formatDateKey } from "@/lib/time"
 import { UserAvatar } from "@/components/user-avatar"
 import { EmptyState } from "@/components/empty-state"
+import { ProfileShareActionButton } from "@/components/profile/profile-share-action-button"
 
 type ActionVariant = "primary" | "secondary" | "ghost"
 
@@ -27,6 +28,9 @@ export type PersonalAction = {
   href: string
   icon?: ElementType
   variant?: ActionVariant
+  copyHref?: string
+  copySuccessLabel?: string
+  copyFailedLabel?: string
 }
 
 export type PersonalMetric = {
@@ -117,9 +121,8 @@ const toneClasses: Record<NonNullable<PersonalMetric["tone"]>, { icon: string; d
 
 function formatDateLabel(date?: string) {
   if (!date) return ""
-  const parsed = new Date(`${date}T00:00:00`)
-  if (Number.isNaN(parsed.getTime())) return date
-  return parsed.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })
+  const key = formatDateKey(date)
+  return key ? key.slice(5) : date
 }
 
 function formatNumber(value: string | number) {
@@ -176,6 +179,18 @@ function trendPath(values: number[]) {
 function ActionLink({ action, large = false }: { action: PersonalAction; large?: boolean }) {
   const Icon = action.icon
   const variant = action.variant ?? "secondary"
+  if (action.copyHref) {
+    return (
+      <ProfileShareActionButton
+        href={action.copyHref}
+        label={action.label}
+        large={large}
+        variant={variant}
+        copiedLabel={action.copySuccessLabel}
+        copyFailedLabel={action.copyFailedLabel}
+      />
+    )
+  }
   return (
     <Link
       href={action.href}

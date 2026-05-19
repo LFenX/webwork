@@ -12,6 +12,7 @@ datasource db {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
+  publicSlug   String?  @unique
   passwordHash String
   displayName  String   @default("")
   bio          String   @default("")
@@ -28,6 +29,7 @@ model User {
   interviews   InterviewRecord[]
   resume       Resume?
   settings     SiteSettings?
+  live2dSettings Live2DSettings?
   profile      AgentProfile?
   moduleVisibilities ModuleVisibility[]
   visitsOwned  VisitLog[] @relation("visitOwner")
@@ -95,9 +97,14 @@ model User {
   sqlAuditLogs             SqlAuditLog[]
   sqlPrivateFolders        SqlPrivateFolder[]
   sqlPrivateTables         SqlPrivateTable[]
-  sqlAssistantConversations SqlAssistantConversation[]
-  sqlAssistantMessages      SqlAssistantMessage[]
   updatedSqlTableCatalogOverrides SqlTableCatalogOverride[] @relation("sqlCatalogOverrideUpdater")
+  sqlThreads                SqlThread[]
+  sqlThreadSteps            SqlThreadStep[]
+  sqlInsightCards           SqlInsightCard[]
+  sqlBiDashboards           SqlBiDashboard[]
+  sqlPracticeAccessGrant    SqlPracticeAccessGrant? @relation("sqlPracticeGrantUser")
+  updatedSqlPracticeGrants  SqlPracticeAccessGrant[] @relation("sqlPracticeGrantUpdater")
+  sqlPracticeProblems       SqlPracticeProblem[]
 }
 
 model SoulWingRoundtableSettings {
@@ -553,24 +560,31 @@ model ChannelAttachment {
 }
 
 model JobApplication {
-  id           String    @id @default(cuid())
-  userId       String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company      String
-  position     String
-  channel      String    @default("其他")
-  appliedAt    DateTime  @default(now())
-  status       String    @default("已投递")
-  repliedAt    DateTime?
-  notes        String?
-  baseLocation String?
-  hrContact    String?
-  link         String?
-  interviews   InterviewRecord[]
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company        String
+  position       String
+  channel        String    @default("其他")
+  appliedAt      DateTime  @default(now())
+  status         String    @default("已投递")
+  repliedAt      DateTime?
+  notes          String?
+  baseLocation   String?
+  hrContact      String?
+  link           String?
+  jobDescription String?
+  salaryRange    String?
+  priority       Int       @default(0)
+  nextActionAt   DateTime?
+  archivedAt     DateTime?
+  pipelineStage  Int       @default(0)
+  interviews     InterviewRecord[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([userId])
+  @@index([userId, archivedAt])
 }
 
 model InterviewRecord {
@@ -615,6 +629,7 @@ model Post {
 
   @@unique([userId, type, slug])
   @@index([userId, type, date])
+  @@index([userId, type, visibility, date])
   @@index([folderId])
 }
 
@@ -658,6 +673,7 @@ model ModuleVisibility {
 
   @@unique([userId, module])
   @@index([userId])
+  @@index([userId, visibility])
 }
 
 model VisitLog {
@@ -770,6 +786,19 @@ model SiteSettings {
   ownerName   String   @default("LFen")
   heroTagline String   @default("这里是我的个人空间，记录博客、日常、心得，以及正在进行中的求职旅程。")
   language    String   @default("zh-CN")
+  updatedAt   DateTime @updatedAt
+}
+
+model Live2DSettings {
+  userId      String   @id
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayMode String   @default("desktop")
+  position    String   @default("left-bottom")
+  size        String   @default("medium")
+  drag        Boolean  @default(false)
+  modelId     String   @default("mao_pro")
+  bubbleTheme String   @default("dreamy-glass")
+  bubbleName  String   @default("")
   updatedAt   DateTime @updatedAt
 }
 
@@ -900,9 +929,17 @@ model SqlAuditLog {
   errorMessage  String?
   ipAddress     String?
   userAgent     String?
+  threadId      String?
+  thread        SqlThread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  threadStepId  String?
+  threadStep    SqlThreadStep? @relation(fields: [threadStepId], references: [id], onDelete: SetNull)
+  aiInitiated   Boolean  @default(false)
+  probePurpose  String?
 
   @@index([userId, startedAt])
   @@index([startedAt])
+  @@index([threadId])
+  @@index([aiInitiated, startedAt])
 }
 
 model SqlPrivateFolder {
@@ -938,47 +975,6 @@ model SqlPrivateTable {
   @@index([schemaName, tableName])
 }
 
-model SqlAssistantConversation {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title         String   @default("新会话")
-  titleLocked   Boolean  @default(false)
-  lastMessageAt DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
-  messages      SqlAssistantMessage[]
-
-  @@index([userId, deletedAt, lastMessageAt])
-  @@index([userId, updatedAt])
-}
-
-model SqlAssistantMessage {
-  id             String   @id @default(cuid())
-  conversationId String
-  conversation   SqlAssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role           String
-  contentMarkdown String @default("")
-  sql            String   @default("")
-  title          String   @default("")
-  thinkingSteps  Json?
-  reasoningMarkdown String @default("")
-  selectedTables Json?
-  catalogMatches Json?
-  confidence     Float?
-  actions        Json?
-  executedActions Json?
-  runResult      Json?
-  provider       Json?
-  createdAt      DateTime @default(now())
-
-  @@index([conversationId, createdAt])
-  @@index([userId, createdAt])
-}
-
 model SqlTableCatalogOverride {
   id            String   @id @default(cuid())
   schemaName    String
@@ -1003,6 +999,104 @@ model SqlTableCatalogOverride {
   @@index([schemaName, tableName])
   @@index([moduleId, submoduleId])
   @@index([updatedById])
+}
+
+model SqlSchemaProfile {
+  id          String   @id @default(cuid())
+  schemaName  String
+  tableName   String
+  columnName  String?
+  profileJson Json
+  generatedAt DateTime @default(now())
+  expiresAt   DateTime
+
+  @@unique([schemaName, tableName, columnName])
+  @@index([expiresAt])
+}
+
+model SqlThread {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String   @default("新分析")
+  titleLocked  Boolean  @default(false)
+  summary      String   @default("")
+  modelName    String   @default("")
+  status       String   @default("idle")
+  lastEventAt  DateTime @default(now())
+  pinned       Boolean  @default(false)
+  archivedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  steps        SqlThreadStep[]
+  auditLogs    SqlAuditLog[]
+  insightCards SqlInsightCard[]
+
+  @@index([userId, archivedAt, lastEventAt])
+  @@index([userId, updatedAt])
+}
+
+model SqlInsightCard {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  threadId    String?
+  thread      SqlThread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  title       String
+  description String   @default("")
+  sql         String
+  chartConfig Json
+  snapshotJson Json?
+  layout      Json?
+  refreshMeta Json?
+  theme       String   @default("report")
+  pinned      Boolean  @default(false)
+  shared      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, pinned, updatedAt])
+}
+
+model SqlBiDashboard {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String   @default("默认 BI 工作台")
+  theme     String   @default("report")
+  layout    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model SqlThreadStep {
+  id          String   @id @default(cuid())
+  threadId    String
+  thread      SqlThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderIndex  Int
+  kind        String
+  status      String   @default("done")
+  title       String   @default("")
+  bodyMarkdown String  @default("")
+  payload     Json?
+  sql         String   @default("")
+  tokensIn    Int      @default(0)
+  tokensOut   Int      @default(0)
+  durationMs  Int      @default(0)
+  errorMessage String?
+  createdAt   DateTime @default(now())
+
+  auditLogs   SqlAuditLog[]
+
+  @@unique([threadId, orderIndex])
+  @@index([threadId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model AIConversation {
@@ -1488,4 +1582,43 @@ model WebsiteFolder {
   @@unique([userId, name])
   @@index([userId, sortOrder])
   @@index([userId, createdAt])
+}
+
+// ─── SQL Practice ────────────────────────────────────────────────────────────
+
+model SqlPracticeAccessGrant {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation("sqlPracticeGrantUser", fields: [userId], references: [id], onDelete: Cascade)
+  enabled     Boolean  @default(false)
+  note        String   @default("")
+  updatedById String?
+  updatedBy   User?    @relation("sqlPracticeGrantUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([enabled, updatedAt])
+  @@index([updatedById])
+}
+
+model SqlPracticeProblem {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  source          String   @default("LeetCode")
+  sourceUrl       String   @default("")
+  difficulty      String   @default("Medium")
+  tags            String[] @default([])
+  methods         String[] @default([])
+  durationMinutes Int      @default(0)
+  notes           String   @default("")
+  code            String   @default("")
+  practicedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, practicedAt])
+  @@index([userId, difficulty])
+  @@index([userId, source])
 }

@@ -123,7 +123,7 @@ export default async function ResumePage() {
         : "mx-auto w-full max-w-[820px]"
 
   const modeLabel = resume.mode === "pdf" ? "PDF" : resume.mode === "json" ? "Online JSON" : "Markdown"
-  const visibilityLabel = visibility === "friends" ? "Friends" : "Private"
+  const visibilityLabel = visibility === "public" ? "Public" : visibility === "friends" ? "Friends" : "Private"
 
   return (
     <ModulePageShell maxWidth="wide">
@@ -152,6 +152,11 @@ export default async function ResumePage() {
         />
 
         <ModulePanel className={containerClass} contentClassName={resume.mode === "pdf" ? "p-0" : "p-6 sm:p-8"}>
+          {visibility === "public" ? (
+            <div className="no-print mx-4 mb-4 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800 sm:mx-6">
+              简历已公开。正文、PDF 和在线 HTML 会被视为你主动公开的内容；页面周边会隐藏账号邮箱，但简历文件内写入的信息仍会对访客可见。
+            </div>
+          ) : null}
           <div id="resume-content">
             {resume.mode === "pdf" && resume.pdfPath ? <ResumePdfViewer src={resume.pdfPath} /> : null}
 

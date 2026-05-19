@@ -1,11 +1,12 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, KeyRound } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { SettingsSection } from "@/components/settings/settings-shell"
 
 export function PasswordSettingsPanel({
   labels,
@@ -85,16 +86,29 @@ export function PasswordSettingsPanel({
   }
 
   return (
-    <section className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-5">
+    <SettingsSection
+      icon={<KeyRound size={16} />}
+      title={labels.passwordInput}
+      footer={
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <Button type="button" variant="outline" onClick={checkPasswordStatus} loading={checking} loadingText="查询中...">
+            {labels.passwordStatus}
+          </Button>
+          <Button type="button" onClick={requestPasswordChange} disabled={!canSubmit} loading={requesting} loadingText="提交中...">
+            {labels.passwordSubmit}
+          </Button>
+        </div>
+      }
+    >
       <div className="max-w-lg space-y-4">
         <div>
           <Label className="mb-2 block">{labels.passwordInput}</Label>
           <div className="relative">
-            <Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="pr-11" />
             <button
               type="button"
               aria-label={showPassword ? labels.hidePassword : labels.showPassword}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[--color-text-muted]"
+              className="absolute right-1.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-[--color-text-muted] transition hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]"
               onClick={() => setShowPassword((value) => !value)}
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -106,14 +120,6 @@ export function PasswordSettingsPanel({
           <Input type={showPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
         </div>
       </div>
-      <div className="mt-6 flex flex-wrap gap-3">
-        <Button type="button" onClick={requestPasswordChange} disabled={!canSubmit} loading={requesting} loadingText="提交中...">
-          {labels.passwordSubmit}
-        </Button>
-        <Button type="button" variant="outline" onClick={checkPasswordStatus} loading={checking} loadingText="查询中...">
-          {labels.passwordStatus}
-        </Button>
-      </div>
-    </section>
+    </SettingsSection>
   )
 }

@@ -1,0 +1,72 @@
+{
+  "sun": {
+    "id": "GSFC_20171208_Archive_e000790",
+    "title": "NASA's SDO Sees Giant Filament on the Sun",
+    "href": "https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e000790/collection.json",
+    "imageUrl": null,
+    "filePath": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\assets\\sun.jpg"
+  },
+  "mercury": {
+    "id": "GSFC_20171208_Archive_e001545",
+    "title": "False Color View of Mercury",
+    "href": "https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e001545/collection.json",
+    "imageUrl": null,
+    "filePath": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\assets\\mercury.jpg"
+  },
+  "venus": {
+    "id": "PIA00104",
+    "title": "Venus - Computer Simulated Global View Centered at 180 Degrees East Longitude",
+    "href": "https://images-assets.nasa.gov/image/PIA00104/collection.json",
+    "imageUrl": null,
+    "filePath": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\assets\\venus.jpg"
+  },
+  "earth": {
+    "id": "GSFC_20171208_Archive_e002131",
+    "title": "NASA Blue Marble 2007 West",
+    "href": "https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e002131/collection.json",
+    "imageUrl": null,
+    "filePath": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\assets\\earth.jpg"
+  },
+  "mars": {
+    "id": "PIA00407",
+    "title": "Global Color Views of Mars",
+    "href": "https://images-assets.nasa.gov/image/PIA00407/collection.json",
+    "imageUrl": null,
+    "filePath": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\assets\\mars.jpg"
+  },
+  "jupiter": {
+    "id": "PIA22946",
+    "title": "Jupiter Marble",
+    "href": "https://images-assets.nasa.gov/image/PIA22946/collection.json",
+    "imageUrl": null,
+    "filePath": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\assets\\jupiter.jpg"
+  },
+  "saturn": {
+    "id": "PIA17172",
+    "title": "The Day the Earth Smiled",
+    "href": "https://images-assets.nasa.gov/image/PIA17172/collection.json",
+    "imageUrl": null,
+    "filePath": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\assets\\saturn.jpg"
+  },
+  "uranus": {
+    "id": "PIA18182",
+    "title": "Uranus as seen by NASA Voyager 2",
+    "href": "https://images-assets.nasa.gov/image/PIA18182/collection.json",
+    "imageUrl": null,
+    "filePath": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\assets\\uranus.jpg"
+  },
+  "neptune": {
+    "id": "PIA01492",
+    "title": "Neptune",
+    "href": "https://images-assets.nasa.gov/image/PIA01492/collection.json",
+    "imageUrl": null,
+    "filePath": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\assets\\neptune.jpg"
+  },
+  "ceres": {
+    "id": "PIA10235",
+    "title": "Color View of Ceres",
+    "href": "https://images-assets.nasa.gov/image/PIA10235/collection.json",
+    "imageUrl": null,
+    "filePath": "D:\\appmy\\webappwork\\solar-system-deck\\scratch\\assets\\ceres.jpg"
+  }
+}

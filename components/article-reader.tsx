@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Clock, Folder, Hash, Pencil, RefreshCcw, User } from "lucide-react"
 import { ArticleAside } from "@/components/article-sidebar"
+import { ArticleShareButton } from "@/components/article-share-button"
 import { ArticleWorkspaceShell } from "@/components/article-workspace-shell"
 import { CommentsSection } from "@/components/comments-section"
 import { MarkdownContent } from "@/components/markdown-content"
@@ -8,8 +9,9 @@ import { VisibilityToggle } from "@/components/visibility-toggle"
 import { PostFolderSelect } from "@/components/post-folder-select"
 import { getDict } from "@/lib/i18n"
 import { formatChinaDateTime } from "@/lib/time"
-import type { CreatorProfile } from "@/lib/profile"
+import { profileHref, type CreatorProfile } from "@/lib/profile"
 import type { ArticleWorkspaceNav } from "@/lib/article-workspace"
+import type { Visibility } from "@/lib/visibility"
 
 type ArticleReaderProps = {
   post: {
@@ -35,9 +37,11 @@ type ArticleReaderProps = {
   canEdit?: boolean
   userId?: string
   workspaceNav?: ArticleWorkspaceNav
+  showComments?: boolean
+  moduleVisibility?: Visibility
 }
 
-export function ArticleReader({ post, creator, backHref, backLabel, editHref, canEdit = false, userId, workspaceNav }: ArticleReaderProps) {
+export function ArticleReader({ post, creator, backHref, backLabel, editHref, canEdit = false, userId, workspaceNav, showComments = true, moduleVisibility }: ArticleReaderProps) {
   const dict = getDict()
   const ar = dict.article
   const aside = <ArticleAside content={post.content} profile={creator} dict={{ toc: ar.toc, noHeadings: ar.noHeadings }} mode="rail" />
@@ -50,6 +54,9 @@ export function ArticleReader({ post, creator, backHref, backLabel, editHref, ca
   const newer = currentIndex > 0 ? sameModulePosts[currentIndex - 1] : null
   const older = currentIndex >= 0 && currentIndex < sameModulePosts.length - 1 ? sameModulePosts[currentIndex + 1] : null
   const moduleHref = activeModule?.href ?? backHref
+  const canSharePublicly = post.visibility === "public" && moduleVisibility === "public"
+  const showShareButton = canEdit || canSharePublicly
+  const publicArticleHref = profileHref(creator, `${post.type}/${encodeURIComponent(post.slug)}`)
 
   return (
     <ArticleWorkspaceShell workspaceNav={workspaceNav} rightRail={aside} mobileAfter={mobileAside}>
@@ -58,12 +65,28 @@ export function ArticleReader({ post, creator, backHref, backLabel, editHref, ca
           <Link href={backHref} className="notion-icon-link">
             <ArrowLeft size={14} /> {backLabel}
           </Link>
-          {canEdit && editHref ? (
+          {showShareButton || (canEdit && editHref) ? (
             <div className="flex min-w-0 items-center gap-2">
-              <VisibilityToggle postId={post.id} initialVisibility={post.visibility} />
-              <Link href={editHref} className="notion-toolbar-button bg-[--color-text-primary] text-white hover:bg-[--color-text-primary] hover:text-white">
-                <Pencil size={14} /> {ar.edit}
-              </Link>
+              {showShareButton ? (
+                <ArticleShareButton
+                  publicHref={publicArticleHref}
+                  canShare={canSharePublicly}
+                  labels={{
+                    share: ar.share,
+                    copied: ar.shareCopied,
+                    copyFailed: ar.shareCopyFailed,
+                    needsPublic: ar.shareNeedsPublic,
+                  }}
+                />
+              ) : null}
+              {canEdit && editHref ? (
+                <>
+                  <VisibilityToggle postId={post.id} initialVisibility={post.visibility} />
+                  <Link href={editHref} className="notion-toolbar-button bg-[--color-text-primary] text-white hover:bg-[--color-text-primary] hover:text-white">
+                    <Pencil size={14} /> {ar.edit}
+                  </Link>
+                </>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -130,9 +153,11 @@ export function ArticleReader({ post, creator, backHref, backLabel, editHref, ca
         ) : null}
       </article>
 
-      <div className="notion-comments">
-        <CommentsSection postId={post.id} />
-      </div>
+      {showComments ? (
+        <div className="notion-comments">
+          <CommentsSection postId={post.id} />
+        </div>
+      ) : null}
     </ArticleWorkspaceShell>
   )
 }

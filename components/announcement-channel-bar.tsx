@@ -19,6 +19,7 @@ import { SoulWingReplyButton } from "@/components/chat/soulwing-reply-button"
 import { SoulWingRoundtableClient } from "@/components/ai/soulwing-roundtable-client"
 import { getDict, type AppLocale } from "@/lib/i18n"
 import { handleEnterToSubmit } from "@/lib/keyboard"
+import { publicProfileHref } from "@/lib/public-profile"
 
 export type AnnouncementItem = {
   type?: "announcement" | "broadcast"
@@ -33,6 +34,7 @@ export type AnnouncementItem = {
 type Friend = {
   id: string
   email: string
+  publicSlug?: string | null
   displayName: string
   avatarText: string
   avatarUrl: string | null
@@ -1739,7 +1741,7 @@ function UserProfileDialog({ user, currentUserId, isFriend, onOpenChange }: { us
             ) : isFriend ? (
               <DialogFooter>
                 <Button asChild variant="outline">
-                  <Link href={`/u/${user.id}`}>{dict.nav.home}</Link>
+                  <Link href={publicProfileHref(user)}>{dict.nav.home}</Link>
                 </Button>
                 <Button asChild>
                   <Link href={`/friends?type=direct&id=${encodeURIComponent(user.id)}`}>{dict.nav.friends}</Link>

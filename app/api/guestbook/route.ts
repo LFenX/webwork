@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   if (!ownerId) return NextResponse.json({ error: "缺少 ownerId" }, { status: 400, headers: NO_STORE })
 
   const level = await getAccessLevel(session.userId, ownerId)
-  if (level === "none") return NextResponse.json({ error: "无权查看" }, { status: 403, headers: NO_STORE })
+  if (level === "public") return NextResponse.json({ error: "无权查看" }, { status: 403, headers: NO_STORE })
 
   const messages = await prisma.guestbookMessage.findMany({
     where: { ownerId },

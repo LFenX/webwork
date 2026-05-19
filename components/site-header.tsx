@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import {
-  BookOpen, Briefcase, Calendar, Database, FileText, Globe, Home, Lightbulb,
+  BookOpen, Briefcase, Calendar, Database, FileText, Globe, GraduationCap, Home, Lightbulb,
   LogIn, LogOut, Menu, Settings, Shield,
   Sparkles, StickyNote, Users, Video, X,
 } from "lucide-react"
@@ -29,6 +29,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   "/interviews": <Video size={16} />,
   "/ai": <Sparkles size={16} />,
   "/sql": <Database size={16} />,
+  "/sql-practice": <GraduationCap size={16} />,
   "/friends": <Users size={16} />,
   "/admin": <Shield size={16} />,
   "/settings": <Settings size={16} />,
@@ -50,6 +51,7 @@ interface SiteHeaderProps {
     interviews: string
     ai: string
     sql: string
+    sqlPractice: string
     friends: string
     admin: string
     login: string
@@ -61,6 +63,7 @@ interface SiteHeaderProps {
   avatarText?: string | null
   avatarUrl?: string | null
   displayName?: string | null
+  canAccessSqlPractice?: boolean
 }
 
 export function SiteHeader({
@@ -73,6 +76,7 @@ export function SiteHeader({
   avatarText,
   avatarUrl,
   displayName,
+  canAccessSqlPractice = false,
 }: SiteHeaderProps) {
   const pathname = usePathname()
   const [presenceStatus, setPresenceStatus] = useState<"online" | "away" | "offline">(session ? "online" : "offline")
@@ -93,6 +97,7 @@ export function SiteHeader({
     { href: "/interviews", label: navDict.interviews },
     { href: "/ai", label: navDict.ai },
     { href: "/sql", label: navDict.sql },
+    ...(canAccessSqlPractice ? [{ href: "/sql-practice", label: navDict.sqlPractice }] : []),
   ]
 
   useEffect(() => {

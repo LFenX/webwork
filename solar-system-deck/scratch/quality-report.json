@@ -1,0 +1,49 @@
+{
+  "workspace": "D:\\appmy\\webappwork\\solar-system-deck",
+  "pptx": "D:\\appmy\\webappwork\\solar-system-deck\\output\\output.pptx",
+  "checks": {
+    "pptx_package": {
+      "slide_count": 8,
+      "media_count": 20,
+      "chart_count": 1,
+      "zero_byte_media": [
+        "ppt/media/image.jpeg",
+        "ppt/media/image2.jpeg",
+        "ppt/media/image3.jpeg",
+        "ppt/media/image4.jpeg",
+        "ppt/media/image5.jpeg",
+        "ppt/media/image6.jpeg",
+        "ppt/media/image7.jpeg",
+        "ppt/media/image8.jpeg",
+        "ppt/media/image9.jpeg",
+        "ppt/media/image10.jpeg",
+        "ppt/media/image11.jpeg",
+        "ppt/media/image12.jpeg",
+        "ppt/media/image13.jpeg",
+        "ppt/media/image14.jpeg",
+        "ppt/media/image15.jpeg",
+        "ppt/media/image16.jpeg",
+        "ppt/media/image17.jpeg",
+        "ppt/media/image18.jpeg",
+        "ppt/media/image19.jpeg",
+        "ppt/media/image20.jpeg"
+      ],
+      "invalid_png_media": [],
+      "placeholder_text": [],
+      "debug_line_colors": [],
+      "slide_numbers": [],
+      "warnings": [],
+      "failures": [
+        "PPTX contains zero-byte media parts: ppt/media/image.jpeg, ppt/media/image2.jpeg, ppt/media/image3.jpeg, ppt/media/image4.jpeg, ppt/media/image5.jpeg, ppt/media/image6.jpeg, ppt/media/image7.jpeg, ppt/media/image8.jpeg, ppt/media/image9.jpeg, ppt/media/image10.jpeg, ppt/media/image11.jpeg, ppt/media/image12.jpeg"
+      ]
+    },
+    "output_hygiene": {
+      "output_dir": "D:\\appmy\\webappwork\\solar-system-deck\\output",
+      "unexpected_files": []
+    }
+  },
+  "failures": [
+    "PPTX contains zero-byte media parts: ppt/media/image.jpeg, ppt/media/image2.jpeg, ppt/media/image3.jpeg, ppt/media/image4.jpeg, ppt/media/image5.jpeg, ppt/media/image6.jpeg, ppt/media/image7.jpeg, ppt/media/image8.jpeg, ppt/media/image9.jpeg, ppt/media/image10.jpeg, ppt/media/image11.jpeg, ppt/media/image12.jpeg"
+  ],
+  "warnings": []
+}

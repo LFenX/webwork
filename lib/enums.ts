@@ -1,13 +1,26 @@
 export const JOB_STATUS = [
   "已投递",
   "已回复",
+  "未通过评估",
   "进入面试",
+  "未通过面试",
   "已拒绝",
   "已Offer",
   "已接受",
+  "无回复放弃",
   "已放弃",
 ] as const
 export type JobStatus = (typeof JOB_STATUS)[number]
+
+export const JOB_PIPELINE_STAGES = [
+  "投递",
+  "测评",
+  "简历筛选",
+  "面试",
+  "Offer",
+  "入职",
+] as const
+export type JobPipelineStage = (typeof JOB_PIPELINE_STAGES)[number]
 
 export const JOB_CHANNELS = [
   "Boss直聘",
@@ -40,10 +53,13 @@ export type InterviewResult = (typeof INTERVIEW_RESULTS)[number]
 export const JOB_STATUS_COLORS: Record<string, string> = {
   已投递: "bg-[--color-bg-hover] text-[--color-text-secondary]",
   已回复: "bg-[--color-warning-bg] text-[--color-warning]",
+  未通过评估: "bg-[--color-danger-bg] text-[--color-danger]",
   进入面试: "bg-blue-50 text-blue-700",
+  未通过面试: "bg-[--color-danger-bg] text-[--color-danger]",
   已拒绝: "bg-[--color-danger-bg] text-[--color-danger]",
   已Offer: "bg-[--color-success-bg] text-[--color-success]",
   已接受: "bg-[--color-success-bg] text-[--color-success]",
+  无回复放弃: "bg-[--color-bg-hover] text-[--color-text-secondary]",
   已放弃: "bg-[--color-bg-hover] text-[--color-text-muted]",
 }
 

@@ -4,6 +4,7 @@ import { getPosts, getPost, getSiteSettings } from "@/lib/mdx"
 import { getUserAdminInfo } from "@/lib/admin"
 import { compactText } from "@/lib/ai/tools/context"
 import { getFriendProfileSnapshot, resolveUserReference, toolGranted, toolNotFound } from "@/lib/ai/tools/helpers"
+import { normalizeVisibility, type Visibility } from "@/lib/visibility"
 
 const MODULE_KEYS = ["home", "resume", "blog", "daily", "reflections", "notes", "jobs", "interviews"] as const
 const POST_TYPES = ["blog", "daily", "reflections", "notes"] as const
@@ -30,9 +31,9 @@ async function readModuleVisibility(userId: string) {
   return Object.fromEntries(
     MODULE_KEYS.map((module) => [
       module,
-      rows.find((row) => row.module === module)?.visibility === "friends" ? "friends" : "private",
+      normalizeVisibility(rows.find((row) => row.module === module)?.visibility),
     ]),
-  ) as Record<(typeof MODULE_KEYS)[number], "private" | "friends">
+  ) as Record<(typeof MODULE_KEYS)[number], Visibility>
 }
 
 async function buildHomeOverview(userId: string) {
@@ -115,7 +116,7 @@ export const getMyPermissionsTool = {
 export const getMyModuleVisibilityTool = {
   name: "get_my_module_visibility",
   title: "读取我的模块开放设置",
-  description: "查看当前用户主页各模块对好友的开放状态。",
+  description: "查看当前用户主页各模块的 private/friends/public 可见性。",
   execute: async ({ userId }: { userId: string }) => {
     const modules = await readModuleVisibility(userId)
     return toolGranted("已读取当前用户的模块开放设置。", {

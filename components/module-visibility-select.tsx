@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getDict } from "@/lib/i18n"
 import type { ModuleKey } from "@/lib/permissions"
+import { isVisibility, type Visibility } from "@/lib/visibility"
 
 export function ModuleVisibilitySelect({
   module,
@@ -12,13 +13,15 @@ export function ModuleVisibilitySelect({
   labels,
 }: {
   module: ModuleKey
-  initialVisibility: "private" | "friends"
+  initialVisibility: Visibility
   labels?: {
     private: string
     friends: string
+    public: string
     saveFailed: string
     savedPrivate: string
     savedFriends: string
+    savedPublic: string
   }
 }) {
   const dict = getDict()
@@ -29,13 +32,15 @@ export function ModuleVisibilitySelect({
   const text = labels ?? {
     private: dict.settings.privateVisibility,
     friends: dict.settings.friendsVisibility,
+    public: dict.settings.publicVisibility,
     saveFailed: "Failed to update visibility",
     savedPrivate: "Module set to private",
     savedFriends: "Friends can now view this module",
+    savedPublic: "Anyone with the link can now view this module",
   }
 
   async function handleChange(nextVisibility: string) {
-    if (nextVisibility !== "private" && nextVisibility !== "friends") return
+    if (!isVisibility(nextVisibility)) return
     if (nextVisibility === visibility || saving) return
 
     const previous = visibility
@@ -53,7 +58,13 @@ export function ModuleVisibilitySelect({
       setVisibility(previous)
       toast.error(text.saveFailed)
     } else {
-      toast.success(nextVisibility === "friends" ? text.savedFriends : text.savedPrivate)
+      toast.success(
+        nextVisibility === "public"
+          ? text.savedPublic
+          : nextVisibility === "friends"
+            ? text.savedFriends
+            : text.savedPrivate
+      )
       router.refresh()
     }
 
@@ -70,6 +81,7 @@ export function ModuleVisibilitySelect({
     >
       <option value="private">{text.private}</option>
       <option value="friends">{text.friends}</option>
+      <option value="public">{text.public}</option>
     </select>
   )
 }

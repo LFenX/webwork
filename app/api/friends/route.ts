@@ -15,8 +15,8 @@ export async function GET() {
   const friendships = await prisma.friendship.findMany({
     where: { OR: [{ userAId: uid }, { userBId: uid }] },
     include: {
-      userA: { select: { id: true, email: true, displayName: true, bio: true, avatarText: true, avatarUrl: true } },
-      userB: { select: { id: true, email: true, displayName: true, bio: true, avatarText: true, avatarUrl: true } },
+      userA: { select: { id: true, email: true, publicSlug: true, displayName: true, bio: true, avatarText: true, avatarUrl: true } },
+      userB: { select: { id: true, email: true, publicSlug: true, displayName: true, bio: true, avatarText: true, avatarUrl: true } },
     },
   })
 

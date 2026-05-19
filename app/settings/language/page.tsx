@@ -12,7 +12,11 @@ export default async function SettingsLanguagePage() {
   const dict = getDictionary(settings.language)
 
   return (
-    <SettingsShell title={dict.settings.languageTitle} backLabel={dict.common.back}>
+    <SettingsShell
+      title={dict.settings.languageTitle}
+      backLabel={dict.common.back}
+      eyebrow={settings.language === "en-US" ? "Settings · Language" : "设置 · 语言"}
+    >
       <LanguageSettingsForm
         initialLanguage={settings.language}
         labels={{

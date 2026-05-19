@@ -1,7 +1,8 @@
+import { BookOpen } from "lucide-react"
 import { requireAuth } from "@/lib/auth"
 import { getDictionary } from "@/lib/i18n"
 import { getUserSiteSettings } from "@/lib/settings"
-import { SettingsShell } from "@/components/settings/settings-shell"
+import { SettingsSection, SettingsShell } from "@/components/settings/settings-shell"
 import { MarkdownContent } from "@/components/markdown-content"
 
 export const dynamic = "force-dynamic"
@@ -360,13 +361,16 @@ PDF 模式适合你已经有外部制作好的简历。上传时可以给版本�
 
 - 已投递。
 - 已回复。
-- 面试中。
-- Offer。
+- 未通过评估。
+- 进入面试。
+- 未通过面试。
+- 已Offer。
 - 已接受。
 - 已拒绝。
-- 无回应。
+- 无回复放弃。
+- 已放弃。
 
-不同状态会影响统计结果。比如从已投递变成已回复后，回复率会变化；进入面试后，面试转化也会变化。
+不同状态会影响统计结果。比如从已投递变成已回复后，回复率会变化；无回复放弃不计入回复，已放弃用于记录已经有回复或进入流程后的主动放弃。
 
 ### 查看详情
 
@@ -1108,10 +1112,14 @@ export default async function SettingsUsagePage() {
   const source = settings.language === "en-US" ? enGuide : zhGuide
 
   return (
-    <SettingsShell title={dict.settings.usageTitle} backLabel={dict.common.back}>
-      <div className="rounded-[--radius-lg] border border-[--color-border] bg-[--color-bg-surface] p-6">
+    <SettingsShell
+      title={dict.settings.usageTitle}
+      backLabel={dict.common.back}
+      eyebrow={settings.language === "en-US" ? "Settings · Guide" : "设置 · 使用说明"}
+    >
+      <SettingsSection icon={<BookOpen size={16} />} bodyClassName="px-5 py-6 sm:px-8 sm:py-8">
         <MarkdownContent source={source} />
-      </div>
+      </SettingsSection>
     </SettingsShell>
   )
 }

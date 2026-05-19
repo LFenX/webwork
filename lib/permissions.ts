@@ -1,5 +1,6 @@
 import "server-only"
 import { prisma } from "@/lib/db"
+import { normalizeVisibility, type Visibility } from "@/lib/visibility"
 
 /** Check if viewerId and ownerId are friends (friendship is bidirectional). */
 export async function areFriends(viewerId: string, ownerId: string): Promise<boolean> {
@@ -12,35 +13,35 @@ export async function areFriends(viewerId: string, ownerId: string): Promise<boo
 /**
  * Returns the access level of viewerId when looking at ownerId's data.
  *   "self"    – same user, full access
- *   "friend"  – friends, read-only public+friend-visible content
- *   "none"    – no access to private content
+ *   "friend"  - friends, read-only public+friend-visible content
+ *   "public"  - visitors and non-friends, read-only public content
  */
-export type AccessLevel = "self" | "friend" | "none"
+export type AccessLevel = "self" | "friend" | "public"
 export type ModuleKey = "home" | "resume" | "blog" | "daily" | "reflections" | "notes" | "jobs" | "interviews"
 
 export async function getAccessLevel(
   viewerId: string | null,
   ownerId: string
 ): Promise<AccessLevel> {
-  if (!viewerId) return "none"
+  if (!viewerId) return "public"
   if (viewerId === ownerId) return "self"
   const friends = await areFriends(viewerId, ownerId)
-  return friends ? "friend" : "none"
+  return friends ? "friend" : "public"
 }
 
 /** Visibility levels that a viewer can see. */
-export function visibleTo(level: AccessLevel): string[] {
+export function visibleTo(level: AccessLevel): Visibility[] {
   if (level === "self") return ["private", "friends", "public"]
   if (level === "friend") return ["friends", "public"]
-  return []
+  return ["public"]
 }
 
-export async function getModuleVisibility(userId: string, module: ModuleKey): Promise<"private" | "friends"> {
+export async function getModuleVisibility(userId: string, module: ModuleKey): Promise<Visibility> {
   const setting = await prisma.moduleVisibility.findUnique({
     where: { userId_module: { userId, module } },
     select: { visibility: true },
   })
-  return setting?.visibility === "friends" ? "friends" : "private"
+  return normalizeVisibility(setting?.visibility)
 }
 
 export async function canViewModule(
@@ -49,8 +50,9 @@ export async function canViewModule(
   level: AccessLevel
 ): Promise<boolean> {
   if (level === "self") return true
-  if (level !== "friend") return false
-  return (await getModuleVisibility(ownerId, module)) === "friends"
+  const visibility = await getModuleVisibility(ownerId, module)
+  if (level === "friend") return visibility === "friends" || visibility === "public"
+  return visibility === "public"
 }
 
 export async function recordVisit({

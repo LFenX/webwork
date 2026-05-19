@@ -1,12 +1,16 @@
 import { BookOpen, BriefcaseBusiness, CalendarDays, Edit3, FileText, MessageCircle, PenLine, Share2, UsersRound } from "lucide-react"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
-import { requireAuth } from "@/lib/auth"
+import { getOptionalSession } from "@/lib/auth"
+import { LandingPage } from "@/components/landing/landing-page"
+import { getLandingPlatformStats } from "@/lib/landing-stats"
 import { GuestbookSection } from "@/components/guestbook-section"
 import { formatDateKey } from "@/lib/time"
 import { countWords } from "@/lib/text-stats"
 import { RecentActivityPanel, type RecentActivityGroup, type RecentActivityItem } from "@/components/recent-activity-panel"
 import { getReadRecentActivityIds } from "@/lib/recent-activity-reads"
+import { hasJobReplySignal } from "@/lib/job-stats"
+import { publicProfileHref } from "@/lib/public-profile"
 import {
   ChatActivityCard,
   type ChatParticipant,
@@ -30,10 +34,6 @@ export const fetchCache = "force-no-store"
 
 const ARTICLE_TYPES = ["blog", "reflections", "notes"] as const
 
-function isSubmittedOnly(status: string) {
-  return status.includes("已投递") || status.includes("尚未开始")
-}
-
 function isInterviewStatus(status: string) {
   return status.includes("面试") || status.includes("Offer") || status.includes("待定")
 }
@@ -45,7 +45,7 @@ function isOfferStatus(status: string) {
 async function getJobStats(userId: string) {
   const jobs = await prisma.jobApplication.findMany({ where: { userId } })
   const total = jobs.length
-  const replied = jobs.filter((job) => !isSubmittedOnly(job.status)).length
+  const replied = jobs.filter(hasJobReplySignal).length
   const hasInterview = jobs.filter((job) => isInterviewStatus(job.status)).length
   const offers = jobs.filter((job) => isOfferStatus(job.status)).length
   return {
@@ -176,8 +176,8 @@ async function getWritingStats(userId: string) {
 }
 
 async function getProfile(userId: string) {
-  const rows = await prisma.$queryRaw<Array<{ displayName: string; email: string; bio: string; avatarText: string; avatarUrl: string | null; location: string }>>`
-    SELECT "displayName", email, bio, "avatarText", "avatarUrl", location
+  const rows = await prisma.$queryRaw<Array<{ id: string; displayName: string; email: string; publicSlug: string | null; bio: string; avatarText: string; avatarUrl: string | null; location: string }>>`
+    SELECT id, "displayName", email, "publicSlug", bio, "avatarText", "avatarUrl", location
     FROM "User"
     WHERE id = ${userId}
     LIMIT 1
@@ -270,7 +270,7 @@ async function getRecentActivityHub(userId: string): Promise<RecentActivityGroup
           where: { OR: articleFilters },
           orderBy: [{ updatedAt: "desc" }, { date: "desc" }],
           take: 50,
-          include: { user: { select: { id: true, displayName: true, email: true } } },
+          include: { user: { select: { id: true, displayName: true, email: true, publicSlug: true } } },
         })
       : Promise.resolve([]),
     (allowedByModule.jobs ?? []).length > 0
@@ -278,7 +278,7 @@ async function getRecentActivityHub(userId: string): Promise<RecentActivityGroup
           where: { userId: { in: allowedByModule.jobs } },
           orderBy: { updatedAt: "desc" },
           take: 50,
-          include: { user: { select: { id: true, displayName: true, email: true } } },
+          include: { user: { select: { id: true, displayName: true, email: true, publicSlug: true } } },
         })
       : Promise.resolve([]),
     (allowedByModule.resume ?? []).length > 0
@@ -286,7 +286,7 @@ async function getRecentActivityHub(userId: string): Promise<RecentActivityGroup
           where: { userId: { in: allowedByModule.resume } },
           orderBy: { updatedAt: "desc" },
           take: 50,
-          include: { user: { select: { id: true, displayName: true, email: true } } },
+          include: { user: { select: { id: true, displayName: true, email: true, publicSlug: true } } },
         })
       : Promise.resolve([]),
     prisma.websiteResource.findMany({
@@ -360,7 +360,7 @@ async function getRecentActivityHub(userId: string): Promise<RecentActivityGroup
       id: `post-${post.id}-${post.updatedAt.getTime()}`,
       title: `${normalizeFriendName(post.user)}发布了${ARTICLE_ACTIVITY_LABELS[post.type] ?? "内容"}`,
       description: compactText(post.title, "新的文章动态"),
-      href: `/u/${post.userId}/${post.type}/${encodeURIComponent(post.slug)}`,
+      href: publicProfileHref(post.user, `${post.type}/${encodeURIComponent(post.slug)}`),
       meta: compactText(post.summary, ARTICLE_ACTIVITY_LABELS[post.type] ?? "文章", 34),
       time: post.updatedAt.toISOString(),
       badge: ARTICLE_ACTIVITY_LABELS[post.type] ?? "文章",
@@ -370,7 +370,7 @@ async function getRecentActivityHub(userId: string): Promise<RecentActivityGroup
       id: `job-${job.id}-${job.updatedAt.getTime()}`,
       title: `${normalizeFriendName(job.user)}更新了求职进展`,
       description: `${job.company} · ${job.position}`,
-      href: `/u/${job.userId}/jobs`,
+      href: publicProfileHref(job.user, "jobs"),
       meta: job.status,
       time: job.updatedAt.toISOString(),
       badge: "求职",
@@ -380,7 +380,7 @@ async function getRecentActivityHub(userId: string): Promise<RecentActivityGroup
       id: `resume-${resume.userId}-${resume.updatedAt.getTime()}`,
       title: `${normalizeFriendName(resume.user)}更新了简历`,
       description: resume.selectedTheme ? `当前模板：${resume.selectedTheme}` : "简历内容有新的调整",
-      href: `/u/${resume.userId}/resume`,
+      href: publicProfileHref(resume.user, "resume"),
       meta: resume.mode === "json" ? "结构化简历" : "Markdown 简历",
       time: resume.updatedAt.toISOString(),
       badge: "简历",
@@ -516,7 +516,11 @@ async function getVisitDashboardData(userId: string) {
 }
 
 export default async function HomePage() {
-  const session = await requireAuth()
+  const session = await getOptionalSession()
+  if (!session) {
+    const platform = await getLandingPlatformStats()
+    return <LandingPage platform={platform} />
+  }
   const { userId } = session
 
   const [
@@ -631,7 +635,13 @@ export default async function HomePage() {
               actions={[
                 { label: "编辑资料", href: "/settings/profile", icon: Edit3, variant: "primary" },
                 { label: "写文章", href: "/blog/new", icon: PenLine, variant: "secondary" },
-                { label: "分享主页", href: `/u/${userId}`, icon: Share2, variant: "ghost" },
+                {
+                  label: "分享主页",
+                  href: publicProfileHref({ id: userId, publicSlug: profile?.publicSlug }),
+                  copyHref: publicProfileHref({ id: userId, publicSlug: profile?.publicSlug }),
+                  icon: Share2,
+                  variant: "ghost",
+                },
               ]}
             />
 

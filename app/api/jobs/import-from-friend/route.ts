@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
       baseLocation: job.baseLocation,
       hrContact: job.hrContact,
       link: job.link,
+      jobDescription: job.jobDescription,
+      salaryRange: job.salaryRange,
     })),
   })
 

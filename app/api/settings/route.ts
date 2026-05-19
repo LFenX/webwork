@@ -9,6 +9,8 @@ import { createSession, getSession } from "@/lib/session"
 import { siteSettingsSchema } from "@/lib/validators"
 import { recordActivity } from "@/lib/admin"
 import { getUserSiteSettings } from "@/lib/settings"
+import { revalidatePublicUserPaths } from "@/lib/public-revalidation"
+import { normalizePublicSlug, validatePublicSlug } from "@/lib/visibility"
 
 export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -34,8 +36,8 @@ export async function GET() {
 
   const [settings, user] = await Promise.all([
     getUserSiteSettings(session.userId),
-    prisma.$queryRaw<Array<{ email: string; displayName: string; bio: string; avatarText: string; avatarUrl: string | null; location: string }>>`
-      SELECT email, "displayName", bio, "avatarText", "avatarUrl", location
+    prisma.$queryRaw<Array<{ email: string; displayName: string; bio: string; avatarText: string; avatarUrl: string | null; location: string; publicSlug: string | null }>>`
+      SELECT email, "displayName", bio, "avatarText", "avatarUrl", location, "publicSlug"
       FROM "User"
       WHERE id = ${session.userId}
       LIMIT 1
@@ -53,7 +55,38 @@ export async function PUT(req: NextRequest) {
   const parsed = siteSettingsSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400, headers: NO_STORE })
 
-  const { displayName, avatarText, avatarUrl, avatarDataUrl, location, bio, email, ownerName, heroTagline, language } = parsed.data
+  const { displayName, avatarText, avatarUrl, avatarDataUrl, location, bio, email, ownerName, heroTagline, language, publicSlug } = parsed.data
+  const shouldUpdatePublicSlug = Boolean(body && typeof body === "object" && "publicSlug" in body)
+
+  const previousSlugRow = await prisma.$queryRaw<Array<{ publicSlug: string | null }>>`
+    SELECT "publicSlug"
+    FROM "User"
+    WHERE id = ${session.userId}
+    LIMIT 1
+  `
+  const previousPublicSlug = previousSlugRow[0]?.publicSlug ?? null
+  let nextPublicSlug = previousPublicSlug
+
+  if (shouldUpdatePublicSlug) {
+    nextPublicSlug = publicSlug ? normalizePublicSlug(publicSlug) : null
+    if (nextPublicSlug) {
+      const validation = validatePublicSlug(nextPublicSlug)
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.reason }, { status: 400, headers: NO_STORE })
+      }
+      const conflicts = await prisma.$queryRaw<Array<{ id: string; publicSlug: string | null }>>`
+        SELECT id, "publicSlug"
+        FROM "User"
+        WHERE id = ${nextPublicSlug} OR "publicSlug" = ${nextPublicSlug}
+        LIMIT 1
+      `
+      const conflict = conflicts[0]
+      if (conflict && (conflict.id !== session.userId || conflict.id === nextPublicSlug)) {
+        return NextResponse.json({ error: "Public URL is already in use" }, { status: 409, headers: NO_STORE })
+      }
+    }
+  }
+
   if (email && email !== session.email) {
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing && existing.id !== session.userId) {
@@ -83,6 +116,7 @@ export async function PUT(req: NextRequest) {
   const nextLocation = location ?? null
   const nextBio = bio ?? null
   const nextEmail = email ?? null
+  const publicSlugSql = shouldUpdatePublicSlug ? nextPublicSlug : previousPublicSlug
   await prisma.$executeRaw`
     UPDATE "User"
     SET
@@ -91,7 +125,8 @@ export async function PUT(req: NextRequest) {
       "avatarUrl" = COALESCE(${nextAvatarUrl}, "avatarUrl"),
       location = COALESCE(${nextLocation}, location),
       bio = COALESCE(${nextBio}, bio),
-      email = COALESCE(${nextEmail}, email)
+      email = COALESCE(${nextEmail}, email),
+      "publicSlug" = ${publicSlugSql}
     WHERE id = ${session.userId}
   `
 
@@ -104,5 +139,6 @@ export async function PUT(req: NextRequest) {
   revalidatePath("/")
   revalidatePath("/", "layout")
   revalidatePath("/settings")
+  await revalidatePublicUserPaths(session.userId, [""], [previousPublicSlug, nextPublicSlug])
   return NextResponse.json({ success: true }, { headers: NO_STORE })
 }

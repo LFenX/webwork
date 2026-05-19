@@ -11,17 +11,13 @@ export const getVisibleUserPageOverviewTool = {
   execute: async ({ userId, targetUserId }: { userId: string; targetUserId?: string }) => {
     if (!targetUserId) {
       return {
-        accessLevel: "none",
+        accessLevel: "public",
         visibleModules: {},
         note: "未提供目标用户 ID，无法读取他人主页概览。",
       }
     }
 
     const level = await getAccessLevel(userId, targetUserId)
-    if (level === "none") {
-      return { accessLevel: level, visibleModules: {} }
-    }
-
     const entries = await Promise.all(
       PUBLIC_MODULES.map(async (module) => [module, await canViewModule(targetUserId, module, level)] as const)
     )
