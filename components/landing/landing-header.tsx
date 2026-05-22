@@ -6,7 +6,6 @@ import {
   Eye,
   Folder,
   Lightbulb,
-  Menu,
   Pin,
   Search,
   Tag,
@@ -34,20 +33,12 @@ function fmt(n: number) {
 
 export function GlobalHeader({ platform }: { platform: LandingPlatformStats }) {
   return (
-    <header className={styles.globalHeader}>
+    <header className={styles.globalHeader} data-has-data={platform.hasAnyData ? "true" : "false"}>
       <div className={styles.globalHeaderInner}>
-        <button type="button" className={styles.iconBtn} aria-label="菜单">
-          <Menu size={18} strokeWidth={1.6} />
-        </button>
-
-        <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "0 4px", color: "var(--text)", fontSize: 14, fontWeight: 600 }}>
+        <Link href="/" className={styles.headerBrand}>
           <SpaceMark size={26} />
-          <span className={styles.serif} style={{ fontSize: 17 }}>my space</span>
+          <span>my-space</span>
         </Link>
-
-        <span style={{ marginLeft: 4, padding: "2px 7px", fontSize: 10.5, color: "var(--text-3)", fontFamily: "var(--f-mono)", border: "1px solid var(--line-2)", borderRadius: 4, letterSpacing: "0.04em" }}>
-          {platform.version}{platform.hasAnyData ? "" : " · 早期版本"}
-        </span>
 
         <div className={styles.headerSearch}>
           <Search size={13} strokeWidth={1.6} />
@@ -65,12 +56,12 @@ export function GlobalHeader({ platform }: { platform: LandingPlatformStats }) {
 
         <span className={styles.divider} />
 
-        <LandingThemeToggle />
+        <LandingThemeToggle className={styles.themeToggle} />
 
         <Link href="/login" style={{ fontSize: 13, color: "var(--text)", padding: "5px 12px", fontWeight: 500 }}>
           登录
         </Link>
-        <Link href="/register" className={`${styles.btn} ${styles.btnPrimary} ${styles.btnSm}`}>
+        <Link href="/register" className={`${styles.btn} ${styles.btnPrimary} ${styles.btnSm} ${styles.headerPrimaryCta}`}>
           创建你的空间
         </Link>
       </div>
@@ -99,8 +90,8 @@ export function ProjectHeaderStrip({ platform, activeTab = "none" }: { platform:
             <Link href="/" style={{ color: "var(--accent)" }}>my-space</Link>
             <span style={{ color: "var(--text-3)" }}>/</span>
             <span style={{ color: "var(--text)" }}>你的个人空间</span>
-            <span className={styles.chip}>公开</span>
-            <span className={`${styles.chip} ${styles.chipWarm}`}>
+            <span className={`${styles.chip} ${styles.projectStateChip}`}>公开</span>
+            <span className={`${styles.chip} ${styles.chipWarm} ${styles.projectInviteChip} landing-project-invite-chip`}>
               <Pin size={10} strokeWidth={1.8} /> 邀请制
             </span>
           </div>
@@ -110,7 +101,7 @@ export function ProjectHeaderStrip({ platform, activeTab = "none" }: { platform:
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div className={`${styles.projectActions} landing-project-actions`}>
           <GroupButton icon={<Eye size={13} strokeWidth={1.6} />} label="浏览公开空间" num={fmt(platform.users)} href="/welcome/spaces" />
           <GroupButton icon={<Bell size={13} strokeWidth={1.6} />} label="更新日志" num={`${platform.releases.length}`} href="/updates" />
           <GroupButton icon={<Activity size={13} strokeWidth={1.6} />} label="本月动态" num={fmt(platform.commits365)} href="/welcome/activity" />

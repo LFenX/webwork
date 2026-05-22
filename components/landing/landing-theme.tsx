@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { Moon, Sun } from "lucide-react"
-import styles from "./landing.module.css"
 
 const STORAGE_KEY = "landing-theme"
 
 type Theme = "dark" | "light"
 
-export function LandingThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark")
+export function LandingThemeProvider({ children, pageClassName }: { children: React.ReactNode; pageClassName: string }) {
+  const [theme, setTheme] = useState<Theme>("light")
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -31,11 +30,33 @@ export function LandingThemeProvider({ children }: { children: React.ReactNode }
   }, [theme, mounted])
 
   return (
-    <div className={styles.page} data-landing-theme={theme}>
-      <LandingThemeContext.Provider value={{ theme, toggle: () => setTheme(t => (t === "dark" ? "light" : "dark")) }}>
-        {children}
-      </LandingThemeContext.Provider>
-    </div>
+    <>
+      <style>{`
+        .site-header,
+        footer.site-footer,
+        #waifu,
+        #waifu-toggle,
+        nextjs-portal {
+          display: none !important;
+        }
+
+        main {
+          padding-top: 0 !important;
+        }
+
+        @media (max-width: 640px) {
+          .landing-project-actions,
+          .landing-project-invite-chip {
+            display: none !important;
+          }
+        }
+      `}</style>
+      <div className={pageClassName} data-landing-theme={theme}>
+        <LandingThemeContext.Provider value={{ theme, toggle: () => setTheme(t => (t === "dark" ? "light" : "dark")) }}>
+          {children}
+        </LandingThemeContext.Provider>
+      </div>
+    </>
   )
 }
 
@@ -43,14 +64,14 @@ import { createContext, useContext } from "react"
 
 const LandingThemeContext = createContext<{ theme: Theme; toggle: () => void } | null>(null)
 
-export function LandingThemeToggle() {
+export function LandingThemeToggle({ className }: { className?: string }) {
   const ctx = useContext(LandingThemeContext)
   if (!ctx) return null
   const Icon = ctx.theme === "dark" ? Sun : Moon
   return (
     <button
       type="button"
-      className={styles.themeToggle}
+      className={className}
       onClick={ctx.toggle}
       aria-label={ctx.theme === "dark" ? "切换到亮色模式" : "切换到暗色模式"}
       title={ctx.theme === "dark" ? "切换到亮色模式" : "切换到暗色模式"}

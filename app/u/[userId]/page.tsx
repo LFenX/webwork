@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { BookOpen, BriefcaseBusiness, CalendarDays, Edit3, FileText, MessageCircle, MessageSquareText, NotebookText, PenLine, Share2, UsersRound } from "lucide-react"
+import { BarChart3, BookOpen, BriefcaseBusiness, CalendarDays, Edit3, FileText, MessageCircle, MessageSquareText, NotebookText, PenLine, Share2, Sparkles, UsersRound } from "lucide-react"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
@@ -18,7 +18,6 @@ import {
   CompactListPanel,
   ContentListPanel,
   JobFunnelCard,
-  MetricStrip,
   ModuleLinksCard,
   PersonalHeroCard,
   PersonalHomeGrid,
@@ -407,8 +406,11 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
   const heroActions = isSelf
     ? [
         { label: "编辑资料", href: "/settings/profile", icon: Edit3, variant: "primary" as const },
-        { label: "写文章", href: "/blog/new", icon: PenLine, variant: "secondary" as const },
         { label: "分享主页", href: `/u/${publicRef}`, copyHref: `/u/${publicRef}`, icon: Share2, variant: "ghost" as const },
+        { label: "写文章", href: "/blog/new", icon: PenLine, variant: "primary" as const },
+        { label: "蝶灵", href: "/ai", icon: Sparkles, variant: "secondary" as const },
+        { label: "好友", href: "/friends", icon: UsersRound, variant: "ghost" as const },
+        { label: "分析", href: "/sql", icon: BarChart3, variant: "ghost" as const },
       ]
     : [
         ...(firstReadableContent ? [{ ...firstReadableContent, variant: "secondary" as const }] : []),
@@ -441,6 +443,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
               avatarText={owner.avatarText}
               avatarUrl={owner.avatarUrl}
               actions={heroActions}
+              metrics={showIndexContent ? coreMetrics : undefined}
               backHref={!isSelf ? "/friends" : undefined}
               backLabel="返回好友"
               mobileTitle={displayName}
@@ -449,7 +452,6 @@ export default async function UserProfilePage({ params }: { params: Promise<{ us
 
             {showIndexContent ? (
               <>
-                <MetricStrip metrics={coreMetrics} />
                 <ContentListPanel
                   title="最新文章"
                   icon={BookOpen}

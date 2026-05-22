@@ -3,6 +3,10 @@
 @import "highlight.js/styles/github-dark.css";
 @import "@xyflow/react/dist/style.css";
 
+@source "../app";
+@source "../components";
+@source "../lib";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -10548,4 +10552,16 @@ details[open] > summary .soulwing-row-chevron {
 @keyframes sql-stage-pulse {
   0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
+}
+
+body.landing-active .site-header,
+body.landing-active footer.site-footer,
+body.landing-active #waifu,
+body.landing-active #waifu-toggle,
+body.landing-active nextjs-portal {
+  display: none !important;
+}
+
+body.landing-active main {
+  padding-top: 0 !important;
 }

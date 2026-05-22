@@ -162,7 +162,7 @@ function HomeNavGrid({ platform }: { platform: LandingPlatformStats }) {
         <span className={styles.mono} style={{ fontSize: 11.5, color: "var(--text-3)" }}>每张卡片都是独立页面</span>
       </div>
       <div className={styles.navGridInner}>
-        {cards.map((c) => {
+        {cards.slice(0, 3).map((c) => {
           const Icon = c.icon
           return (
             <Link key={c.key} href={c.href} className={styles.navCard}>
@@ -206,55 +206,55 @@ export function IntroCard() {
           </span>
         }
       />
-      <div style={{ padding: "26px 30px 28px" }}>
-        <h2 className={styles.serif} style={{ fontSize: 36, color: "var(--text)", marginBottom: 8, letterSpacing: "-0.015em", lineHeight: 1.15 }}>
-          一处<span style={{ color: "var(--accent)" }}>属于你</span>的个人空间。
-        </h2>
-        <p style={{ fontSize: 14.5, color: "var(--text-2)", lineHeight: 1.75, marginBottom: 16, fontFamily: "var(--f-cn-serif)" }}>
-          <strong style={{ color: "var(--text)", fontWeight: 600 }}>my-space</strong>
-          {" "}是一个多用户写作 + 求职 + 社交平台。每个用户登录后会得到一整套模块——
-          {moduleLinks.map((m, i) => (
-            <span key={m.href}>
-              <Link href={m.href} className={styles.link}>{m.label}</Link>
-              {i < moduleLinks.length - 1 ? "、" : "。"}
+      <div className={styles.introBody}>
+        <div className={styles.introLead}>
+          <h2 className={`${styles.serif} ${styles.introTitle}`}>
+            一处<span>属于你</span>的个人空间。
+          </h2>
+          <p className={styles.introCopy}>
+            <strong>my-space</strong>
+            {" "}是一个多用户写作 + 求职 + 社交平台。每个用户登录后会得到一整套模块——
+            {moduleLinks.map((m, i) => (
+              <span key={m.href}>
+                <Link href={m.href} className={styles.link}>{m.label}</Link>
+                {i < moduleLinks.length - 1 ? "、" : "。"}
+              </span>
+            ))}
+            <br />
+            <span>哪些公开、哪些只给好友看、哪些彻底私人——逐模块由你决定。</span>
+          </p>
+
+          <blockquote className={styles.quote}>
+            “把事情写下来。回头看。注意到自己这一年的形状。”
+            <span>
+              —— 这个平台唯一的规矩
             </span>
-          ))}
-          <br />
-          <span style={{ color: "var(--text-3)" }}>哪些公开、哪些只给好友看、哪些彻底私人——逐模块由你决定。</span>
-        </p>
+          </blockquote>
 
-        <blockquote className={styles.quote}>
-          “把事情写下来。回头看。注意到自己这一年的形状。”
-          <span style={{ display: "block", fontSize: 12, color: "var(--text-3)", marginTop: 4, fontStyle: "normal", fontFamily: "var(--f-cn-serif)" }}>
-            —— 这个平台唯一的规矩
-          </span>
-        </blockquote>
-
-        <div className={styles.cliBlock}>
-          <span style={{ color: "var(--text-3)" }}>→</span>
-          <span style={{ color: "var(--text)" }}>
-            访问 <span style={{ color: "var(--green)" }}>{"/u/<你的 handle>"}</span>
-          </span>
-          <span style={{ color: "var(--text-3)" }}># 注册即生成你的公开空间 URL，可一键分享</span>
-          <span style={{ flex: 1 }} />
+          <div className={`${styles.cliBlock} ${styles.introCode}`}>
+            <span>→</span>
+            <span>
+              访问 <strong>{"/u/<你的 handle>"}</strong>
+            </span>
+            <span># 注册即生成你的公开空间 URL，可一键分享</span>
+          </div>
         </div>
 
-        <h3 style={{ marginTop: 22, fontSize: 16, color: "var(--text)", fontWeight: 600 }}>
-          为什么用 my-space
-        </h3>
-        <ul className={styles.checkList}>
-          {bullets.map((t) => (
-            <li key={t} className={styles.checkItem}>
-              <span className={styles.checkBox}>
-                <Check size={10} strokeWidth={3} />
-              </span>
-              <span>{t}</span>
-            </li>
-          ))}
-        </ul>
+        <div className={styles.introWhy}>
+          <h3>为什么用 my-space</h3>
+          <ul className={styles.checkList}>
+            {bullets.map((t) => (
+              <li key={t} className={styles.checkItem}>
+                <span className={styles.checkBox}>
+                  <Check size={10} strokeWidth={3} />
+                </span>
+                <span>{t}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-        <hr style={{ margin: "20px 0", border: 0, borderTop: "1px solid var(--line-2)" }} />
-        <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.5 }}>
+        <p className={styles.introLinks}>
           继续阅读：<Link href="/welcome/preview" className={styles.link}>登录后你会看到什么</Link>
           {" · "}
           <Link href="/welcome/spaces" className={styles.link}>浏览公开空间</Link>

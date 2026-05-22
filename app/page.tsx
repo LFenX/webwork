@@ -1,4 +1,4 @@
-import { BookOpen, BriefcaseBusiness, CalendarDays, Edit3, FileText, MessageCircle, PenLine, Share2, UsersRound } from "lucide-react"
+import { BarChart3, BookOpen, BriefcaseBusiness, CalendarDays, Edit3, FileText, MessageCircle, PenLine, Share2, Sparkles, UsersRound } from "lucide-react"
 import { prisma } from "@/lib/db"
 import { getPosts } from "@/lib/mdx"
 import { getOptionalSession } from "@/lib/auth"
@@ -18,7 +18,6 @@ import {
   CompactListPanel,
   ContentListPanel,
   JobFunnelCard,
-  MetricStrip,
   PersonalHeroCard,
   PersonalHomeGrid,
   PersonalHomeShell,
@@ -632,9 +631,9 @@ export default async function HomePage() {
               location={profile?.location}
               avatarText={profile?.avatarText}
               avatarUrl={profile?.avatarUrl}
+              metrics={coreMetrics}
               actions={[
                 { label: "编辑资料", href: "/settings/profile", icon: Edit3, variant: "primary" },
-                { label: "写文章", href: "/blog/new", icon: PenLine, variant: "secondary" },
                 {
                   label: "分享主页",
                   href: publicProfileHref({ id: userId, publicSlug: profile?.publicSlug }),
@@ -642,10 +641,12 @@ export default async function HomePage() {
                   icon: Share2,
                   variant: "ghost",
                 },
+                { label: "写文章", href: "/blog/new", icon: PenLine, variant: "primary" },
+                { label: "蝶灵", href: "/ai", icon: Sparkles, variant: "secondary" },
+                { label: "好友", href: "/friends", icon: UsersRound, variant: "ghost" },
+                { label: "分析", href: "/sql", icon: BarChart3, variant: "ghost" },
               ]}
             />
-
-            <MetricStrip metrics={coreMetrics} />
 
             <ContentListPanel
               title="最新文章"

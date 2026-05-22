@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowUpRight, BookOpen, BriefcaseBusiness, Code2, Eye, Flame, LogIn, PenLine, Plus, Sparkles, Users } from "lucide-react"
+import { ArrowUpRight, Code2, Eye, LogIn, Plus, Sparkles } from "lucide-react"
 import styles from "./landing.module.css"
 import { BigSpaceMark } from "./landing-mark"
 import { LANDING_MODULES, type LandingPlatformStats } from "./landing-data"
@@ -13,7 +13,7 @@ function formatCount(n: number) {
 export function LandingSidebar({ platform }: { platform: LandingPlatformStats }) {
   const moduleMap = new Map(platform.moduleCounts.map((m) => [m.id, m.count]))
   const totalModuleEntries = platform.moduleCounts.reduce((s, m) => s + m.count, 0)
-  const sidebarModules = LANDING_MODULES.slice(0, 8)
+  const sidebarModules = LANDING_MODULES.slice(0, 6)
   const top = sidebarModules
     .map((m) => ({ ...m, count: moduleMap.get(m.id) ?? 0 }))
     .filter((m) => m.count > 0)
@@ -31,8 +31,6 @@ export function LandingSidebar({ platform }: { platform: LandingPlatformStats })
     { label: "求职记录", value: platform.jobs,        href: "/jobs",                     emptyHint: "暂无求职数据" },
     { label: "访客访问", value: platform.visits,      href: "/welcome/activity",         emptyHint: "等待第一次访问" },
   ]
-
-  const recommendedSpaces = platform.activeSpaces.slice(0, 4)
 
   return (
     <aside className={styles.sidebar}>
@@ -136,57 +134,6 @@ export function LandingSidebar({ platform }: { platform: LandingPlatformStats })
           查看全部 {LANDING_MODULES.length} 个模块 →
         </Link>
       </section>
-
-      <section className={styles.sidebarSection}>
-        <div className={styles.sidebarSectionHead}>
-          <h3>推荐空间</h3>
-          {recommendedSpaces.length > 0 ? (
-            <Link href={platform.topActiveSpaceHref} style={{ fontSize: 12, color: "var(--accent)" }}>全部 →</Link>
-          ) : null}
-        </div>
-        {recommendedSpaces.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {recommendedSpaces.map((s) => (
-              <Link key={s.id} href={s.href} className={styles.spaceRow}>
-                <span className={styles.spaceAvatar} style={{ background: s.color }}>
-                  {(s.avatarText || s.handle).slice(0, 2).toUpperCase()}
-                </span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ color: "var(--text)", fontSize: 13, fontWeight: 500, lineHeight: 1.2 }}>
-                    @{s.handle}
-                  </div>
-                  <div style={{ color: "var(--text-3)", fontSize: 11, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.role}</div>
-                </div>
-                <span className={styles.mono} style={{ fontSize: 10.5, color: "var(--text-3)", whiteSpace: "nowrap" }}>
-                  <Flame size={10} strokeWidth={1.6} style={{ verticalAlign: "-1px" }} /> {s.posts}
-                </span>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className={styles.sidebarEmpty}>
-            <Users size={20} strokeWidth={1.4} />
-            <p>还没有公开空间。</p>
-            <Link href="/register" className={styles.sidebarEmptyLink}>
-              来做第一个 <ArrowUpRight size={11} strokeWidth={1.6} />
-            </Link>
-          </div>
-        )}
-      </section>
-
-      <div style={{ marginTop: 12, fontSize: 11.5, color: "var(--text-4)", display: "flex", gap: 6, flexWrap: "wrap" }}>
-        <Link href="/updates" style={{ color: "var(--text-3)", display: "inline-flex", alignItems: "center", gap: 3 }}>
-          <BookOpen size={11} strokeWidth={1.6} /> 更新日志
-        </Link>
-        <span aria-hidden>·</span>
-        <Link href="/community/resources" style={{ color: "var(--text-3)", display: "inline-flex", alignItems: "center", gap: 3 }}>
-          <PenLine size={11} strokeWidth={1.6} /> 社区资源
-        </Link>
-        <span aria-hidden>·</span>
-        <Link href="/sql" style={{ color: "var(--text-3)", display: "inline-flex", alignItems: "center", gap: 3 }}>
-          <BriefcaseBusiness size={11} strokeWidth={1.6} /> SQL 实验室
-        </Link>
-      </div>
     </aside>
   )
 }

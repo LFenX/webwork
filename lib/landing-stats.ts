@@ -1,6 +1,7 @@
 import "server-only"
 import { prisma } from "@/lib/db"
 import { execFileSync } from "node:child_process"
+import { unstable_cache } from "next/cache"
 import { formatDateKey } from "@/lib/time"
 import { FOREGROUND_OFFLINE_AFTER_MS } from "@/lib/session"
 import { getPublicUpdateLog } from "@/lib/update-log"
@@ -541,7 +542,7 @@ async function getTopActiveSpaceHref(activeSpaces: LandingSpace[]): Promise<stri
  * fails (or returns 0 rows on a fresh database) leaves its slot at 0 / empty —
  * the page renders proper empty states instead of fake numbers.
  */
-export async function getLandingPlatformStats(): Promise<LandingPlatformStats> {
+async function buildLandingPlatformStats(): Promise<LandingPlatformStats> {
   try {
     const since30 = new Date()
     since30.setDate(since30.getDate() - 30)
@@ -632,6 +633,15 @@ export async function getLandingPlatformStats(): Promise<LandingPlatformStats> {
     return LANDING_PLATFORM_FALLBACK
   }
 }
+
+export const getLandingPlatformStats = unstable_cache(
+  buildLandingPlatformStats,
+  ["landing-platform-stats"],
+  {
+    revalidate: 60,
+    tags: ["landing-platform-stats"],
+  },
+)
 
 export type { LandingPlatformStats } from "@/components/landing/landing-data"
 export { POST_TYPE_LABELS as LANDING_POST_TYPE_LABELS }

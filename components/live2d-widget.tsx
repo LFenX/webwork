@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { usePathname } from "next/navigation"
 import type {
   Live2DBubbleTheme,
   Live2DDisplayMode,
@@ -478,6 +479,7 @@ export type Live2DWidgetProps = {
   modelId: string
   bubbleTheme: Live2DBubbleTheme
   bubbleName: string
+  disabled?: boolean
 }
 
 export function Live2DWidget({
@@ -488,7 +490,10 @@ export function Live2DWidget({
   modelId,
   bubbleTheme,
   bubbleName,
+  disabled = false,
 }: Live2DWidgetProps) {
+  const pathname = usePathname()
+  const suppressed = disabled || pathname.startsWith("/welcome")
   const propsRef = useRef({ position, size, drag, bubbleTheme, bubbleName, modelId })
 
   // Keep the ref in sync so the async `script.onload` path can read the
@@ -500,6 +505,7 @@ export function Live2DWidget({
   // Effect A: one-time bootstrap (script load + initWidget).
   useEffect(() => {
     if (typeof window === "undefined") return
+    if (suppressed) return
     if (initStarted) return
     if (!shouldEnable(displayMode)) return
     initStarted = true
@@ -573,23 +579,25 @@ export function Live2DWidget({
       initStarted = false
     }
     document.head.appendChild(script)
-  }, [displayMode, modelId])
+  }, [displayMode, modelId, suppressed])
 
   // Effect B: live update on settings change (position/size/drag).
   useEffect(() => {
     if (typeof window === "undefined") return
+    if (suppressed) return
     if (!initStarted) return
     if (!shouldEnable(displayMode)) return
     applySettingsLive(position, size, drag)
-  }, [displayMode, position, size, drag])
+  }, [displayMode, position, size, drag, suppressed])
 
   // Effect C: live bubble theme + badge name updates.
   useEffect(() => {
     if (typeof window === "undefined") return
+    if (suppressed) return
     if (!initStarted) return
     if (!shouldEnable(displayMode)) return
     applyBubbleTheme(bubbleTheme, resolveBubbleName(bubbleName, modelId), position)
-  }, [displayMode, bubbleTheme, bubbleName, modelId, position])
+  }, [displayMode, bubbleTheme, bubbleName, modelId, position, suppressed])
 
   // Expose a global reset hook used by the settings page.
   useEffect(() => {

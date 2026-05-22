@@ -118,6 +118,7 @@ export default async function RootLayout({
         <ServiceWorkerCleanup />
         <VisualViewportVars />
         <Live2DWidget
+          disabled={!session}
           displayMode={live2d.displayMode}
           position={live2d.position}
           size={live2d.size}

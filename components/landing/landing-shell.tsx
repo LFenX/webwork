@@ -28,7 +28,7 @@ export function LandingShell({
 }) {
   const platform: LandingPlatformStats = { ...LANDING_PLATFORM_FALLBACK, ...incoming }
   return (
-    <LandingThemeProvider>
+    <LandingThemeProvider pageClassName={styles.page}>
       <GlobalHeader platform={platform} />
       <ProjectHeaderStrip platform={platform} activeTab={activeTab} />
       <div className={contentClassName ?? styles.subpageShell}>
