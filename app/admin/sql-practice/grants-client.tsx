@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { apiFetch, apiPatch } from "@/lib/api-client"
 import { formatChinaDateTime } from "@/lib/time"
 import { ModuleHero, ModulePageShell, ModulePanel } from "@/components/module/module-shell"
+import { ModuleContentLoading } from "@/components/loading/app-loading-states"
 
 type GrantRow = {
   userId: string
@@ -85,7 +86,7 @@ export function SqlPracticeGrantsClient() {
       <div className="mt-5">
         <ModulePanel
           title="所有成员"
-          description={loading ? "加载中…" : `${filtered.length} 人`}
+          description={loading ? "同步中" : `${filtered.length} 人`}
           action={
             <Input
               value={filter}
@@ -96,11 +97,12 @@ export function SqlPracticeGrantsClient() {
           }
           contentClassName="p-0"
         >
+          {loading ? <ModuleContentLoading rows={8} /> : null}
           <div className="divide-y divide-slate-100">
             {filtered.length === 0 && !loading && (
               <div className="px-5 py-10 text-center text-sm text-slate-400">没有匹配的成员</div>
             )}
-            {filtered.map((row) => (
+            {!loading && filtered.map((row) => (
               <GrantRowItem
                 key={row.userId}
                 row={row}

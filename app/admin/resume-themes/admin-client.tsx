@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { AlertTriangle, Ban, Check, Copy, LayoutDashboard, Palette, RefreshCw, Settings, ShieldAlert, Sparkles, Terminal } from "lucide-react"
 import { toast } from "sonner"
 import { AdminEmptyState, AdminPanel, AdminShell, AdminStatCard, AdminToolbar, type AdminNavItem } from "@/components/admin/admin-shell"
+import { AdminContentLoading } from "@/components/loading/app-loading-states"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { TemplateConfigDialog } from "@/components/template-config-dialog"
@@ -156,9 +157,7 @@ export function ResumeThemesAdminClient() {
       }
     >
       {loading ? (
-        <AdminPanel>
-          <div className="py-16 text-center text-sm text-slate-500">加载中...</div>
-        </AdminPanel>
+        <AdminContentLoading />
       ) : data ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

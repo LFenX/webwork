@@ -98,7 +98,7 @@ export function WebsiteDetailSheet({
     <Sheet open={!!websiteId} onOpenChange={(open) => { if (!open) onClose() }}>
       <SheetContent side="right" className="w-full overflow-y-auto bg-white sm:max-w-[500px]">
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-sm text-slate-500">加载中...</div>
+          <WebsiteDetailLoading />
         ) : !website ? (
           <div className="flex items-center justify-center py-20 text-sm text-slate-500">资源不存在</div>
         ) : (
@@ -157,5 +157,42 @@ export function WebsiteDetailSheet({
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+function WebsiteDetailLoading() {
+  return (
+    <div className="animate-pulse py-2" aria-busy="true">
+      <div className="overflow-hidden rounded-[20px] bg-slate-100">
+        <div className="aspect-[16/9]" />
+      </div>
+      <div className="mt-5 space-y-4">
+        <div>
+          <div className="h-8 w-2/3 rounded-[12px] bg-slate-100" />
+          <div className="mt-2 h-4 w-1/2 rounded-full bg-slate-100" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-4 rounded-full bg-slate-100" />
+          <div className="h-4 w-5/6 rounded-full bg-slate-100" />
+          <div className="h-4 w-2/3 rounded-full bg-slate-100" />
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-7 w-16 rounded-full bg-blue-50" />
+          ))}
+        </div>
+        <div className="flex items-center gap-2 rounded-[16px] border border-slate-200 bg-slate-50 p-3">
+          <div className="size-9 rounded-full bg-slate-100" />
+          <div className="space-y-2">
+            <div className="h-4 w-32 rounded-full bg-slate-100" />
+            <div className="h-3 w-24 rounded-full bg-slate-100" />
+          </div>
+        </div>
+        <div className="flex gap-2 pt-2">
+          <div className="h-10 flex-1 rounded-full bg-blue-50" />
+          <div className="h-10 w-28 rounded-full bg-slate-100" />
+        </div>
+      </div>
+    </div>
   )
 }

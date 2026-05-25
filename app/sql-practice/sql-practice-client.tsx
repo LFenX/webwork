@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ModuleHero, ModulePageShell, ModulePanel, ModuleToolbar } from "@/components/module/module-shell"
+import { ModuleContentLoading } from "@/components/loading/app-loading-states"
 import { SimpleBarChart } from "@/components/charts/bar-chart"
 import { SimpleLineChart } from "@/components/charts/line-chart"
 import { EmptyState } from "@/components/empty-state"
@@ -453,11 +454,12 @@ export function SqlPracticeClient({ isOwner }: { isOwner: boolean }) {
               />
             </div>
             <div className="text-xs text-slate-400">
-              {loading ? "加载中…" : `${problems.length} 条记录`}
+              {loading ? "同步中" : `${problems.length} 条记录`}
             </div>
           </ModuleToolbar>
 
           <div className="space-y-2">
+            {loading && <ModuleContentLoading rows={7} table={false} />}
             {!loading && problems.length === 0 && (
               <EmptyState title="还没有记录" description="在上方录入第一题，然后慢慢积累" />
             )}

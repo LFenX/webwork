@@ -23,6 +23,7 @@ import { ChatPanel, type ChatFriend, type ChatSummary, messagePreview, presenceL
 import { GroupAvatar } from "@/components/group-avatar"
 import { GroupChatClient, type Channel, type ChannelSummary } from "@/components/announcement-channel-bar"
 import { SoulWingReplyButton } from "@/components/chat/soulwing-reply-button"
+import { FriendsHubInnerLoading } from "@/components/loading/app-loading-states"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -202,7 +203,8 @@ export function FriendsHubClient({
   const [requestNote, setRequestNote] = useState("")
   const [requestSending, setRequestSending] = useState(false)
   const [unfriendTarget, setUnfriendTarget] = useState<Friend | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [, startTransition] = useTransition()
   const didInitializeRef = useRef(false)
   const friendCacheKey = userStorageKey(userId, "friends-cache", "hub")
@@ -253,19 +255,28 @@ export function FriendsHubClient({
     setRoundtableActive(Boolean(data.isDiscussing))
   }, [])
 
-  const loadAll = useCallback(async ({ showLoading = true, useCache = true }: { showLoading?: boolean; useCache?: boolean } = {}) => {
-    if (showLoading) setLoading(true)
+  const loadAll = useCallback(async ({
+    showLoading = true,
+    useCache = true,
+    showRefreshing = showLoading,
+  }: {
+    showLoading?: boolean
+    useCache?: boolean
+    showRefreshing?: boolean
+  } = {}) => {
+    if (showRefreshing) setRefreshing(true)
     try {
       const cached = useCache
         ? readUserStorage<FriendData>({ kind: "session", key: friendCacheKey, userId, ttlMs: FRIEND_CACHE_TTL_MS })
         : null
       if (cached && showLoading) {
-        startTransition(() => {
-          setFriends(cached.friends)
-          setReceived(cached.received)
-          setSent(cached.sent)
-          setDirectSummaries(Object.fromEntries(cached.summaries.map((item) => [item.friendId, item])))
-        })
+        setFriends(cached.friends)
+        setReceived(cached.received)
+        setSent(cached.sent)
+        setDirectSummaries(Object.fromEntries(cached.summaries.map((item) => [item.friendId, item])))
+        setInitialLoading(false)
+      } else if (showLoading) {
+        setInitialLoading(true)
       }
       const [friendData] = await Promise.all([fetchFriendData(), loadChannels(), loadRoundtablePulse()])
       startTransition(() => {
@@ -278,7 +289,8 @@ export function FriendsHubClient({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "加载失败")
     } finally {
-      if (showLoading) setLoading(false)
+      if (showLoading) setInitialLoading(false)
+      if (showRefreshing) setRefreshing(false)
     }
   }, [friendCacheKey, loadChannels, loadRoundtablePulse, startTransition, userId])
 
@@ -369,7 +381,7 @@ export function FriendsHubClient({
   }, [channelSummaries, channels, directSummaries, friends, roundtableActive, seenCounts])
 
   useEffect(() => {
-    if (didInitializeRef.current || loading || conversations.length === 0) return
+    if (didInitializeRef.current || initialLoading || conversations.length === 0) return
     const timer = window.setTimeout(() => {
       const requested = requestedConversation.type && requestedConversation.id
         ? conversations.find((item) => item.kind === requestedConversation.type && item.id === requestedConversation.id)
@@ -380,10 +392,10 @@ export function FriendsHubClient({
       didInitializeRef.current = true
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [conversations, loading, requestedConversation.id, requestedConversation.type])
+  }, [conversations, initialLoading, requestedConversation.id, requestedConversation.type])
 
   useEffect(() => {
-    if (loading || !requestedConversation.type || !requestedConversation.id) return
+    if (initialLoading || !requestedConversation.type || !requestedConversation.id) return
     const requested = conversations.find((item) => item.kind === requestedConversation.type && item.id === requestedConversation.id)
     if (!requested || (selected?.kind === requested.kind && selected.id === requested.id)) return
     const timer = window.setTimeout(() => {
@@ -393,7 +405,7 @@ export function FriendsHubClient({
       didInitializeRef.current = true
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [conversations, loading, requestedConversation.id, requestedConversation.type, selected?.id, selected?.kind])
+  }, [conversations, initialLoading, requestedConversation.id, requestedConversation.type, selected?.id, selected?.kind])
 
   const filteredConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -438,7 +450,7 @@ export function FriendsHubClient({
       setRequestNote("")
       setAddOpen(false)
       removeUserStorage("session", friendCacheKey)
-      await loadAll({ useCache: false })
+      await loadAll({ showLoading: false, useCache: false, showRefreshing: true })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "操作失败")
     } finally {
@@ -455,7 +467,7 @@ export function FriendsHubClient({
     if (response.ok) {
       toast.success(action === "accept" ? "已接受好友请求" : "已拒绝好友请求")
       removeUserStorage("session", friendCacheKey)
-      await loadAll({ useCache: false })
+      await loadAll({ showLoading: false, useCache: false, showRefreshing: true })
     } else {
       toast.error("操作失败")
     }
@@ -466,7 +478,7 @@ export function FriendsHubClient({
     if (response.ok) {
       toast.success("已取消请求")
       removeUserStorage("session", friendCacheKey)
-      await loadAll({ useCache: false })
+      await loadAll({ showLoading: false, useCache: false, showRefreshing: true })
     } else {
       toast.error("操作失败")
     }
@@ -478,7 +490,7 @@ export function FriendsHubClient({
       toast.success("已解除好友关系")
       setUnfriendTarget(null)
       removeUserStorage("session", friendCacheKey)
-      await loadAll({ useCache: false })
+      await loadAll({ showLoading: false, useCache: false, showRefreshing: true })
     } else {
       toast.error("操作失败")
     }
@@ -487,12 +499,8 @@ export function FriendsHubClient({
   const requestsCount = received.length + sent.length
   const activeConversation = selected ? conversations.find((item) => item.kind === selected.kind && item.id === selected.id) ?? null : null
 
-  if (loading) {
-    return (
-      <div className="flex h-full min-h-0 items-center justify-center rounded-[18px] border border-slate-200/80 bg-white text-sm text-slate-500 shadow-[0_14px_36px_rgba(15,23,42,0.06)]">
-        正在整理会话...
-      </div>
-    )
+  if (initialLoading) {
+    return <FriendsHubInnerLoading />
   }
 
   return (
@@ -503,7 +511,7 @@ export function FriendsHubClient({
           <p className="mt-2 text-sm text-slate-500">好友关系、私聊、群聊和世界频道都收在这里。</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" className="rounded-full border-blue-100 bg-white text-blue-600 hover:bg-blue-50 hover:text-blue-700" onClick={() => void loadAll({ showLoading: false, useCache: false })}>
+          <Button type="button" variant="outline" loading={refreshing} className="rounded-full border-blue-100 bg-white text-blue-600 hover:bg-blue-50 hover:text-blue-700" onClick={() => void loadAll({ showLoading: false, useCache: false, showRefreshing: true })}>
             <RefreshCcw size={15} />
             刷新
           </Button>

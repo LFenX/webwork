@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ChatPanel, type ChatFriend, type ChatSummary, messagePreview, presenceLabel, useChatSession } from "@/components/friend-chat"
 import { SoulWingReplyButton } from "@/components/chat/soulwing-reply-button"
+import { FriendsHubInnerLoading } from "@/components/loading/app-loading-states"
 import { UserAvatar } from "@/components/user-avatar"
 import { getActiveChatContext, subscribeActiveChatContext } from "@/lib/active-chat"
 import { readUserStorage, removeUserStorage, userStorageKey, writeUserStorage } from "@/lib/client-storage"
@@ -47,7 +48,6 @@ function getLabels() {
   const isEnglish = typeof document !== "undefined" && document.documentElement.lang.startsWith("en")
   return isEnglish
     ? {
-        loading: "Loading...",
         loadFailed: "Failed to load friend data",
         operationFailed: "Operation failed",
         requestSent: "Friend request sent",
@@ -84,7 +84,6 @@ function getLabels() {
         reject: "Reject",
       }
     : {
-        loading: "加载中...",
         loadFailed: "加载好友数据失败",
         operationFailed: "操作失败",
         requestSent: "好友请求已发送",
@@ -371,7 +370,7 @@ export function FriendsClient({ userId, currentUser }: { userId: string; current
   }
 
   if (loading) {
-    return <div className="py-10 text-center text-sm text-[--color-text-muted]">{labels.loading}</div>
+    return <FriendsHubInnerLoading />
   }
 
   return (

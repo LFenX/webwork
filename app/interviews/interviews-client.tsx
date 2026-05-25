@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
 import { StatsCard } from "@/components/stats-card"
 import { EmptyState } from "@/components/empty-state"
+import { ModuleContentLoading } from "@/components/loading/app-loading-states"
 import { SimplePieChart } from "@/components/charts/pie-chart"
 import { SimpleBarChart } from "@/components/charts/bar-chart"
 import { INTERVIEW_ROUNDS, INTERVIEW_FORMATS, INTERVIEW_RESULTS } from "@/lib/enums"
@@ -274,7 +275,7 @@ export function InterviewsClient({ initialVisibility }: { initialVisibility?: Vi
 
         <ModulePanel title="面试记录" description="桌面端使用紧凑表格，手机端切换为可点击卡片。" icon={CalendarClock} contentClassName="p-0">
           {loading ? (
-            <div className="py-16 text-center text-sm text-slate-500">{dict.common.loading}</div>
+            <ModuleContentLoading rows={7} />
           ) : interviews.length === 0 ? (
             <div className="p-4 sm:p-5">
               <EmptyState title={dict.common.noData} description={dict.interviews.noData} action={{ label: dict.interviews.newInterview, onClick: openCreate }} />

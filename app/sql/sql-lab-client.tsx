@@ -25,6 +25,7 @@ import { StageCommandBar } from "@/components/sql-lab/stage/stage-command-bar"
 import { StageStopButton } from "@/components/sql-lab/stage/stage-stop-button"
 import { StageThread } from "@/components/sql-lab/stage/stage-thread"
 import { StageThreadList } from "@/components/sql-lab/stage/stage-thread-list"
+import { SqlLabLoading } from "@/components/loading/app-loading-states"
 import { applyStreamEvent, streamThreadAi } from "@/lib/sql-lab/thread-stream-client"
 import type {
   SqlExample,
@@ -704,6 +705,8 @@ export function SqlLabClient() {
       toast.error(error instanceof Error ? error.message : "删除失败")
     }
   }, [activeThreadId, loadThreadDetail, threads])
+
+  if (loading) return <SqlLabLoading />
 
   const totalTables = schema?.schemas.reduce((sum, item) => sum + item.tables.length, 0) ?? 0
   const privateTables = schema?.schemas.find((item) => item.scope === "private")?.tables.length ?? 0

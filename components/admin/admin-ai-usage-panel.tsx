@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Activity, BarChart3, ChevronRight, Loader2, RefreshCcw, Users } from "lucide-react"
+import { Activity, BarChart3, ChevronRight, RefreshCcw, Users } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -477,9 +477,7 @@ export function AdminAIUsagePanel({ enabled }: { enabled: boolean }) {
             </DialogDescription>
           </DialogHeader>
           {detailLoading ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-sm text-[--color-text-muted]">
-              <Loader2 size={16} className="animate-spin" /> 加载中...
-            </div>
+            <UserDetailLoading />
           ) : detail ? (
             <UserDetailView detail={detail} />
           ) : (
@@ -488,6 +486,32 @@ export function AdminAIUsagePanel({ enabled }: { enabled: boolean }) {
         </DialogContent>
       </Dialog>
     </section>
+  )
+}
+
+function UserDetailLoading() {
+  return (
+    <div className="animate-pulse space-y-5 py-2" aria-busy="true">
+      <div className="grid gap-3 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="rounded-[18px] border border-slate-200/80 bg-slate-50/70 p-4">
+            <div className="h-3 w-20 rounded-full bg-slate-100" />
+            <div className="mt-3 h-7 w-24 rounded-[10px] bg-slate-100" />
+          </div>
+        ))}
+      </div>
+      <div className="rounded-[18px] border border-slate-200 bg-white">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div key={index} className="flex items-center gap-3 border-b border-slate-100 px-3 py-3 last:border-b-0">
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-4 w-48 max-w-full rounded-full bg-slate-100" />
+              <div className="h-3 w-64 max-w-full rounded-full bg-slate-100" />
+            </div>
+            <div className="h-7 w-20 rounded-full bg-blue-50" />
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 

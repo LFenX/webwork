@@ -34,6 +34,7 @@ import { AdminEmptyState, AdminInlineLink, AdminPanel, AdminShell, AdminStatCard
 import { AdminAIPanel } from "@/components/admin/admin-ai-panel"
 import { AdminAIUsagePanel } from "@/components/admin/admin-ai-usage-panel"
 import { AdminSqlAccessPanel } from "@/components/admin/admin-sql-access-panel"
+import { AdminContentLoading } from "@/components/loading/app-loading-states"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -710,9 +711,7 @@ export function AdminClient() {
       }
     >
       {loading ? (
-        <AdminPanel>
-          <div className="py-16 text-center text-sm text-slate-500">{d.loading}</div>
-        </AdminPanel>
+        <AdminContentLoading />
       ) : data ? (
         <>
           {activeSection === "overview" ? (

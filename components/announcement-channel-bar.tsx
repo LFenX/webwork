@@ -1431,7 +1431,17 @@ export function GroupChatClient({
           </SheetHeader>
           <div className="mt-4 flex flex-col gap-2 overflow-y-auto">
             {worldMembersLoading ? (
-              <p className="py-6 text-center text-sm text-[--color-text-muted]">加载中…</p>
+              <div className="animate-pulse space-y-2 py-2" aria-busy="true">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+                    <div className="size-9 shrink-0 rounded-full bg-slate-100" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="h-4 w-28 rounded-full bg-slate-100" />
+                      <div className="h-3 w-36 rounded-full bg-slate-100" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : worldMembers.length === 0 ? (
               <p className="py-6 text-center text-sm text-[--color-text-muted]">暂无成员</p>
             ) : (

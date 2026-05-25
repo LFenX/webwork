@@ -75,6 +75,19 @@ type MyConfigItem = {
   lastTestedAt: string | null
 }
 
+function AdminAiDropdownLoading() {
+  return (
+    <div className="animate-pulse divide-y divide-[--color-border]" aria-busy="true">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div key={index} className="px-4 py-3">
+          <div className="h-4 w-40 max-w-full rounded-full bg-slate-100" />
+          <div className="mt-2 h-3 w-56 max-w-full rounded-full bg-slate-100" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 type GrantForm = {
   userId: string
   requestId: string
@@ -847,10 +860,7 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
                   onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                   {searching && searchResults.length === 0 ? (
-                    <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-muted-foreground">
-                      <Loader2 size={14} className="animate-spin" />
-                      加载中...
-                    </div>
+                    <AdminAiDropdownLoading />
                   ) : filteredResults().length > 0 ? (
                     filteredResults().map((user, index) => (
                       <button
@@ -936,10 +946,7 @@ export function AdminAIPanel({ enabled }: { enabled: boolean }) {
               {importOpen ? (
                 <div className="mt-3 max-h-[220px] overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg border border-[--color-border]">
                   {myConfigsLoading ? (
-                    <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-muted-foreground">
-                      <Loader2 size={14} className="animate-spin" />
-                      加载中...
-                    </div>
+                    <AdminAiDropdownLoading />
                   ) : myConfigs.length === 0 ? (
                     <div className="px-4 py-6 text-sm text-muted-foreground text-center">
                       暂无已保存的 AI 配置，请先在 AI 助手中创建配置

@@ -29,6 +29,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { AISettingsSheet } from "@/components/ai/ai-settings-sheet"
+import { ChatMessagesLoading } from "@/components/loading/app-loading-states"
 import { MarkdownContent } from "@/components/markdown-content"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -3411,9 +3412,8 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
             className={cn("mobile-chat-scroll min-h-0 flex-1 overflow-y-auto", isEmptyConversation ? "soulwing-empty-scroll bg-white" : "bg-[#f8fbff]")}
           >
             {loading ? (
-              <div className="flex h-full items-center justify-center text-sm text-[--color-text-muted]">
-                <Loader2 size={16} className="mr-2 animate-spin" />
-                {dict.ai.loadingAi}
+              <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col justify-end px-4 py-5 sm:px-6 lg:px-8">
+                <ChatMessagesLoading rows={6} />
               </div>
             ) : (
               <div className={cn(

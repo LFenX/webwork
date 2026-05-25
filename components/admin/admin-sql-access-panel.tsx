@@ -42,6 +42,23 @@ const ACCESS_CHIP: Record<SqlAccessLevel, string> = {
   write: "border-emerald-200 bg-emerald-50 text-emerald-700",
 }
 
+function AdminSqlListLoading() {
+  return (
+    <div className="animate-pulse divide-y divide-[--color-border]" aria-busy="true">
+      {Array.from({ length: 7 }).map((_, index) => (
+        <div key={index} className="flex items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-4 w-44 max-w-full rounded-full bg-slate-100" />
+            <div className="h-3 w-56 max-w-full rounded-full bg-slate-100" />
+          </div>
+          <div className="hidden h-6 w-14 rounded-full bg-sky-50 sm:block" />
+          <div className="h-8 w-24 rounded-full bg-slate-100" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function AdminSqlAccessPanel() {
   const [summaries, setSummaries] = useState<SqlGrantSummary[]>([])
   const [allTables, setAllTables] = useState<AllTable[]>([])
@@ -216,7 +233,7 @@ export function AdminSqlAccessPanel() {
           </div>
           <div className="max-h-[440px] overflow-y-auto">
             {loading ? (
-              <p className="px-4 py-6 text-sm text-[--color-text-muted]">加载中...</p>
+              <AdminSqlListLoading />
             ) : filteredSummaries.length === 0 ? (
               <p className="px-4 py-6 text-sm text-[--color-text-muted]">暂无成员匹配</p>
             ) : (

@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { ComposerReplyPreview, MessageActionSurface, MessageReplyReference, type MessageActionItem } from "@/components/chat-message-actions"
 import { ChatComposerAttachments } from "@/components/chat-composer-attachments"
+import { ChatMessagesLoading } from "@/components/loading/app-loading-states"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StickerPicker, type StickerPick } from "@/components/sticker-picker"
@@ -980,7 +981,7 @@ export function ChatPanel({
 
       <div ref={scrollContainerRef} className="mobile-chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-4">
         {loading ? (
-          <p className="py-10 text-center text-sm text-[--color-text-muted]">{labels.loading}</p>
+          <ChatMessagesLoading />
         ) : messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-[--color-text-muted]">{labels.noMessages}</p>
         ) : (

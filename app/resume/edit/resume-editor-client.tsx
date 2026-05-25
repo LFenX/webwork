@@ -467,7 +467,7 @@ export function ResumeEditorClient({
                   disabled={uploading}
                   className="h-11 w-full rounded-full border-blue-200 text-blue-600"
                 >
-                  <Upload size={15} /> {uploading ? "Uploading..." : "Choose PDF"}
+                  <Upload size={15} /> {uploading ? "Uploading" : "Choose PDF"}
                 </Button>
               </ModulePanel>
 

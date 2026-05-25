@@ -144,6 +144,64 @@ function Toggle({ label, description, value, onChange, warning }: { label: strin
   )
 }
 
+function SoulwingStackLoading({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="animate-pulse space-y-2" aria-busy="true">
+      {Array.from({ length: rows }).map((_, index) => (
+        <div key={index} className="rounded-[18px] border border-slate-100 bg-white px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.025)]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-4 w-44 max-w-full rounded-full bg-slate-100" />
+              <div className="h-3 w-full rounded-full bg-slate-100" />
+              <div className="h-3 w-2/3 rounded-full bg-slate-100" />
+            </div>
+            <div className="h-7 w-20 shrink-0 rounded-full bg-blue-50" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SoulwingPersonaLoading() {
+  return (
+    <div className="animate-pulse space-y-5" aria-busy="true">
+      <div className="rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.045)] sm:p-5">
+        <div className="flex items-center gap-4">
+          <div className="h-16 w-16 shrink-0 rounded-full bg-slate-100" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-4 w-32 rounded-full bg-slate-100" />
+            <div className="h-3 w-full rounded-full bg-slate-100" />
+            <div className="h-3 w-3/4 rounded-full bg-slate-100" />
+          </div>
+          <div className="hidden h-10 w-28 rounded-full bg-blue-50 sm:block" />
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="hidden rounded-[18px] border border-slate-200/80 bg-white p-2 lg:block">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="mb-2 h-20 rounded-[14px] bg-slate-100" />
+          ))}
+        </aside>
+        <section className="min-h-[560px] rounded-[18px] border border-slate-200/80 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.045)]">
+          <div className="h-4 w-20 rounded-full bg-blue-50" />
+          <div className="mt-3 h-6 w-44 rounded-[10px] bg-slate-100" />
+          <div className="mt-2 h-4 w-2/3 rounded-full bg-slate-100" />
+          <div className="mt-6 space-y-3 rounded-[16px] bg-slate-50 p-4">
+            {Array.from({ length: 12 }).map((_, index) => (
+              <div key={index} className={`h-3 rounded-full bg-slate-100 ${index % 4 === 0 ? "w-2/3" : "w-full"}`} />
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function SoulwingToggleLoading() {
+  return <SoulwingStackLoading rows={7} />
+}
+
 export function SoulWingSettingsClient() {
   const [tab, setTab] = useState<"persona" | "memory" | "logs" | "privacy" | "auto_reply">("persona")
   const [activePersonaSection, setActivePersonaSection] = useState<PersonaSectionId>("identity")
@@ -560,7 +618,7 @@ export function SoulWingSettingsClient() {
       {/* ═══ 人格设置 ═══ */}
       {tab === "persona" && (
         <div className="space-y-5">
-          {profileLoading ? <p className="text-sm text-[--color-text-muted]">加载中...</p> : (
+          {profileLoading ? <SoulwingPersonaLoading /> : (
             <>
               {!profile?.enabled ? (
                 <div className="rounded-[18px] border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
@@ -768,7 +826,7 @@ export function SoulWingSettingsClient() {
           </Dialog>
 
           {factsLoading ? (
-            <p className="py-8 text-center text-sm text-[--color-text-muted]">加载中...</p>
+            <SoulwingStackLoading rows={5} />
           ) : facts.length === 0 ? (
             <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-6 py-10 text-center shadow-[0_10px_24px_rgba(15,23,42,0.025)]">
               <p className="text-sm text-[--color-text-muted]">蝶灵还没有长期记忆。</p>
@@ -811,7 +869,7 @@ export function SoulWingSettingsClient() {
             <TabButton active={logTab === "tools"} onClick={() => setLogTab("tools")}>工具操作</TabButton>
           </div>
 
-          {logsLoading ? <p className="py-8 text-center text-sm text-[--color-text-muted]">加载中...</p> : (
+          {logsLoading ? <SoulwingStackLoading rows={5} /> : (
             <>
               {logTab === "events" && (
                 events.length === 0 ? (
@@ -870,7 +928,7 @@ export function SoulWingSettingsClient() {
       {/* ═══ 隐私与开关 ═══ */}
       {tab === "privacy" && (
         <div className="space-y-2">
-          {settingsLoading ? <p className="text-sm text-[--color-text-muted]">加载中...</p> : settings ? (
+          {settingsLoading ? <SoulwingToggleLoading /> : settings ? (
             <>
               <Toggle label="启用长期记忆" description="关闭后蝶灵不会写入新的长期记忆。已有记忆仍保留。" value={settings.enableLongTermMemory} onChange={v => toggleSetting("enableLongTermMemory", v)} warning={!settings.enableLongTermMemory ? "当前已关闭：蝶灵不会继续写入新记忆。" : undefined} />
               <Toggle label="启用蝶灵人格上下文" description="关闭后蝶灵将使用最简默认身份回复，不加载你的专属人格配置。" value={settings.enablePersonaContext} onChange={v => toggleSetting("enablePersonaContext", v)} />
@@ -898,7 +956,7 @@ export function SoulWingSettingsClient() {
           )}
 
           {autoReplyLoading ? (
-            <p className="py-8 text-center text-sm text-[--color-text-muted]">加载中...</p>
+            <SoulwingStackLoading rows={3} />
           ) : autoReplySettings.length === 0 ? (
             <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-6 py-10 text-center shadow-[0_10px_24px_rgba(15,23,42,0.025)]">
               <p className="text-sm text-[--color-text-muted]">尚未创建自动回复配置。</p>

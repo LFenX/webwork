@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
 import { StatsCard } from "@/components/stats-card"
 import { EmptyState } from "@/components/empty-state"
+import { ModuleContentLoading } from "@/components/loading/app-loading-states"
 import { SimpleBarChart } from "@/components/charts/bar-chart"
 import { SimpleLineChart } from "@/components/charts/line-chart"
 import { JOB_STATUS, JOB_CHANNELS, JOB_PIPELINE_STAGES } from "@/lib/enums"
@@ -1105,7 +1106,7 @@ export function JobsClient({ initialVisibility }: { initialVisibility?: Visibili
               contentClassName={view === "kanban" ? "p-4" : "p-0"}
             >
               {loading ? (
-                <div className="py-16 text-center text-sm text-slate-500">{dict.common.loading}</div>
+                <ModuleContentLoading rows={7} table={view !== "kanban"} />
               ) : jobs.length === 0 ? (
                 <div className="p-5">
                   <EmptyState

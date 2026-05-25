@@ -318,7 +318,7 @@ export function WebsiteShareClient({
             {items.length < total && (
               <div className="flex justify-center">
                 <Button variant="outline" size="sm" onClick={() => setPage((current) => current + 1)} disabled={loading}>
-                  {loading ? "加载中..." : "加载更多"}
+                  {loading ? "读取中..." : "加载更多"}
                 </Button>
               </div>
             )}

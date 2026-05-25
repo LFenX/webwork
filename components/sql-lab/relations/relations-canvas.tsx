@@ -265,7 +265,20 @@ export function RelationsCanvas() {
         }} />
         <section className="sql-rel-canvas-shell">
           {loading ? (
-            <div className="sql-rel-loading">正在读取真实 FK 图…</div>
+            <div className="grid h-full min-h-[420px] place-items-center p-6">
+              <div className="grid w-full max-w-4xl animate-pulse gap-5 md:grid-cols-3" aria-busy="true">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="rounded-[18px] border border-slate-200 bg-white/90 p-4 shadow-sm">
+                    <div className="h-4 w-24 rounded-full bg-slate-100" />
+                    <div className="mt-4 space-y-2">
+                      <div className="h-3 rounded-full bg-slate-100" />
+                      <div className="h-3 w-4/5 rounded-full bg-slate-100" />
+                      <div className="h-3 w-3/5 rounded-full bg-slate-100" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : (
             <ReactFlow
               nodes={nodes}

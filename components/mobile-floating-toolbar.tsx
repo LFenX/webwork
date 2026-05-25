@@ -644,7 +644,7 @@ export function MobileFloatingToolbar({
             >
               <ImageIcon size={28} className="mx-auto mb-2 text-[--color-text-muted]" />
               <p className="text-sm text-[--color-text-secondary]">
-                {imageUploading ? "Uploading..." : "Tap to upload"}
+                {imageUploading ? "Uploading" : "Tap to upload"}
               </p>
               <p className="mt-1 text-xs text-[--color-text-muted]">PNG, JPEG, WebP, GIF, max 5MB</p>
             </div>
