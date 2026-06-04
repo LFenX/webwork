@@ -1,0 +1,8 @@
+pymupdf4llm>=0.0.27
+pymupdf>=1.24.0
+docling>=2.0.0
+pypdf>=5.0.0
+
+# MinerU is intentionally configured as an adapter command because installation
+# differs by hardware and model setup. Install it from the official project and
+# set PDF_MINERU_COMMAND to a command that writes markdown under {output}.

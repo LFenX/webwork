@@ -314,7 +314,16 @@ export async function requestProviderChat(params: {
 }): Promise<ProviderChatResult> {
   const timeoutMs = params.timeoutMs ?? Number(process.env.AI_PROVIDER_TIMEOUT_MS || 120_000)
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs))
+  // Inactivity timeout: this only fires if NO data arrives for `timeoutMs`.
+  // During streaming we refresh it on every chunk, so a long-but-progressing
+  // generation (e.g. a verbose model writing a large document) is never killed
+  // mid-answer. Previously this was a single whole-request timeout, which aborted
+  // slow models partway through ("the operation was aborted").
+  let timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs))
+  const resetTimeout = () => {
+    clearTimeout(timer)
+    timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs))
+  }
   const requestSignal =
     params.signal && typeof AbortSignal !== "undefined" && "any" in AbortSignal
       ? AbortSignal.any([controller.signal, params.signal])
@@ -331,6 +340,9 @@ export async function requestProviderChat(params: {
         model: params.provider.model,
         temperature: params.provider.temperature,
         stream: params.stream ?? false,
+        // Optional output cap for providers whose default max_tokens is too low
+        // (which truncates long answers). Off unless AI_PROVIDER_MAX_TOKENS is set.
+        ...(process.env.AI_PROVIDER_MAX_TOKENS ? { max_tokens: Number(process.env.AI_PROVIDER_MAX_TOKENS) } : {}),
         messages: params.messages,
         ...(params.tools?.length ? { tools: params.tools, tool_choice: params.toolChoice ?? "auto" } : {}),
       }),
@@ -399,8 +411,24 @@ export async function requestProviderChat(params: {
   let usage: unknown = null
 
   while (true) {
-    const { value, done } = await reader.read()
+    let value: Uint8Array | undefined
+    let done = false
+    try {
+      ({ value, done } = await reader.read())
+    } catch (streamError) {
+      // Inactivity timeout (or a transient read error) mid-stream: keep whatever
+      // was already generated instead of failing the whole answer with a raw
+      // "operation was aborted". A real client disconnect still propagates.
+      if (!controller.signal.aborted) {
+        clearTimeout(timer)
+        throw streamError
+      }
+      finishReason = finishReason ?? "timeout"
+      break
+    }
     if (done) break
+    if (!value) continue
+    resetTimeout()
     buffer += decoder.decode(value, { stream: true })
     const lines = buffer.split("\n")
     buffer = lines.pop() ?? ""

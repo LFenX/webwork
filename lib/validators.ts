@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { JOB_CHANNELS, JOB_STATUS } from "@/lib/enums"
+import { MAX_PDF_UPLOAD_SIZE } from "@/lib/upload"
 import { VISIBILITY_LEVELS } from "@/lib/visibility"
 
 export const registerSchema = z.object({
@@ -247,7 +248,7 @@ export const aiAttachmentSchema = z.object({
   url: z.string().trim().min(1).max(500),
   originalName: z.string().trim().min(1).max(255),
   mimeType: z.string().trim().min(1).max(120),
-  size: z.number().int().min(0).max(20 * 1024 * 1024),
+  size: z.number().int().min(0).max(MAX_PDF_UPLOAD_SIZE),
 })
 
 export const aiStreamSchema = z.object({

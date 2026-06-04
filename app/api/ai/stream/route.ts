@@ -2,14 +2,18 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
 import { runAIRuntime } from "@/lib/ai/runtime"
 import {
+  cancelAssistantMessage,
   createAIConversationWithMessages,
   failAssistantMessage,
   finalizeAIRun,
   finalizeAssistantMessage,
   getAIStatusSnapshot,
+  isAIRunCancelled,
+  updateAssistantMessagePartial,
 } from "@/lib/ai/service"
 import { aiStreamSchema } from "@/lib/validators"
 import { archiveConversation } from "@/lib/ai/memory/memory-service"
+import { publishRunEvent } from "@/lib/ai/run-stream-bus"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -53,6 +57,18 @@ export async function POST(req: NextRequest) {
       let closed = false
 
       const executeStream = async () => {
+        // Persist partial content (throttled) so a disconnected/navigated-away
+        // client can recover the in-progress text — the run continues regardless.
+        let streamedText = ""
+        let lastPersistAt = 0
+        let persisting = false
+        const persistPartial = async () => {
+          if (persisting || Date.now() - lastPersistAt < 1500) return
+          persisting = true
+          lastPersistAt = Date.now()
+          try { await updateAssistantMessagePartial(assistantMessage.id, streamedText) } catch { /* ignore */ }
+          persisting = false
+        }
         try {
           write("conversation", {
             conversationId: conversation.id,
@@ -68,11 +84,30 @@ export async function POST(req: NextRequest) {
             prompt: parsed.data.prompt,
             attachments: parsed.data.attachments,
             modelOverride: parsed.data.modelOverride,
-            onToken: () => {},
+            onToken: (delta) => { streamedText += delta; void persistPartial() },
             onEvent: (event, payload) => {
               write(event, payload)
+              // Mirror to the run bus so a client that navigates away and back can
+              // re-subscribe and resume live streaming (see run-stream-bus).
+              publishRunEvent(run.id, event, payload)
             },
+            // Source of truth for "did the user stop this run?" — checked at every
+            // agent-loop checkpoint so the backend actually stops generating.
+            checkCancelled: () => isAIRunCancelled(run.id),
           })
+
+          // User stopped the run: keep the partial content, mark it cancelled,
+          // and skip the normal completion path (finalize / archive / completed).
+          if (runtimeResult.cancelled) {
+            await cancelAssistantMessage(assistantMessage.id, runtimeResult.contentMarkdown)
+            write("run_cancelled", {
+              conversationId: conversation.id,
+              assistantMessageId: assistantMessage.id,
+              runId: run.id,
+            })
+            if (!closed) { closed = true; try { controller.close() } catch { /* ignore */ } }
+            return
+          }
 
           await finalizeAssistantMessage({
             assistantMessageId: assistantMessage.id,
@@ -108,6 +143,14 @@ export async function POST(req: NextRequest) {
           }).catch(() => null)
           write("run_failed", {
             runId: run.id,
+            message: error instanceof Error ? error.message : "Stream failed",
+          })
+          // The runtime doesn't emit run_failed (route-level), so publish it to the
+          // bus too, so any attached subscriber stops cleanly.
+          publishRunEvent(run.id, "run_failed", {
+            runId: run.id,
+            conversationId: conversation.id,
+            assistantMessageId: assistantMessage.id,
             message: error instanceof Error ? error.message : "Stream failed",
           })
           if (!closed) { closed = true; try { controller.close() } catch { /* ignore */ } }

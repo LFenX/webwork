@@ -12,10 +12,10 @@ export function SiteFooter() {
   const year = new Date().getFullYear()
   const today = formatChinaDate(new Date())
   const isHomePage = pathname === "/"
-  const isAppLikePage = pathname === "/friends" || pathname.startsWith("/friends/") || pathname === "/sql"
+  const isAppLikePage = pathname === "/friends" || pathname.startsWith("/friends/") || pathname === "/sql" || pathname === "/updates"
 
   return (
-    <footer className={cn("site-footer mt-auto bg-[#f4f7fb] px-4 pb-4 pt-2 sm:px-6 lg:px-12 xl:px-16", !isHomePage && "hidden sm:block", isAppLikePage && "!hidden")}>
+    <footer className={cn("site-footer mt-auto bg-transparent px-4 pb-4 pt-2 sm:px-6 lg:px-12 xl:px-16", !isHomePage && "hidden sm:block", isAppLikePage && "!hidden")}>
       <div className="mx-auto flex min-h-12 max-w-[1760px] flex-col items-center justify-between gap-2 rounded-[14px] border border-slate-200/80 bg-white/85 px-4 py-3 text-xs text-slate-500 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-[18px] [-webkit-backdrop-filter:blur(18px)] sm:flex-row sm:px-5">
         <span className="font-medium">&copy; {year} My Space</span>
         <Link

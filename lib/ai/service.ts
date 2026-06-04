@@ -4,9 +4,11 @@ import { decryptSecret, encryptSecret, hasAISecretKey, maskApiKey } from "@/lib/
 import { probeProviderCapabilities, withProviderCapabilities } from "@/lib/ai/provider"
 import { prisma } from "@/lib/db"
 import { AI_TOOL_DESCRIPTORS } from "@/lib/ai/tools/registry"
+import { getRunSnapshot } from "@/lib/ai/run-stream-bus"
 import type {
   AIConversationHistoryEntry,
   AIConversationListItem,
+  ActiveSkillRecord,
   AIMessageItem,
   AIMessageStepPreview,
   AIResolvedProviderConfig,
@@ -311,6 +313,90 @@ export async function deleteAIConversation(userId: string, conversationId: strin
   })
 }
 
+// Link a tool-generated file (e.g. a compiled LaTeX PDF) to the assistant
+// message that produced it, so it renders as a durable download card and
+// survives reload — instead of relying on a link smuggled into the reply text.
+// Idempotent: a repeated call for the same upload is a no-op.
+export async function attachGeneratedFileToMessage(params: {
+  messageId: string
+  userId: string
+  uploadId: string
+  originalName: string
+  mimeType: string
+  size: number
+  url: string
+}): Promise<void> {
+  const existing = await prisma.aIMessageAttachment.findFirst({
+    where: { messageId: params.messageId, uploadId: params.uploadId },
+    select: { id: true },
+  })
+  if (existing) return
+  await prisma.aIMessageAttachment.create({
+    data: {
+      messageId: params.messageId,
+      userId: params.userId,
+      uploadId: params.uploadId,
+      originalName: params.originalName,
+      mimeType: params.mimeType,
+      size: params.size,
+      url: params.url,
+    },
+  })
+}
+
+// Recover the injected-skills record from a run's persisted "skill" step.
+function extractActiveSkills(steps?: ReadonlyArray<{ type: string; outputPreview: unknown }> | null): ActiveSkillRecord[] {
+  const skillStep = steps?.find((s) => s.type === "skill")
+  const raw = skillStep && skillStep.outputPreview && typeof skillStep.outputPreview === "object"
+    ? (skillStep.outputPreview as { activeSkills?: unknown }).activeSkills
+    : null
+  if (!Array.isArray(raw)) return []
+  return raw.filter((s): s is ActiveSkillRecord =>
+    Boolean(s && typeof s === "object" && typeof (s as ActiveSkillRecord).id === "string"))
+}
+
+// Real runtime metadata of the most recent assistant turn in a conversation, for
+// the get_last_run_metadata tool — so the model answers "did you use a skill"
+// from evidence, not self-report. Includes the last compiled-PDF metadata if any.
+export async function getLastRunMetadata(userId: string, conversationId: string): Promise<{
+  runId: string | null
+  activeSkills: ActiveSkillRecord[]
+  lastPdf: Record<string, unknown> | null
+}> {
+  // The most recent COMPLETED assistant run — the current (in-flight) run is still
+  // "running", so this returns the previous turn, which is what "刚才" refers to.
+  const msg = await prisma.aIMessage.findFirst({
+    where: { userId, conversationId, role: "assistant", runRecord: { is: { status: "completed" } } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      runRecord: {
+        select: { id: true, steps: { select: { type: true, outputPreview: true }, orderBy: { orderIndex: "asc" } } },
+      },
+    },
+  })
+  const steps = msg?.runRecord?.steps
+  const activeSkills = extractActiveSkills(steps)
+  const pdfLog = await prisma.aIToolCallLog.findFirst({
+    where: { userId, conversationId, toolName: "compile_latex_pdf", status: "completed" },
+    orderBy: { startedAt: "desc" },
+    select: { toolResultJson: true },
+  }).catch(() => null)
+  const result = pdfLog?.toolResultJson as { data?: Record<string, unknown> } | null
+  const data = result?.data ?? null
+  const lastPdf = data
+    ? {
+        usedBodySource: data.usedBodySource ?? null,
+        sectionCount: data.sectionCount ?? null,
+        pdfPageCount: data.pdfPageCount ?? null,
+        templatesLoaded: data.templatesLoaded ?? null,
+        selectedTemplate: data.selectedTemplate ?? null,
+        selectedTheme: data.selectedTheme ?? null,
+        selectedPalette: data.selectedPalette ?? null,
+      }
+    : null
+  return { runId: msg?.runRecord?.id ?? null, activeSkills, lastPdf }
+}
+
 export async function listAIConversationMessages(userId: string, conversationId: string): Promise<AIMessageItem[]> {
   await getAIConversationOrThrow(userId, conversationId)
   const items = await prisma.aIMessage.findMany({
@@ -325,6 +411,16 @@ export async function listAIConversationMessages(userId: string, conversationId:
           originalName: true,
           mimeType: true,
           size: true,
+          upload: {
+            select: {
+              pdfDocument: {
+                select: {
+                  id: true,
+                  status: true,
+                },
+              },
+            },
+          },
         },
       },
       runRecord: {
@@ -335,7 +431,7 @@ export async function listAIConversationMessages(userId: string, conversationId:
           delegatedTargetUserId: true,
           steps: {
             orderBy: [{ startedAt: "asc" }, { orderIndex: "asc" }],
-            take: 4,
+            take: 5,
             select: {
               id: true,
               type: true,
@@ -345,6 +441,7 @@ export async function listAIConversationMessages(userId: string, conversationId:
               finishedAt: true,
               summary: true,
               errorMessage: true,
+              outputPreview: true,
             },
           },
         },
@@ -367,6 +464,9 @@ export async function listAIConversationMessages(userId: string, conversationId:
     runStatus: item.runRecord?.status ?? null,
     delegatedTargetUserId: item.runRecord?.delegatedTargetUserId ?? null,
     stepsPreview: item.runRecord?.steps.map(toStepPreview) ?? [],
+    // Real runtime state for the trace: which skills were injected this turn,
+    // recovered from the persisted "skill" step. Survives refresh.
+    activeSkills: extractActiveSkills(item.runRecord?.steps),
     attachments: item.attachments.map((attachment) => ({
       id: attachment.id,
       uploadId: attachment.uploadId,
@@ -374,6 +474,8 @@ export async function listAIConversationMessages(userId: string, conversationId:
       originalName: attachment.originalName,
       mimeType: attachment.mimeType,
       size: attachment.size,
+      pdfDocumentId: attachment.upload?.pdfDocument?.id ?? null,
+      parseStatus: attachment.upload?.pdfDocument?.status ?? null,
     })),
   }))
 }
@@ -1076,10 +1178,18 @@ export async function completeAIRunStep(
 
 export async function finalizeAIRun(params: {
   runId: string
-  status: "completed" | "failed"
+  status: "completed" | "failed" | "cancelled"
   summary: string
   finalModel?: string
 }) {
+  // The run reached a terminal state — drop any in-memory cancel signal for it.
+  cancelledRunIds.delete(params.runId)
+  // Sweep any step left in "running" to a terminal state so the trace never shows
+  // "正在推理/正在调用工具" on a finished run (live or after reload).
+  await prisma.aIRunStep.updateMany({
+    where: { runId: params.runId, status: "running" },
+    data: { status: params.status === "failed" ? "failed" : "completed", finishedAt: new Date() },
+  })
   return prisma.aIRun.update({
     where: { id: params.runId },
     data: {
@@ -1087,8 +1197,99 @@ export async function finalizeAIRun(params: {
       summary: params.summary,
       finalModel: params.finalModel ?? undefined,
       finishedAt: new Date(),
+      ...(params.status === "cancelled" ? { cancelledAt: new Date() } : {}),
     },
   })
+}
+
+// ─── Server-side run cancellation ────────────────────────────────────────────
+// In-process fast path: a cancel request and the running agent loop live in the
+// same Node server, so flipping an in-memory flag stops the loop instantly. The
+// AIRun.cancelRequestedAt column is the durable source of truth (survives across
+// requests/processes) and is what isAIRunCancelled falls back to.
+const cancelledRunIds = new Set<string>()
+
+export async function requestAIRunCancellation(userId: string, messageId: string) {
+  const run = await prisma.aIRun.findFirst({
+    where: { userId, messageId },
+    select: { id: true, status: true },
+  })
+  if (!run) return { runId: null, alreadyFinished: true }
+
+  const finished = ["completed", "failed", "cancelled"].includes(run.status)
+  if (finished) return { runId: run.id, alreadyFinished: true }
+
+  // No in-process producer means the agent loop isn't actually running here (e.g.
+  // it was orphaned by a server restart). There's no checkpoint left to observe a
+  // cancel, so finalize it as cancelled now instead of leaving it stuck at
+  // "cancelling" forever.
+  if (getRunSnapshot(run.id) === null) {
+    cancelledRunIds.add(run.id)
+    await prisma.aIRun.update({ where: { id: run.id }, data: { cancelRequestedAt: new Date() } })
+    await finalizeAIRun({ runId: run.id, status: "cancelled", summary: "已被用户停止。" })
+    await prisma.aIMessage.updateMany({
+      where: { id: messageId, status: "streaming" },
+      data: { status: "cancelled" },
+    })
+    return { runId: run.id, alreadyFinished: false }
+  }
+
+  cancelledRunIds.add(run.id)
+  await prisma.aIRun.update({
+    where: { id: run.id },
+    data: { status: "cancelling", cancelRequestedAt: new Date() },
+  })
+  return { runId: run.id, alreadyFinished: false }
+}
+
+// Checked at every agent-loop checkpoint (each round, before/after each tool
+// call, before LaTeX compile). Cheap: in-memory hit short-circuits, otherwise a
+// single primary-key lookup.
+export async function isAIRunCancelled(runId: string): Promise<boolean> {
+  if (cancelledRunIds.has(runId)) return true
+  const run = await prisma.aIRun.findUnique({
+    where: { id: runId },
+    select: { cancelRequestedAt: true, status: true },
+  })
+  if (!run) return false
+  return Boolean(run.cancelRequestedAt) || run.status === "cancelling" || run.status === "cancelled"
+}
+
+// Grace window before a producer-less active run is considered orphaned, to avoid
+// racing a run that was just created but hasn't emitted run_started yet.
+const ORPHAN_GRACE_MS = 60_000
+
+export async function listActiveAIRuns(userId: string) {
+  const runs = await prisma.aIRun.findMany({
+    where: { userId, status: { in: ["running", "cancelling"] } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, conversationId: true, messageId: true, status: true, createdAt: true },
+  })
+
+  const live: typeof runs = []
+  for (const run of runs) {
+    // A genuinely running run always has an in-process event-bus channel. None
+    // means the loop is gone (server restarted mid-run, or a different instance).
+    // Self-heal: finalize the orphan so it stops appearing as an active task.
+    const orphaned = getRunSnapshot(run.id) === null && Date.now() - run.createdAt.getTime() > ORPHAN_GRACE_MS
+    if (orphaned) {
+      await finalizeAIRun({ runId: run.id, status: "cancelled", summary: "运行已中断（服务端无活动）。" }).catch(() => null)
+      await prisma.aIMessage.updateMany({
+        where: { id: run.messageId, status: "streaming" },
+        data: { status: "cancelled" },
+      }).catch(() => null)
+      continue
+    }
+    live.push(run)
+  }
+
+  return live.map((run) => ({
+    id: run.id,
+    conversationId: run.conversationId,
+    messageId: run.messageId,
+    status: run.status,
+    createdAt: run.createdAt.toISOString(),
+  }))
 }
 
 export async function getAIRunByMessageId(userId: string, messageId: string, includeSteps = true): Promise<AIRunDetail | null> {
@@ -1218,6 +1419,17 @@ export async function createAIConversationWithMessages({
   return { conversation, userMessage, assistantMessage, run }
 }
 
+// Persist partial assistant content WHILE the run streams, so a client that
+// navigates away / reloads / disconnects can still recover the in-progress text
+// (the run keeps going server-side). No-op once the message is finalized — the
+// status filter prevents a late delta from reverting completed content/status.
+export async function updateAssistantMessagePartial(assistantMessageId: string, contentMarkdown: string) {
+  await prisma.aIMessage.updateMany({
+    where: { id: assistantMessageId, status: "streaming" },
+    data: { contentMarkdown },
+  })
+}
+
 export async function finalizeAssistantMessage({
   assistantMessageId,
   contentMarkdown,
@@ -1249,6 +1461,18 @@ export async function failAssistantMessage(assistantMessageId: string, errorMess
     data: {
       status: "failed",
       contentMarkdown: errorMessage,
+    },
+  })
+}
+
+// User stopped the run: keep whatever partial content was already streamed and
+// mark the message cancelled (distinct from completed/failed).
+export async function cancelAssistantMessage(assistantMessageId: string, contentMarkdown: string) {
+  return prisma.aIMessage.update({
+    where: { id: assistantMessageId },
+    data: {
+      status: "cancelled",
+      contentMarkdown,
     },
   })
 }

@@ -44,3 +44,9 @@ next-env.d.ts
 /app/generated/prisma
 /public/uploads/
 /storage/
+
+# local PDF parser python environment
+/.venv-pdf/
+
+# transient dev-server process logs
+tmp/codex-next-*.log

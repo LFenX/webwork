@@ -75,6 +75,7 @@
 :root {
   --font-geist-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-geist-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-instrument-serif: "Instrument Serif", "Source Han Serif SC", "Noto Serif SC", "Songti SC", Georgia, ui-serif, serif;
   --background: var(--color-bg-primary);
   --foreground: var(--color-text-primary);
   --popover: var(--color-bg-surface);
@@ -86,6 +87,7 @@
   --ring: var(--color-brand);
   --accent: var(--color-brand-soft);
   --accent-foreground: var(--color-brand);
+  --app-page-bg: #f4f7fb;
   --app-viewport-height: 100vh;
   --app-viewport-offset-top: 0px;
   --keyboard-inset-bottom: 0px;
@@ -210,12 +212,8 @@ body {
   -webkit-font-smoothing: antialiased;
   min-height: var(--app-viewport-height);
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at 18% 8%, rgba(96, 165, 250, 0.10), transparent 30%),
-    radial-gradient(circle at 82% 0%, rgba(251, 191, 36, 0.09), transparent 28%),
-    linear-gradient(180deg, var(--color-bg-soft) 0%, var(--color-bg-primary) 100%);
-  background-attachment: fixed;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  background: var(--app-page-bg);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 html:has(.friends-hub-viewport),
@@ -237,6 +235,11 @@ body:has(.sql-lab-viewport) {
 }
 
 body:has(.sql-lab-viewport) {
+  padding-bottom: 0;
+}
+
+body:has(.updates-viewport) {
+  background: var(--app-page-bg);
   padding-bottom: 0;
 }
 

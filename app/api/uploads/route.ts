@@ -12,16 +12,21 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, Number(req.nextUrl.searchParams.get("page") ?? "1"))
   const size = Math.min(50, Math.max(1, Number(req.nextUrl.searchParams.get("size") ?? "20")))
   const skip = (page - 1) * size
+  const requestedKind = req.nextUrl.searchParams.get("kind")
+  const where = {
+    userId: session.userId,
+    ...(requestedKind === "all" ? {} : { kind: requestedKind === "pdf" ? "pdf" : "image" }),
+  }
 
   const [items, total, agg] = await Promise.all([
     prisma.upload.findMany({
-      where: { userId: session.userId },
+      where,
       orderBy: { createdAt: "desc" },
       skip,
       take: size,
       select: { id: true, url: true, originalName: true, size: true, mimeType: true, createdAt: true },
     }),
-    prisma.upload.count({ where: { userId: session.userId } }),
+    prisma.upload.count({ where }),
     prisma.upload.aggregate({ where: { userId: session.userId }, _sum: { size: true } }),
   ])
 

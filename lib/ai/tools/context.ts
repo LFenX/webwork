@@ -12,6 +12,12 @@ export type AIToolContext = {
   actor: AIToolActor
   targetUserId: string
   scope: AIToolAccessScope
+  // The conversation the tool call originates from. PDF tools use this to keep
+  // retrieval scoped to PDFs attached in the current chat session.
+  conversationId?: string
+  // Skills active this turn (real runtime state). Tools may echo this back in
+  // their result metadata so the model reports truthfully.
+  activeSkills?: Array<{ id: string; name: string; version: string; triggerReason: string }>
 }
 
 export type AIToolDefinition<TInput extends Record<string, unknown> | void = void> = {
@@ -43,6 +49,8 @@ export function buildAIToolContext(params: {
   actor: AIToolActor
   targetUserId?: string | null
   scope: AIToolAccessScope
+  conversationId?: string
+  activeSkills?: Array<{ id: string; name: string; version: string; triggerReason: string }>
 }): AIToolContext {
   const targetUserId = params.targetUserId ?? params.actor.userId
   assertAIToolAccess(params.actor, params.scope, targetUserId)
@@ -51,6 +59,8 @@ export function buildAIToolContext(params: {
     actor: params.actor,
     targetUserId,
     scope: params.scope,
+    conversationId: params.conversationId,
+    activeSkills: params.activeSkills,
   }
 }
 

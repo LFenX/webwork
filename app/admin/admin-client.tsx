@@ -97,6 +97,16 @@ type UpdateLogItem = {
   hidden?: boolean
 }
 
+type UpdateLogSyncResult = {
+  ok: boolean
+  scanned: number
+  synced: number
+  failed: number
+  skipped: number
+  lastSyncedAt: string
+  errors: string[]
+}
+
 type AnnouncementItem = {
   id: string
   content: string
@@ -614,6 +624,18 @@ export function AdminClient() {
     await runAdminAction(`hide-log:${item.hash}`, "Hiding update log...", async () => {
       await apiDelete(`/api/admin/updates/${item.hash}`)
       toast.success(d.updateHidden)
+      setRefreshKey((key) => key + 1)
+    })
+  }
+
+  async function syncUpdateLogs() {
+    await runAdminAction("sync-update-logs", "Syncing update logs...", async () => {
+      const result = await apiPost<UpdateLogSyncResult>("/api/admin/updates/sync", { limit: 80 })
+      if (result.failed > 0) {
+        toast.warning(`已同步 ${result.synced} 条，${result.failed} 条失败`)
+      } else {
+        toast.success(`已同步 ${result.synced} 条更新日志快照`)
+      }
       setRefreshKey((key) => key + 1)
     })
   }
@@ -1215,7 +1237,16 @@ export function AdminClient() {
           ) : null}
 
           {activeSection === "updates" && hasPermission("manageUpdateLogs") ? (
-            <AdminPanel title={d.changelogDisplay} description="编辑对外展示的更新记录，或隐藏不适合展示的提交。" icon={<GitCommitHorizontal size={18} />}>
+            <AdminPanel
+              title={d.changelogDisplay}
+              description="同步 Git 快照、编辑公开说明，或隐藏不适合展示的提交。"
+              icon={<GitCommitHorizontal size={18} />}
+              action={
+                <Button size="sm" variant="outline" onClick={syncUpdateLogs} loading={isBusy("sync-update-logs")} loadingText="同步中">
+                  <RotateCcw size={14} /> 同步 Git 快照
+                </Button>
+              }
+            >
               <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
                 {data.updates.length === 0 ? (
                   <AdminEmptyState title={d.noUpdateRecords} icon={<ClipboardList size={18} />} />

@@ -100,7 +100,7 @@ export function ThreadedDiscussion({
           node={node}
           depth={0}
           canReply={canReply}
-          canDelete={typeof canDelete === "function" ? canDelete(node) : (canDelete ?? Boolean(onDelete))}
+          canDelete={canDelete ?? Boolean(onDelete)}
           onReply={onReply}
           onDelete={onDelete}
           formatTime={formatTime}
@@ -124,7 +124,7 @@ function ThreadNodeComponent({
   node: ThreadNode
   depth: number
   canReply: boolean
-  canDelete: boolean
+  canDelete: boolean | ((item: ThreadItem) => boolean)
   onReply: (parentId: string, content: string, sticker?: StickerPick | null) => Promise<void>
   onDelete?: (id: string) => void
   formatTime: (iso: string) => string
@@ -158,6 +158,7 @@ function ThreadNodeComponent({
   const hasReplies = node.replies.length > 0
   const replyCount = node.replies.length
   const isReply = depth > 0
+  const canDeleteNode = typeof canDelete === "function" ? canDelete(node) : canDelete
 
   return (
     <article className={`${isReply ? "rounded-[--radius-md] px-1.5 py-1.5" : "rounded-[--radius-md] p-3"} transition-colors hover:bg-[--color-bg-surface]/45`}>
@@ -207,7 +208,7 @@ function ThreadNodeComponent({
                 {cm.reply}
               </button>
             )}
-            {canDelete && onDelete && (
+            {canDeleteNode && onDelete && (
               <button
                 type="button"
                 onClick={() => {

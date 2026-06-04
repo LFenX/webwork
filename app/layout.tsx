@@ -1,14 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import { Instrument_Serif } from "next/font/google"
 import "./globals.css"
-
-const instrumentSerif = Instrument_Serif({
-  weight: "400",
-  style: ["normal", "italic"],
-  subsets: ["latin"],
-  variable: "--font-instrument-serif",
-  display: "swap",
-})
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { Toaster } from "@/components/ui/sonner"
@@ -35,7 +26,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   interactiveWidget: "resizes-content",
-  themeColor: "#FAF9F5",
+  themeColor: "#f4f7fb",
   viewportFit: "cover",
 }
 
@@ -93,7 +84,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang={settings.language} className={`h-full ${instrumentSerif.variable}`}>
+    <html lang={settings.language} className="h-full">
       <body className="min-h-full flex flex-col antialiased">
         <SiteHeader
           ownerName={settings.ownerName}
@@ -107,7 +98,7 @@ export default async function RootLayout({
           displayName={profile?.displayName}
           canAccessSqlPractice={canAccessSqlPractice}
         />
-        <main key={session?.userId ?? "guest"} className="flex-1 pt-14">
+        <main key={session?.userId ?? "guest"} className="flex min-h-0 flex-1 flex-col pt-14">
           {children}
         </main>
         <SiteFooter />

@@ -2,6 +2,7 @@ import "server-only"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import {
+  attachGeneratedFileToMessage,
   completeAIRunStep,
   completeAIToolCallLog,
   createAIAuditLog,
@@ -20,6 +21,11 @@ import { isStructuredToolResult, resolveUserReference } from "@/lib/ai/tools/hel
 import { loadAgentPersonaContext, buildAgentPersonaPrompt } from "@/lib/ai/agent-profile-service"
 import { buildMemoryContext, saveToolMemoryCandidate } from "@/lib/ai/memory/memory-service"
 import { buildCapabilitySummaryText } from "@/lib/ai/capability-map"
+import { buildPdfAttachmentContext } from "@/lib/pdf/service"
+import { compileLatexForUser } from "@/lib/latex/service"
+import { conversationHasLatexConfig } from "@/lib/latex/doc-config-service"
+import { buildActiveSkillsBlock, describeActiveSkills, type ActiveSkillInfo } from "@/lib/ai/skills/registry"
+import { looksLikeLeakedLatexCall, recoverCompileLatexCall } from "@/lib/ai/latex-leak-recovery"
 import type {
   AIConversationHistoryEntry,
   AIProviderCapabilities,
@@ -30,8 +36,18 @@ import type {
   AIToolExecutionRecord,
 } from "@/lib/ai/types"
 
-const MAX_AGENT_ROUNDS = 6
-const MAX_TOOL_CALLS = 8
+// Generous safety ceilings (env-overridable), high enough for genuinely
+// multi-step work like chunk-built long PDFs (start_latex_draft + N×
+// append_latex_draft_section + compile). The loop exits as soon as the model
+// returns a final answer, so a normal task uses only the rounds it needs; these
+// are anti-runaway caps, not targets. Runaway is bounded earlier by the
+// identical-call guard below.
+const MAX_AGENT_ROUNDS = Number(process.env.AI_MAX_AGENT_ROUNDS || 48)
+const MAX_TOOL_CALLS = Number(process.env.AI_MAX_TOOL_CALLS || 80)
+// Break the loop if the model repeats the EXACT same tool call (name + args)
+// this many times in a row — a stuck loop, distinct from legitimate progress
+// (different sections / refined args never trip this).
+const MAX_IDENTICAL_TOOL_CALLS = Number(process.env.AI_MAX_IDENTICAL_TOOL_CALLS || 4)
 
 type RuntimeAttachment = {
   uploadId?: string | null
@@ -51,11 +67,34 @@ type RuntimeParams = {
   modelOverride?: string
   onToken?: (chunk: string) => Promise<void> | void
   onEvent?: (event: string, payload: unknown) => Promise<void> | void
+  // Returns true once the user has requested cancellation of this run. Checked at
+  // every loop checkpoint so the backend actually stops generating (no more
+  // drafting / tool calls / PDF compilation) instead of only closing the stream.
+  checkCancelled?: () => Promise<boolean>
+}
+
+// Thrown by ensureNotCancelled to unwind the agent loop the moment a cancel is
+// observed. Caught at the top of runAIRuntime, which finalizes the run as
+// "cancelled" and preserves whatever partial content was already produced.
+class RunCancelledError extends Error {
+  constructor() {
+    super("Run cancelled by user")
+    this.name = "RunCancelledError"
+  }
+}
+
+async function ensureNotCancelled(params: RuntimeParams) {
+  if (params.checkCancelled && (await params.checkCancelled())) {
+    throw new RunCancelledError()
+  }
 }
 
 type RuntimeState = {
   orderIndex: number
   emittedWarnings: Set<string>
+  // Skills active this turn (real runtime state) — recorded in the trace and
+  // passed to tools so they can report it back in their result metadata.
+  activeSkills: ActiveSkillInfo[]
 }
 
 function nextOrderIndex(state: RuntimeState) {
@@ -69,6 +108,13 @@ function compactJson(value: unknown) {
   } catch {
     return String(value)
   }
+}
+
+// Internal file-download endpoints (compiled PDFs etc.) are surfaced to the user
+// as durable download cards, never as links the model copies. Redact them from
+// what the model sees so it can't paste a raw or stale /api/uploads URL.
+function redactDownloadLinks(text: string): string {
+  return text.replace(/\/api\/uploads\/[A-Za-z0-9_-]+/g, "（文件已自动附在下载卡片中）")
 }
 
 function formatToolResultForLLM(result: unknown): string {
@@ -90,9 +136,9 @@ function formatToolResultForLLM(result: unknown): string {
         parts.push(String(result.data))
       }
     }
-    return parts.join("\n")
+    return redactDownloadLinks(parts.join("\n"))
   }
-  return compactJson(result)
+  return redactDownloadLinks(compactJson(result))
 }
 
 function chunkText(value: string, size = 100) {
@@ -135,6 +181,10 @@ function hasArticleWords(text: string) {
   return /(文章|博客|日常|心得|笔记|blog|daily|reflection|note|post)/i.test(text)
 }
 
+function looksLikePdfQuestion(text: string) {
+  return /(pdf|uploaded pdf|pdf document|document library|paper|\u8bba\u6587|\u6587\u6863|\u6587\u4ef6|\u8d44\u6599\u5e93|\u8d44\u6599)/i.test(text)
+}
+
 function hasPermissionWords(text: string) {
   return /(权限|能不能看|可见|开放|允许|管理员|admin)/i.test(text)
 }
@@ -171,6 +221,17 @@ async function buildHeuristicPlan(prompt: string, actorUserId: string): Promise<
   if (looksLikeWebSearchQuestion(prompt) && !looksLikePrivateDataQuestion(prompt)) {
     return buildPlan("self", "将先联网核验当前信息，再基于来源作答。", [
       { toolName: "web_verify_current_info", reason: "问题涉及可能过时的外部信息，需要联网核验。", input: { question: prompt, maxResults: 5 } },
+    ])
+  }
+
+  if (!isTargetOtherUser && looksLikePdfQuestion(prompt)) {
+    if (/(list|library|uploaded|status|parse status|\u5217\u51fa|\u8d44\u6599\u5e93|\u72b6\u6001)/i.test(prompt)) {
+      return buildPlan("self", "Will inspect the current user's PDF document library.", [
+        { toolName: "list_my_pdf_documents", reason: "The question asks about uploaded PDF documents or parse status.", input: { limit: 20 } },
+      ])
+    }
+    return buildPlan("self", "Will search the current user's parsed PDF documents and cite page-scoped chunks.", [
+      { toolName: "search_my_pdf_documents", reason: "The question asks about PDF document content.", input: { query: prompt, limit: 8 } },
     ])
   }
 
@@ -543,10 +604,13 @@ function buildRuntimeSystemPrompt(params: {
       : "",
     "如果好友内容或后台数据没有权限，明确说明无权访问，不要继续猜测。",
     "你可以帮助用户管理其自己的 Markdown 内容（博客/日常/心得/笔记）：创建文章、修改文章、创建文件夹、移动文章。只能操作用户自己的内容，不能跨用户操作。",
+    "知识库/错题本场景：当用户要把咨询、错题、资料、资讯（含图片或 PDF 中的内容）汇总、整理、收录成笔记，或追加到已有错题本/资料库时，优先用 compose_knowledge_note（而非通用的 create_markdown_article）——它会按类别结构化、忠于原始事实并标注来源（如《xxx.pdf》第3页）。当用户要找回之前记录的错题/资料/资讯时，优先用 search_knowledge_notes（它会全文检索正文并返回片段），再用 get_markdown_article_detail 读全文。整理 PDF 内容前，先用 read_my_pdf_document / search_my_pdf_documents 取到带页码的事实，不得虚构。",
+    "PDF 生成场景：当用户要把内容编译/导出/生成为 PDF 文档时，用 compile_latex_pdf（本机 XeLaTeX），并遵循 pdf-authoring 技能（此类任务会注入详细排版指引）。要点：先取真实素材不得虚构；只写正文交给 bodyLatex（一次写全、含各级 \\section）；样式/主题/配色用 set_latex_doc_config 调整（内容不变就别重写正文）。编译成功后系统会自动在聊天里附上可下载的 PDF 卡片——【不要】在回复里粘贴下载链接或 /api/uploads 地址，也不要整段复述正文。",
     "你可以管理用户的长期记忆：当用户明确说'记住……'时保存记忆；当用户说'忘掉……'时删除记忆（需要确认）；需要参考历史偏好或决策时主动搜索记忆。不要自动保存所有聊天内容为记忆，不要保存敏感信息或文章全文。",
     "你还可以更新自己的长期人格配置 update_agent_profile：当用户说'以后你回答风格要……''以后我叫你……''我正在做的长期项目是……''以后必须遵守……'时，更新对应分区（identity/soul/user/rules）。append 默认可用，rewrite 和 rules 修改需要确认。不要因为一句情绪化吐槽就自动改人格。",
     "跨模块移动文章前必须先得到用户明确确认（confirmedByUser=true），不得直接执行。不允许删除文章或文件夹。修改文章时不允许清空正文。",
     "高风险写入操作前应简要告知用户将要执行的操作，让用户有机会纠正。",
+    "技能（skill）自证铁律：当用户问“你刚才用了什么技能/skill、有没有用 PDF skill、用了哪个模板/主题”时，必须调用 get_last_run_metadata，并严格依据其返回的 activeSkills/lastPdf 如实回答。禁止凭记忆或自我复盘声称“我用了 xx skill”——技能注入是运行时状态，只能以工具返回或执行轨迹中的“技能注入”为准。若 activeSkills 为空，就如实说本轮未注入技能，并提示用户查看执行轨迹。不要把“我遵循了某些排版建议”混同于“运行时注入了某个 skill”。",
     "回答必须可信、简洁、结构化，且不得虚构工具结果。",
   ].filter(Boolean)
 
@@ -1122,6 +1186,37 @@ async function emit(params: RuntimeParams, event: string, payload: unknown) {
   if (params.onEvent) await params.onEvent(event, payload)
 }
 
+// Single place that "publishes" a freshly compiled PDF: binds it to the
+// assistant message as a durable attachment (so the download card survives
+// reload) and emits the live artifact event. Both the normal tool path and the
+// leaked-call recovery path go through here, so the behavior never drifts.
+async function publishCompiledPdf(
+  params: RuntimeParams,
+  data: { uploadId?: string, filename?: string, downloadUrl?: string, sizeBytes?: number } | undefined,
+) {
+  if (!data?.downloadUrl) return
+  if (params.assistantMessageId && data.uploadId) {
+    await attachGeneratedFileToMessage({
+      messageId: params.assistantMessageId,
+      userId: params.userId,
+      uploadId: data.uploadId,
+      originalName: data.filename || "document.pdf",
+      mimeType: "application/pdf",
+      size: data.sizeBytes ?? 0,
+      url: data.downloadUrl,
+    }).catch((error) => {
+      console.error("[latex] failed to attach compiled PDF to message:", error)
+    })
+  }
+  await emit(params, "assistant_artifact", {
+    kind: "pdf",
+    uploadId: data.uploadId,
+    filename: data.filename,
+    downloadUrl: data.downloadUrl,
+    sizeBytes: data.sizeBytes,
+  })
+}
+
 async function createStep(params: RuntimeParams, state: RuntimeState, type: AIRunStepType, title: string, summary: string, inputPreview?: unknown) {
   return createAIRunStep({
     runId: params.runId,
@@ -1213,6 +1308,8 @@ async function executeToolCall(
     actor: resolvedActor,
     targetUserId: (normalizedInput as { targetUserId?: string }).targetUserId as string | undefined,
     scope: tool.scope,
+    conversationId: params.conversationId,
+    activeSkills: state.activeSkills,
   })
 
   const log = await createAIToolCallLog({
@@ -1367,13 +1464,14 @@ async function runHeuristicFallback(params: RuntimeParams, state: RuntimeState, 
 }
 
 function shouldUseHeuristicFallback(prompt: string, capabilities: AIProviderCapabilities) {
-  return !capabilities.toolCalling && (looksLikeSiteDataQuestion(prompt) || (looksLikeWebSearchQuestion(prompt) && !looksLikePrivateDataQuestion(prompt)))
+  return !capabilities.toolCalling && (looksLikePdfQuestion(prompt) || looksLikeSiteDataQuestion(prompt) || (looksLikeWebSearchQuestion(prompt) && !looksLikePrivateDataQuestion(prompt)))
 }
 
 export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResponse> {
   const state: RuntimeState = {
     orderIndex: 0,
     emittedWarnings: new Set<string>(),
+    activeSkills: [],
   }
 
   await emit(params, "run_started", { runId: params.runId, conversationId: params.conversationId })
@@ -1396,6 +1494,40 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
     })
   }
 
+  // Skills: inject task-specific expertise (e.g. PDF/LaTeX authoring) only when it
+  // matches this turn. pdfSessionActive keeps the PDF skill on for follow-up
+  // tweaks in a conversation that already produced a PDF.
+  const pdfSessionActive = params.conversationId
+    ? await conversationHasLatexConfig(params.userId, params.conversationId).catch(() => false)
+    : false
+  const skillContext = {
+    prompt: params.prompt,
+    hasToolAccess: provider?.capabilities.toolCalling ?? false,
+    pdfSessionActive,
+  }
+  const activeSkills = describeActiveSkills(skillContext)
+  const skillsBlock = buildActiveSkillsBlock(skillContext)
+  state.activeSkills = activeSkills
+  // Observability: REAL runtime state (never the model's self-report). Persisted
+  // as a dedicated trace step (so it's visible even with 0 tool calls and survives
+  // refresh), plus a live SSE event and a server log.
+  const skillSummary = activeSkills.length
+    ? `已注入：${activeSkills.map((s) => `${s.name} v${s.version}（命中：${s.triggerReason}）`).join("；")}`
+    : "本轮未激活任何技能"
+  console.log(`[ai][skills] run=${params.runId} activeSkills=${JSON.stringify(activeSkills)}`)
+  try {
+    const skillStep = await createStep(params, state, "skill", "技能注入", skillSummary)
+    await completeAIRunStep(skillStep.id, {
+      status: "completed",
+      summary: skillSummary,
+      outputPreview: { activeSkills },
+    })
+    await emit(params, "skills_resolved", { stepId: skillStep.id, activeSkills, summary: skillSummary })
+  } catch (error) {
+    console.error("[ai][skills] failed to record skill step:", error)
+    await emit(params, "skills_resolved", { activeSkills, summary: skillSummary })
+  }
+
   // Memory recall: search for relevant long-term memories based on user prompt
   let memoryContextText = ""
   try {
@@ -1407,10 +1539,22 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
     // Memory recall failure must not block conversation
   }
 
+  let pdfContextText = ""
+  try {
+    pdfContextText = await buildPdfAttachmentContext(params.userId, params.attachments, params.prompt)
+  } catch {
+    // PDF attachment context failure must not block conversation
+  }
+
   const executions: AIToolExecutionRecord[] = []
   const reasoningParts: string[] = []
   let finalPlan: AIRuntimePlan = buildPlan("self", "模型将根据问题自行判断是否需要调用工具。", [])
   let contentMarkdown = ""
+  // Guards for models that emit a tool call as plain text (leaking its raw
+  // arguments). Once detected we stop streaming the leaked blob and recover the
+  // compile_latex_pdf call at finalization. See lib/ai/latex-leak-recovery.
+  let rawAssistantText = ""
+  let leakSuppressed = false
   const modelName = provider?.model ?? "structured-fallback"
   let assistantStepId: string | null = null
 
@@ -1457,6 +1601,10 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
     return step.id
   }
 
+  // The agent loop body runs inside this try so a cancel observed at any
+  // checkpoint (RunCancelledError) unwinds cleanly to the handler below, which
+  // finalizes the run as "cancelled" and preserves the partial content.
+  try {
   if (!provider) {
     await emitCapabilityWarning(params, state, "provider-missing", "当前没有可用的 provider，已使用结构化降级结果。", {
       streamText: false,
@@ -1522,8 +1670,9 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
           canUseVision,
           personaPrompt,
         })
-        const finalSystemContent = memoryContextText
-          ? `${systemContent}\n\n${memoryContextText}`
+        const contextBlocks = [memoryContextText, pdfContextText, skillsBlock].filter(Boolean).join("\n\n")
+        const finalSystemContent = contextBlocks
+          ? `${systemContent}\n\n${contextBlocks}`
           : systemContent
 
         return [
@@ -1564,6 +1713,14 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
           },
           onAssistantDelta: async (delta) => {
             const stepId = await ensureAssistantStep()
+            rawAssistantText += delta
+            // Once the stream starts leaking a textual tool call, stop forwarding
+            // it so the user never sees the raw LaTeX dump; recovery runs later.
+            if (!leakSuppressed && looksLikeLeakedLatexCall(rawAssistantText)) {
+              leakSuppressed = true
+              return
+            }
+            if (leakSuppressed) return
             contentMarkdown += delta
             await params.onToken?.(delta)
             await emit(params, "assistant_delta", { stepId, delta })
@@ -1579,8 +1736,19 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
         })
 
       let gotFinalAnswer = false
+      // Defer the PDF download card until the run finishes: if the model compiles
+      // more than once (e.g. recompiles to fix something), only the FINAL PDF
+      // should appear in the UI — never a stale intermediate one.
+      let latestCompiledPdf: { uploadId?: string, filename?: string, downloadUrl?: string, sizeBytes?: number } | undefined
+      // Anti-runaway: track the last tool-call signature and how many times in a
+      // row it has repeated, to break out of a stuck loop without limiting
+      // legitimate multi-step work.
+      let lastToolCallSig = ""
+      let identicalToolCallCount = 0
 
       for (let round = 0; round < MAX_AGENT_ROUNDS; round += 1) {
+        // Checkpoint: each round. Stop before spending another model call.
+        await ensureNotCancelled(params)
         const reasoningStep = await createStep(
           params,
           state,
@@ -1676,9 +1844,57 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
             })),
           }
           conversationMessages.push(assistantToolCallMsg as ProviderMessage)
+          let stalled = false
           for (const toolCall of roundToolCalls) {
+            // Checkpoint: before each tool call.
+            await ensureNotCancelled(params)
+            const sig = `${toolCall.name}:${toolCall.argumentsText ?? ""}`
+            if (sig === lastToolCallSig) identicalToolCallCount += 1
+            else { lastToolCallSig = sig; identicalToolCallCount = 1 }
+            // Long compiles can take a while — tell the UI we're compiling so the
+            // user doesn't think it stalled.
+            if (toolCall.name === "compile_latex_pdf" || toolCall.name === "compile_latex_draft") {
+              // Checkpoint: before LaTeX compilation — the most expensive,
+              // least-reversible step. A cancel here must skip the compile.
+              await ensureNotCancelled(params)
+              await emit(params, "draft_progress", { phase: "compiling" })
+            }
             const execution = await executeToolCall(params, state, finalPlan, toolCall, actor)
             executions.push(execution)
+            // Checkpoint: after each tool call. Stop before feeding the result
+            // back to the model / starting another round.
+            await ensureNotCancelled(params)
+            if (identicalToolCallCount >= MAX_IDENTICAL_TOOL_CALLS) stalled = true
+            // Surface a tool-generated PDF as a durable downloadable card (both the
+            // single-shot compile and the draft compile).
+            if ((execution.name === "compile_latex_pdf" || execution.name === "compile_latex_draft") && execution.status === "completed" && isStructuredToolResult(execution.result)) {
+              const data = execution.result.data as { uploadId?: string, filename?: string, downloadUrl?: string, sizeBytes?: number, sectionCount?: number, pdfPageCount?: number } | undefined
+              // Remember it; the card is published once at run finalization so an
+              // intermediate recompile never leaves a stale card.
+              if (data?.downloadUrl) latestCompiledPdf = data
+              await emit(params, "draft_progress", { phase: "done", sectionCount: data?.sectionCount, pdfPageCount: data?.pdfPageCount })
+            }
+            // Long-document draft progress (planning / writing chapters).
+            if ((execution.name === "start_latex_draft" || execution.name === "append_latex_draft_section" || execution.name === "get_latex_draft_status")
+              && execution.status === "completed" && isStructuredToolResult(execution.result)) {
+              const data = execution.result.data as { totalCount?: number, filledCount?: number, missing?: string[], title?: string } | undefined
+              if (data && typeof data.totalCount === "number") {
+                await emit(params, "draft_progress", {
+                  phase: "writing",
+                  filledCount: data.filledCount ?? 0,
+                  totalCount: data.totalCount,
+                  missing: data.missing ?? [],
+                  title: data.title,
+                })
+              }
+            }
+            // Sync a config change made by the AI to the template modal (two-way sync).
+            if (execution.name === "set_latex_doc_config" && execution.status === "completed" && isStructuredToolResult(execution.result)) {
+              const data = execution.result.data as { config?: unknown } | undefined
+              if (data?.config) {
+                await emit(params, "latex_config_updated", { config: data.config })
+              }
+            }
             conversationMessages.push({
               role: "tool",
               tool_call_id: toolCall.id,
@@ -1699,7 +1915,58 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
             })),
             executions.find((item) => item.input?.targetUserId && item.input.targetUserId !== params.userId)?.input?.targetUserId as string | null ?? null,
           )
+          if (stalled) {
+            console.warn(`[ai] breaking agent loop: identical tool call repeated ${identicalToolCallCount}× (${lastToolCallSig.slice(0, 80)})`)
+            break
+          }
           continue
+        }
+
+        // Recover a tool call the model leaked as plain text (no structured
+        // tool_calls). For compile_latex_pdf we parse it back out and compile,
+        // surfacing the PDF as a download card instead of the raw LaTeX dump.
+        if (leakSuppressed || (result.assistantText && looksLikeLeakedLatexCall(result.assistantText) && result.toolCalls.length === 0)) {
+          gotFinalAnswer = true
+          const stepId = await ensureAssistantStep()
+          await emit(params, "assistant_recovered", { stepId })
+          const recovered = recoverCompileLatexCall(rawAssistantText || result.assistantText || "")
+          // Checkpoint: before recovery LaTeX compilation. Kept outside the
+          // try/catch below so a cancel unwinds the loop instead of being
+          // swallowed into a "compile failed" message.
+          await ensureNotCancelled(params)
+          let recoveryMsg: string
+          if (recovered) {
+            try {
+              const outcome = await compileLatexForUser(params.userId, { ...recovered, conversationId: params.conversationId })
+              if (outcome.ok) {
+                recoveryMsg = `已为你生成 PDF《${outcome.data.filename}》，下载卡片见下方。`
+                latestCompiledPdf = outcome.data
+              } else {
+                recoveryMsg = `我尝试把内容编译成 PDF，但失败了：${outcome.error}\n\n建议重试，或在右上角切换到对“工具调用”支持更好的模型。`
+              }
+            } catch {
+              recoveryMsg = "编译 PDF 时出错，请重试，或切换到对“工具调用”支持更好的模型。"
+            }
+          } else {
+            recoveryMsg = "当前模型把工具调用输出成了文本，未能正确执行编译。请重试，或在右上角切换到对“工具调用”支持更好的模型。"
+          }
+          const delta = `${contentMarkdown.trim() ? "\n\n" : ""}${recoveryMsg}`
+          contentMarkdown += delta
+          await params.onToken?.(delta)
+          await emit(params, "assistant_delta", { stepId, delta })
+          await completeAIRunStep(stepId, {
+            status: "completed",
+            summary: "回答已生成。",
+            outputPreview: { contentMarkdown, providerMetadata: result.providerMetadata ?? null },
+          })
+          await emit(params, "assistant_completed", {
+            stepId,
+            title: "最终回答",
+            status: "completed",
+            summary: "回答已生成。",
+            outputPreview: { contentMarkdown, providerMetadata: result.providerMetadata ?? null },
+          })
+          break
         }
 
         // Only treat as final answer when there are NO tool calls at all
@@ -1726,6 +1993,12 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
           })
           break
         }
+      }
+
+      // Publish ONLY the final compiled PDF (deferred above), so intermediate
+      // recompiles never leave a stale card; the card appears with the final reply.
+      if (latestCompiledPdf) {
+        await publishCompiledPdf(params, latestCompiledPdf)
       }
 
       // If the loop exhausted all rounds without a final answer, force one more model call
@@ -1807,6 +2080,41 @@ export async function runAIRuntime(params: RuntimeParams): Promise<AIRuntimeResp
           outputPreview: { contentMarkdown, providerMetadata: { fallback: "empty-provider-response" } },
         })
       }
+    }
+  }
+  } catch (error) {
+    if (!(error instanceof RunCancelledError)) throw error
+    // User stopped the run. Mark it cancelled and emit run_cancelled; the SSE
+    // route preserves the partial content and finalizes the message as cancelled.
+    const cancelReasoning = buildReasoningSummary(reasoningParts)
+    const cancelSummary = compactText(
+      [cancelReasoning, executions.length ? `已调用 ${executions.length} 个工具后被用户停止。` : "已被用户停止。"].join(" "),
+      140,
+    )
+    await finalizeAIRun({
+      runId: params.runId,
+      status: "cancelled",
+      summary: cancelSummary,
+      finalModel: modelName,
+    }).catch(() => null)
+    await emit(params, "run_cancelled", {
+      runId: params.runId,
+      conversationId: params.conversationId,
+      assistantMessageId: params.assistantMessageId,
+      summary: cancelSummary,
+      modelName,
+      contentMarkdown,
+    })
+    return {
+      contentMarkdown,
+      reasoningSummary: cancelReasoning,
+      toolTraceSummary: buildToolTraceSummary(executions),
+      modelName,
+      toolExecutions: executions,
+      plan: finalPlan,
+      compactSteps: [],
+      runSummary: cancelSummary,
+      cancelled: true,
     }
   }
 

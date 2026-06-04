@@ -1,6 +1,6 @@
 "use client"
 
-import { type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type ChangeEvent, type DragEvent as ReactDragEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import gsap from "gsap"
@@ -11,8 +11,12 @@ import {
   CheckCircle2,
   ChevronDown,
   Copy,
+  Download,
+  FileText,
   ImageIcon,
+  LayoutTemplate,
   Loader2,
+  Wand2,
   MessageSquarePlus,
   MoreHorizontal,
   PencilLine,
@@ -31,6 +35,8 @@ import { toast } from "sonner"
 import { AISettingsSheet } from "@/components/ai/ai-settings-sheet"
 import { ChatMessagesLoading } from "@/components/loading/app-loading-states"
 import { MarkdownContent } from "@/components/markdown-content"
+import { LatexTemplateModal, type LatexCatalogue, type LatexDocConfig } from "@/components/ai/latex-template-modal"
+import { RunStatusPanel, type RunStatusPanelData } from "@/components/ai/run-status-panel"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { UserAvatar } from "@/components/user-avatar"
@@ -106,11 +112,113 @@ type AttachmentItem = {
   originalName: string
   mimeType: string
   size: number
+  pdfDocumentId?: string | null
+  parseStatus?: string | null
 }
 
 type ComposerAttachment = AttachmentItem & {
-  status: "uploading" | "ready" | "failed"
+  status: "uploading" | "parsing" | "ready" | "failed"
   errorMessage?: string
+}
+
+function isPdfAttachment(attachment: Pick<AttachmentItem, "mimeType" | "originalName">) {
+  return attachment.mimeType === "application/pdf" || /\.pdf$/i.test(attachment.originalName)
+}
+
+// Map a server error code (or technical fetch error like "aborted") to a short,
+// friendly, type-aware message that fits inside the small attachment card.
+function uploadErrorMessage(code: string, pdf: boolean) {
+  switch (code) {
+    case "too_large": return pdf ? "PDF 超过大小上限" : "图片超过大小上限"
+    case "invalid_pdf": return "不是有效的 PDF 文件"
+    case "invalid_mime": return "不支持的文件类型"
+    case "quota_exceeded": return "存储空间已满"
+    case "no_file": return "请选择文件"
+    case "unauthorized": return "请先登录"
+    default: return pdf ? "PDF 上传失败，请重试" : "图片上传失败，请重试"
+  }
+}
+
+function pdfParseStatusLabel(status?: string | null) {
+  if (status === "completed") return "已解析"
+  if (status === "failed") return "解析失败"
+  if (status === "processing" || status === "queued") return "解析中"
+  return ""
+}
+
+function formatAttachmentSize(size: number) {
+  if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`
+  if (size >= 1024) return `${Math.round(size / 1024)} KB`
+  return `${size} B`
+}
+
+function ComposerAttachmentCard({
+  attachment,
+  onRemove,
+  removeLabel,
+}: {
+  attachment: ComposerAttachment
+  onRemove: () => void
+  removeLabel: string
+}) {
+  const pdf = isPdfAttachment(attachment)
+  const statusLabel = attachment.status === "uploading"
+    ? "上传中"
+    : attachment.status === "parsing"
+      ? "解析中"
+      : attachment.status === "failed"
+        ? "处理失败"
+        : "已就绪"
+  // For a ready PDF, show its background parse state instead of a generic badge.
+  const readyBadgeLabel = pdf ? (pdfParseStatusLabel(attachment.parseStatus) || "解析中") : statusLabel
+
+  return (
+    <div className="group relative flex h-[104px] w-[104px] shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#eef2ff] shadow-[0_8px_20px_rgba(15,23,42,0.08)]">
+      {pdf ? (
+        <div className="flex h-full w-full flex-col justify-between bg-white p-3 text-left">
+          <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+            <FileText size={20} />
+          </div>
+          <div>
+            <p className="line-clamp-2 break-words text-[11px] font-semibold leading-4 text-slate-900">{attachment.originalName}</p>
+            <p className="mt-1 text-[10px] text-slate-500">{formatAttachmentSize(attachment.size)}</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={attachment.url} alt="" className="h-full w-full object-cover" />
+        </>
+      )}
+      {attachment.status !== "ready" ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/85 px-2 text-center text-xs font-medium text-white backdrop-blur-[2px]">
+          {attachment.status === "uploading" || attachment.status === "parsing" ? (
+            <>
+              <Loader2 size={18} className="mb-2 animate-spin" />
+              {statusLabel}
+            </>
+          ) : (
+            <>
+              <TriangleAlert size={18} className="mb-2 shrink-0" />
+              <span className="line-clamp-3 break-words">{attachment.errorMessage || statusLabel}</span>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
+          {readyBadgeLabel}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black text-white shadow-sm transition-transform hover:scale-105"
+        aria-label={removeLabel}
+      >
+        <X size={14} />
+      </button>
+    </div>
+  )
 }
 
 type StepPreview = {
@@ -145,6 +253,14 @@ type RunDetail = {
   steps: StepPreview[]
 }
 
+type ActiveRunItem = {
+  id: string
+  conversationId: string
+  messageId: string
+  status: string
+  createdAt: string
+}
+
 type MessageItem = {
   id: string
   role: "user" | "assistant"
@@ -161,6 +277,38 @@ type MessageItem = {
   delegatedTargetUserId: string | null
   stepsPreview: StepPreview[]
   attachments: AttachmentItem[]
+  // Skills injected for this turn (real runtime state — from the persisted skill
+  // step on reload, or the live skills_resolved event during streaming).
+  activeSkills?: ActiveSkillItem[]
+  // Live progress of a long-document draft (writing chapter N/M, compiling…),
+  // shown during streaming so a long multi-round run doesn't look stuck.
+  draftProgress?: DraftProgress
+  // PDFs (or similar files) generated by tools during this run, surfaced live as
+  // download cards. The same files are also persisted as PDF attachments, which
+  // is what renders the card after reload.
+  generatedArtifacts?: GeneratedArtifact[]
+  // True when a leaked (text-format) tool call was auto-recovered for this message.
+  autoRecovered?: boolean
+}
+
+type ActiveSkillItem = { id: string; name: string; version: string; triggerReason: string }
+
+type DraftProgress = {
+  phase: "writing" | "compiling" | "done"
+  filledCount?: number
+  totalCount?: number
+  missing?: string[]
+  title?: string
+  sectionCount?: number
+  pdfPageCount?: number
+}
+
+type GeneratedArtifact = {
+  kind: string
+  uploadId?: string
+  filename?: string
+  downloadUrl: string
+  sizeBytes?: number
 }
 
 type UserConfigSummary = {
@@ -363,14 +511,36 @@ function compactJson(value: unknown) {
   }
 }
 
+// Best-effort reconstruction of long-document draft progress from persisted run
+// steps, so the task panel shows section counts even for a background run we
+// reconnected to (no live draft_progress events available).
+function deriveDraftFromSteps(steps: StepPreview[]): { filledCount?: number; totalCount?: number; phase?: string } | null {
+  for (let i = steps.length - 1; i >= 0; i -= 1) {
+    const data = (steps[i]?.outputPreview as { result?: { data?: Record<string, unknown> } } | undefined)?.result?.data
+    if (data && typeof data.totalCount === "number") {
+      return {
+        filledCount: typeof data.filledCount === "number" ? data.filledCount : undefined,
+        totalCount: data.totalCount,
+        phase: "writing",
+      }
+    }
+    if (data && typeof data.sectionCount === "number") {
+      return { filledCount: data.sectionCount as number, totalCount: data.sectionCount as number, phase: "done" }
+    }
+  }
+  return null
+}
+
 function statusChip(status: string) {
   if (status === "failed") return "border-red-200 bg-red-50 text-red-700"
+  if (status === "cancelled" || status === "cancelling") return "border-amber-200 bg-amber-50 text-amber-700"
   if (status === "running" || status === "streaming") return "border-blue-200 bg-blue-50 text-blue-700"
   return "border-emerald-200 bg-emerald-50 text-emerald-700"
 }
 
 function traceStatusLabel(dict: Dictionary, status: string) {
   if (status === "failed") return dict.ai.traceStatusFailed
+  if (status === "cancelled" || status === "cancelling") return dict.ai.traceStatusCancelled
   if (status === "running" || status === "streaming") return dict.ai.traceStatusRunning
   return dict.ai.traceStatusCompleted
 }
@@ -1178,6 +1348,46 @@ function normalizeStreamingMarkdown(source: string): string {
   return ticks % 2 !== 0 ? source + "\n```" : source
 }
 
+function GeneratedPdfCard({ artifact }: { artifact: GeneratedArtifact }) {
+  return (
+    <a
+      href={artifact.downloadUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="flex max-w-[440px] items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition-colors hover:bg-slate-50"
+    >
+      <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+        <FileText size={22} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-slate-950">{artifact.filename || "生成的文档.pdf"}</span>
+        <span className="mt-0.5 block text-xs text-slate-500">
+          PDF{typeof artifact.sizeBytes === "number" ? ` · ${formatAttachmentSize(artifact.sizeBytes)}` : ""}
+        </span>
+      </span>
+      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white">
+        <Download size={15} />
+      </span>
+    </a>
+  )
+}
+
+function draftProgressLabel(p: DraftProgress): string {
+  if (p.phase === "compiling") return "正在编译 PDF…"
+  if (p.phase === "done") {
+    const parts: string[] = []
+    if (typeof p.sectionCount === "number") parts.push(`${p.sectionCount} 章`)
+    if (typeof p.pdfPageCount === "number") parts.push(`${p.pdfPageCount} 页`)
+    // The card is published only when the run finishes (final version), so don't
+    // promise it here — an intermediate compile may still be revised.
+    return parts.length ? `本轮已编译：${parts.join(" · ")}，校验中…` : "本轮已编译，校验中…"
+  }
+  const done = p.filledCount ?? 0
+  const total = p.totalCount ?? 0
+  const next = p.missing && p.missing.length > 0 ? p.missing[0] : null
+  return `正在写入长文档… 已完成 ${done}/${total} 章${next ? ` · 正在写：${next}` : ""}`
+}
+
 function AssistantMessageCard({ message, run, dict }: { message: MessageItem; run?: RunDetail; dict: Dictionary }) {
   const steps = run?.steps?.length ? run.steps : message.stepsPreview
   const warnings = steps.filter((step) => step.type === "warning")
@@ -1186,6 +1396,33 @@ function AssistantMessageCard({ message, run, dict }: { message: MessageItem; ru
   const isStreaming = message.status === "streaming"
   const modelName = run?.finalModel || message.modelName
   const hasContent = Boolean(message.contentMarkdown?.trim())
+
+  // Download cards for tool-generated PDFs. Live runs emit `generatedArtifacts`;
+  // reopened conversations carry the same files as persisted PDF attachments.
+  // Merge both and dedupe by URL so a card shows during streaming and survives reload.
+  const pdfCards: GeneratedArtifact[] = (() => {
+    const seen = new Set<string>()
+    const cards: GeneratedArtifact[] = []
+    for (const artifact of message.generatedArtifacts ?? []) {
+      if (artifact.downloadUrl && !seen.has(artifact.downloadUrl)) {
+        seen.add(artifact.downloadUrl)
+        cards.push(artifact)
+      }
+    }
+    for (const attachment of message.attachments) {
+      if (isPdfAttachment(attachment) && attachment.url && !seen.has(attachment.url)) {
+        seen.add(attachment.url)
+        cards.push({
+          kind: "pdf",
+          uploadId: attachment.uploadId ?? undefined,
+          filename: attachment.originalName,
+          downloadUrl: attachment.url,
+          sizeBytes: attachment.size,
+        })
+      }
+    }
+    return cards
+  })()
   const displayMarkdown = isStreaming
     ? normalizeStreamingMarkdown(message.contentMarkdown ?? "")
     : (message.contentMarkdown ?? "")
@@ -1238,7 +1475,45 @@ function AssistantMessageCard({ message, run, dict }: { message: MessageItem; ru
               {dict.ai.toolCallsTimes(toolSteps.length)}
             </span>
           ) : null}
+          {message.autoRecovered ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-100"
+              title="模型把工具调用输出成了文本，已自动解析并执行"
+            >
+              <Wand2 size={12} />
+              已自动修复
+            </span>
+          ) : null}
+          {/* Real runtime skill-injection state (not the model's self-report) */}
+          {message.activeSkills ? (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ring-1",
+                message.activeSkills.length > 0
+                  ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                  : "bg-slate-50 text-slate-500 ring-slate-200",
+              )}
+              title={
+                message.activeSkills.length > 0
+                  ? message.activeSkills.map((s) => `${s.id}@${s.version} · ${s.triggerReason}`).join("\n")
+                  : "本轮未注入任何技能"
+              }
+            >
+              <Workflow size={12} />
+              {message.activeSkills.length > 0
+                ? `技能：${message.activeSkills.map((s) => `${s.name} v${s.version}·${s.triggerReason}`).join("，")}`
+                : "技能：无"}
+            </span>
+          ) : null}
         </div>
+
+        {/* Long-document draft progress — so a long multi-round run never looks stuck */}
+        {isStreaming && message.draftProgress ? (
+          <div className="flex items-center gap-2 rounded-[14px] bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 ring-1 ring-blue-100">
+            <Sparkles size={14} className="soulwing-status-spark" />
+            <span>{draftProgressLabel(message.draftProgress)}</span>
+          </div>
+        ) : null}
 
         {/* Warnings */}
         {warnings.length > 0 ? (
@@ -1270,6 +1545,16 @@ function AssistantMessageCard({ message, run, dict }: { message: MessageItem; ru
           <div className="flex items-center gap-2 py-2 text-sm font-medium text-slate-500">
             <ThinkingGlyph status="running" size="sm" />
             {dict.ai.generatingMessage}
+          </div>
+        ) : null}
+
+        {/* Files generated by tools (e.g. compiled PDF) — live during the run and
+            persisted as attachments so they survive reload. */}
+        {pdfCards.length > 0 ? (
+          <div className="flex flex-wrap gap-3">
+            {pdfCards.map((artifact) => (
+              <GeneratedPdfCard key={artifact.downloadUrl} artifact={artifact} />
+            ))}
           </div>
         ) : null}
       </div>
@@ -1821,6 +2106,8 @@ function SoulwingInspirationMotion({
               "soulwing-inspiration-butterfly-trigger",
               isExpanded && "is-expanded",
               suggestionsLoading && "is-loading",
+              motion === "opening" && "is-spitting",
+              motion === "closing" && "is-absorbing",
             )}
             onClick={onToggle}
             aria-expanded={isExpanded}
@@ -1898,8 +2185,15 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
   const dict = getDict()
   const [conversations, setConversations] = useState<ConversationItem[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [showLatexModal, setShowLatexModal] = useState(false)
+  const [latexConfig, setLatexConfig] = useState<LatexDocConfig | null>(null)
+  const [latexCatalogue, setLatexCatalogue] = useState<LatexCatalogue | null>(null)
   const [messages, setMessages] = useState<MessageItem[]>([])
   const [runsByMessageId, setRunsByMessageId] = useState<Record<string, RunDetail>>({})
+  // Currently-running runs across ALL conversations (for the global task panel).
+  const [activeRuns, setActiveRuns] = useState<ActiveRunItem[]>([])
+  // Ticks while any run is active so the panel's elapsed time updates live.
+  const [nowTick, setNowTick] = useState(() => Date.now())
   const [statusPayload, setStatusPayload] = useState<AIStatusResponse | null>(null)
   const [prompt, setPrompt] = useState("")
   const [suggestions, setSuggestions] = useState<string[]>([...DEFAULT_AI_SUGGESTIONS])
@@ -1908,6 +2202,7 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
   const [showMoreInspirations, setShowMoreInspirations] = useState(false)
   const [inspirationMotion, setInspirationMotion] = useState<InspirationMotion>("idle")
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([])
+  const [attachmentDropActive, setAttachmentDropActive] = useState(false)
   const [requestMessage, setRequestMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -1938,6 +2233,19 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
   const desktopPromptInputRef = useRef<HTMLTextAreaElement | null>(null)
   const mobilePromptInputRef = useRef<HTMLTextAreaElement | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  // True only when the user explicitly pressed stop (so the AbortError handler
+  // marks the message cancelled). A switch-away abort leaves this false → the run
+  // is merely released to keep running in the background.
+  const stopRequestedRef = useRef(false)
+  // The server message id THIS client is actively live-streaming (null when not
+  // streaming or after navigating away). Used to keep the live message from being
+  // clobbered by a reload, and to decide which running messages need polling.
+  const liveMessageIdRef = useRef<string | null>(null)
+  // The server message id this client is following via the resume-stream
+  // subscriber (a run started elsewhere / before a switch). Like liveMessageIdRef,
+  // its in-memory content is ahead of the server's throttled partial, so
+  // loadMessages must not clobber it until the run finalizes.
+  const followMessageIdRef = useRef<string | null>(null)
   const inspirationMotionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inspirationAutoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const conversationGroups = useMemo(() => groupConversationsByRecency(dict, conversations), [dict, conversations])
@@ -1954,6 +2262,85 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
   function openAttachmentPicker() {
     setActionMenuOpen(false)
     attachmentInputRef.current?.click()
+  }
+
+  function buildDefaultLatexConfig(catalogue: LatexCatalogue): LatexDocConfig {
+    const first = catalogue.templates[0]
+    return {
+      templateId: first?.id ?? "academic-paper",
+      theme: first?.suggestedTheme ?? "academic-classic",
+      palette: "royal",
+      cover: false,
+      toc: true,
+      headerFooter: true,
+      fontSize: 11,
+      margin: "normal",
+      lineSpacing: "normal",
+      cjkFont: "auto",
+      paragraphStyle: "indent",
+      paperSize: "a4",
+      title: "",
+      subtitle: "",
+      author: "",
+      date: "",
+      ...(first?.defaults ?? {}),
+    }
+  }
+
+  async function openLatexModal() {
+    setActionMenuOpen(false)
+    try {
+      const res = await fetch(`/api/latex-config?conversationId=${activeConversationId ?? ""}`)
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data) throw new Error("加载模板失败")
+      const catalogue: LatexCatalogue = { templates: data.templates ?? [], themes: data.themes ?? [], palettes: data.palettes ?? [] }
+      setLatexCatalogue(catalogue)
+      setLatexConfig((data.config as LatexDocConfig | null) ?? buildDefaultLatexConfig(catalogue))
+      setShowLatexModal(true)
+    } catch {
+      toast.error("加载模板失败")
+    }
+  }
+
+  function hasFileTransfer(event: ReactDragEvent<HTMLElement>) {
+    return Array.from(event.dataTransfer.types).includes("Files")
+  }
+
+  function handleAttachmentInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.currentTarget.files ?? [])
+    event.currentTarget.value = ""
+    if (files.length === 0) return
+    void handleAttachmentFiles(files)
+  }
+
+  function handleAttachmentDragEnter(event: ReactDragEvent<HTMLElement>) {
+    if (!hasFileTransfer(event)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "copy"
+    setAttachmentDropActive(true)
+  }
+
+  function handleAttachmentDragOver(event: ReactDragEvent<HTMLElement>) {
+    if (!hasFileTransfer(event)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "copy"
+    setAttachmentDropActive(true)
+  }
+
+  function handleAttachmentDragLeave(event: ReactDragEvent<HTMLElement>) {
+    if (!hasFileTransfer(event)) return
+    const relatedTarget = event.relatedTarget
+    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) return
+    setAttachmentDropActive(false)
+  }
+
+  function handleAttachmentDrop(event: ReactDragEvent<HTMLElement>) {
+    if (!hasFileTransfer(event)) return
+    event.preventDefault()
+    setAttachmentDropActive(false)
+    const files = Array.from(event.dataTransfer.files ?? [])
+    if (files.length === 0) return
+    void handleAttachmentFiles(files)
   }
 
   function openQuickModelMenu() {
@@ -2017,14 +2404,18 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
       return serverItems.map((server) => {
         const local = prevMap.get(server.id)
         if (!local) return server
-        // If local message was streaming and now server says completed, merge
-        if (local.status === "streaming" && server.status === "completed") {
-          return {
-            ...server,
-            // Preserve locally-built stepsPreview which have correct types from SSE events
-            stepsPreview: local.stepsPreview.length > 0 ? local.stepsPreview : server.stepsPreview,
+        // Keep the message THIS client is actively live-streaming: its in-memory
+        // content/trace is ahead of the server's throttled partial. Only adopt the
+        // server copy once the run is truly finished.
+        if ((liveMessageIdRef.current === server.id || followMessageIdRef.current === server.id) && local.status === "streaming") {
+          if (server.status === "completed" || server.status === "failed" || server.status === "cancelled") {
+            return { ...server, stepsPreview: local.stepsPreview.length > 0 ? local.stepsPreview : server.stepsPreview }
           }
+          return local
         }
+        // Everything else adopts the server copy — including a run we navigated
+        // away from or reloaded into: the persisted partial content shows and
+        // grows until the run finalizes.
         return server
       })
     })
@@ -2032,6 +2423,217 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
     const assistants = serverItems.filter((item) => item.role === "assistant" && item.runId)
     await Promise.all(assistants.map((item) => loadRun(item.id)))
   }
+
+  // A run is in progress in the viewed conversation that THIS client is NOT live-
+  // streaming (navigated away & back, page reload, or a disconnected stream).
+  // Skipped while actively sending — the live reader owns the stream then.
+  const followTargetId = useMemo(() => {
+    if (sending) return null
+    const target = messages.find((m) =>
+      m.role === "assistant" &&
+      (m.status === "streaming" || m.runStatus === "running") &&
+      liveMessageIdRef.current !== m.id &&
+      !m.id.startsWith("local-"))
+    return target?.id ?? null
+  }, [messages, sending])
+
+  // Resume streaming on return: re-attach to the still-running run via the
+  // subscriber SSE (snapshot of content so far, then live deltas) so coming back
+  // to a conversation keeps streaming — not a 2.5s poll. Falls back to polling if
+  // there's no in-process producer (e.g. after a server restart) or on error.
+  useEffect(() => {
+    if (!followTargetId || !activeConversationId) return
+    const messageId = followTargetId
+    const conv = activeConversationId
+    let es: EventSource | null = null
+    let pollTimer: ReturnType<typeof setInterval> | null = null
+    let stopped = false
+
+    const startPolling = () => {
+      if (pollTimer || stopped) return
+      // In polling mode the server copy IS the source of truth — release the merge
+      // protection so loadMessages' growing partial content shows.
+      followMessageIdRef.current = null
+      pollTimer = setInterval(() => { void loadMessages(conv).catch(() => undefined) }, 2500)
+    }
+    const teardown = () => {
+      stopped = true
+      followMessageIdRef.current = null
+      es?.close(); es = null
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+    }
+    const reconcileAndStop = (status: "completed" | "failed" | "cancelled") => {
+      // The streamed (snapshot + deltas) content is already the final content, so
+      // just mark the status and refresh the run detail — do NOT reload messages,
+      // which could race finalizeAssistantMessage and replace the complete content
+      // with the server's throttled partial.
+      patchAssistantMessage(messageId, (item) => ({ ...item, status, runStatus: status }))
+      finalizeMessageSteps(messageId, status === "failed")
+      void loadRun(messageId).catch(() => undefined)
+      teardown()
+    }
+
+    const applyStep = (name: string, payload: Record<string, unknown> | null, completed: boolean) => {
+      const derivedType = name.startsWith("reasoning") ? "reasoning"
+        : name.startsWith("tool_call") ? "tool_call"
+        : name.startsWith("assistant") ? "assistant_output"
+        : "warning"
+      const explicit = payload?.status as string | undefined
+      const status = explicit === "completed" ? "completed"
+        : explicit === "failed" ? "failed"
+        : completed ? (name.endsWith("failed") ? "failed" : "completed") : "running"
+      upsertStep(messageId, {
+        id: (payload?.stepId as string) ?? crypto.randomUUID(),
+        type: (payload?.type as string) || derivedType,
+        title: (payload?.title as string) ?? dict.ai.stepKindPhase,
+        status: status as "running" | "completed" | "failed",
+        startedAt: (payload?.startedAt as string) ?? new Date().toISOString(),
+        finishedAt: (payload?.finishedAt as string) ?? (completed ? new Date().toISOString() : null),
+        summary: (payload?.summary as string) ?? "",
+        errorMessage: (payload?.errorMessage as string) ?? "",
+        inputPreview: payload?.inputPreview,
+        outputPreview: payload?.outputPreview,
+        providerMetadata: (payload?.providerMetadata as Record<string, unknown>) ?? null,
+      })
+    }
+
+    const apply = (name: string, payload: Record<string, unknown> | null) => {
+      switch (name) {
+        case "snapshot":
+          patchAssistantMessage(messageId, (item) => ({
+            ...item,
+            status: "streaming",
+            runStatus: "running",
+            contentMarkdown: typeof payload?.contentMarkdown === "string" ? (payload.contentMarkdown as string) : item.contentMarkdown,
+            draftProgress: (payload?.draftProgress as DraftProgress) ?? item.draftProgress,
+          }))
+          break
+        case "assistant_delta":
+          patchAssistantMessage(messageId, (item) => ({ ...item, contentMarkdown: item.contentMarkdown + ((payload?.delta as string) ?? "") }))
+          break
+        case "reasoning_delta":
+          patchAssistantMessage(messageId, (item) => ({ ...item, reasoningSummary: `${item.reasoningSummary}${(payload?.delta as string) ?? ""}`.trim() }))
+          break
+        case "draft_progress":
+          if (payload?.phase) patchAssistantMessage(messageId, (item) => ({ ...item, draftProgress: payload as DraftProgress }))
+          break
+        case "skills_resolved":
+          patchAssistantMessage(messageId, (item) => ({ ...item, activeSkills: Array.isArray(payload?.activeSkills) ? (payload.activeSkills as ActiveSkillItem[]) : item.activeSkills }))
+          break
+        case "assistant_recovered":
+          patchAssistantMessage(messageId, (item) => ({ ...item, autoRecovered: true }))
+          break
+        case "latex_config_updated":
+          if (payload?.config) setLatexConfig(payload.config as LatexDocConfig)
+          break
+        case "assistant_artifact": {
+          const downloadUrl = payload?.downloadUrl as string | undefined
+          if (!downloadUrl) break
+          patchAssistantMessage(messageId, (item) => {
+            const existing = item.generatedArtifacts ?? []
+            if (existing.some((entry) => entry.downloadUrl === downloadUrl)) return item
+            return {
+              ...item,
+              generatedArtifacts: [...existing, {
+                kind: (payload?.kind as string) ?? "pdf",
+                uploadId: payload?.uploadId as string | undefined,
+                filename: payload?.filename as string | undefined,
+                downloadUrl,
+                sizeBytes: typeof payload?.sizeBytes === "number" ? (payload.sizeBytes as number) : undefined,
+              }],
+            }
+          })
+          break
+        }
+        case "reasoning_started":
+        case "tool_call_started":
+        case "assistant_started":
+        case "capability_warning":
+          applyStep(name, payload, false)
+          break
+        case "reasoning_completed":
+        case "tool_call_completed":
+        case "tool_call_failed":
+        case "assistant_completed":
+          applyStep(name, payload, true)
+          break
+        default:
+          break
+      }
+    }
+
+    // Baseline trace (steps so far), then attach to the live stream.
+    void loadRun(messageId).catch(() => undefined)
+
+    try {
+      es = new EventSource(`/api/ai/runs/${messageId}/stream`)
+    } catch {
+      startPolling()
+    }
+
+    if (es) {
+      // SSE active: protect the followed message's in-memory content from being
+      // clobbered by a stray loadMessages until the run finalizes.
+      followMessageIdRef.current = messageId
+      const liveEvents = [
+        "snapshot", "assistant_delta", "reasoning_delta", "draft_progress", "skills_resolved",
+        "assistant_artifact", "latex_config_updated", "assistant_recovered",
+        "reasoning_started", "tool_call_started", "assistant_started", "capability_warning",
+        "reasoning_completed", "tool_call_completed", "tool_call_failed", "assistant_completed",
+      ]
+      for (const name of liveEvents) {
+        es.addEventListener(name, (event) => {
+          let payload: Record<string, unknown> | null = null
+          try { payload = JSON.parse((event as MessageEvent).data) } catch { /* ignore */ }
+          apply(name, payload)
+        })
+      }
+      es.addEventListener("stream_unavailable", () => { es?.close(); es = null; startPolling() })
+      es.addEventListener("run_completed", () => reconcileAndStop("completed"))
+      es.addEventListener("run_failed", () => reconcileAndStop("failed"))
+      es.addEventListener("run_cancelled", () => reconcileAndStop("cancelled"))
+      es.onerror = () => {
+        // Transient error or server closed without a terminal event — downgrade to
+        // polling so the run is still followed to completion.
+        es?.close(); es = null
+        startPolling()
+      }
+    }
+
+    return () => { teardown() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [followTargetId, activeConversationId])
+
+  // Poll the user's currently-running runs across ALL conversations so the global
+  // task panel can show progress and offer a jump-back even from another chat.
+  const loadActiveRuns = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai/runs/active", { cache: "no-store" })
+      if (!res.ok) return
+      const data = await res.json().catch(() => null)
+      const runs: ActiveRunItem[] = Array.isArray(data?.runs) ? data.runs : []
+      setActiveRuns(runs)
+      // Pull step details for runs we're not already tracking, so the panel can
+      // show tool-call count / draft progress even for a background conversation.
+      await Promise.all(runs.map((run) => loadRun(run.messageId).catch(() => undefined)))
+    } catch {
+      /* polling failure is non-fatal */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    void loadActiveRuns()
+    const timer = setInterval(() => { void loadActiveRuns() }, 2500)
+    return () => clearInterval(timer)
+  }, [loadActiveRuns])
+
+  // Live elapsed-time clock — only runs while a task is active.
+  useEffect(() => {
+    if (activeRuns.length === 0) return
+    const timer = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [activeRuns.length])
 
   async function bootstrap() {
     setLoading(true)
@@ -2244,26 +2846,80 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
       uploadId: data?.id ?? null,
       url: data?.url ?? "",
       originalName: data?.originalName ?? file.name,
-      mimeType: file.type,
+      mimeType: data?.mimeType ?? file.type,
       size: file.size,
+      pdfDocumentId: data?.pdfDocumentId ?? null,
+      parseStatus: data?.parseStatus ?? null,
       status: "ready" as const,
     }
   }
 
+  // Trigger PDF parsing (server runs it off the request thread) and poll the
+  // status until it reaches a terminal state, keeping the card badge and the
+  // composer send-gate in sync. The HTTP requests here are all fast.
+  async function startPdfParse(attachment: ComposerAttachment) {
+    const documentId = attachment.pdfDocumentId
+    if (!documentId) return
+
+    await fetch(`/api/pdf-documents/${documentId}/parse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force: false }),
+    }).catch(() => {
+      // Trigger failure is non-fatal; polling below still reflects server state.
+    })
+
+    const patch = (next: Partial<ComposerAttachment>) => {
+      setAttachments((current) => current.map((item) => item.id === attachment.id ? { ...item, ...next } : item))
+    }
+
+    const deadline = Date.now() + 5 * 60 * 1000
+    while (Date.now() < deadline) {
+      let status: string | undefined
+      let errorMessage = ""
+      try {
+        const response = await fetch(`/api/pdf-documents/${documentId}`)
+        const data = await response.json().catch(() => null)
+        status = data?.document?.status as string | undefined
+        errorMessage = (data?.document?.errorMessage as string | undefined) || ""
+      } catch {
+        // transient network error; keep polling
+      }
+
+      if (status === "completed") {
+        patch({ parseStatus: status, status: "ready" })
+        return
+      }
+      if (status === "failed") {
+        patch({ parseStatus: status, status: "failed", errorMessage: errorMessage || "PDF 解析失败，请重新上传。" })
+        return
+      }
+      patch({ parseStatus: status ?? "processing", status: "parsing" })
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+    }
+
+    // Parsing is taking unusually long; let the user send anyway. If chunks are
+    // not ready yet, the assistant will say the file is still being parsed.
+    patch({ status: "ready" })
+  }
+
   async function handleAttachmentFiles(files: File[]) {
     if (files.length === 0) return
-    const imageFiles = files.filter((file) => file.type.startsWith("image/"))
-    if (imageFiles.length === 0) {
+    const acceptedFiles = files.filter((file) => file.type.startsWith("image/") || file.type === "application/pdf" || /\.pdf$/i.test(file.name))
+    if (acceptedFiles.length === 0) {
       toast.error(dict.ai.imageUploadFailed)
       return
     }
+    if (acceptedFiles.length < files.length) {
+      toast.error("Only images and PDF files are supported")
+    }
 
-    const localItems: ComposerAttachment[] = imageFiles.map((file) => ({
+    const localItems: ComposerAttachment[] = acceptedFiles.map((file) => ({
       id: `local-${crypto.randomUUID()}`,
       uploadId: null,
-      url: URL.createObjectURL(file),
+      url: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
       originalName: file.name,
-      mimeType: file.type,
+      mimeType: file.type || (/\.pdf$/i.test(file.name) ? "application/pdf" : ""),
       size: file.size,
       status: "uploading",
     }))
@@ -2271,16 +2927,30 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
     setAttachments((current) => [...current, ...localItems])
 
     await Promise.all(localItems.map(async (localItem, index) => {
-      const file = imageFiles[index]
+      const file = acceptedFiles[index]
+      let currentAttachmentId = localItem.id
       try {
         const uploaded = await uploadAttachment(file)
-        URL.revokeObjectURL(localItem.url)
-        setAttachments((current) => current.map((item) => item.id === localItem.id ? uploaded : item))
+        if (localItem.url) URL.revokeObjectURL(localItem.url)
+        currentAttachmentId = uploaded.id
+        // A PDF stays "parsing" until the background parse reaches a terminal
+        // state, so the user cannot send (and get a false "解析失败") before the
+        // content is actually readable. Parsing runs server-side off the request
+        // thread; the UI polls for status.
+        const uploadedItem: ComposerAttachment = isPdfAttachment(uploaded) ? { ...uploaded, status: "parsing" } : uploaded
+        setAttachments((current) => current.map((item) => item.id === localItem.id ? uploadedItem : item))
+
+        if (isPdfAttachment(uploadedItem)) {
+          void startPdfParse(uploadedItem)
+        }
       } catch (error) {
-        setAttachments((current) => current.map((item) => item.id === localItem.id ? {
+        if (localItem.url) URL.revokeObjectURL(localItem.url)
+        const code = error instanceof Error ? error.message : ""
+        const friendly = uploadErrorMessage(code, isPdfAttachment(localItem))
+        setAttachments((current) => current.map((item) => item.id === currentAttachmentId || item.id === localItem.id ? {
           ...item,
           status: "failed",
-          errorMessage: error instanceof Error ? error.message : dict.ai.imageUploadFailed,
+          errorMessage: friendly,
         } : item))
       }
     }))
@@ -2302,6 +2972,20 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
     })
   }
 
+  // When a run reaches a terminal state, force any step still marked "running" to a
+  // terminal status, so the trace never keeps showing "正在推理 / 正在调用工具" on a
+  // finished message (e.g. a reasoning step whose completion event was missed).
+  function finalizeMessageSteps(messageId: string, failed: boolean) {
+    patchAssistantMessage(messageId, (item) => ({
+      ...item,
+      stepsPreview: item.stepsPreview.map((step) =>
+        step.status === "running"
+          ? { ...step, status: failed ? "failed" : "completed", finishedAt: step.finishedAt ?? new Date().toISOString() }
+          : step,
+      ),
+    }))
+  }
+
   const providerLabel = statusPayload?.status.config?.providerLabel ?? statusPayload?.userConfig?.providerLabel ?? ""
   const configuredModelName = statusPayload?.status.config?.model ?? statusPayload?.userConfig?.model ?? ""
   const activeBaseUrl = statusPayload?.status.config?.baseUrl ?? statusPayload?.userConfig?.baseUrl ?? ""
@@ -2314,8 +2998,9 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
   const featuredSuggestions = visibleSuggestions.slice(0, 3)
   const secondarySuggestions = visibleSuggestions.slice(3)
   const hasUploadingAttachments = attachments.some((attachment) => attachment.status === "uploading")
+  const hasParsingAttachments = attachments.some((attachment) => attachment.status === "parsing")
   const hasFailedAttachments = attachments.some((attachment) => attachment.status === "failed")
-  const canSubmitComposer = !sending && !hasUploadingAttachments && !hasFailedAttachments && (prompt.trim().length > 0 || attachments.length > 0)
+  const canSubmitComposer = !sending && !hasUploadingAttachments && !hasParsingAttachments && !hasFailedAttachments && (prompt.trim().length > 0 || attachments.length > 0)
 
   function clearInspirationTimers() {
     if (inspirationMotionTimerRef.current) {
@@ -2524,22 +3209,54 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
     saveModelCatalog(providerLabel, activeBaseUrl, availableModels, nextModel)
   }
 
+  // Real stop: tell the server to cancel the run (so the agent loop stops
+  // generating / calling tools / compiling PDFs at its next checkpoint), then
+  // abort the local fetch for instant UI feedback. Aborting alone would only
+  // close the stream while the backend kept running.
+  function cancelRunOnServer(messageId: string | null | undefined) {
+    if (!messageId || messageId.startsWith("local-")) return
+    void fetch(`/api/ai/runs/${messageId}/cancel`, { method: "POST" }).catch(() => undefined)
+  }
+
   function stopGeneration() {
+    stopRequestedRef.current = true
+    cancelRunOnServer(liveMessageIdRef.current)
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
     }
   }
 
+  // Switching conversations must not stop a running task. If this client is
+  // live-streaming, release local ownership (abort the reader WITHOUT a server
+  // cancel) so `sending` resets and the composer is usable in the target
+  // conversation. The run keeps going server-side; the polling effect follows it
+  // and the global task panel offers a jump back.
+  function switchConversation(conversationId: string, options?: { closeMobilePanel?: boolean }) {
+    setSidebarUserMenuOpen(false)
+    if (conversationId !== activeConversationId && sendingRef.current && abortControllerRef.current) {
+      // stopRequestedRef stays false → AbortError handler treats this as a release.
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    setActiveConversationId(conversationId)
+    if (options?.closeMobilePanel) setMobilePanel(null)
+    void loadMessages(conversationId)
+  }
+
   async function sendPrompt(nextPrompt?: string) {
     const text = (nextPrompt ?? prompt).trim()
     if ((!text && attachments.length === 0) || sending) return
     if (attachments.some((attachment) => attachment.status === "uploading")) {
-      toast.info("图片还在上传，上传完成后再发送。")
+      toast.info("附件还在上传，完成后再发送。")
+      return
+    }
+    if (attachments.some((attachment) => attachment.status === "parsing")) {
+      toast.info("PDF 还在解析，完成后再发送。")
       return
     }
     if (attachments.some((attachment) => attachment.status === "failed")) {
-      toast.error("有图片上传失败，请删除后重新上传。")
+      toast.error("有附件处理失败，请删除后重新上传。")
       return
     }
 
@@ -2580,6 +3297,8 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
       originalName: attachment.originalName,
       mimeType: attachment.mimeType,
       size: attachment.size,
+      pdfDocumentId: attachment.pdfDocumentId ?? null,
+      parseStatus: attachment.parseStatus ?? null,
     }))
 
     setMessages((current) => [
@@ -2626,6 +3345,11 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
     // Create abort controller for stopping generation
     const controller = new AbortController()
     abortControllerRef.current = controller
+    // True once the SSE stream is open: a later error is a mid-stream disconnect
+    // (run continues server-side) rather than a send failure.
+    let streamStarted = false
+    // Hoisted so the catch can recover via the right conversation.
+    let resolvedConversationId = activeConversationId
 
     try {
       const res = await fetch("/api/ai/stream", {
@@ -2647,8 +3371,8 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
+      streamStarted = true
       let buffer = ""
-      let resolvedConversationId = activeConversationId
 
       const appendAssistantDelta = (delta: string) => {
         if (!delta) return
@@ -2716,6 +3440,7 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                 runId: (payload?.runId as string) ?? item.runId,
               }))
               currentAssistantId = serverMsgId
+              liveMessageIdRef.current = serverMsgId
             }
             if (serverConvId) {
               resolvedConversationId = serverConvId
@@ -2732,6 +3457,54 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
 
           // ── token event: ignored — content is already handled by assistant_delta ──
           if (eventName === "token") {
+            continue
+          }
+
+          // ── assistant_artifact: a tool-generated file (e.g. compiled PDF) ──
+          if (eventName === "assistant_artifact") {
+            const downloadUrl = payload?.downloadUrl as string | undefined
+            if (downloadUrl) {
+              const artifact: GeneratedArtifact = {
+                kind: (payload?.kind as string) ?? "pdf",
+                uploadId: payload?.uploadId as string | undefined,
+                filename: payload?.filename as string | undefined,
+                downloadUrl,
+                sizeBytes: typeof payload?.sizeBytes === "number" ? (payload.sizeBytes as number) : undefined,
+              }
+              patchAssistantMessage(currentAssistantId, (item) => {
+                const existing = item.generatedArtifacts ?? []
+                if (existing.some((entry) => entry.downloadUrl === downloadUrl)) return item
+                return { ...item, generatedArtifacts: [...existing, artifact] }
+              })
+            }
+            continue
+          }
+
+          // ── skills_resolved: real runtime record of injected skills this turn ──
+          if (eventName === "skills_resolved") {
+            const activeSkills = Array.isArray(payload?.activeSkills) ? (payload.activeSkills as ActiveSkillItem[]) : []
+            patchAssistantMessage(currentAssistantId, (item) => ({ ...item, activeSkills }))
+            continue
+          }
+
+          // ── draft_progress: long-document chapter writing / compiling progress ──
+          if (eventName === "draft_progress") {
+            const progress = payload as DraftProgress | null
+            if (progress?.phase) {
+              patchAssistantMessage(currentAssistantId, (item) => ({ ...item, draftProgress: progress }))
+            }
+            continue
+          }
+
+          // ── assistant_recovered: a leaked text tool call was auto-recovered ──
+          if (eventName === "assistant_recovered") {
+            patchAssistantMessage(currentAssistantId, (item) => ({ ...item, autoRecovered: true }))
+            continue
+          }
+
+          // ── latex_config_updated: 蝶灵 changed the PDF doc config (two-way sync) ──
+          if (eventName === "latex_config_updated") {
+            if (payload?.config) setLatexConfig(payload.config as LatexDocConfig)
             continue
           }
 
@@ -2808,6 +3581,24 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
               runId: (payload?.runId as string) ?? item.runId,
               modelName: (payload?.model as string) ?? item.modelName,
             }))
+            finalizeMessageSteps(currentAssistantId, false)
+            continue
+          }
+
+          // ── run_cancelled: server stopped the run at a checkpoint ──
+          if (eventName === "run_cancelled") {
+            patchAssistantMessage(currentAssistantId, (item) => ({
+              ...item,
+              status: "cancelled",
+              runStatus: "cancelled",
+              runId: (payload?.runId as string) ?? item.runId,
+              contentMarkdown: (() => {
+                const base = (payload?.contentMarkdown as string) || item.contentMarkdown
+                if (!base) return dict.ai.runStoppedNote
+                return base.includes(dict.ai.runStoppedNote) ? base : `${base}\n\n${dict.ai.runStoppedNote}`
+              })(),
+            }))
+            finalizeMessageSteps(currentAssistantId, false)
             continue
           }
 
@@ -2819,6 +3610,7 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
               runStatus: "failed",
               contentMarkdown: item.contentMarkdown || ((payload?.message as string) ?? dict.ai.generateFailedRetry),
             }))
+            finalizeMessageSteps(currentAssistantId, true)
           }
         }
       }
@@ -2832,12 +3624,34 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
-        // User stopped generation — mark message as completed with current content
-        patchAssistantMessage(currentAssistantId, (item) => ({
-          ...item,
-          status: "completed",
-          runStatus: "completed",
-        }))
+        if (stopRequestedRef.current) {
+          // User stopped generation. The server cancel was already requested in
+          // stopGeneration; reflect it locally (keep partial content) instead of
+          // pretending it completed.
+          patchAssistantMessage(currentAssistantId, (item) => ({
+            ...item,
+            status: "cancelled",
+            runStatus: "cancelled",
+            contentMarkdown: item.contentMarkdown
+              ? (item.contentMarkdown.includes(dict.ai.runStoppedNote)
+                  ? item.contentMarkdown
+                  : `${item.contentMarkdown}\n\n${dict.ai.runStoppedNote}`)
+              : dict.ai.runStoppedNote,
+          }))
+          finalizeMessageSteps(currentAssistantId, false)
+        } else {
+          // Released on conversation switch — the run keeps running server-side;
+          // drop live ownership so the polling effect follows it to completion.
+          liveMessageIdRef.current = null
+          toast.info(dict.ai.runReleasedBackground)
+        }
+      } else if (streamStarted) {
+        // Mid-stream disconnect (network drop, navigated away, etc.). The run keeps
+        // running and persisting server-side — release live ownership so the
+        // polling effect follows it to completion (in whichever conversation is
+        // viewed) instead of marking it failed.
+        liveMessageIdRef.current = null
+        toast.info("连接中断，已在后台继续生成，稍候自动恢复。")
       } else {
         patchAssistantMessage(currentAssistantId, (item) => ({
           ...item,
@@ -2849,6 +3663,8 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
       }
     } finally {
       abortControllerRef.current = null
+      liveMessageIdRef.current = null
+      stopRequestedRef.current = false
       setSending(false)
     }
   }
@@ -2859,6 +3675,61 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
     [activeConversationId, conversations],
   )
   const isEmptyConversation = messages.length === 0
+
+  // The single most-relevant LIVE task for the global panel (most recent that is
+  // still making progress). Runs whose step activity went quiet are treated as
+  // orphaned (e.g. the server died mid-run, leaving the row stuck at "running")
+  // and skipped — so the bubble only shows when a task is genuinely running.
+  const RUN_STALE_MS = 180_000
+  const activeTask = useMemo<{ run: ActiveRunItem; data: RunStatusPanelData } | null>(() => {
+    for (const run of activeRuns) {
+      const steps = runsByMessageId[run.messageId]?.steps ?? []
+      const lastActivity = steps.reduce(
+        (max, step) => Math.max(max, new Date(step.finishedAt ?? step.startedAt).getTime()),
+        new Date(run.createdAt).getTime(),
+      )
+      if (nowTick - lastActivity > RUN_STALE_MS) continue // orphaned/stale — skip
+
+      const toolCount = steps.filter((step) => step.type === "tool_call").length
+      const liveDraft = messages.find((m) => m.id === run.messageId)?.draftProgress
+      const draft = liveDraft ?? deriveDraftFromSteps(steps) ?? undefined
+      const phase = draft?.phase ?? "thinking"
+      const phaseLabel =
+        phase === "writing" ? dict.ai.taskPanelPhaseWriting
+        : phase === "compiling" ? dict.ai.taskPanelPhaseCompiling
+        : phase === "done" ? dict.ai.traceStatusCompleted
+        : dict.ai.taskPanelPhaseThinking
+      return {
+        run,
+        data: {
+          status: run.status,
+          phaseLabel,
+          toolCount,
+          filledCount: draft?.filledCount,
+          totalCount: draft?.totalCount,
+          durationMs: Math.max(0, nowTick - new Date(run.createdAt).getTime()),
+          isCurrentConversation: run.conversationId === activeConversationId,
+        },
+      }
+    }
+    return null
+  }, [activeRuns, runsByMessageId, messages, nowTick, activeConversationId, dict])
+
+  function jumpToActiveTask() {
+    if (!activeTask) return
+    switchConversation(activeTask.run.conversationId)
+  }
+
+  function stopActiveTask() {
+    if (!activeTask) return
+    // If it's the run THIS client is live-streaming, use the full stop path
+    // (cancel + abort). Otherwise just request server cancel.
+    if (liveMessageIdRef.current === activeTask.run.messageId) {
+      stopGeneration()
+    } else {
+      cancelRunOnServer(activeTask.run.messageId)
+    }
+  }
 
   const renderComposer = (placement: "empty" | "dock") => {
     const isInlineComposer = placement === "empty"
@@ -2876,55 +3747,22 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
           <input
             ref={attachmentInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,application/pdf,.pdf"
             multiple
             className="hidden"
-            onChange={async (event) => {
-              const files = Array.from(event.target.files ?? [])
-              event.currentTarget.value = ""
-              if (files.length === 0) return
-              void handleAttachmentFiles(files)
-            }}
+            onChange={handleAttachmentInputChange}
           />
 
           {attachments.length > 0 ? (
             <div className="pb-3">
               <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {attachments.map((attachment, index) => (
-                  <div
+                  <ComposerAttachmentCard
                     key={attachment.id}
-                    className="group relative flex h-[104px] w-[104px] shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#eef2ff] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={attachment.url} alt="" className="h-full w-full object-cover" />
-                    {attachment.status !== "ready" ? (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/45 text-xs font-medium text-white">
-                        {attachment.status === "uploading" ? (
-                          <>
-                            <Loader2 size={18} className="mb-2 animate-spin" />
-                            上传中
-                          </>
-                        ) : (
-                          <>
-                            <TriangleAlert size={18} className="mb-2" />
-                            上传失败
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
-                        已就绪
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                      className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black text-white shadow-sm transition-transform hover:scale-105"
-                      aria-label={dict.ai.removeImage}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
+                    attachment={attachment}
+                    removeLabel={dict.ai.removeImage}
+                    onRemove={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                  />
                 ))}
               </div>
             </div>
@@ -3012,7 +3850,7 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                   className="inline-flex h-11 items-center gap-2 rounded-[16px] px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-600"
                 >
                   <ImageIcon size={18} />
-                  图片上传
+                  附件上传
                 </button>
                 <button
                   type="button"
@@ -3021,6 +3859,14 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                 >
                   <SlidersHorizontal size={18} />
                   切换模型
+                </button>
+                <button
+                  type="button"
+                  onClick={openLatexModal}
+                  className="inline-flex h-11 items-center gap-2 rounded-[16px] px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                >
+                  <LayoutTemplate size={18} />
+                  PDF 模板
                 </button>
               </div>
             ) : null}
@@ -3149,7 +3995,29 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
 
   return (
     <>
-      <div className="grid h-full min-h-0 grid-cols-1 gap-0 lg:grid-cols-[292px_minmax(0,1fr)] lg:gap-4">
+      {activeTask && !activeTask.data.isCurrentConversation ? (
+        <RunStatusPanel
+          dict={dict}
+          data={activeTask.data}
+          onJump={jumpToActiveTask}
+          onStop={stopActiveTask}
+        />
+      ) : null}
+      <div
+        className="relative grid h-full min-h-0 grid-cols-1 gap-0 lg:grid-cols-[292px_minmax(0,1fr)] lg:gap-4"
+        onDragEnter={handleAttachmentDragEnter}
+        onDragOver={handleAttachmentDragOver}
+        onDragLeave={handleAttachmentDragLeave}
+        onDrop={handleAttachmentDrop}
+      >
+        {attachmentDropActive ? (
+          <div className="pointer-events-none absolute inset-0 z-[80] flex items-center justify-center rounded-[24px] border-2 border-dashed border-blue-400 bg-blue-500/10 text-blue-700 backdrop-blur-[2px]">
+            <div className="inline-flex items-center gap-3 rounded-full bg-white/95 px-5 py-3 text-sm font-semibold shadow-[0_18px_50px_rgba(37,99,235,0.18)]">
+              <ImageIcon size={18} />
+              <span>松开上传附件</span>
+            </div>
+          </div>
+        ) : null}
         <aside className="soulwing-conversation-sidebar hidden min-h-0 overflow-hidden rounded-[20px] border border-slate-200/75 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.055)] lg:flex lg:flex-col">
           <div className="soulwing-sidebar-brand">
             <span className="soulwing-sidebar-brand-mark">
@@ -3217,11 +4085,7 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                               <button
                                 type="button"
                                 className="soulwing-sidebar-chat-main"
-                                onClick={() => {
-                                  setSidebarUserMenuOpen(false)
-                                  void loadMessages(conversation.id)
-                                  setActiveConversationId(conversation.id)
-                                }}
+                                onClick={() => switchConversation(conversation.id)}
                               >
                                 <span className="flex min-w-0 items-start justify-between gap-3">
                                   <span className="line-clamp-1 min-w-0 text-sm font-semibold leading-5 text-slate-900">{conversation.title}</span>
@@ -3486,34 +4350,65 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                   </section>
                 ) : (
                   <div ref={messagesContentRef} className="flex flex-col gap-8 pb-4">
-                    {messages.map((message) =>
-                      message.role === "assistant" ? (
-                        <AssistantMessageCard key={message.id} message={message} run={runsByMessageId[message.id]} dict={dict} />
+                    {messages.map((message) => {
+                      if (message.role === "assistant") {
+                        return <AssistantMessageCard key={message.id} message={message} run={runsByMessageId[message.id]} dict={dict} />
+                      }
+
+                      const hasAttachments = message.attachments.length > 0
+                      const messageText = message.contentMarkdown.trim()
+
+                      return hasAttachments ? (
+                        <article key={message.id} className="ml-auto flex w-full max-w-[760px] flex-col items-end gap-3">
+                          <div className="flex w-full flex-wrap items-center justify-end gap-3">
+                            {message.attachments.map((attachment) => (
+                              isPdfAttachment(attachment) ? (
+                                <a
+                                  key={attachment.id}
+                                  href={attachment.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex w-full max-w-[420px] items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow-[0_18px_46px_rgba(15,23,42,0.10)]"
+                                >
+                                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                                    <FileText size={22} />
+                                  </span>
+                                  <span className="min-w-0">
+                                    <span className="block truncate text-sm font-semibold text-slate-950">{attachment.originalName}</span>
+                                    <span className="mt-1 block text-xs text-slate-500">
+                                      PDF · {formatAttachmentSize(attachment.size)}
+                                      {pdfParseStatusLabel(attachment.parseStatus) ? ` · ${pdfParseStatusLabel(attachment.parseStatus)}` : ""}
+                                    </span>
+                                  </span>
+                                </a>
+                              ) : (
+                                <a
+                                  key={attachment.id}
+                                  href={attachment.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block w-full max-w-[560px] overflow-hidden rounded-[46px] bg-slate-100 shadow-[0_18px_46px_rgba(15,23,42,0.10)]"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={attachment.url} alt={attachment.originalName || ""} className="max-h-[460px] w-full object-contain" />
+                                </a>
+                              )
+                            ))}
+                          </div>
+                          {messageText ? (
+                            <div className="max-w-[88%] rounded-[24px] bg-[#f1f1f1] px-5 py-3 text-left text-[15px] font-medium leading-7 text-slate-950 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:max-w-[76%]">
+                              <div className="whitespace-pre-wrap break-words">{messageText}</div>
+                            </div>
+                          ) : null}
+                        </article>
                       ) : (
-                        <article key={message.id} className="ml-auto max-w-[88%] lg:max-w-[76%]">
-                          <div className="rounded-[20px] rounded-tr-md bg-blue-600 px-5 py-4 text-[15px] leading-8 text-white shadow-[0_12px_28px_rgba(37,99,235,0.18)]">
-                            <div className="mb-1 text-xs text-blue-100">{formatMessageTime(message.createdAt)}</div>
-                            {message.attachments.length > 0 ? (
-                              <div className="mb-3 flex flex-wrap gap-3">
-                                {message.attachments.map((attachment) => (
-                                  <a
-                                    key={attachment.id}
-                                    href={attachment.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="block overflow-hidden rounded-[14px] bg-[color:var(--color-bg-surface)]"
-                                  >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={attachment.url} alt="" className="h-36 w-36 object-cover" />
-                                  </a>
-                                ))}
-                              </div>
-                            ) : null}
-                            <div className="whitespace-pre-wrap break-words">{message.contentMarkdown}</div>
+                        <article key={message.id} className="ml-auto flex max-w-[88%] justify-end lg:max-w-[76%]">
+                          <div className="max-w-full rounded-[24px] bg-[#f1f1f1] px-5 py-3 text-left text-[15px] font-medium leading-7 text-slate-950 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+                            <div className="whitespace-pre-wrap break-words">{messageText}</div>
                           </div>
                         </article>
-                      ),
-                    )}
+                      )
+                    })}
                     <div ref={endRef} />
                   </div>
                 )}
@@ -3527,55 +4422,22 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
               <input
                 ref={attachmentInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf,.pdf"
                 multiple
                 className="hidden"
-                onChange={async (event) => {
-                  const files = Array.from(event.target.files ?? [])
-                  event.currentTarget.value = ""
-                  if (files.length === 0) return
-                  void handleAttachmentFiles(files)
-                }}
+                onChange={handleAttachmentInputChange}
               />
 
               {attachments.length > 0 ? (
                 <div className="pb-3">
                   <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {attachments.map((attachment, index) => (
-                      <div
+                      <ComposerAttachmentCard
                         key={attachment.id}
-                        className="group relative flex h-[104px] w-[104px] shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#eef2ff] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={attachment.url} alt="" className="h-full w-full object-cover" />
-                        {attachment.status !== "ready" ? (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/45 text-xs font-medium text-white">
-                            {attachment.status === "uploading" ? (
-                              <>
-                                <Loader2 size={18} className="mb-2 animate-spin" />
-                                上传中
-                              </>
-                            ) : (
-                              <>
-                                <TriangleAlert size={18} className="mb-2" />
-                                上传失败
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
-                            已就绪
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                          className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black text-white shadow-sm transition-transform hover:scale-105"
-                          aria-label={dict.ai.removeImage}
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
+                        attachment={attachment}
+                        removeLabel={dict.ai.removeImage}
+                        onRemove={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                      />
                     ))}
                   </div>
                 </div>
@@ -3664,7 +4526,7 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                       className="inline-flex h-11 items-center gap-2 rounded-[16px] px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-600"
                     >
                       <ImageIcon size={18} />
-                      图片上传
+                      附件上传
                     </button>
                     <button
                       type="button"
@@ -3673,6 +4535,14 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                     >
                       <SlidersHorizontal size={18} />
                       切换模型
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openLatexModal}
+                      className="inline-flex h-11 items-center gap-2 rounded-[16px] px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                    >
+                      <LayoutTemplate size={18} />
+                      PDF 模板
                     </button>
                   </div>
                 ) : null}
@@ -3809,7 +4679,7 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                     className="flex w-full items-center gap-4 rounded-[18px] px-4 py-4 text-left text-[17px] font-semibold leading-none text-slate-900 active:bg-blue-50"
                   >
                     <ImageIcon size={25} strokeWidth={2.1} />
-                    图片上传
+                    附件上传
                   </button>
                   <button
                     type="button"
@@ -3818,6 +4688,14 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                   >
                     <SlidersHorizontal size={25} strokeWidth={2.1} />
                     切换模型
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openLatexModal}
+                    className="flex w-full items-center gap-4 rounded-[18px] px-4 py-4 text-left text-[17px] font-semibold leading-none text-slate-900 active:bg-blue-50"
+                  >
+                    <LayoutTemplate size={25} strokeWidth={2.1} />
+                    PDF 模板
                   </button>
                 </div>
               </div>
@@ -3987,13 +4865,7 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                                       <button
                                         type="button"
                                         className="soulwing-sidebar-chat-main"
-                                        onClick={() => {
-                                          setSidebarUserMenuOpen(false)
-                                          void loadMessages(conversation.id).then(() => {
-                                            setActiveConversationId(conversation.id)
-                                            setMobilePanel(null)
-                                          })
-                                        }}
+                                        onClick={() => switchConversation(conversation.id, { closeMobilePanel: true })}
                                       >
                                         <span className="flex min-w-0 items-start justify-between gap-3">
                                           <span className="line-clamp-1 min-w-0 text-sm font-semibold leading-5 text-slate-900">{conversation.title}</span>
@@ -4044,12 +4916,7 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
                         <button
                           type="button"
                           className={`flex-1 rounded-[18px] border px-4 py-3 text-left transition-colors ${activeConversationId === conversation.id ? "border-blue-200 bg-blue-50" : "border-slate-100 bg-white"}`}
-                          onClick={() => {
-                            void loadMessages(conversation.id).then(() => {
-                              setActiveConversationId(conversation.id)
-                              setMobilePanel(null)
-                            })
-                          }}
+                          onClick={() => switchConversation(conversation.id, { closeMobilePanel: true })}
                         >
                           <p className="line-clamp-2 text-sm font-medium leading-6 text-[--color-text-primary]">{conversation.title}</p>
                           <p className="mt-1 text-xs text-[--color-text-muted]">
@@ -4184,6 +5051,15 @@ export function AIAssistantClient({ viewer, canManageAI = false, agentProfile }:
         storageReady={statusPayload?.storageReady ?? false}
         onSaved={() => void loadStatus()}
       />
+      {showLatexModal && latexCatalogue && latexConfig ? (
+        <LatexTemplateModal
+          conversationId={activeConversationId}
+          config={latexConfig}
+          catalogue={latexCatalogue}
+          onClose={() => setShowLatexModal(false)}
+          onSaved={(config) => setLatexConfig(config)}
+        />
+      ) : null}
     </>
   )
 }

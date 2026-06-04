@@ -579,6 +579,19 @@ type Dictionary = {
     traceStatusFailed: string
     traceStatusRunning: string
     traceStatusCompleted: string
+    traceStatusCancelled: string
+    runStoppedNote: string
+    runReleasedBackground: string
+    taskPanelRunningTitle: string
+    taskPanelJump: string
+    taskPanelStop: string
+    taskPanelPhase: string
+    taskPanelSections: string
+    taskPanelTools: string
+    taskPanelDuration: string
+    taskPanelPhaseWriting: string
+    taskPanelPhaseCompiling: string
+    taskPanelPhaseThinking: string
     traceKeyJudgement: (count: number) => string
     tracePendingConfirm: (count: number) => string
     traceEvidence: string
@@ -1492,6 +1505,19 @@ const zhCN: Dictionary = {
     traceStatusFailed: "异常",
     traceStatusRunning: "正在推理",
     traceStatusCompleted: "已完成",
+    traceStatusCancelled: "已停止",
+    runStoppedNote: "⏹ 已被用户停止",
+    runReleasedBackground: "已切换会话，原任务在后台继续，可从顶部指示条跳回。",
+    taskPanelRunningTitle: "正在运行的任务",
+    taskPanelJump: "跳到任务",
+    taskPanelStop: "停止",
+    taskPanelPhase: "阶段",
+    taskPanelSections: "章节",
+    taskPanelTools: "工具调用",
+    taskPanelDuration: "运行时长",
+    taskPanelPhaseWriting: "撰写中",
+    taskPanelPhaseCompiling: "编译中",
+    taskPanelPhaseThinking: "推理中",
     traceKeyJudgement: (count) => `关键判断 ${count}`,
     tracePendingConfirm: (count) => `待确认 ${count}`,
     traceEvidence: "依据",
@@ -2413,6 +2439,19 @@ const enUS: Dictionary = {
     traceStatusFailed: "failed",
     traceStatusRunning: "thinking",
     traceStatusCompleted: "completed",
+    traceStatusCancelled: "stopped",
+    runStoppedNote: "⏹ Stopped by you",
+    runReleasedBackground: "Switched conversation — the task keeps running in the background. Use the top bar to jump back.",
+    taskPanelRunningTitle: "Running task",
+    taskPanelJump: "Jump to task",
+    taskPanelStop: "Stop",
+    taskPanelPhase: "Phase",
+    taskPanelSections: "Sections",
+    taskPanelTools: "Tool calls",
+    taskPanelDuration: "Elapsed",
+    taskPanelPhaseWriting: "Writing",
+    taskPanelPhaseCompiling: "Compiling",
+    taskPanelPhaseThinking: "Thinking",
     traceKeyJudgement: (count) => `Key judgement ${count}`,
     tracePendingConfirm: (count) => `Pending check ${count}`,
     traceEvidence: "Evidence",

@@ -103,6 +103,10 @@ export type AIRunStepType =
   | "tool_call"
   | "assistant_output"
   | "warning"
+  | "skill"
+
+// Real runtime record of which skills were injected this turn and why.
+export type ActiveSkillRecord = { id: string; name: string; version: string; triggerReason: string }
 
 export type AIRunStepStatus = "running" | "completed" | "failed"
 
@@ -140,6 +144,8 @@ export type AIMessageItem = {
   runStatus: string | null
   delegatedTargetUserId: string | null
   stepsPreview: AIMessageStepPreview[]
+  // Skills injected for this turn (real runtime state from the skill step).
+  activeSkills: ActiveSkillRecord[]
   attachments: Array<{
     id: string
     uploadId: string | null
@@ -147,6 +153,8 @@ export type AIMessageItem = {
     originalName: string
     mimeType: string
     size: number
+    pdfDocumentId?: string | null
+    parseStatus?: string | null
   }>
 }
 
@@ -221,6 +229,10 @@ export type AIRuntimeResponse = {
   plan: AIRuntimePlan
   compactSteps: AIMessageStepPreview[]
   runSummary: string
+  // Set when the run was stopped server-side by a user cancel request. The
+  // partial contentMarkdown is preserved; the route finalizes the message as
+  // cancelled rather than completed.
+  cancelled?: boolean
 }
 
 export type AIRunDetail = {

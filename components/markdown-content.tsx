@@ -80,7 +80,7 @@ export function MarkdownContent({ source, postId }: MarkdownContentProps) {
     <div className="prose">
       <Markdown
         remarkPlugins={[remarkGfm, remarkMath, remarkGithubBlockquoteAlert]}
-        rehypePlugins={[rehypeRaw, rehypeKatex, rehypeHighlight]}
+        rehypePlugins={[rehypeRaw, [rehypeKatex, { strict: "ignore", throwOnError: false }], rehypeHighlight]}
         components={buildComponents(postId)}
       >
         {source}

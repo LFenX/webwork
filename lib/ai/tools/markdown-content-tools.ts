@@ -25,7 +25,7 @@ async function slugExists(userId: string, type: string, slug: string): Promise<b
   return existing !== null
 }
 
-async function generateUniqueSlug(userId: string, type: string, title: string): Promise<string> {
+export async function generateUniqueSlug(userId: string, type: string, title: string): Promise<string> {
   const base = `${slugify(title)}-${Date.now().toString(36)}`
   if (!(await slugExists(userId, type, base))) return base
   // Collision: append short random suffix up to 3 attempts
@@ -38,12 +38,12 @@ async function generateUniqueSlug(userId: string, type: string, title: string): 
   return `${base}-${Date.now().toString(36)}`
 }
 
-function normalizeLimit(n: number | undefined, fallback: number, max: number): number {
+export function normalizeLimit(n: number | undefined, fallback: number, max: number): number {
   if (!Number.isFinite(n)) return fallback
   return Math.min(Math.max(Math.trunc(n as number), 1), max)
 }
 
-function isValidPostType(value: string): value is PostType {
+export function isValidPostType(value: string): value is PostType {
   return (POST_TYPES as readonly string[]).includes(value)
 }
 

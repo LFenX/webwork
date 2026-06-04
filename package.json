@@ -10,8 +10,11 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:sqlite-to-postgres": "tsx scripts/migrate-sqlite-to-postgres.ts",
+    "updates:sync": "tsx scripts/sync-update-log.ts",
     "resume:verify-themes": "tsx scripts/verify-resume-themes.ts",
-    "resume:seed-template-config": "tsx scripts/seed-resume-template-config.ts"
+    "resume:seed-template-config": "tsx scripts/seed-resume-template-config.ts",
+    "test:ai-runs": "tsx --tsconfig scripts/tsconfig.preview.json scripts/test-run-reliability.ts",
+    "test:latex-draft": "tsx --tsconfig scripts/tsconfig.preview.json scripts/test-latex-draft-revise.ts"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

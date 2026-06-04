@@ -7,6 +7,7 @@ import {
   BookOpen, Briefcase, Calendar, Database, FileText, Globe, GraduationCap, Home, Lightbulb,
   LogIn, LogOut, Menu, Settings, Shield,
   Sparkles, StickyNote, Users, Video, X,
+  Tag,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { UserAvatar } from "@/components/user-avatar"
@@ -28,6 +29,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   "/jobs": <Briefcase size={16} />,
   "/interviews": <Video size={16} />,
   "/ai": <Sparkles size={16} />,
+  "/updates": <Tag size={16} />,
   "/sql": <Database size={16} />,
   "/sql-practice": <GraduationCap size={16} />,
   "/friends": <Users size={16} />,
@@ -50,6 +52,7 @@ interface SiteHeaderProps {
     jobs: string
     interviews: string
     ai: string
+    updates: string
     sql: string
     sqlPractice: string
     friends: string
@@ -96,6 +99,7 @@ export function SiteHeader({
     { href: "/jobs", label: navDict.jobs },
     { href: "/interviews", label: navDict.interviews },
     { href: "/ai", label: navDict.ai },
+    { href: "/updates", label: navDict.updates },
     { href: "/sql", label: navDict.sql },
     ...(canAccessSqlPractice ? [{ href: "/sql-practice", label: navDict.sqlPractice }] : []),
   ]

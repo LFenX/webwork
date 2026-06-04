@@ -493,7 +493,7 @@ export function Live2DWidget({
   disabled = false,
 }: Live2DWidgetProps) {
   const pathname = usePathname()
-  const suppressed = disabled || pathname.startsWith("/welcome")
+  const suppressed = disabled || pathname.startsWith("/welcome") || pathname === "/updates" || pathname.startsWith("/updates/")
   const propsRef = useRef({ position, size, drag, bubbleTheme, bubbleName, modelId })
 
   // Keep the ref in sync so the async `script.onload` path can read the

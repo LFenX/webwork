@@ -35,9 +35,12 @@ model User {
   visitsOwned  VisitLog[] @relation("visitOwner")
   visitsMade   VisitLog[] @relation("visitVisitor")
   comments     Comment[]
+  updateLogComments UpdateLogComment[]
   activities   UserActivity[]
   passwordChangeRequests PasswordChangeRequest[]
   uploads      Upload[]
+  pdfDocuments PdfDocument[]
+  pdfChunks    PdfChunk[]
   sessions     UserSession[]
   adminPermission AdminPermission? @relation("adminPermissionUser")
   updatedAdminPermissions AdminPermission[] @relation("adminPermissionUpdater")
@@ -448,6 +451,7 @@ model StickerAsset {
   chatMessages ChatMessage[] @relation("chatSticker")
   channelMessages ChannelMessage[] @relation("channelSticker")
   comments    Comment[] @relation("commentSticker")
+  updateLogComments UpdateLogComment[] @relation("updateLogCommentSticker")
   guestbookMessages GuestbookMessage[] @relation("guestbookSticker")
   groupEntries StickerGroupEntry[]
 
@@ -663,6 +667,50 @@ model UpdateLogOverride {
   createdAt     DateTime @default(now())
 }
 
+model UpdateLogEntry {
+  hash            String   @id
+  committedAt     DateTime
+  originalMessage String
+  changeType      String   @default("功能")
+  modulesJson     Json
+  filesJson       Json
+  diffJson        Json
+  statsJson       Json
+  isDiffTruncated Boolean  @default(false)
+  hiddenReason    String   @default("")
+  syncedAt        DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  comments        UpdateLogComment[]
+
+  @@index([committedAt])
+  @@index([changeType, committedAt])
+  @@index([syncedAt])
+}
+
+model UpdateLogComment {
+  id           String   @id @default(cuid())
+  hash         String
+  entry        UpdateLogEntry @relation(fields: [hash], references: [hash], onDelete: Cascade)
+  authorId     String
+  author       User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parentId     String?
+  parent       UpdateLogComment? @relation("updateLogCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies      UpdateLogComment[] @relation("updateLogCommentReplies")
+  content      String
+  stickerId    String?
+  sticker      StickerAsset? @relation("updateLogCommentSticker", fields: [stickerId], references: [id], onDelete: SetNull)
+  stickerEmoji String?
+  ipAddress    String   @default("")
+  geoLocation  String   @default("")
+  createdAt    DateTime @default(now())
+
+  @@index([hash, createdAt])
+  @@index([authorId])
+  @@index([parentId])
+  @@index([stickerId])
+}
+
 model ModuleVisibility {
   id         String   @id @default(cuid())
   userId     String
@@ -855,13 +903,89 @@ model Upload {
   mimeType     String
   size         Int
   url          String
+  storagePath  String?
+  sha256       String?
+  kind         String   @default("image")
   postId       String?
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   aiMessageAttachments AIMessageAttachment[]
+  pdfDocument  PdfDocument?
 
   @@index([userId])
   @@index([postId])
+  @@index([kind])
+  @@index([sha256])
+}
+
+model PdfDocument {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  uploadId       String   @unique
+  upload         Upload   @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  status         String   @default("queued")
+  engine         String   @default("")
+  parserVersion  String   @default("")
+  quality        String   @default("highest")
+  pageCount      Int      @default(0)
+  title          String   @default("")
+  sha256         String   @default("")
+  markdownPath   String   @default("")
+  manifestPath   String   @default("")
+  jsonPath        String   @default("")
+  textChars      Int      @default(0)
+  tableCount     Int      @default(0)
+  formulaCount   Int      @default(0)
+  imageCount     Int      @default(0)
+  ocrPageCount   Int      @default(0)
+  warningsJson   Json?
+  errorMessage   String   @default("")
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  chunks         PdfChunk[]
+
+  @@index([userId, updatedAt])
+  @@index([userId, status])
+  @@index([sha256])
+}
+
+model PdfChunk {
+  id                String   @id @default(cuid())
+  documentId        String
+  document          PdfDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunkIndex        Int
+  kind              String   @default("text")
+  heading           String   @default("")
+  pageStart         Int      @default(1)
+  pageEnd           Int      @default(1)
+  content           String
+  tokenEstimate     Int      @default(0)
+  metadataJson      Json?
+  embeddingStatus   String   @default("pending")
+  embeddingModel    String?
+  embeddingUpdatedAt DateTime?
+  createdAt         DateTime @default(now())
+
+  @@unique([documentId, chunkIndex])
+  @@index([userId, documentId])
+  @@index([userId, kind])
+  @@index([documentId, pageStart])
+}
+
+model LatexDocConfig {
+  id             String   @id @default(cuid())
+  userId         String
+  conversationId String   @unique
+  configJson     Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model SqlAccessGrant {
@@ -1301,6 +1425,8 @@ model AIRun {
   finalModel        String      @default("")
   status            String      @default("running")
   summary           String      @default("")
+  cancelRequestedAt DateTime?
+  cancelledAt       DateTime?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   finishedAt        DateTime?
@@ -1310,6 +1436,7 @@ model AIRun {
   @@index([conversationId, createdAt])
   @@index([userId, createdAt])
   @@index([delegatedTargetUserId, createdAt])
+  @@index([userId, status])
 }
 
 model AIRunStep {
