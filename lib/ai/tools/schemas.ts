@@ -274,15 +274,11 @@ export const TOOL_INPUT_SCHEMAS: Record<string, z.ZodType> = {
     confirmedByUser: z.boolean().describe("Required true for high-impact changes (rules modifications, rewrites).").optional(),
   }),
 
-  // ── Web search ───────────────────────────────────────────────────────────────
+  // ── Web search (merged: verify is now a mode) ────────────────────────────────
   web_search: z.object({
     query: z.string().describe("Internet search query, max 300 characters."),
+    mode: z.enum(["search", "verify"]).describe('search = general web search; verify = time-sensitive check (rewrites query, snippet results).').optional(),
     maxResults: z.number().int().min(1).max(10).optional(),
     contentType: z.enum(["snippet", "summary"]).optional(),
-    queryRewrite: z.boolean().optional(),
-  }),
-  web_verify_current_info: z.object({
-    question: z.string().describe("Question that needs current external verification."),
-    maxResults: z.number().int().min(1).max(10).optional(),
   }),
 }

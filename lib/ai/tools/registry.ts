@@ -1,8 +1,5 @@
 import "server-only"
 import type { AIToolDefinition } from "@/lib/ai/tools/context"
-import { getAdminUserActivityLogTool } from "@/lib/ai/tools/get-admin-user-activity-log"
-import { getAdminUserProfileOverviewTool } from "@/lib/ai/tools/get-admin-user-profile-overview"
-import { getAdminUserSessionsTool } from "@/lib/ai/tools/get-admin-user-sessions"
 import { getMyActivityLogTool } from "@/lib/ai/tools/get-my-activity-log"
 import { getMyChatSummaryTool } from "@/lib/ai/tools/get-my-chat-summary"
 import { getMyChatThreadMessagesTool } from "@/lib/ai/tools/get-my-chat-thread-messages"
@@ -63,7 +60,6 @@ import {
   listAdminAIAuditLogsTool,
   getAdminOverviewTool,
 } from "@/lib/ai/tools/admin-read-tools"
-import { getVisibleUserPageOverviewTool } from "@/lib/ai/tools/get-visible-user-page-overview"
 import {
   createMarkdownArticleTool,
   updateMarkdownArticleTool,
@@ -109,7 +105,7 @@ import { summarizeChatThreadTool } from "@/lib/ai/tools/summarize-thread-tool"
 import { deleteMyMemoryFactBatchTool } from "@/lib/ai/tools/memory-batch-tools"
 import { setModuleVisibilityTool } from "@/lib/ai/tools/module-visibility-tools"
 import { searchSoulWingConversationsTool } from "@/lib/ai/tools/search-soulwing-conversations"
-import { webSearchTool, webVerifyCurrentInfoTool } from "@/lib/ai/tools/web-search-tools"
+import { webSearchTool } from "@/lib/ai/tools/web-search-tools"
 import { TOOL_INPUT_SCHEMAS } from "@/lib/ai/tools/schemas"
 import { deriveToolDescriptors } from "@/lib/ai/tools/derive"
 import type { ToolCategory, UnifiedToolDefinition } from "@/lib/ai/tools/define"
@@ -492,17 +488,6 @@ const RAW_TOOLS = [
     argumentHints: ["targetUserId 必填"],
     returns: "目标用户主页模块访问权限。",
   }),
-  defineTool(getVisibleUserPageOverviewTool, {
-    scope: "visible-user",
-    inputSchemaSummary: "targetUserId: string",
-    sensitivity: "low",
-    auditLabel: "read_visible_user_page_overview",
-    whenToUse: "兼容旧的好友页面概览查询。",
-    whenNotToUse: "新逻辑优先使用 get_visible_user_permissions 或 get_visible_user_home_overview。",
-    argumentHints: ["targetUserId 必填"],
-    returns: "旧版可见页面概览。",
-    deprecated: true,
-  }),
   defineTool(getVisibleUserHomeOverviewTool, {
     scope: "visible-user",
     inputSchemaSummary: "targetUserId: string",
@@ -593,17 +578,6 @@ const RAW_TOOLS = [
     argumentHints: [],
     returns: "管理员自身权限。",
   }),
-  defineTool(getAdminUserProfileOverviewTool, {
-    scope: "admin-delegated",
-    inputSchemaSummary: "targetUserId: string",
-    sensitivity: "medium",
-    auditLabel: "read_admin_user_profile_overview",
-    whenToUse: "兼容旧的后台用户概览查询。",
-    whenNotToUse: "新逻辑优先使用 get_admin_user_detail。",
-    argumentHints: ["targetUserId 必填"],
-    returns: "旧版后台用户概览。",
-    deprecated: true,
-  }),
   defineTool(listAdminUsersTool, {
     scope: "admin-delegated",
     inputSchemaSummary: "limit?: number, cursor?: string, query?: string",
@@ -624,17 +598,6 @@ const RAW_TOOLS = [
     argumentHints: ["targetUserId 必填"],
     returns: "后台用户详情。",
   }),
-  defineTool(getAdminUserSessionsTool, {
-    scope: "admin-delegated",
-    inputSchemaSummary: "targetUserId: string",
-    sensitivity: "high",
-    auditLabel: "read_admin_user_sessions_overview",
-    whenToUse: "兼容旧的后台用户会话概览。",
-    whenNotToUse: "需要分页时优先用 list_admin_user_sessions。",
-    argumentHints: ["targetUserId 必填"],
-    returns: "旧版用户会话概览。",
-    deprecated: true,
-  }),
   defineTool(listAdminUserSessionsTool, {
     scope: "admin-delegated",
     inputSchemaSummary: "targetUserId: string, limit?: number, cursor?: string",
@@ -644,17 +607,6 @@ const RAW_TOOLS = [
     whenNotToUse: "不要用于读取用户活动日志。",
     argumentHints: ["targetUserId 必填，支持分页"],
     returns: "后台用户会话列表。",
-  }),
-  defineTool(getAdminUserActivityLogTool, {
-    scope: "admin-delegated",
-    inputSchemaSummary: "targetUserId: string",
-    sensitivity: "high",
-    auditLabel: "read_admin_user_activity_log_overview",
-    whenToUse: "兼容旧的后台用户活动日志概览。",
-    whenNotToUse: "需要分页时优先用 list_admin_user_activity_logs。",
-    argumentHints: ["targetUserId 必填"],
-    returns: "旧版用户活动日志概览。",
-    deprecated: true,
   }),
   defineTool(listAdminUserActivityLogsTool, {
     scope: "admin-delegated",
@@ -998,16 +950,6 @@ const RAW_TOOLS = [
     argumentHints: webSearchTool.argumentHints,
     returns: webSearchTool.returns,
   }),
-  defineTool(webVerifyCurrentInfoTool, {
-    scope: "self",
-    inputSchemaSummary: webVerifyCurrentInfoTool.inputSchemaSummary,
-    sensitivity: webVerifyCurrentInfoTool.sensitivity,
-    auditLabel: webVerifyCurrentInfoTool.auditLabel,
-    whenToUse: webVerifyCurrentInfoTool.whenToUse,
-    whenNotToUse: webVerifyCurrentInfoTool.whenNotToUse,
-    argumentHints: webVerifyCurrentInfoTool.argumentHints,
-    returns: webVerifyCurrentInfoTool.returns,
-  }),
   // ── Phase 4: Persona self-update ────────────────────────────────────────
   defineTool(proposeSaveUserContextTool, {
     scope: "self",
@@ -1174,8 +1116,7 @@ const TOOL_CLASSIFICATION: Record<string, { category: ToolCategory; triggers: st
   get_latex_draft_status: { category: "pdf-generation", triggers: ["草稿写到哪了", "还差几章", "草稿进度"] },
   compile_latex_draft: { category: "pdf-generation", triggers: ["把草稿编译成PDF", "长文档生成PDF"] },
   // web-search
-  web_search: { category: "web-search", triggers: ["上网搜一下", "网上有没有", "查一下", "搜索一下最新的"] },
-  web_verify_current_info: { category: "web-search", triggers: ["现在是多少", "最新的", "今天的", "当前的价格", "最新版本"] },
+  web_search: { category: "web-search", triggers: ["上网搜一下", "网上有没有", "查一下", "搜索一下最新的", "现在是多少", "最新的", "今天的", "当前的价格", "最新版本"] },
   // soulwing-conversations
   search_soulwing_conversations: { category: "soulwing-conversations", triggers: ["我跟你聊了几次", "我和你聊了什么", "我最近和你聊了什么", "我们之前聊过什么", "我问过你什么", "你记得我之前问过你吗", "和蝶灵的对话", "AI助手聊天记录", "我们还聊过什么", "之前聊了什么主题", "过去一天聊了什么", "最近两小时聊了几次"] },
   get_soulwing_roundtable_records: { category: "soulwing-conversations", triggers: ["蝶灵圆桌", "今天圆桌讨论了什么", "圆桌总结", "错过圆桌补课"] },
@@ -1217,7 +1158,6 @@ const TOOL_CLASSIFICATION: Record<string, { category: ToolCategory; triggers: st
   get_visible_user_job_detail: { category: "visible-user", triggers: ["好友那条投递的详情"] },
   list_visible_user_interviews: { category: "visible-user", triggers: ["好友参加了哪些面试"] },
   get_visible_user_interview_detail: { category: "visible-user", triggers: ["好友那次面试的详情"] },
-  get_visible_user_page_overview: { category: "visible-user", triggers: [] },
   // admin
   get_admin_self_permissions: { category: "admin", triggers: ["我有哪些管理员权限", "我是超级管理员吗"] },
   list_admin_users: { category: "admin", triggers: ["后台用户有哪些", "查找用户"] },
@@ -1228,9 +1168,6 @@ const TOOL_CLASSIFICATION: Record<string, { category: ToolCategory; triggers: st
   list_admin_ai_grants: { category: "admin", triggers: ["AI授权记录", "谁有AI权限"] },
   list_admin_ai_audit_logs: { category: "admin", triggers: ["AI 审计日志", "谁用了 AI", "AI 使用记录"] },
   get_admin_overview: { category: "admin", triggers: ["后台总览", "系统统计"] },
-  get_admin_user_profile_overview: { category: "admin", triggers: [] },
-  get_admin_user_sessions: { category: "admin", triggers: [] },
-  get_admin_user_activity_log: { category: "admin", triggers: [] },
   // capabilities
   list_my_capabilities: { category: "capabilities", triggers: ["你能做什么", "你有哪些功能", "你会什么", "你有什么工具"] },
   search_my_capabilities: { category: "capabilities", triggers: ["你能不能", "有没有工具可以", "你支持吗"] },
@@ -1239,13 +1176,10 @@ const TOOL_CLASSIFICATION: Record<string, { category: ToolCategory; triggers: st
 }
 
 // Structured deprecations: tools kept resolvable (so historical calls don't
-// error) but hidden from the model and pointed at their replacements.
-const TOOL_DEPRECATIONS: Record<string, { since: string; replacement: string }> = {
-  get_visible_user_page_overview: { since: "2026-06-05", replacement: "get_visible_user_home_overview" },
-  get_admin_user_profile_overview: { since: "2026-06-05", replacement: "get_admin_user_detail" },
-  get_admin_user_sessions: { since: "2026-06-05", replacement: "list_admin_user_sessions" },
-  get_admin_user_activity_log: { since: "2026-06-05", replacement: "list_admin_user_activity_logs" },
-}
+// error) but hidden from the model and pointed at their replacements. Empty now
+// that the legacy overview tools have been removed; populate when deprecating a
+// tool ahead of its removal grace window.
+const TOOL_DEPRECATIONS: Record<string, { since: string; replacement: string }> = {}
 
 // Enrich a legacy entry into the unified shape: attach category + triggers, and
 // choose the parameter schema source (zod for the formerly switch-driven tools,

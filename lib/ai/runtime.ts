@@ -222,7 +222,7 @@ async function buildHeuristicPlan(prompt: string, actorUserId: string): Promise<
 
   if (looksLikeWebSearchQuestion(prompt) && !looksLikePrivateDataQuestion(prompt)) {
     return buildPlan("self", "将先联网核验当前信息，再基于来源作答。", [
-      { toolName: "web_verify_current_info", reason: "问题涉及可能过时的外部信息，需要联网核验。", input: { question: prompt, maxResults: 5 } },
+      { toolName: "web_search", reason: "问题涉及可能过时的外部信息，需要联网核验。", input: { query: prompt, mode: "verify", maxResults: 5 } },
     ])
   }
 
