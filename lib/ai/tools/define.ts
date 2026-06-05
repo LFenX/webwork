@@ -93,9 +93,15 @@ export type UnifiedToolDefinition<S extends z.ZodType = z.ZodTypeAny> = {
   // per-field zod `.describe()` annotations, which also surface in the JSON
   // Schema; this field exists so migration stays behavior-preserving.
   argumentHints?: string[]
-  // The one parameter schema. Validates model arguments before execute() and is
-  // the source for the provider-facing JSON Schema.
-  input: S
+  // The parameter schema. A zod `input` is the target: it validates model
+  // arguments before execute() AND is the source for the provider JSON Schema.
+  // During migration a tool may instead carry `rawParameterSchema` (its legacy
+  // hand-written JSON Schema) — such tools derive the same provider schema but
+  // skip pre-execution validation until they adopt a zod input. Exactly one of
+  // `input` / `rawParameterSchema` must be present (the invariant checker
+  // enforces this).
+  input?: S
+  rawParameterSchema?: Record<string, unknown>
   confirmation?: ToolConfirmation
   deprecated?: ToolDeprecation
   // Soft-deprecated alias that forwards to another tool's implementation. Kept
@@ -124,16 +130,21 @@ export function toToolJsonSchema(schema: z.ZodType): Record<string, unknown> {
   return json
 }
 
-// A human-readable one-line summary of the input schema, derived from the JSON
-// Schema so the old hand-written `inputSchemaSummary` strings disappear. Example:
-//   "query: string, limit?: number"
-//   "无需输入"
-export function summarizeInputSchema(schema: z.ZodType): string {
-  const json = toToolJsonSchema(schema)
-  const props = (json.properties ?? {}) as Record<string, { type?: string; enum?: unknown[] }>
+// The empty-input JSON Schema (no parameters). Matches the legacy switch default.
+export const EMPTY_PARAMETER_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  properties: {},
+  additionalProperties: false,
+}
+
+// A human-readable one-line summary of a parameter JSON Schema, replacing the
+// old hand-written `inputSchemaSummary` strings. Example:
+//   "query: string, limit?: number"  /  "无需输入"
+export function summarizeJsonSchema(json: Record<string, unknown> | undefined): string {
+  const props = ((json?.properties as Record<string, { type?: string; enum?: unknown[] }>) ?? {})
   const keys = Object.keys(props)
   if (keys.length === 0) return "无需输入"
-  const required = new Set((Array.isArray(json.required) ? json.required : []) as string[])
+  const required = new Set((Array.isArray(json?.required) ? json?.required : []) as string[])
   return keys
     .map((key) => {
       const prop = props[key]
@@ -143,19 +154,50 @@ export function summarizeInputSchema(schema: z.ZodType): string {
     .join(", ")
 }
 
+export function summarizeInputSchema(schema: z.ZodType): string {
+  return summarizeJsonSchema(toToolJsonSchema(schema))
+}
+
+// The provider-facing JSON Schema for a tool, from its zod `input` if present,
+// else its raw schema, else empty. Single place both consumers and the parity
+// check go through.
+export function resolveToolParameters(def: Pick<UnifiedToolDefinition, "input" | "rawParameterSchema">): Record<string, unknown> {
+  if (def.input) return toToolJsonSchema(def.input)
+  if (def.rawParameterSchema) return def.rawParameterSchema
+  return EMPTY_PARAMETER_SCHEMA
+}
+
+export type ToolInputValidation =
+  | { success: true; data: Record<string, unknown> }
+  | { success: false; message: string }
+
+// Validate model-supplied arguments before execute(). zod tools are parsed
+// (unknown keys stripped, missing/typed-wrong required fields rejected). Tools
+// still on a raw schema are passed through unchanged (validation lands when they
+// adopt a zod input) — behavior-preserving during migration.
+export function validateToolInput(
+  def: Pick<UnifiedToolDefinition, "input">,
+  args: Record<string, unknown>,
+): ToolInputValidation {
+  if (!def.input) return { success: true, data: args }
+  const parsed = def.input.safeParse(args)
+  if (parsed.success) return { success: true, data: parsed.data as Record<string, unknown> }
+  const message = parsed.error.issues
+    .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+    .join("; ")
+  return { success: false, message }
+}
+
 // Project a unified definition down to the existing admin-facing descriptor
-// shape, so consumers of AI_TOOL_DESCRIPTORS see no change. parameterSchema is
-// filled in by derive.ts (it owns the zod→JSON-Schema conversion).
-export function toToolDescriptor(
-  def: UnifiedToolDefinition,
-  parameterSchema: Record<string, unknown>,
-): AIToolDescriptor {
+// shape, so consumers of AI_TOOL_DESCRIPTORS see no change.
+export function toToolDescriptor(def: UnifiedToolDefinition): AIToolDescriptor {
+  const parameterSchema = resolveToolParameters(def)
   return {
     name: def.name,
     title: def.title,
     description: def.description,
     scope: def.scope,
-    inputSchemaSummary: summarizeInputSchema(def.input),
+    inputSchemaSummary: summarizeJsonSchema(parameterSchema),
     sensitivity: def.sensitivity,
     auditLabel: def.auditLabel,
     whenToUse: def.whenToUse,

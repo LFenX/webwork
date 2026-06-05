@@ -110,6 +110,9 @@ import { deleteMyMemoryFactBatchTool } from "@/lib/ai/tools/memory-batch-tools"
 import { setModuleVisibilityTool } from "@/lib/ai/tools/module-visibility-tools"
 import { searchSoulWingConversationsTool } from "@/lib/ai/tools/search-soulwing-conversations"
 import { webSearchTool, webVerifyCurrentInfoTool } from "@/lib/ai/tools/web-search-tools"
+import { TOOL_INPUT_SCHEMAS } from "@/lib/ai/tools/schemas"
+import { deriveToolDescriptors } from "@/lib/ai/tools/derive"
+import type { ToolCategory, UnifiedToolDefinition } from "@/lib/ai/tools/define"
 import type { AIToolDescriptor } from "@/lib/ai/types"
 
 function defineTool<TInput extends Record<string, unknown> | void>(
@@ -129,7 +132,12 @@ function defineTool<TInput extends Record<string, unknown> | void>(
 
 const selfSummary = "适合当前用户读取自己的资料、内容与站内记录。"
 
-export const AI_TOOLS_REGISTRY = [
+// RAW_TOOLS keeps the legacy per-tool metadata + execute. The unified
+// AI_TOOLS_REGISTRY below enriches each entry with its category, triggers, and
+// parameter schema (zod for the formerly switch-driven tools, raw JSON for tools
+// that still carry an inline schema) and is the single source every derived
+// artifact (provider specs, descriptors, capability map) is built from.
+const RAW_TOOLS = [
   defineTool(getMyProfileTool, {
     scope: "self",
     inputSchemaSummary: "无需输入",
@@ -1107,21 +1115,167 @@ export const AI_TOOLS_REGISTRY = [
     argumentHints: setModuleVisibilityTool.argumentHints,
     returns: setModuleVisibilityTool.returns,
   }),
-] as const
+]
 
-export const AI_TOOL_DESCRIPTORS: AIToolDescriptor[] = AI_TOOLS_REGISTRY.map((tool) => ({
-  name: tool.name,
-  title: tool.title,
-  description: tool.description,
-  scope: tool.scope,
-  inputSchemaSummary: tool.inputSchemaSummary,
-  sensitivity: tool.sensitivity,
-  auditLabel: tool.auditLabel,
-  whenToUse: tool.whenToUse,
-  whenNotToUse: tool.whenNotToUse,
-  argumentHints: tool.argumentHints,
-  returns: tool.returns,
-  parameterSchema: tool.parameterSchema,
-}))
+// Category + trigger classification for every tool. This is the authoritative
+// home for tool categories and trigger phrases (moved out of the hand-maintained
+// capability map, which is now DERIVED from the registry). The invariant checker
+// fails the build if any registered tool lacks an entry here.
+const TOOL_CLASSIFICATION: Record<string, { category: ToolCategory; triggers: string[] }> = {
+  // self-profile
+  get_my_profile: { category: "self-profile", triggers: ["我叫什么", "我的邮箱", "我的资料", "我的简介"] },
+  get_my_permissions: { category: "self-profile", triggers: ["我是不是管理员", "我有哪些权限", "我的模块对好友是否开放"] },
+  get_my_module_visibility: { category: "self-profile", triggers: ["我的模块对谁开放", "哪些模块是公开的", "模块可见性设置"] },
+  get_my_settings: { category: "self-profile", triggers: ["我的设置", "站点语言", "网站配置"] },
+  get_my_home_overview: { category: "self-profile", triggers: ["我的主页有什么", "主页概况", "首页模块"] },
+  get_my_sessions_overview: { category: "self-profile", triggers: ["我在哪里登录", "我的设备", "登录记录", "会话安全"] },
+  get_my_activity_log: { category: "self-profile", triggers: ["我最近的操作记录", "系统活动日志", "登录登出记录", "我访问了哪些页面"] },
+  // resume
+  get_my_resume_overview: { category: "resume", triggers: ["我的简历有几个版本", "简历概况"] },
+  get_my_resume_detail: { category: "resume", triggers: ["看看我的简历", "帮我润色简历", "总结我的简历", "简历内容是什么"] },
+  get_my_resume_versions: { category: "resume", triggers: ["简历有哪些版本", "简历 PDF"] },
+  // posts
+  get_my_posts_overview: { category: "posts", triggers: ["我写了多少文章", "文章概况"] },
+  list_my_posts: { category: "posts", triggers: ["列出我的博客", "看看我的日常", "我的笔记有哪些"] },
+  search_my_posts: { category: "posts", triggers: ["找找有没有关于某个主题的文章", "搜索我的笔记", "找到那篇博客"] },
+  list_markdown_articles: { category: "posts", triggers: ["列出某文件夹下的文章", "按文件夹查文章"] },
+  get_my_post_detail: { category: "posts", triggers: ["那篇文章的标签是什么", "文章摘要", "文章的元信息"] },
+  get_my_post_content: { category: "posts", triggers: ["读一下那篇文章", "给我看那篇博客的全文", "文章内容是什么"] },
+  get_markdown_article_detail: { category: "posts", triggers: ["读取文章用于修改", "编辑前看一下原文"] },
+  create_markdown_article: { category: "posts", triggers: ["帮我写一篇博客", "新建一篇日常", "创建一篇笔记"] },
+  update_markdown_article: { category: "posts", triggers: ["修改那篇文章的标题", "帮我改一下博客内容", "更新文章正文"] },
+  list_content_folders: { category: "posts", triggers: ["我有哪些文件夹", "列出博客文件夹"] },
+  create_content_folder: { category: "posts", triggers: ["创建一个文件夹", "新建分类"] },
+  move_article_to_folder: { category: "posts", triggers: ["把这篇文章移到某个分类", "移动文章到另一个分类"] },
+  // jobs
+  get_my_jobs_overview: { category: "jobs", triggers: ["我投了多少简历", "求职情况怎么样", "回复率如何"] },
+  list_my_jobs: { category: "jobs", triggers: ["我投了哪些岗位", "最近投递记录", "某个公司投递了吗"] },
+  get_my_job_detail: { category: "jobs", triggers: ["那条投递的详情", "某岗位的进展如何"] },
+  // interviews
+  get_my_interviews_overview: { category: "interviews", triggers: ["面试通过率多少", "面试情况怎么样"] },
+  list_my_interviews: { category: "interviews", triggers: ["我参加了哪些面试", "最近的面试", "某公司的面试"] },
+  get_my_interview_detail: { category: "interviews", triggers: ["那次面试的详情", "面试题目是什么", "面试复盘"] },
+  // uploads-pdf
+  get_my_uploads_overview: { category: "uploads-pdf", triggers: ["我上传过哪些文件", "最近上传记录", "我的上传"] },
+  list_my_pdf_documents: { category: "uploads-pdf", triggers: ["我传的PDF", "这次对话的PDF", "PDF解析好了吗"] },
+  read_my_pdf_document: { category: "uploads-pdf", triggers: ["读一下这个PDF", "总结这份PDF", "PDF讲了什么"] },
+  search_my_pdf_documents: { category: "uploads-pdf", triggers: ["PDF里有没有提到", "在PDF里找", "PDF第几页讲了"] },
+  get_pdf_parse_status: { category: "uploads-pdf", triggers: ["PDF解析状态", "PDF解析失败了吗", "PDF还在处理吗"] },
+  // knowledge
+  compose_knowledge_note: { category: "knowledge", triggers: ["把这道错题记下来", "整理成错题本", "收录这份资料", "把这些资讯整理成笔记"] },
+  search_knowledge_notes: { category: "knowledge", triggers: ["我之前记的那道错题", "找一下我收录的资料", "召回错题本"] },
+  // pdf-generation
+  list_latex_templates: { category: "pdf-generation", triggers: ["有哪些PDF模板", "PDF样式有哪些", "PDF能用什么主题"] },
+  compile_latex_pdf: { category: "pdf-generation", triggers: ["导出成PDF", "生成一个PDF", "把这些做成PDF", "换个样式重新生成PDF"] },
+  set_latex_doc_config: { category: "pdf-generation", triggers: ["PDF加个封面", "换个PDF配色", "调一下PDF字号", "PDF换主题"] },
+  get_latex_doc_config: { category: "pdf-generation", triggers: ["现在PDF是什么配置", "当前PDF用的什么模板"] },
+  start_latex_draft: { category: "pdf-generation", triggers: ["写一份很长的PDF", "做一本多章的教程", "几十页的文档"] },
+  append_latex_draft_section: { category: "pdf-generation", triggers: ["写下一章", "继续写这一章"] },
+  get_latex_draft_status: { category: "pdf-generation", triggers: ["草稿写到哪了", "还差几章", "草稿进度"] },
+  compile_latex_draft: { category: "pdf-generation", triggers: ["把草稿编译成PDF", "长文档生成PDF"] },
+  // web-search
+  web_search: { category: "web-search", triggers: ["上网搜一下", "网上有没有", "查一下", "搜索一下最新的"] },
+  web_verify_current_info: { category: "web-search", triggers: ["现在是多少", "最新的", "今天的", "当前的价格", "最新版本"] },
+  // soulwing-conversations
+  search_soulwing_conversations: { category: "soulwing-conversations", triggers: ["我跟你聊了几次", "我和你聊了什么", "我最近和你聊了什么", "我们之前聊过什么", "我问过你什么", "你记得我之前问过你吗", "和蝶灵的对话", "AI助手聊天记录", "我们还聊过什么", "之前聊了什么主题", "过去一天聊了什么", "最近两小时聊了几次"] },
+  get_soulwing_roundtable_records: { category: "soulwing-conversations", triggers: ["蝶灵圆桌", "今天圆桌讨论了什么", "圆桌总结", "错过圆桌补课"] },
+  // chat
+  get_my_chat_summary: { category: "chat", triggers: ["我的聊天总体情况", "私聊和群聊统计", "聊天摘要"] },
+  get_my_chat_threads_overview: { category: "chat", triggers: ["和哪个好友聊得最多", "好友聊天排行"] },
+  search_my_chat_messages: { category: "chat", triggers: ["搜索好友聊天记录", "找找和某人的聊天消息", "好友聊天记录里有没有某内容"] },
+  get_my_chat_thread_messages: { category: "chat", triggers: ["和某位好友的聊天记录", "查看和好友的消息"] },
+  list_my_channels: { category: "chat", triggers: ["我的群聊有哪些", "我在哪些群里", "群聊列表"] },
+  get_channel_messages: { category: "chat", triggers: ["群里最近聊了什么", "看看群消息", "群聊记录"] },
+  send_draft_chat_message: { category: "chat", triggers: ["帮我回复他", "替我在群里回一句", "起草一条消息"] },
+  summarize_chat_thread: { category: "chat", triggers: ["总结一下和某人的聊天", "好友聊天重点", "群聊摘要"] },
+  // friends
+  get_my_friends_overview: { category: "friends", triggers: ["我有多少好友", "好友概况", "最近加了哪些好友"] },
+  get_my_friends_detail: { category: "friends", triggers: ["好友互动明细", "好友关系详情"] },
+  list_my_friends: { category: "friends", triggers: ["我有哪些好友", "列出好友", "好友列表"] },
+  get_my_friend_profile: { category: "friends", triggers: ["某好友的资料是什么", "好友的邮箱", "某好友最近互动"] },
+  // memory
+  save_user_memory: { category: "memory", triggers: ["记住我", "以后都按照", "这是我的偏好", "记下来我喜欢"] },
+  search_user_memory: { category: "memory", triggers: ["还记得吗", "之前怎么说的", "按照我的习惯", "你记得我们聊过什么吗"] },
+  list_user_memories: { category: "memory", triggers: ["你记住了我什么", "列出我的记忆", "我的偏好有哪些"] },
+  forget_user_memory: { category: "memory", triggers: ["忘掉", "删除这条记忆", "不要记住"] },
+  delete_my_memory_fact_batch: { category: "memory", triggers: ["忘掉所有关于XX的记忆", "删掉所有XX类型的记忆", "清除标签为XX的记忆"] },
+  // persona
+  update_agent_profile: { category: "persona", triggers: ["以后你叫", "以后你回答风格要", "我正在做的长期项目是", "以后必须遵守"] },
+  propose_save_user_context: { category: "persona", triggers: ["我在做某个项目", "我正在学", "我的习惯是"] },
+  // auto-reply
+  get_auto_reply_settings: { category: "auto-reply", triggers: ["我的自动回复怎么设置的", "帮我看看自动回复", "有哪些自动回复规则"] },
+  update_auto_reply_settings: { category: "auto-reply", triggers: ["帮我打开自动回复", "关闭自动回复", "设置自动回复模板", "调整冷却时间"] },
+  // module-settings
+  set_module_visibility: { category: "module-settings", triggers: ["把博客设为公开", "把博客设为好友可见", "关闭简历对好友的可见", "让好友看不到我的求职记录"] },
+  // visible-user
+  get_visible_user_permissions: { category: "visible-user", triggers: ["我能看某好友的简历吗", "好友的主页对我开放了哪些"] },
+  get_visible_user_home_overview: { category: "visible-user", triggers: ["好友的主页有什么", "看看某人的主页"] },
+  get_visible_user_resume_detail: { category: "visible-user", triggers: ["看看好友的简历", "好友的简历内容"] },
+  list_visible_user_posts: { category: "visible-user", triggers: ["好友写了哪些博客", "看看好友的日常"] },
+  get_visible_user_post_content: { category: "visible-user", triggers: ["看看好友那篇博客全文", "读好友的文章"] },
+  list_visible_user_jobs: { category: "visible-user", triggers: ["好友在找什么工作", "好友的求职情况"] },
+  get_visible_user_job_detail: { category: "visible-user", triggers: ["好友那条投递的详情"] },
+  list_visible_user_interviews: { category: "visible-user", triggers: ["好友参加了哪些面试"] },
+  get_visible_user_interview_detail: { category: "visible-user", triggers: ["好友那次面试的详情"] },
+  get_visible_user_page_overview: { category: "visible-user", triggers: [] },
+  // admin
+  get_admin_self_permissions: { category: "admin", triggers: ["我有哪些管理员权限", "我是超级管理员吗"] },
+  list_admin_users: { category: "admin", triggers: ["后台用户有哪些", "查找用户"] },
+  get_admin_user_detail: { category: "admin", triggers: ["某人的用户详情", "查看用户的状态"] },
+  list_admin_user_sessions: { category: "admin", triggers: ["某用户最近从哪里登录", "用户的会话记录"] },
+  list_admin_user_activity_logs: { category: "admin", triggers: ["某人的操作日志", "用户的活动记录"] },
+  list_admin_ai_access_requests: { category: "admin", triggers: ["谁申请了AI访问", "AI访问申请"] },
+  list_admin_ai_grants: { category: "admin", triggers: ["AI授权记录", "谁有AI权限"] },
+  list_admin_ai_audit_logs: { category: "admin", triggers: ["AI 审计日志", "谁用了 AI", "AI 使用记录"] },
+  get_admin_overview: { category: "admin", triggers: ["后台总览", "系统统计"] },
+  get_admin_user_profile_overview: { category: "admin", triggers: [] },
+  get_admin_user_sessions: { category: "admin", triggers: [] },
+  get_admin_user_activity_log: { category: "admin", triggers: [] },
+  // capabilities
+  list_my_capabilities: { category: "capabilities", triggers: ["你能做什么", "你有哪些功能", "你会什么", "你有什么工具"] },
+  search_my_capabilities: { category: "capabilities", triggers: ["你能不能", "有没有工具可以", "你支持吗"] },
+  // diagnostics
+  get_last_run_metadata: { category: "diagnostics", triggers: ["你刚才用了什么技能", "用了哪个PDF模板", "上次PDF用了什么主题", "有没有用PDF skill"] },
+}
+
+// Structured deprecations: tools kept resolvable (so historical calls don't
+// error) but hidden from the model and pointed at their replacements.
+const TOOL_DEPRECATIONS: Record<string, { since: string; replacement: string }> = {
+  get_visible_user_page_overview: { since: "2026-06-05", replacement: "get_visible_user_home_overview" },
+  get_admin_user_profile_overview: { since: "2026-06-05", replacement: "get_admin_user_detail" },
+  get_admin_user_sessions: { since: "2026-06-05", replacement: "list_admin_user_sessions" },
+  get_admin_user_activity_log: { since: "2026-06-05", replacement: "list_admin_user_activity_logs" },
+}
+
+// Enrich a legacy entry into the unified shape: attach category + triggers, and
+// choose the parameter schema source (zod for the formerly switch-driven tools,
+// the tool's own inline JSON for the rest). Provider output is unchanged.
+function toUnifiedTool(tool: (typeof RAW_TOOLS)[number]): UnifiedToolDefinition {
+  const classification = TOOL_CLASSIFICATION[tool.name]
+  if (!classification) throw new Error(`Tool ${tool.name} has no classification entry in TOOL_CLASSIFICATION`)
+  const hasInlineSchema = Boolean(tool.parameterSchema)
+  return {
+    name: tool.name,
+    title: tool.title,
+    description: tool.description,
+    category: classification.category,
+    scope: tool.scope,
+    sensitivity: tool.sensitivity,
+    auditLabel: tool.auditLabel,
+    whenToUse: tool.whenToUse ?? "",
+    whenNotToUse: tool.whenNotToUse ?? "",
+    triggers: classification.triggers,
+    returns: tool.returns ?? "",
+    argumentHints: tool.argumentHints ? [...tool.argumentHints] : undefined,
+    deprecated: TOOL_DEPRECATIONS[tool.name],
+    input: hasInlineSchema ? undefined : TOOL_INPUT_SCHEMAS[tool.name],
+    rawParameterSchema: hasInlineSchema ? (tool.parameterSchema as Record<string, unknown>) : undefined,
+    execute: tool.execute as UnifiedToolDefinition["execute"],
+  }
+}
+
+export const AI_TOOLS_REGISTRY: UnifiedToolDefinition[] = RAW_TOOLS.map(toUnifiedTool)
+
+export const AI_TOOL_DESCRIPTORS = deriveToolDescriptors(AI_TOOLS_REGISTRY)
 
 export const AI_TOOL_MAP = new Map(AI_TOOLS_REGISTRY.map((tool) => [tool.name, tool]))

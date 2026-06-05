@@ -1,6 +1,14 @@
 import "server-only"
-import { AI_CAPABILITY_CATEGORIES } from "@/lib/ai/capability-map"
 import type { AIToolDefinition } from "@/lib/ai/tools/context"
+
+// Loaded lazily to avoid a static import cycle: the capability map is derived
+// from the tool registry, and the registry imports this file (these tools are in
+// it). Resolving at call time — after all modules have initialized — breaks the
+// cycle without changing behavior.
+async function loadCapabilityCategories() {
+  const { AI_CAPABILITY_CATEGORIES } = await import("@/lib/ai/capability-map")
+  return AI_CAPABILITY_CATEGORIES
+}
 
 export const listMyCapabilitiesTool: AIToolDefinition<{ categoryId?: string }> = {
   name: "list_my_capabilities",
@@ -22,9 +30,10 @@ export const listMyCapabilitiesTool: AIToolDefinition<{ categoryId?: string }> =
     additionalProperties: false,
   },
   execute: async ({ categoryId }) => {
+    const categories = await loadCapabilityCategories()
     const cats = categoryId
-      ? AI_CAPABILITY_CATEGORIES.filter((c) => c.id === categoryId)
-      : AI_CAPABILITY_CATEGORIES
+      ? categories.filter((c) => c.id === categoryId)
+      : categories
 
     const totalTools = cats.reduce((sum, c) => sum + c.tools.length, 0)
     const summaryLines = cats.map(
@@ -81,7 +90,8 @@ export const searchMyCapabilitiesTool: AIToolDefinition<{ query: string }> = {
       triggers: string[]
     }> = []
 
-    for (const cat of AI_CAPABILITY_CATEGORIES) {
+    const categories = await loadCapabilityCategories()
+    for (const cat of categories) {
       for (const tool of cat.tools) {
         const haystack = [
           tool.name,

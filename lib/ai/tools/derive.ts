@@ -3,8 +3,8 @@ import type { ProviderToolSpec } from "@/lib/ai/provider"
 import type { AIToolDescriptor } from "@/lib/ai/types"
 import {
   TOOL_CATEGORIES,
+  resolveToolParameters,
   toToolDescriptor,
-  toToolJsonSchema,
   type ToolCategory,
   type UnifiedToolDefinition,
 } from "@/lib/ai/tools/define"
@@ -68,7 +68,7 @@ export function deriveProviderToolSpecs(tools: readonly UnifiedToolDefinition[])
       ]
         .filter(Boolean)
         .join(" "),
-      parameters: toToolJsonSchema(tool.input),
+      parameters: resolveToolParameters(tool),
     },
   }))
 }
@@ -77,7 +77,7 @@ export function deriveProviderToolSpecs(tools: readonly UnifiedToolDefinition[])
 // deprecated/alias tools too, matching today's behavior (the admin panel shows
 // the full registry; deprecated is flagged, not hidden).
 export function deriveToolDescriptors(tools: readonly UnifiedToolDefinition[]): AIToolDescriptor[] {
-  return tools.map((tool) => toToolDescriptor(tool, toToolJsonSchema(tool.input)))
+  return tools.map((tool) => toToolDescriptor(tool))
 }
 
 export type CapabilityTool = {

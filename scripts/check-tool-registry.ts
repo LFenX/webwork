@@ -14,6 +14,7 @@
 import "dotenv/config"
 import { AI_TOOLS_REGISTRY, AI_TOOL_MAP } from "@/lib/ai/tools/registry"
 import { AI_CAPABILITY_CATEGORIES } from "@/lib/ai/capability-map"
+import { TOOL_CATEGORIES, resolveToolParameters } from "@/lib/ai/tools/define"
 
 const errors: string[] = []
 const warnings: string[] = []
@@ -72,11 +73,36 @@ for (const tool of AI_TOOLS_REGISTRY) {
   }
 }
 
-// 7. Deprecated tools must be filtered from what the model sees — sanity check
-//    that a replacement is at least mentioned (current shape uses prose).
+// 7. Unified-shape invariants: valid category, triggers array, exactly one
+//    schema source (zod input XOR raw JSON), and a resolvable provider schema.
+const validCategories = new Set<string>(TOOL_CATEGORIES)
 for (const tool of AI_TOOLS_REGISTRY) {
-  if (tool.deprecated && !tool.whenNotToUse?.trim()) {
-    warnings.push(`Deprecated tool ${tool.name} has no whenNotToUse pointing at its replacement`)
+  if (!tool.category || !validCategories.has(tool.category)) {
+    errors.push(`Tool ${tool.name} has invalid/missing category: ${String(tool.category)}`)
+  }
+  if (!Array.isArray(tool.triggers)) errors.push(`Tool ${tool.name} missing triggers array`)
+  if (tool.input && tool.rawParameterSchema) {
+    errors.push(`Tool ${tool.name} declares BOTH zod input and rawParameterSchema (choose one)`)
+  }
+  if (!tool.deprecated && !tool.input && !tool.rawParameterSchema) {
+    errors.push(`Tool ${tool.name} has neither a zod input nor a rawParameterSchema`)
+  }
+  try {
+    const params = resolveToolParameters(tool)
+    if (!params || typeof params !== "object") errors.push(`Tool ${tool.name} parameter schema did not resolve to an object`)
+  } catch (e) {
+    errors.push(`Tool ${tool.name} parameter schema threw: ${(e as Error).message}`)
+  }
+}
+
+// 8. Deprecation replacements must point at a real, non-deprecated tool.
+for (const tool of AI_TOOLS_REGISTRY) {
+  if (!tool.deprecated) continue
+  const replacement = AI_TOOL_MAP.get(tool.deprecated.replacement)
+  if (!replacement) {
+    errors.push(`Deprecated ${tool.name}: replacement '${tool.deprecated.replacement}' not found`)
+  } else if (replacement.deprecated) {
+    errors.push(`Deprecated ${tool.name}: replacement '${tool.deprecated.replacement}' is itself deprecated`)
   }
 }
 
