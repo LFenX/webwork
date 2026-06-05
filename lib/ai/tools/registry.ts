@@ -1176,10 +1176,13 @@ const TOOL_CLASSIFICATION: Record<string, { category: ToolCategory; triggers: st
 }
 
 // Structured deprecations: tools kept resolvable (so historical calls don't
-// error) but hidden from the model and pointed at their replacements. Empty now
-// that the legacy overview tools have been removed; populate when deprecating a
-// tool ahead of its removal grace window.
-const TOOL_DEPRECATIONS: Record<string, { since: string; replacement: string }> = {}
+// error) but hidden from the model and pointed at their replacements. Populate
+// when deprecating a tool ahead of its removal grace window.
+const TOOL_DEPRECATIONS: Record<string, { since: string; replacement: string }> = {
+  // get_my_friends_detail is a superset (returns total + all friends + recent
+  // interaction); the cheap overview is redundant with it.
+  get_my_friends_overview: { since: "2026-06-05", replacement: "get_my_friends_detail" },
+}
 
 // Enrich a legacy entry into the unified shape: attach category + triggers, and
 // choose the parameter schema source (zod for the formerly switch-driven tools,
