@@ -646,7 +646,10 @@ function buildProviderTools(): ProviderToolSpec[] {
     }))
 }
 
-function toolParametersSchema(toolName: string) {
+// Exported for the Phase-0 schema-parity check (scripts/check-tool-schema-parity.ts),
+// which proves the zod catalog derives byte-equivalent JSON Schema before this
+// switch is deleted in Phase 2. Not used elsewhere outside this module.
+export function toolParametersSchema(toolName: string) {
   switch (toolName) {
     case "search_my_chat_messages":
       return {

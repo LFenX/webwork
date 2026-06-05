@@ -14,7 +14,9 @@
     "resume:verify-themes": "tsx scripts/verify-resume-themes.ts",
     "resume:seed-template-config": "tsx scripts/seed-resume-template-config.ts",
     "test:ai-runs": "tsx --tsconfig scripts/tsconfig.preview.json scripts/test-run-reliability.ts",
-    "test:latex-draft": "tsx --tsconfig scripts/tsconfig.preview.json scripts/test-latex-draft-revise.ts"
+    "test:latex-draft": "tsx --tsconfig scripts/tsconfig.preview.json scripts/test-latex-draft-revise.ts",
+    "check:tools": "tsx --tsconfig scripts/tsconfig.preview.json scripts/check-tool-registry.ts && tsx --tsconfig scripts/tsconfig.preview.json scripts/check-tool-schema-parity.ts",
+    "check:tools:pilot": "tsx --tsconfig scripts/tsconfig.preview.json scripts/check-pilot-tool.ts"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
