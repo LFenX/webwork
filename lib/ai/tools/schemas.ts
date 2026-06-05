@@ -13,13 +13,8 @@ import { z } from "zod"
 // each schema moves onto its tool's defineTool().
 //
 // Tools that already carry an inline parameterSchema (PDF, knowledge, LaTeX,
-// channels, memory-batch, capabilities, roundtable, etc.) are intentionally NOT
-// here — they don't use the switch and migrate later.
-//
-// NOTE (latent issue to fix on migration): list_my_friends accepts a `limit`
-// but has no switch case today, so it resolves to an empty schema — the model
-// is never told about `limit`. We mirror the empty schema here to keep Phase 0
-// behavior-identical; give it a real schema when it migrates.
+// channels, memory-batch, capabilities, roundtable, etc.) carry their own JSON
+// Schema (rawParameterSchema) and are not listed here.
 // ───────────────────────────────────────────────────────────────────────────
 
 const postType = z.enum(["blog", "daily", "reflections", "notes"])
@@ -54,7 +49,11 @@ export const TOOL_INPUT_SCHEMAS: Record<string, z.ZodType> = {
   get_my_activity_log: EMPTY_INPUT,
   get_admin_self_permissions: EMPTY_INPUT,
   get_admin_overview: EMPTY_INPUT,
-  list_my_friends: EMPTY_INPUT, // latent: see header note
+  // Fixed: list_my_friends accepts a limit (default 30, max 100) that the legacy
+  // switch never advertised to the model. Now exposed + validated.
+  list_my_friends: z.object({
+    limit: z.number().int().min(1).max(100).optional(),
+  }),
 
   // ── Chat ────────────────────────────────────────────────────────────────────
   search_my_chat_messages: z.object({

@@ -40,10 +40,14 @@ Key files:
 
 Every tool has exactly **one** parameter-schema source:
 
-- **`input`** — a zod schema (preferred). It both validates the model's
-  arguments before `execute()` and produces the provider JSON Schema.
-- **`rawParameterSchema`** — a legacy hand-written JSON Schema, for tools not yet
-  on zod. These skip pre-execution validation. Migrate them to zod when touched.
+- **`input`** — a zod schema (preferred for new tools). It both validates the
+  model's arguments before `execute()` and produces the provider JSON Schema.
+- **`rawParameterSchema`** — a hand-written JSON Schema. A supported choice (not a
+  TODO) for schemas that read more clearly as JSON or don't round-trip cleanly
+  through zod — e.g. integer enums (`{type:"integer",enum:[10,11,12]}`, which zod
+  emits as `anyOf`/`const`) or plain `additionalProperties` records. These tools
+  skip pre-execution validation and rely on their own `execute` guards; that is
+  intentional. Currently the LaTeX/PDF tools use this.
 
 Validation is a **gate, not a rewrite**: invalid arguments (missing/typed-wrong
 required fields) return a structured `invalid_args` result the model can recover
